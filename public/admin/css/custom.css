@@ -1,0 +1,661 @@
+/* General Reset and Typography */
+:root {
+    --primary-color: #3f51b5; /* Deeper Blue */
+    --accent-color: #ff7640; /* Vibrant Pink/Magenta */
+    --background-light: #eceff1; /* Very light grey */
+    --background-dark: #263238; /* Dark grey for contrast */
+    --card-background: #ffffff;
+    --text-dark: #37474f; /* Darker text for readability */
+    --text-light: #ffffff;
+    --shadow-subtle: 0 5px 15px rgba(0, 0, 0, 0.08);
+    --shadow-hover: 0 10px 30px rgba(0, 0, 0, 0.15);
+}
+
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+body {
+    font-family: "Open Sans", sans-serif; /* Body text */
+    line-height: 1.7;
+    color: var(--text-dark);
+    background-color: var(--background-light);
+    display: flex;
+    flex-direction: column;
+    min-height: 100vh;
+}
+
+h1,
+h2,
+h3,
+h4 {
+    font-family: "Montserrat", sans-serif; /* Headings */
+    margin-bottom: 12px;
+    font-weight: 600;
+    color: var(--text-dark);
+}
+
+.container {
+    max-width: 1100px;
+    margin: 0 auto;
+    padding: 0 25px;
+}
+
+/* --- Header Styling --- */
+.profile-header-sub {
+    /* Blue to Deep Purple Gradient */
+    background: linear-gradient(135deg, var(--primary-color) 30%, #fe951e 100%);
+    color: var(--text-light);
+    padding: 60px 0;
+    margin-bottom: 40px;
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.2);
+    position: relative;
+    overflow: hidden;
+}
+.profile-header {
+    /* Blue to Deep Purple Gradient */
+    background: linear-gradient(135deg, var(--primary-color) 0%, #7c1efe 100%);
+    color: var(--text-light);
+    padding: 60px 0;
+    margin-bottom: 40px;
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.2);
+    position: relative;
+    overflow: hidden;
+}
+
+.header-content {
+    position: relative;
+    z-index: 2;
+    display: flex;
+    align-items: center;
+    gap: 40px;
+    max-width: 1100px;
+    margin: 0 auto;
+    padding: 0 25px;
+}
+
+.profile-img-container {
+    border: 6px solid var(--accent-color); /* Vibrant accent border */
+    border-radius: 50%;
+    overflow: hidden;
+    flex-shrink: 0;
+    width: 180px;
+    height: 180px;
+    box-shadow: 0 0 0 8px rgba(255, 64, 129, 0.2); /* Soft glow around image */
+}
+
+.profile-img {
+    display: block;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+
+.profile-info h1 {
+    font-weight: 700;
+    font-size: 3em;
+    margin-bottom: 5px;
+    color: var(--text-light);
+}
+
+.profile-info h2 {
+    font-weight: 300;
+    font-size: 1.3em;
+    opacity: 0.95;
+    margin-bottom: 20px;
+    color: var(--text-light);
+}
+
+.contact-links a {
+    color: var(--text-light);
+    text-decoration: none;
+    margin-right: 25px;
+    font-weight: 400;
+    font-size: 1.1em;
+    transition: color 0.3s ease, transform 0.2s ease;
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.contact-links a:hover {
+    color: var(--accent-color); /* Hover to accent color */
+    transform: translateY(-2px);
+}
+
+/* --- Main Wrapper and Layout --- */
+.main-wrapper {
+    display: grid;
+    /* About Me (2 parts) and Skills (1 part) layout */
+    grid-template-columns: 2fr 1fr;
+    gap: 30px;
+    /* Pulls content slightly into the header area for a modern look */
+    margin-top: -80px;
+    position: relative;
+    z-index: 3;
+    padding-bottom: 50px;
+}
+
+/* Card General Styling */
+.card {
+    background-color: var(--card-background);
+    padding: 30px;
+    border-radius: 12px;
+    box-shadow: var(--shadow-subtle);
+    transition: all 0.3s ease;
+    /* Margin for mobile layout only */
+    margin-bottom: 25px;
+}
+
+.card:hover {
+    box-shadow: var(--shadow-hover);
+}
+
+/* About and Skills Layout (Desktop Grid) */
+.about-me {
+    grid-column: 1 / 2;
+    margin-bottom: 0;
+}
+.about-me h3 {
+    color: var(--primary-color);
+}
+
+.skills-section {
+    grid-column: 2 / 3;
+    margin-bottom: 0;
+}
+
+.skills-section h3 {
+    color: var(--primary-color);
+}
+
+/* --- Skills Tags --- */
+.skills-grid {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 12px;
+}
+
+.skill-tag {
+    background-color: var(--background-dark); /* Darker background for tags */
+    color: var(--text-light);
+    padding: 10px 18px;
+    border-radius: 25px;
+    font-size: 0.95em;
+    font-weight: 400;
+    transition: background-color 0.3s ease, transform 0.2s ease,
+        box-shadow 0.3s ease;
+}
+
+.skill-tag:hover {
+    background-color: var(--accent-color); /* Hover to accent color */
+    transform: translateY(-3px) scale(1.02);
+    box-shadow: 0 4px 10px rgba(0, 0, 0, 0.15);
+}
+
+/* --- Projects Section --- */
+.projects-section {
+    /* Spans across both columns below about/skills */
+    grid-column: 1 / 3;
+    margin-top: -5px;
+}
+
+.projects-section h3 {
+    color: var(--primary-color);
+    margin-left: 15px;
+    margin-bottom: 20px;
+}
+
+.projects-grid {
+    display: grid;
+    /* Ensures at least 320px width per card, adjusting number of columns */
+    grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+    gap: 25px;
+}
+
+.project-card {
+    border-left: 6px solid var(--accent-color); /* Stronger accent line */
+    padding: 25px;
+    transition: transform 0.3s ease, box-shadow 0.3s ease,
+        border-color 0.3s ease;
+}
+
+.project-card:hover {
+    transform: translateY(-5px);
+    box-shadow: var(--shadow-hover);
+    border-left-color: var(--primary-color); /* Accent change on hover */
+}
+
+.project-card h4 {
+    color: var(--primary-color);
+    font-size: 1.2em;
+    margin-bottom: 5px;
+}
+
+/* --- Footer --- */
+footer {
+    text-align: center;
+    padding: 25px 0;
+    background-color: var(--background-dark);
+    color: #b0bec5;
+    font-size: 0.9em;
+    margin-top: auto; /* Pushes footer to the bottom */
+}
+
+/* --- Responsive Adjustments --- */
+@media (max-width: 900px) {
+    .main-wrapper {
+        /* Stack the About Me and Skills sections vertically */
+        grid-template-columns: 1fr;
+        margin-top: -50px;
+    }
+    /* Ensure the About and Skills sections take full width when stacked */
+    .about-me,
+    .skills-section {
+        grid-column: 1 / 2;
+    }
+    .projects-section {
+        grid-column: 1 / 2;
+    }
+}
+
+@media (max-width: 650px) {
+    .header-content {
+        flex-direction: column;
+        text-align: center;
+        gap: 20px;
+    }
+    .profile-img-container {
+        width: 150px;
+        height: 150px;
+    }
+    .profile-info h1 {
+        font-size: 2.2em;
+    }
+    .contact-links {
+        display: flex;
+        flex-direction: column;
+        gap: 10px;
+    }
+    .contact-links a {
+        margin-right: 0;
+        justify-content: center;
+    }
+    .card {
+        padding: 20px;
+    }
+}
+
+/* From Uiverse.io by Creatlydev */
+.cst-button {
+    text-decoration: none;
+    line-height: 1;
+    border-radius: 1.5rem;
+    overflow: hidden;
+    position: relative;
+    box-shadow: 10px 10px 20px rgba(0, 0, 0, 0.05);
+    background-color: #fff;
+    color: #121212;
+    border: none;
+    cursor: pointer;
+}
+
+.button-decor {
+    position: absolute;
+    inset: 0;
+    background-color: var(--clr);
+    transform: translateX(-100%);
+    transition: transform 0.3s;
+    z-index: 0;
+}
+
+.button-content {
+    display: flex;
+    align-items: center;
+    font-weight: 600;
+    position: relative;
+    overflow: hidden;
+}
+
+.button__icon {
+    width: 48px;
+    height: 40px;
+    background-color: var(--clr);
+    display: grid;
+    place-items: center;
+}
+
+.button__text {
+    display: inline-block;
+    transition: color 0.2s;
+    padding: 2px 1.5rem 2px;
+    padding-left: 0.75rem;
+    overflow: hidden;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+    max-width: 150px;
+}
+
+.button:hover .button__text {
+    color: #fff;
+}
+
+.cst-button:hover .button-decor {
+    transform: translate(0);
+}
+
+/* From Uiverse.io by mobinkakei */
+.label {
+    display: inline-flex;
+    align-items: center;
+    cursor: pointer;
+    color: #394a56;
+}
+
+.label-text {
+    margin-left: 16px;
+}
+
+.toggle {
+    isolation: isolate;
+    position: relative;
+    height: 30px;
+    width: 60px;
+    border-radius: 15px;
+    overflow: hidden;
+    box-shadow: -8px -4px 8px 0px #ffffff, 8px 4px 12px 0px #d1d9e6,
+        4px 4px 4px 0px #d1d9e6 inset, -4px -4px 4px 0px #ffffff inset;
+}
+
+.toggle-state {
+    display: none;
+}
+
+.indicator {
+    height: 100%;
+    width: 200%;
+    background: #ecf0f3;
+    border-radius: 15px;
+    transform: translate3d(-75%, 0, 0);
+    transition: transform 0.4s cubic-bezier(0.85, 0.05, 0.18, 1.35);
+    box-shadow: -8px -4px 8px 0px #ffffff, 8px 4px 12px 0px #d1d9e6;
+}
+
+.toggle-state:checked ~ .indicator {
+    transform: translate3d(25%, 0, 0);
+    background: #4ad28e;
+}
+
+.bg-indigo {
+    background-color: #4f46e5 !important;
+}
+.accordion-button:not(.collapsed) {
+    color: #4f46e5; /* Match heading text to the indigo color when open */
+    background-color: #eef2ff; /* Light indigo background */
+    box-shadow: none;
+}
+
+.fee-card {
+    position: relative;
+    max-width: 100%;
+    height: auto;
+    background: linear-gradient(-45deg, #82cbf9, #5f6498);
+    border-radius: 15px;
+    margin: 0 auto;
+    padding: 10px 10px;
+    -webkit-box-shadow: 0 10px 15px rgba(0, 0, 0, 0.1);
+    box-shadow: 0 10px 15px rgba(0, 0, 0, 0.1);
+    -webkit-transition: 0.5s;
+    transition: 0.5s;
+
+    /* &:hover {
+        -webkit-transform: scale(1.1);
+        transform: scale(1.1);
+    } */
+}
+
+/* .col-lg-4:nth-child(1) .fee-card,
+.col-lg-4:nth-child(1).fee-card {
+    background: linear-gradient(-45deg, #f403d1, #64b5f6);
+}
+.col-lg-4:nth-child(2) .fee-card,
+.col-lg-4:nth-child(2) .fee-card .title .fa {
+    background: linear-gradient(-45deg, #ffec61, #f321d7);
+}
+.col-lg-4:nth-child(3) .fee-card,
+.col-lg-4:nth-child(3) .fee-card .title .fa {
+    background: linear-gradient(-45deg, #24ff72, #9a4eff);
+} */
+
+.title .fa {
+    color: #fff;
+    font-size: 24px;
+    width: 100px;
+    height: 100px;
+    border-radius: 50%;
+    text-align: center;
+    line-height: 100px;
+    -webkit-box-shadow: 0 10px 10px rgba(0, 0, 0, 0.1);
+    box-shadow: 0 10px 10px rgba(0, 0, 0, 0.1);
+}
+
+.title p {
+    position: relative;
+    margin: 10px 0 0;
+    padding: 0;
+    color: #fff;
+}
+.price,
+.title h4 {
+    color: #fff;
+    font-size: 20px;
+}
+.option ul {
+    margin: 0;
+    padding: 0;
+}
+.price ul li {
+    margin: 0 0 10px;
+    padding: 0;
+    list-style: none;
+    color: #fff;
+    font-size: 12px;
+}
+
+.price a i {
+    font-size: 12px;
+}
+
+.fee-card .btn-total {
+    background-color: #ffdb8d;
+    color: #2b2b2b;
+    width: 100%;
+    height: 40px;
+    font-size: 18px;
+    border-radius: 5px;
+    border: none;
+    font-weight: 800;
+}
+
+/* Fee Card */
+
+.bg-modal-head {
+    background-color: #463666;
+}
+
+.center-card {
+    width: 500px;
+}
+
+.student-card {
+    border-radius: 12px;
+    background: #ffffff;
+    border: 1px solid #e5e7eb;
+    padding: 20px;
+    margin-bottom: 20px;
+    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.06);
+    transition: 0.2s;
+}
+
+.student-card:hover {
+    box-shadow: 0 4px 14px rgba(0, 0, 0, 0.12);
+}
+
+.fee-row {
+    padding: 10px 15px;
+    background: #f9fafb;
+    border-radius: 8px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 8px;
+    border: 1px solid #eee;
+}
+
+.fee-title {
+    font-weight: 600;
+}
+
+.badge-paid {
+    background: #16a34a;
+    padding: 5px 12px;
+    border-radius: 20px;
+    color: white;
+    font-size: 12px;
+}
+
+.badge-unpaid {
+    background: #dc2626;
+    padding: 5px 12px;
+    border-radius: 20px;
+    color: white;
+    font-size: 12px;
+}
+
+.card-heading {
+    font-size: 18px;
+    font-weight: 700;
+    margin-bottom: 5px;
+}
+
+.meta-line {
+    font-size: 14px;
+    color: #6b7280;
+    margin-bottom: 3px;
+}
+.text-rollno {
+    color: #3f51b5;
+    font-weight: 700;
+}
+
+.gateway-option {
+    cursor: pointer;
+    border: 2px solid #ddd;
+    padding: 15px;
+    border-radius: 12px;
+    text-align: center;
+    width: 160px;
+    transition: 0.25s ease;
+    background: #fff;
+    position: relative;
+}
+
+/* Hover Effect */
+.gateway-option:hover {
+    border-color: #0d6efd;
+    background: #f3faff;
+}
+
+/* Hide actual radio input */
+.gateway-option input {
+    display: none;
+}
+
+/* Logo Image */
+.gateway-option img {
+    width: 100px;
+    object-fit: contain;
+}
+
+/* Selected Card: Blue Border + Shadow */
+.gateway-option input:checked ~ img,
+.gateway-option input:checked ~ span,
+.gateway-option input:checked ~ * {
+    border-color: #0d6efd !important;
+}
+
+.gateway-option input:checked + img,
+.gateway-option input:checked + img + span {
+    transform: scale(1.05);
+}
+
+/* Highlight container when selected */
+/* .gateway-option input:checked + img {
+    outline: 2px solid #0d6efd;
+    border-radius: 10px;
+} */
+
+.gateway-option input:checked {
+    /* Nothing here, needed for CSS sibling selectors */
+}
+
+/* REAL border change for selected card */
+.gateway-option input:checked {
+    /* no visible effect, but allows CSS below */
+}
+
+.gateway-option input:checked ~ * {
+    /* no effect */
+}
+
+/* Correct styling for the selected whole card */
+.gateway-option input:checked {
+    /* no effect: this is trigger */
+}
+
+.gateway-option input:checked::before {
+    /* unused */
+}
+
+/* BEST: Add blue border to entire card when selected */
+.gateway-option input:checked {
+    /* triggers selected mode */
+}
+
+.gateway-option input:checked + img,
+.gateway-option input:checked + span {
+    /* extra highlight */
+}
+
+.gateway-option input:checked {
+    /* fallback */
+}
+
+.gateway-option input:checked + img {
+    border-color: #0d6efd;
+}
+
+.gateway-option input:checked {
+    /* main trigger */
+}
+
+.gateway-option input:checked + img {
+    /* placeholder */
+}
+
+/* REAL selected card effect */
+.gateway-option input:checked {
+    /* target card */
+}
+
+.gateway-option input:checked {
+    /* nothing */
+}
+
+/* Using parent selector trick */
+.gateway-option:has(input:checked) {
+    border-color: #0d6efd !important;
+    box-shadow: 0 0 10px rgba(13, 110, 253, 0.4);
+}
