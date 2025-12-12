@@ -186,14 +186,6 @@
       </ul>
     </li>
 
-    <li>
-      <a href="{{url('erp/admin/program-groups')}}">
-        <div class="parent-icon">
-          <i class="far fa-object-group"></i>
-        </div>
-        <div class="menu-title">Program Groups</div>
-      </a>
-    </li>
 
     <!--Std Master -->
     <li>
@@ -315,25 +307,6 @@
               <i class="fas fa-arrow-alt-circle-right"></i>
             </div>
             <div class="menu-title">Fee Payments</div>
-          </a>
-        </li>
-
-        <li>
-          <a href="#">
-            <div class="parent-icon">
-              <i class="fas fa-arrow-alt-circle-right"></i>
-            </div>
-            <div class="menu-title">Staff Salary</div>
-          </a>
-        </li>
-
-
-        <li>
-          <a href="#">
-            <div class="parent-icon">
-              <i class="fas fa-arrow-alt-circle-right"></i>
-            </div>
-            <div class="menu-title">Ledger</div>
           </a>
         </li>
 

@@ -80,7 +80,10 @@ class AdminController extends Controller
             'nationalitymaster:id,name',
             'usertype:id,name',
             'bloodgroup',
-            'batchmaster:id,batch_name'
+            'batchmaster:id,batch_name',
+            'programgroup.programInfo',
+            'feepayment.feepaymentinfo:id,quarter_title',
+            'feepayment.gatewaytype'
 
         ])->firstOrFail();
 

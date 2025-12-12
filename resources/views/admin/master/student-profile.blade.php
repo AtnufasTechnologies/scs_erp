@@ -19,11 +19,8 @@
         <a href="tel:{{$data->mobile_no}}" target="_blank">
           <i class="fas fa-phone"></i> {{$data->mobile_no}}
         </a>
-        <a>
-          {{$data->dob}} | {{$data->gender == '1' ? 'Male' :'Female'}}
-        </a>
-        <a>
-          Religion - <span class="text-capitalize">{{$data->religionmaster != null ? $data->religionmaster->name : ''}}</span>
+
+
       </div>
     </div>
   </div>
@@ -33,38 +30,54 @@
 
   <section class="about-me card">
     <h3>👋 About Me</h3>
-    <p>I'm a third-year Computer Science student passionate about **front-end development** and **data visualization**. I thrive in collaborative environments and am always looking to learn new technologies. Currently focusing on mastering React and exploring cloud computing.</p>
+    <p><i>Wish me on</i> <b>{{date('d M Y',strtotime($data->dob))}} </b></p>
+    <p>Gender <strong>{{$data->gender == '1' ? 'Male' :'Female'}}</strong> </p>
+    <p><strong class="text-capitalize">{{$data->religionmaster != null ? $data->religionmaster->name : ''}}</strong> by Faith </p>
+    <p>I'm a {{$data->current_year}}year {{$data->programgroup->programInfo->name}} student from the department of {{$data->deptmaster->name}}.
+    </p>
+    <label for=""><strong>Address</strong></label>
+    <p class="text-capitalize">{{$data->address}}</p>
+
   </section>
 
   <section class="skills-section card">
-    <h3>🛠️ Technical Skills</h3>
+    <h3>🛠️ Associations</h3>
     <div class="skills-grid">
-      <span class="skill-tag">HTML5 & CSS3</span>
-      <span class="skill-tag">JavaScript (ES6+)</span>
-      <span class="skill-tag">React & Vue.js</span>
-      <span class="skill-tag">Python & Pandas</span>
-      <span class="skill-tag">Node.js</span>
-      <span class="skill-tag">SQL & MongoDB</span>
-      <span class="skill-tag">Git/GitHub</span>
-      <span class="skill-tag">UI/UX Design</span>
+      <span class="skill-tag">TimeTable</span>
+      <span class="skill-tag">Attendance</span>
+      <span class="skill-tag">Library</span>
+      <span class="skill-tag">Examination</span>
+      <span class="skill-tag">Activities</span>
+      <span class="skill-tag">Internship</span>
     </div>
   </section>
 
   <section class="projects-section">
-    <h3>✨ Key Projects</h3>
+    <h3>✨ Fee Payments</h3>
     <div class="projects-grid">
+
+      @if (count($data->feepayment))
+      @foreach ($data->feepayment as $pay)
       <div class="project-card card">
-        <h4>E-Commerce Dashboard</h4>
-        <p>Built a responsive dashboard using **React** and **D3.js** for real-time sales analytics. (View on GitHub)</p>
+
+        <span class="float-right">{{date('d-m-Y',strtotime($pay->transaction_date))}}</span>
+
+        <h4>#{{$pay->invoice_id}}
+          <span class="badge rounded-pill bg-success">{{$pay->gateway_type_id != 3 ? $pay->gatewaytype->title : 'Cash'}}</span>
+        </h4>
+
+        <p>{{$pay->feepaymentinfo->quarter_title }}</p>
+        <h5><i class="fa fa-rupee-sign"></i> {{$pay->amount}}</h5>
       </div>
-      <div class="project-card card">
-        <h4>University Capstone Portal</h4>
-        <p>Designed and developed a **full-stack** application using Node.js and MongoDB to manage student projects.</p>
-      </div>
-      <div class="project-card card">
-        <h4>AI Chatbot Interface</h4>
-        <p>Developed an intuitive front-end for a machine learning powered chatbot using Vue.js and WebSockets.</p>
-      </div>
+      @endforeach
+
+      @else
+      <p class="mx-5">
+        <strong class="text-danger">No Records</strong>
+        <span>Found on Fee Payment</span>
+      </p>
+      @endif
+
     </div>
   </section>
 </div>

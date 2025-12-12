@@ -18,4 +18,9 @@ class StudentPayment extends Model
     {
         return $this->hasOne(PaymentGatewayType::class, 'id', 'gateway_type_id');
     }
+
+    function feepaymentinfo()
+    {
+        return $this->hasOne(FeesStructure::class, 'id', 'fee_structure_id');
+    }
 }

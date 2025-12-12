@@ -120,7 +120,7 @@ $programgroups = ProgramGroup::with(['programInfo', 'campus'])->where('campus_id
             data-amount="{{ $fee['total_amount'] }}"
             data-bs-toggle="modal"
             data-bs-target="#manualPayModal">
-            PAY NOW
+            PAY
           </button>
           @endif
         </div>
