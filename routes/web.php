@@ -32,7 +32,7 @@ Route::group(['prefix' => '/erp'], function () {
         Route::get('dashboard', [AdminController::class, 'index']);
         Route::get('std-master-sonada', [AdminController::class, 'stdMasterSonada']);
         Route::get('std-master-siliguri', [AdminController::class, 'stdMasterSiliguri']);
-
+        Route::get('faculty-master', [AdminController::class, 'facultyMaster']);
         Route::get('{id}/std-profile/{rollno}', [AdminController::class, 'stdprofile']);
 
         //master

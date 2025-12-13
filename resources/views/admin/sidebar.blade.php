@@ -186,7 +186,14 @@
       </ul>
     </li>
 
-
+    <li>
+      <a href="{{url('erp/admin/faculty-master')}}">
+        <div class="parent-icon">
+          <i class="fas fa-users"></i>
+        </div>
+        <div class="menu-title">Faculty Master</div>
+      </a>
+    </li>
     <!--Std Master -->
     <li>
       <a class="has-arrow" href="javascript:;">
@@ -226,14 +233,7 @@
         <div class="menu-title">Academics </div>
       </a>
       <ul>
-        <li>
-          <a href="#">
-            <div class="parent-icon">
-              <i class="fas fa-arrow-alt-circle-right"></i>
-            </div>
-            <div class="menu-title">Faculty</div>
-          </a>
-        </li>
+
 
         <li>
           <a href="{{url('erp/admin/academics/program-objectives')}}">

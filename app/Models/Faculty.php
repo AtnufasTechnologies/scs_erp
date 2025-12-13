@@ -16,4 +16,9 @@ class Faculty extends Model
     //    function deptmaster(){
     //     return $this->hasOne(Department::class,'id','department_id');
     // }
+
+    function nationality()
+    {
+        return $this->hasOne(NationalityMaster::class, 'id', 'NATIONALITY');
+    }
 }

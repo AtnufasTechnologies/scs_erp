@@ -12,6 +12,7 @@ use App\Models\CollegeBankAccount;
 use App\Models\Deanery;
 use App\Models\Department;
 use App\Models\DepartmentMaster;
+use App\Models\Faculty;
 use App\Models\FeeCourseMaster;
 use App\Models\FeeHead;
 use App\Models\FeeQuarterMaster;
@@ -785,5 +786,13 @@ class AdminController extends Controller
         return redirect()
             ->back()
             ->with('success', 'Fee Structure deleted successfully.');
+    }
+
+    function facultyMaster()
+    {
+        $data = Faculty::with([
+            'nationality'
+        ])->get();
+        return view('admin.academics.faculty', ['data' => $data]);
     }
 }
