@@ -16,6 +16,7 @@ use App\Models\FeeCourseMaster;
 use App\Models\FeeHead;
 use App\Models\FeeQuarterMaster;
 use App\Models\FeesStructure;
+use App\Models\FeeStructureGroup;
 use App\Models\FeeStructureHasHead;
 use App\Models\FeeStructureHasManyProgram;
 use App\Models\HourMaster;
@@ -562,6 +563,16 @@ class AdminController extends Controller
             $pvt->save();
         }
 
+        $course = $request->course;
+        $progs = FeeStructureGroup::where('fee_course_master_id', $course)->get();
+        //connect course group
+        for ($i = 0; $i < count($progs); $i++) {
+            $pg = new FeeStructureHasManyProgram();
+            $pg->fee_structure_id = $rec->id;
+            $pg->std_program_id = $progs[$i]->program_group_id;
+            $pg->save();
+        }
+
         return redirect()->back()->with('success', 'Done');
     }
 
@@ -569,6 +580,30 @@ class AdminController extends Controller
     {
         FeeStructureHasManyProgram::find($id)->delete();
         return redirect()->back()->with('success', 'Done');
+    }
+
+
+    function addCourseMasterGroup(Request $request)
+    {
+
+        $request->validate([
+            'progs' => 'required|array|min:1',
+        ]);
+
+        $progs = $request->progs;
+        for ($i = 0; $i < count($progs); $i++) {
+            $rec = new FeeStructureGroup();
+            $rec->fee_course_master_id = $request->coursemasterId;
+            $rec->program_group_id = $progs[$i];
+            $rec->save();
+        }
+        return redirect()->back()->with('success', 'Group Created');
+    }
+
+    function feeStructureGroupUnlink($id)
+    {
+        FeeStructureGroup::findOrFail($id)->delete();
+        return redirect()->back()->with('success', 'Deleted');
     }
 
     function linkProgramtoFeeStructure(Request $request)
@@ -678,10 +713,16 @@ class AdminController extends Controller
         return redirect()->back()->with('success', 'Fee Structure Updated');
     }
 
-    function feeCourseMaster()
+    function feeCourseMaster(Request $request)
     {
-        $data = FeeCourseMaster::latest()->get();
-        return view('admin.accounts.fee-course-master', ['data' => $data]);
+        if (!empty($request->coursemaster)) {
+            $data = FeeCourseMaster::where('id', $request->coursemaster)->latest()->get();
+        } else {
+            $data = FeeCourseMaster::latest()->get();
+        }
+
+        $allcourses = FeeCourseMaster::latest()->get();
+        return view('admin.accounts.fee-course-master', ['data' => $data, 'allcourses' => $allcourses]);
     }
 
     function addCourseFeeMaster(Request $request)
@@ -725,5 +766,24 @@ class AdminController extends Controller
         }
 
         return redirect()->back()->with('success', 'Status Updated');
+    }
+
+    function delFeeCourseMaster($id)
+    {
+        FeeCourseMaster::findOrFail($id)->delete();
+        return redirect()->back()->with('success', 'Deleted');
+    }
+
+    function deleteFeeStructure($id)
+    {
+        FeeStructureHasHead::where('fee_Structure_id', $id)->delete();
+        FeeStructureHasManyProgram::where('fee_Structure_id', $id)->delete();
+        FeesStructure::findOrFail($id)->delete();
+        // OR permanent delete
+        // $fS->forceDelete();
+
+        return redirect()
+            ->back()
+            ->with('success', 'Fee Structure deleted successfully.');
     }
 }

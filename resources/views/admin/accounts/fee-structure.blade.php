@@ -228,6 +228,9 @@ $programgroups = ProgramGroup::with(['programInfo'])->get();
 
       </div>
       <div class="card-footer" style="cursor:pointer">
+
+
+
         <a data-bs-toggle="modal" data-bs-target="#editCard{{$item->id}}" class="btn-sm btn-dark">
           Edit Fee Structure
         </a>
@@ -308,45 +311,14 @@ $programgroups = ProgramGroup::with(['programInfo'])->get();
           </div>
         </div>
 
-
-        <div class="modal fade" id="linkAddModal{{$item->id}}" aria-hidden="true" aria-labelledby="exampleModalToggleLabel2" tabindex="-1">
-          <div class="modal-dialog modal-lg">
-            <div class="modal-content">
-              <div class="modal-header">
-                <h5 class="modal-title" id="exampleModalToggleLabel2">Link Programs to Fee Structure</h5>
-                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-              </div>
-              <form action="{{route('link.feestructure.stdprogram')}}" method="post">
-                @csrf
-                <div class="modal-body">
-                  <?php
-                  $fetchPrograms = StaticController::fetchProgramGroup($item->program->campus->id);
-                  ?>
-                  <label for="">Select Program Groups (atleast 1 required)</label>
-                  <select name="progs[]" class="select-multiple" multiple>
-                    @foreach ($fetchPrograms as $p)
-                    <option value="{{$p->id}}">{{$p->programInfo->code}} - {{$p->programInfo->name}}</option>
-                    @endforeach
-                  </select>
-                  <input type="hidden" name="feeStructureId" value="{{$item->id}}">
-                </div>
-                <div class="modal-footer">
-                  <button type="submit" class="btn btn-outline-primary">Submit</button>
-                </div>
-              </form>
-            </div>
-          </div>
-        </div>
-
-
-        <a data-bs-toggle="modal" data-bs-target="#viewProgs{{$item->id}}" class="btn-sm btn-danger mx-1">
+        <a data-bs-toggle="modal" data-bs-target="#viewProgs{{$item->id}}" class="btn-sm btn-dark mx-1">
           Link Programs *
         </a>
         <div class="modal fade " id="viewProgs{{$item->id}}" tabindex="-1" aria-labelledby="exampleModalLabel" aria-hidden="true">
           <div class="modal-dialog modal-lg">
             <div class="modal-content">
               <div class="modal-header">
-                <h5 class="modal-title" id="exampleModalLabel">Linked Programs </h5>
+                <h5 class="modal-title" id="exampleModalLabel">Linked Programs</h5>
                 <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
               </div>
 
@@ -354,16 +326,12 @@ $programgroups = ProgramGroup::with(['programInfo'])->get();
                 <div class="row">
                   @if (count($item->programspivot))
                   @foreach ($item->programspivot as $s)
-                  <div class="col-lg-4">
+                  <div class="col-lg-12 mb-3">
                     <button type="button" class="btn-sm btn-primary position-relative">
                       {{$s->programgroupinfo->program_code}} - {{$s->programgroupinfo->programInfo->name}}
-                      <a href="{{url('erp/admin/accounts/unlink-prog-from-feestructure/'.$s->id)}}" id="citadel">
-                        <span class="position-absolute top-0 start-100 translate-middle badge rounded-pill bg-danger">
-                          <i class="fa fa-times"></i>
-                        </span>
-                      </a>
                     </button>
                   </div>
+
                   @endforeach
                   @else
                   <p class="display-4 text-center"> No Associations </p>
@@ -371,15 +339,13 @@ $programgroups = ProgramGroup::with(['programInfo'])->get();
                 </div>
 
               </div>
-              <div class="modal-footer">
-                <button class="btn-sm btn-success" data-bs-target="#linkAddModal{{$item->id}}" data-bs-toggle="modal" data-bs-dismiss="modal"><i class="fa fa-plus-circle"></i> Add Programs</button>
-              </div>
+
 
             </div>
           </div>
         </div>
 
-
+        <a href="{{url('erp/admin/accounts/delete-feestructure/'.$item->id)}}" id="citadel" class="btn-sm btn-danger ">Delete</a>
 
       </div>
     </div>
@@ -387,9 +353,8 @@ $programgroups = ProgramGroup::with(['programInfo'])->get();
   @endforeach
 </div>
 @else
-<p class="text-center display-4">No Records Found</p>
+<p class=" text-center display-4">No Records Found</p>
 @endif
-
 
 
 

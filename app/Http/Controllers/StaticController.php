@@ -9,6 +9,7 @@ use App\Models\AnnualSession;
 use App\Models\CourseCombination;
 use App\Models\Department;
 use App\Models\FeeHead;
+use App\Models\FeeStructureGroup;
 use App\Models\FeeStructureHasHead;
 use App\Models\ProgramGroup;
 use App\Models\StudentPayment;
@@ -178,7 +179,9 @@ class StaticController extends Controller
 
   static function fetchProgramGroup($campusid)
   {
-    $data = ProgramGroup::where('campus_id', $campusid)->with('programInfo')->get();
+    $data = ProgramGroup::where('campus_id', $campusid)->with([
+      'programInfo',
+    ])->get();
     return $data;
   }
 
@@ -187,5 +190,23 @@ class StaticController extends Controller
     $year = now()->format('Y');
     $count = StudentPayment::whereYear('created_at', $year)->count() + 1;
     return "INV{$year}-" . str_pad($count, 5, '0', STR_PAD_LEFT);
+  }
+
+  static function fetchProgramGroupNew()
+  {
+    $data = ProgramGroup::with([
+      'programInfo',
+      'campus'
+    ])->get();
+    return $data;
+  }
+
+  static function fetchCourseMasterGroups($id)
+  {
+    $data = FeeStructureGroup::with([
+      'programgroupinfo.programInfo',
+      'programgroupinfo.campus'
+    ])->where('fee_course_master_id', $id)->get();
+    return $data;
   }
 }

@@ -101,16 +101,18 @@ Route::group(['prefix' => '/erp'], function () {
             Route::get('fee-structure', [AdminController::class, 'feeStructure']);
             Route::post('fee-structure', [AdminController::class, 'addFeeStructure']);
             Route::get('unlink-prog-from-feestructure/{id}', [AdminController::class, 'unlinkStdProgram']);
-            Route::post('link-prgs-to-feestructure', [AdminController::class, 'linkProgramtoFeeStructure'])
-                ->name('link.feestructure.stdprogram');;
+            Route::post('link-prgs-to-feestructure', [AdminController::class, 'linkProgramtoFeeStructure'])->name('link.feestructure.stdprogram');
             Route::get('update/feestructure-status/{id}', [AdminController::class, 'updateFeeStructureStatus']);
 
-            Route::get('student-fee/{id}', [AdminController::class, 'getFeeStructure']); //test mode
+            Route::get('del-feecourse-master/{id}', [AdminController::class, 'delFeeCourseMaster']);
+            Route::post('fee-structure-groups', [AdminController::class, 'addFeeStructureGroup']);
+            Route::get('unlink/fee-structure-group/{id}', [AdminController::class, 'feeStructureGroupUnlink']);
 
+            Route::get('student-fee/{id}', [AdminController::class, 'getFeeStructure']);
             Route::get('fee-course-master', [AdminController::class, 'feeCourseMaster']);
             Route::post('fee-course-master', [AdminController::class, 'addCourseFeeMaster']);
             Route::post('update-fee-course-master', [AdminController::class, 'updateCourseFeeMaster']);
-
+            Route::get('delete-feestructure/{id}', [AdminController::class, 'deleteFeeStructure']);
 
             Route::get('fee-heads', [AdminController::class, 'feeHeads']);
             Route::post('fee-heads', [AdminController::class, 'addFeeHead']);
@@ -119,10 +121,10 @@ Route::group(['prefix' => '/erp'], function () {
             Route::post('update-head-single', [AdminController::class, 'updateHeadSingle']);
             Route::post('update-fee-structure', [AdminController::class, 'updateFeeStructure']);
             Route::get('del-headpvt/{id}', [AdminController::class, 'delFeeHeadPvt']);
+            Route::post('add-coursemaster-group', [AdminController::class, 'addCourseMasterGroup'])->name('link.coursemaster.prggroup');
 
             Route::get('std-fee-payments', [FeePaymentController::class, 'index']);
-            Route::post('manual-payment-payment', [FeePaymentController::class, 'manualFeePayment'])
-                ->name('manual.fee.payment');
+            Route::post('manual-payment-payment', [FeePaymentController::class, 'manualFeePayment'])->name('manual.fee.payment');
 
             Route::get('invoice/{id}', [FeePaymentController::class, 'generateInvoice']);
             Route::get('print-feereciept/{studentId}/{feeId}', [FeePaymentController::class, 'generateFeeReciept']);

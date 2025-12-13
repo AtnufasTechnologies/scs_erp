@@ -61,32 +61,6 @@ $(document).ready(function () {
         console.log(myArray);
     });
 
-    $("a[id=citadel").click(function (event) {
-        event.preventDefault();
-        var href = $(this).attr("href");
-
-        Swal.fire({
-            background: "#fff  ",
-            title: "Sure to Perform Action?",
-            text: "Action cannot be Reverted",
-            showDenyButton: true,
-
-            confirmButtonText: "Yes, Do It",
-            denyButtonText: "Cancel",
-            customClass: {
-                actions: "my-actions",
-
-                confirmButton: "order-2",
-                denyButton: "order-3",
-            },
-        }).then((result) => {
-            if (result.isConfirmed) {
-                window.location.href = href;
-            } else if (result.isDenied) {
-            }
-        });
-    });
-
     $("#exportData").click(function () {
         var myArray = [];
         $("input[type=checkbox]").prop("checked", $(this).prop("checked"));
