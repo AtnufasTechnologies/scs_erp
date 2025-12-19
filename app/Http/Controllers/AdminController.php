@@ -625,7 +625,7 @@ class AdminController extends Controller
 
     function feeHeads()
     {
-        $data = FeeHead::latest()->get();
+        $data = FeeHead::with('bankmaster')->latest()->get();
         return view('admin.accounts.fee-heads', ['data' => $data]);
     }
 
@@ -633,9 +633,12 @@ class AdminController extends Controller
     {
         $request->validate([
             'head_name' => 'required|string|max:255',
+            'bank' => 'required'
         ]);
         $rec = new FeeHead();
         $rec->head_name = $request->head_name;
+        $rec->bank_acc_id = $request->bank;
+
         $rec->save();
         return redirect()->back()->with('success', 'Done');
     }
@@ -645,11 +648,21 @@ class AdminController extends Controller
         $request->validate([
             'head_name' => 'required|string|max:255',
         ]);
+
+        $data =  FeeHead::find($request->id);
+
+        if (!empty($request->bank)) {
+            $bank = $request->bank;
+        } else {
+            $bank = $data->bank_acc_id;
+        }
+
         FeeHead::where('id', $request->id)->update([
             'head_name' => $request->head_name,
+            'bank_acc_id' => $bank
         ]);
 
-        return redirect()->back()->with('success', 'Done');
+        return redirect()->back()->with('success', 'Update Done');
     }
 
     function delFeeHead($id)
@@ -794,5 +807,21 @@ class AdminController extends Controller
             'nationality'
         ])->get();
         return view('admin.academics.faculty', ['data' => $data]);
+    }
+
+    function updateFaculty(Request $request)
+    {
+
+        Faculty::where('id', $request->id)->update([
+            'USER_CODE' => $request->empid,
+            'FIRST_NAME' => $request->fname,
+            'LAST_NAME' => $request->lname,
+            'DOB' => $request->dob,
+            'GENDER' => $request->gender,
+            'MOBILE_NO' => $request->mobile_no,
+            'MAIL_ID' => $request->mail_id,
+        ]);
+
+        return redirect()->back()->with('success', 'Updated');
     }
 }

@@ -13,6 +13,7 @@ return new class extends Migration
     {
         Schema::create('college_bank_accounts', function (Blueprint $table) {
             $table->id();
+            $table->string('acc_label')->nullable();
             $table->string('acc_name')->nullable();
             $table->string('acc_no')->nullable();
             $table->string('bank_name')->nullable();

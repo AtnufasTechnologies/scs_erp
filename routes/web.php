@@ -34,6 +34,7 @@ Route::group(['prefix' => '/erp'], function () {
         Route::get('std-master-siliguri', [AdminController::class, 'stdMasterSiliguri']);
         Route::get('faculty-master', [AdminController::class, 'facultyMaster']);
         Route::get('{id}/std-profile/{rollno}', [AdminController::class, 'stdprofile']);
+        Route::post('update/faculty', [AdminController::class, 'updateFaculty']);
 
         //master
         Route::group(['prefix' => '/master'], function () {
@@ -128,6 +129,11 @@ Route::group(['prefix' => '/erp'], function () {
 
             Route::get('invoice/{id}', [FeePaymentController::class, 'generateInvoice']);
             Route::get('print-feereciept/{studentId}/{feeId}', [FeePaymentController::class, 'generateFeeReciept']);
+        });
+
+        //Academics
+        Route::group(['prefix' => '/academics'], function () {
+            Route::post('add/subject-semester', [SubjectController::class, 'addSemesterToSubject'])->name('add.semester.to.subject');
         });
     });
 

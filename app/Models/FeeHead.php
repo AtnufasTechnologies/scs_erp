@@ -9,4 +9,9 @@ use Illuminate\Database\Eloquent\SoftDeletes;
 class FeeHead extends Model
 {
     use HasFactory, SoftDeletes;
+
+    function bankmaster()
+    {
+        return $this->hasOne(CollegeBankAccount::class, 'id', 'bank_acc_id');
+    }
 }

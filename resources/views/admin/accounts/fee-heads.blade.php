@@ -1,10 +1,12 @@
 <?php
 
 use App\Models\BatchMaster;
+use App\Models\CollegeBankAccount;
 use App\Models\MainProgram;
 
 $batches = BatchMaster::all();
 $programs = MainProgram::with('campus')->get();
+$banks = CollegeBankAccount::get();
 ?>
 @include('includes.header')
 @include('admin.sidebar')
@@ -33,6 +35,14 @@ $programs = MainProgram::with('campus')->get();
         <div class="modal-body">
           <label for="">Head Title</label>
           <input type="text" name="head_name" class="form-control mb-3" placeholder="University Fee">
+          <label for="">Required Bank Account for Distribution</label>
+          <select name="bank" class="form-control">
+            <option value="">--Select--</option>
+            @foreach ($banks as $b)
+            <option value="{{$b->id}}">{{$b->acc_name}} - {{$b->acc_no}}</option>
+            @endforeach
+          </select>
+
         </div>
         <div class="modal-footer">
           <button type="submit" class="btn btn-success">Submit</button>
@@ -50,6 +60,7 @@ $programs = MainProgram::with('campus')->get();
         <th>#</th>
 
         <th>Head Name</th>
+        <th>Connected Bank Account</th>
         <th>Edit</th>
         <th>Delete</th>
 
@@ -62,6 +73,7 @@ $programs = MainProgram::with('campus')->get();
       <tr>
         <td>{{$sl++}}</td>
         <td> {{$item->head_name}}</td>
+        <td>{{$item->bankmaster ? $item->bankmaster->acc_name   .' - '.  $item->bankmaster->acc_no: ''}}</td>
         <td>
 
           <!-- Button trigger modal -->
@@ -82,6 +94,13 @@ $programs = MainProgram::with('campus')->get();
                   <div class="modal-body">
                     <label for="">Head Name *</label>
                     <input type="text" name="head_name" class="form-control mb-3" value="{{$item->head_name}}">
+                    <label for="">Update Bank Account for Distribution</label>
+                    <select name="bank" class="form-control">
+                      <option value="">--Select--</option>
+                      @foreach ($banks as $b)
+                      <option value="{{$b->id}}">{{$b->acc_name}} - {{$b->acc_no}}</option>
+                      @endforeach
+                    </select>
                     <input type="hidden" name="id" value="{{$item->id}}">
                   </div>
                   <div class="modal-footer">

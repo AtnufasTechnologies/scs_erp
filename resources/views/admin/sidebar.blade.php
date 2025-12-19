@@ -162,23 +162,7 @@
           </a>
         </li>
 
-        <li>
-          <a href="{{url('erp/admin/master/subjects')}}">
-            <div class="parent-icon">
-              <i class="fas fa-arrow-alt-circle-right"></i>
-            </div>
-            <div class="menu-title">Subjects </div>
-          </a>
-        </li>
 
-        <li>
-          <a href="{{url('erp/admin/master/subject-type')}}">
-            <div class="parent-icon">
-              <i class="fas fa-arrow-alt-circle-right"></i>
-            </div>
-            <div class="menu-title">Subject Type </div>
-          </a>
-        </li>
 
 
 
@@ -233,7 +217,23 @@
         <div class="menu-title">Academics </div>
       </a>
       <ul>
+        <li>
+          <a href="{{url('erp/admin/master/subjects')}}">
+            <div class="parent-icon">
+              <i class="fas fa-arrow-alt-circle-right"></i>
+            </div>
+            <div class="menu-title">Subjects </div>
+          </a>
+        </li>
 
+        <li>
+          <a href="{{url('erp/admin/master/subject-type')}}">
+            <div class="parent-icon">
+              <i class="fas fa-arrow-alt-circle-right"></i>
+            </div>
+            <div class="menu-title">Subject Type </div>
+          </a>
+        </li>
 
         <li>
           <a href="{{url('erp/admin/academics/program-objectives')}}">

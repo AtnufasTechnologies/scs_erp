@@ -56,6 +56,7 @@
     <thead>
       <tr>
         <th>#</th>
+        <th>Labels (Easebuzz)</th>
         <th>Account No</th>
         <th>Account Name</th>
         <th>Bank</th>
@@ -73,6 +74,7 @@
       @foreach ($data as $item)
       <tr>
         <td>{{$sl++}}</td>
+        <td>{{$item->acc_label}}</td>
         <td> {{$item->acc_no}}</td>
         <td>{{$item->acc_name}}</td>
         <td>{{$item->bank_name}}</td>

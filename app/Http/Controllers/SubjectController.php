@@ -168,4 +168,11 @@ class SubjectController extends Controller
         $rec->save();
         return response()->json(['message' => 'TimeTable Created'], 201);
     }
+
+    function addSemesterToSubject(Request $request)
+    {
+        dd($request->all());
+        $batch = $request->batch;
+        $semester = $request->semester;
+    }
 }

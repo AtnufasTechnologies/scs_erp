@@ -14,6 +14,7 @@ return new class extends Migration
         Schema::create('fee_heads', function (Blueprint $table) {
             $table->id();
             $table->string('head_name');
+            $table->integer('bank_acc_id')->nullable();
             $table->softDeletes();
             $table->timestamps();
         });

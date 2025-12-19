@@ -1,23 +1,21 @@
 <?php
 
 use App\Models\BatchMaster;
+use App\Models\Semester;
 
 $batches = BatchMaster::get();
+$semesters = Semester::get();
 ?>
 @include('includes.header')
 @include('admin.sidebar')
 
 <div class="p-5 mb-4 profile-header-sub text-white rounded-3 shadow">
   <div class="container-fluid py-3">
-    <h1 class="display-5 fw-bold text-light text-capitalize">{{ $data->title }} </h1>
-    <p class="col-md-8 fs-4">
-      Program: <span class="fw-semibold">{{ $data->program_master->title }}</span>
-    </p>
-    <p class="fs-6">
-      Academic Batch: <span class="fw-semibold text-warning">{{ $batchmaster->batch_name }}</span>
-    </p>
-    <div class="row">
+    <h1 class="display-5 fw-bold text-light text-capitalize"><span class="fw-semibold"> {{ $data->program_master->title }} -</span> {{ $data->title }} </h1>
+    <div class="row mb-3">
+
       <div class="col-lg-2">
+        Academic Batch: <span class="fw-semibold text-warning">{{ $batchmaster->batch_name }}</span>
         <form action="{{url('erp/admin/master/view-subject')}}" method="get">
           <input type="hidden" name="id" value="{{$data->id}}">
           <input type="hidden" name="slug" value="{{$data->slug}}">
@@ -31,6 +29,62 @@ $batches = BatchMaster::get();
           </div>
         </form>
       </div>
+
+
+    </div>
+
+    <div class="row">
+
+      <div class="col-lg-2">
+        <!-- Button trigger modal -->
+        <button class="cst-button mb-3" style="--clr: #21d9c7ff;" data-bs-toggle="modal" data-bs-target="#add">
+          <span class="button-decor"></span>
+          <div class="button-content">
+            <div class="button__icon">
+              <i class="fa fa-plus-circle"></i>
+            </div>
+            <span class="button__text"> New Semester</span>
+          </div>
+        </button>
+        <!-- Modal -->
+        <div class="modal fade" id="add" tabindex="-1" aria-labelledby="exampleModalLabel" aria-hidden="true">
+          <div class="modal-dialog">
+            <div class="modal-content">
+              <div class="modal-header">
+                <h5 class="modal-title text-dark" id="exampleModalLabel">Add Semester </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+              </div>
+              <form action="{{route('add.semester.to.subject')}}" method="post" enctype="multipart/form-data">
+                @csrf
+                <div class="modal-body">
+
+                  <label for="" class="text-dark">Select Batch</label>
+                  <select name="batch" class="form-select mb-3">
+                    @foreach ($batches as $batch)
+                    <option value="{{$batch->id}}" {{ $batchmaster->id == $batch->id ? 'selected' : ''}}>{{$batch->batch_name}}</option>
+                    @endforeach
+                  </select>
+
+                  <label for="" class="text-dark">Semester</label>
+                  <select name="semester" class="form-select">
+                    <option value="">--Select--</option>
+                    @foreach ($semesters as $sem)
+                    <option value="{{$sem->id}}">{{$sem->title}}</option>
+                    @endforeach
+                  </select>
+
+                </div>
+                <div class="modal-footer">
+                  <button type="submit" class="btn btn-success">Submit</button>
+                </div>
+              </form>
+            </div>
+          </div>
+        </div>
+      </div>
+
+
+
     </div>
 
 
