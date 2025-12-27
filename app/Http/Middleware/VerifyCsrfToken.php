@@ -13,7 +13,7 @@ class VerifyCsrfToken extends Middleware
      */
     protected $except = [
         'webhook',             // If Easebuzz is posting to your /webhook
-        'payment-success',     // If they POST to your success URL
-        'payment-failure'      // If they POST to your failure URL
+        'erp/student/payment-success',     // If they POST to your success URL
+        'erp/student/payment-failure'      // If they POST to your failure URL
     ];
 }

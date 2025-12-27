@@ -15,10 +15,10 @@ $programgroups = ProgramGroup::with(['programInfo', 'campus'])->where('campus_id
 <h3 class="mt-3"><strong>Fee Payments</strong></h3>
 <p>Total Students: {{ $data->total() }}</p>
 <div class="row mb-3">
-  <div class="col-lg-4">
+  <div class="col-lg-8">
     <form action="{{url('erp/admin/accounts/std-fee-payments')}}" method="get">
       <div class="row">
-        <div class="col-lg-6">
+        <div class="col-lg-7">
           <select name="filter_pgr" class="form-control dselect-example">
             <option value="">--Select Group--</option>
             @foreach ($programgroups as $pgr)
@@ -26,7 +26,7 @@ $programgroups = ProgramGroup::with(['programInfo', 'campus'])->where('campus_id
             @endforeach
           </select>
         </div>
-        <div class="col-lg-6">
+        <div class="col-lg-3">
           <div class="input-group">
             <select name="filter_batch" class="form-control select-example">
               <option value="">--Select Batch--</option>

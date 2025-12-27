@@ -32,17 +32,18 @@
 
     <div class="card shadow p-3 center-card">
       <h3 class="text-center text-capitalize">{{ $studentinfo->fullname }}</h3> <br>
-      <p><strong>Roll No:</strong><span class="text-uppercase"> {{ $studentinfo->rollno}}</span></p>
-      <p><strong>{{$data['programinfo']}}</strong></p>
-      <p><strong>Mobile:</strong> {{ $studentinfo->mobile }}</p>
-      <p><strong>Email:</strong> {{ $studentinfo->email }}</p>
+      <p><strong>Roll No:</strong><span class="text-uppercase"> {{ $studentinfo->roll_no}}</span></p>
+      <p><strong>Mobile:</strong> {{ $studentinfo->mobile_no }}</p>
+      <p><strong>Email:</strong> {{ $studentinfo->mail_id }}</p>
       <p><strong>Invoice:</strong> {{ $txnid }}</p>
-      <p><strong>Gateway ID# {{$gateway_id}}</strong></p>
-      <p><strong>Amount:</strong> {{ $amount }}</p>
-      <p><strong>{{$status}}</strong></p>
+      <p><strong>Gateway Ref# {{$gateway_id}}</strong></p>
+      <p><strong>Amount:</strong> {{ $amount }} /-</p>
+      <p><strong>Transaction Status -{{$status}}</strong></p>
 
+      <hr>
       <p class="text-center">For any discrepancies, please contact the Accounts Department within 7 working days.</p>
       <p class="text-center">Keep note of the Invoice No # {{ $txnid }}</p>
+      <button class="btn btn-success" onclick="window.print()">🖨️ Print</button>
     </div>
   </div>
 

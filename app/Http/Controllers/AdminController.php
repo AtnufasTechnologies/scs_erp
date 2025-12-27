@@ -448,6 +448,7 @@ class AdminController extends Controller
     function addBankInfo(Request $request)
     {
         $request->validate([
+            'acclabel' => 'required',
             'accname' => 'required',
             'accno' => 'required',
             'bank' => 'required',
@@ -463,6 +464,7 @@ class AdminController extends Controller
         }
 
         $rec = new CollegeBankAccount();
+        $rec->acc_label = $request->acclabel;
         $rec->acc_no = $request->accno;
         $rec->acc_name = $request->accname;
         $rec->bank_name = $request->bank;
@@ -478,6 +480,7 @@ class AdminController extends Controller
     function updateBankInfo(Request $request)
     {
         $request->validate([
+            'acclabel' => 'required',
             'accname' => 'required',
             'accno' => 'required',
             'bank' => 'required',
@@ -498,7 +501,7 @@ class AdminController extends Controller
         }
 
         CollegeBankAccount::where('id', $request->id)->update([
-
+            'acc_label' => $request->acclabel,
             'acc_no' => $request->accno,
             'acc_name' => $request->accname,
             'bank_name' => $request->bank,

@@ -23,6 +23,10 @@
       <form action="{{url('erp/admin/accounts/bankinfo')}}" method="post" enctype="multipart/form-data">
         @csrf
         <div class="modal-body">
+
+          <label for="">Account Label *</label>
+          <input type="text" name="acclabel" class="form-control mb-3" placeholder="Provided by Easebuzz">
+
           <label for="">Account Name *</label>
           <input type="text" name="accname" class="form-control mb-3" placeholder="ex..Salesian College">
 
@@ -107,6 +111,8 @@
                 <form action="{{url('erp/admin/accounts/update-bankinfo')}}" method="post" enctype="multipart/form-data">
                   @csrf
                   <div class="modal-body">
+                    <label for="">(Easebuzz)Account Label *</label>
+                    <input type="text" name="acclabel" class="form-control mb-3" value="{{$item->acc_label}}">
                     <label for="">Account Name *</label>
                     <input type="text" name="accname" class="form-control mb-3" value="{{$item->acc_name}}">
 

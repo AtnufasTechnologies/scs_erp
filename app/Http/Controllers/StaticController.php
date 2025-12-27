@@ -185,11 +185,13 @@ class StaticController extends Controller
     return $data;
   }
 
-  static function generateInvoiceId()
+  static function generateInvoiceId($prefix)
   {
-    $year = now()->format('Y');
-    $count = StudentPayment::whereYear('created_at', $year)->count() + 1;
-    return "INV{$year}-" . str_pad($count, 5, '0', STR_PAD_LEFT);
+    // $year = now()->format('Y');
+    // $count = StudentPayment::whereYear('created_at', $year)->count() + 1;
+    // $txnno =  $label . $year . str_pad($count, 5, '0', STR_PAD_LEFT);
+    $txnno = $prefix . round(microtime(true) * 1000);
+    return $txnno;
   }
 
   static function fetchProgramGroupNew()

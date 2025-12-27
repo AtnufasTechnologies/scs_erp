@@ -33,7 +33,7 @@
 
     <div class="card shadow p-3 center-card">
       <h3 class="text-center text-capitalize">{{ $data['studentinfo']['fullname'] }}</h3> <br>
-      <form action="{{url('erp/student/fee/create-order')}}" method="post">
+      <form action="{{url('erp/student/fee-payment')}}" method="post">
         @csrf
 
         <input type="hidden" name="studentId" class="form-control mb-4 text-uppercase" value="{{ $data['studentinfo']['id'] }}" readonly>
@@ -82,13 +82,14 @@
 
         </div>
         <div class="d-flex justify-content-center">
-          <button type="submit" class="btn btn-primary">Proceed to Payment</button>
+          <button type="submit" class="btn btn-primary" id="payBtn" disabled>Proceed to Payment</button>
         </div>
       </form>
     </div>
   </div>
 
 </div>
+
 
 
 @include('includes.footer')

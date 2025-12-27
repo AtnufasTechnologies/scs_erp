@@ -127,7 +127,6 @@ $timestamp = Carbon::now()
       <tr>
         <th>Paid On</th>
         <th>Invoice #</th>
-        <th>Transaction ID</th>
         <th>Quarter</th>
         <th>Amount</th>
         <th>Status</th>
@@ -140,8 +139,6 @@ $timestamp = Carbon::now()
       <tr>
         <td>{{ $row['paid_on'] }}</td>
         <td>{{ $row['inv_id'] }}</td>
-        <td>{{ $row['txn_id'] }}</td>
-
         <td>{{ $row['quarter'] }}</td>
         <td>₹{{ number_format($row['payable_amount']) }}</td>
         <td>{{ $row['status'] }}</td>

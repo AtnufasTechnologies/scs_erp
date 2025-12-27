@@ -22,8 +22,7 @@ Route::get('forgot-password', [LoginController::class, 'forgotPassword']);
 Route::post('login', [LoginController::class, 'login']);
 Route::post('forgot-password', [LoginController::class, 'sendPasswordReset']);
 Route::get('logout', [LoginController::class, 'logout']);
-Route::post('payment-success', [FeePaymentController::class, 'paymentSuccess'])->name('payment.success');
-Route::post('payment-failure', [FeePaymentController::class, 'paymentFailure'])->name('payment.failure');
+
 
 Route::group(['prefix' => '/erp'], function () {
 
@@ -141,6 +140,9 @@ Route::group(['prefix' => '/erp'], function () {
     Route::group(['prefix' => 'student'], function () {
         Route::get('fee-payment', [FeePaymentController::class, 'studentValidation']);
         Route::post('fee-status', [FeePaymentController::class, 'studentFeeStatus']);
-        Route::post('fee/create-order', [FeePaymentController::class, 'createOrder']);
+        Route::post('fee-payment', [FeePaymentController::class, 'createOrder']);
+        Route::post('payment-success', [FeePaymentController::class, 'paymentSuccess'])->name('payment.success');
+        Route::post('payment-failure', [FeePaymentController::class, 'paymentFailure'])->name('payment.failure');
+        Route::get('transaction-success/{id}', [FeePaymentController::class, 'showSuccessPage']);
     });
 });

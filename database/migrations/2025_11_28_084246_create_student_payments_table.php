@@ -18,11 +18,15 @@ return new class extends Migration
             $table->integer('fee_structure_id');
             $table->smallInteger('gateway_type_id');
             $table->string('gateway_ref_code')->nullable();
-            $table->string('transaction_id')->nullable();
             $table->date('transaction_date')->nullable();
+            $table->string('transaction_ref')->nullable();
             $table->string('amount')->nullable();
+            $table->string('amount')->nullable();
+            $table->string('captured_amount')->nullable();
             $table->string('status')->nullable();
             $table->string('message')->nullable();
+            $table->text('hash')->nullable();
+            $table->text('rawdata')->nullable();
             $table->timestamps();
         });
     }

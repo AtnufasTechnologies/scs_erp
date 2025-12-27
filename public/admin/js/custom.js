@@ -1,4 +1,19 @@
 $(document).ready(function () {
+    //toggle paymnet button
+    function toggleButton() {
+        let feeChecked =
+            $('input[name="fee_structure_id[]"]:checked').length > 0;
+        let gatewayChecked = $('input[name="gateway"]:checked').length > 0;
+
+        $("#payBtn").prop("disabled", !(feeChecked && gatewayChecked));
+    }
+
+    $('input[name="fee_structure_id[]"], input[name="gateway"]').on(
+        "change",
+        toggleButton
+    );
+    //end
+
     var tooltipTriggerList = [].slice.call(
         document.querySelectorAll('[data-bs-toggle="tooltip"]')
     );

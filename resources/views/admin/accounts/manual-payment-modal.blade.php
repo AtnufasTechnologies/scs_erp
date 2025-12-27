@@ -3,7 +3,7 @@
     <div class="modal-content">
 
       <div class="modal-header bg-primary text-white">
-        <h5 class="modal-title">Record Manual Payment</h5>
+        <h5 class="modal-title">Record Payment</h5>
         <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
       </div>
 
@@ -16,37 +16,38 @@
         <div class="modal-body">
 
           <div class="mb-3">
-            <label class="fw-bold">Roll No</label>
+            <label class="fw-bold">Roll No *</label>
             <input type="text" id="modal_roll_no" class="form-control" readonly>
           </div>
 
           <div class="mb-3">
-            <label class="fw-bold">Student Name</label>
+            <label class="fw-bold">Student Name *</label>
             <input type="text" id="modal_student_name" class="form-control" readonly>
           </div>
 
           <div class="mb-3">
-            <label class="fw-bold">Quarter</label>
+            <label class="fw-bold">Quarter *</label>
             <input type="text" id="modal_quarter" class="form-control" readonly>
           </div>
 
           <div class="mb-3">
-            <label class="fw-bold">Amount</label>
+            <label class="fw-bold">Amount *</label>
             <input type="number" id="amount" name="amount" class="form-control" readonly>
           </div>
 
-          <div class="mb-3">
-            <label class="fw-bold">Transaction ID</label>
-            <input type="text" class="form-control" name="transaction_id" required>
-          </div>
 
           <div class="mb-3">
-            <label class="fw-bold">Transaction Date</label>
+            <label class="fw-bold">Transaction Date *</label>
             <input type="date" class="form-control" name="transaction_date" required>
           </div>
 
           <div class="mb-3">
-            <label class="fw-bold">Payment Gateway</label>
+            <label class="fw-bold">Transaction Ref *</label>
+            <input type="text" class="form-control" name="transaction_ref" required>
+          </div>
+
+          <div class="mb-3">
+            <label class="fw-bold">Payment Gateway *</label>
             <select name="gateway_type_id" class="form-select" required>
               <option value="1">Easebuzz</option>
               <option value="2">Billdesk</option>

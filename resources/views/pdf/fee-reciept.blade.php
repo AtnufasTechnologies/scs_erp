@@ -77,7 +77,7 @@ $timestamp = Carbon::now()
 
   <p><strong>Invoice #:</strong> {{ $payment->invoice_id }}</p>
   <p><strong>Payment Date:</strong> {{ $payment->transaction_date ?? 'N/A' }}</p>
-  <p><strong>Transaction ID:</strong> {{ $payment->transaction_id }}</p>
+
   <p>
 
     <?php
