@@ -141,6 +141,8 @@ Route::group(['prefix' => '/erp'], function () {
         Route::get('fee-payment', [FeePaymentController::class, 'studentValidation']);
         Route::post('fee-status', [FeePaymentController::class, 'studentFeeStatus']);
         Route::post('fee-payment', [FeePaymentController::class, 'createOrder']);
+        Route::get('fee-status', [FeePaymentController::class, 'studentValidation']);
+
         Route::post('payment-success', [FeePaymentController::class, 'paymentSuccess'])->name('payment.success');
         Route::post('payment-failure', [FeePaymentController::class, 'paymentFailure'])->name('payment.failure');
         Route::get('transaction-success/{id}', [FeePaymentController::class, 'showSuccessPage']);

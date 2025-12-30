@@ -364,6 +364,88 @@ class FeePaymentController extends Controller
         return view('student.fee-payment');
     }
 
+    // public function studentFeeStatusOld(Request $request)
+    // {
+    //     $request->validate([
+    //         'rollno' => 'required'
+    //     ]);
+    //     $roll = trim($request->rollno);
+
+
+    //     // Fetch student
+    //     $student = StudentMaster::with([
+    //         'batchmaster',
+    //         'programgroup.programInfo',
+    //         'stdfeestructure',
+    //         'stdfeestructure.programspivot',
+    //         'feepayment'
+    //     ])->where('roll_no', $roll)
+    //         ->first();
+
+
+
+    //     // ---- FETCH APPLICABLE FEE STRUCTURES ----
+    //     $applicableFS = FeesStructure::where('batch_id', $student->batch)
+    //         ->whereHas('programspivot', function ($q) use ($student) {
+    //             $q->where('std_program_id', $student->programme);
+    //         })
+    //         ->whereIn('std_current_year', range(1, $student->current_year))
+    //         ->where('is_payable', 1)
+    //         ->get();
+
+    //     $feeStatus = $applicableFS->map(function ($fs) use ($student) {
+
+    //         // SUCCESS payment (paid quarter)
+    //         $successPayment = $student->feepayment
+    //             ->where('fee_structure_id', $fs->id)
+    //             ->where('student_id', $student->id)
+    //             ->where('status', 'success')
+    //             ->first();
+
+    //         // Failed / pending payments (optional info)
+    //         $latestPayment = $student->feepayment
+    //             ->where('fee_structure_id', $fs->id)
+    //             ->where('student_id', $student->id)
+    //             ->sortByDesc('created_at')
+    //             ->first();
+
+    //         return [
+    //             'fee_structure_id'   => $fs->id,
+    //             'fee_structure_name' => $fs->quarter_title,
+    //             'year'               => $fs->std_current_year,
+    //             'total_amount'       => $fs->feeHeads->sum('amount'),
+
+    //             // CORE LOGIC
+    //             'paid'               => $successPayment ? true : false,
+    //             'paid_amount'        => $successPayment->amount ?? 0,
+    //             'status'             => $successPayment ? 'PAID' : 'NOT PAID',
+
+    //             // Optional (for debugging / UI)
+    //             'paymentinfo'        => $latestPayment
+    //         ];
+    //     });
+
+
+    //     // ---- FINAL RESPONSE ARRAY ----
+    //     $studentData = [
+    //         'studentinfo' => [
+    //             'id'       => $student->id,
+    //             'fullname' => $student->fullname,
+    //             'rollno'   => $student->roll_no,
+    //             'mobile'   => $student->mobile_no,
+    //             'email'    => $student->mail_id,
+    //         ],
+    //         'programinfo' => $student->programgroup->programInfo->name ?? '',
+    //         'batch'       => $student->batchmaster->batch_name ?? '',
+    //         'current_year' => $student->current_year,
+    //         'feesinfo'    => $feeStatus
+    //     ];
+
+    //     return view('student.gateway-selection', [
+    //         'data' => $studentData
+    //     ]);
+    // }
+
     public function studentFeeStatus(Request $request)
     {
         $request->validate([
@@ -371,50 +453,71 @@ class FeePaymentController extends Controller
         ]);
         $roll = trim($request->rollno);
 
-
-        // Fetch student
+        // ---- FETCH STUDENT ----
         $student = StudentMaster::with([
             'batchmaster',
             'programgroup.programInfo',
             'stdfeestructure',
             'stdfeestructure.programspivot',
-            'feepayment'
-        ])->where('roll_no', $roll)
-            ->first();
+            'feepayment',
+            'feepayment.feestructuremaster.feeHeads',
+        ])
+            ->where('roll_no', $roll)
+            ->firstOrFail();
 
-
-
-        // ---- FETCH APPLICABLE FEE STRUCTURES ----
-        $applicableFS = FeesStructure::where('batch_id', $student->batch)
+        // ---- FETCH APPLICABLE FEE STRUCTURES (QUARTERS) ----
+        $applicableFS = FeesStructure::with('feeHeads')
+            ->where('batch_id', $student->batch)
             ->whereHas('programspivot', function ($q) use ($student) {
                 $q->where('std_program_id', $student->programme);
             })
             ->whereIn('std_current_year', range(1, $student->current_year))
             ->where('is_payable', 1)
+            ->orderBy('std_current_year')
             ->get();
 
+        // ---- PREPARE FEE STATUS (QUARTER-WISE) ----
         $feeStatus = $applicableFS->map(function ($fs) use ($student) {
 
-            $payment = $student->feepayment
+            // Check if SUCCESS payment exists for this quarter
+            $successPayment = $student->feepayment
                 ->where('fee_structure_id', $fs->id)
                 ->where('student_id', $student->id)
-                ->where('status', 'initiate')
+                ->where('status', 'success')
+                ->first();
+
+            // Get latest payment attempt (success / failed / pending)
+            $latestPayment = $student->feepayment
+                ->where('fee_structure_id', $fs->id)
+                ->where('student_id', $student->id)
+                ->sortByDesc('created_at')
                 ->first();
 
             return [
-                'fee_structure_id' => $fs->id,
+                'fee_structure_id'   => $fs->id,
                 'fee_structure_name' => $fs->quarter_title,
-                'year' => $fs->std_current_year,
-                'total_amount' => $fs->feeHeads->sum('amount'),
-                'paid' => $payment ? true : false,
-                'paid_amount' => $payment->amount ?? 0,
-                'status' => $payment->status ?? 'NOT PAID',
-                'paymentinfo' => $payment
-            ];
-        })->filter(fn($item) => $item['paid'] === false) // only unpaid
-            ->values();;
+                'year'               => $fs->std_current_year,
+                'quarter'            => $fs->quarter_no,
 
-        // ---- FINAL RESPONSE ARRAY ----
+                'total_amount'       => $fs->feeHeads->sum('amount'),
+
+                // CORE LOGIC
+                'paid'               => $successPayment ? true : false,
+                'paid_amount'        => $successPayment->amount ?? 0,
+                'status'             => $successPayment ? 'PAID' : 'NOT PAID',
+
+                // Optional debug / UI info
+                'last_attempt_status' => $latestPayment->status ?? null,
+                'paymentinfo'        => $latestPayment
+            ];
+        });
+
+        // ---- OPTIONAL: SHOW ONLY UNPAID QUARTERS ----
+        $feeStatus = $feeStatus
+            ->filter(fn($item) => $item['paid'] === false)
+            ->values();
+
+        // ---- FINAL RESPONSE ----
         $studentData = [
             'studentinfo' => [
                 'id'       => $student->id,
@@ -423,16 +526,18 @@ class FeePaymentController extends Controller
                 'mobile'   => $student->mobile_no,
                 'email'    => $student->mail_id,
             ],
-            'programinfo' => $student->programgroup->programInfo->name ?? '',
-            'batch'       => $student->batchmaster->batch_name ?? '',
+            'programinfo'  => $student->programgroup->programInfo->name ?? '',
+            'batch'        => $student->batchmaster->batch_name ?? '',
             'current_year' => $student->current_year,
-            'feesinfo'    => $feeStatus
+            'feesinfo'     => $feeStatus
         ];
 
         return view('student.gateway-selection', [
             'data' => $studentData
         ]);
     }
+
+
 
     //student fee payment
     public function createOrder(Request $request)

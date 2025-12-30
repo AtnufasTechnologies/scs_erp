@@ -83,8 +83,10 @@
         </div>
         <div class="d-flex justify-content-center">
           <button type="submit" class="btn btn-main" id="payBtn" disabled>Proceed to Payment</button>
+
         </div>
       </form>
+      <a href="{{url('erp/student/fee-payment')}}" class="text-danger">Cancel </a>
     </div>
   </div>
 
