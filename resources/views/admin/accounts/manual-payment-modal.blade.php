@@ -2,8 +2,8 @@
   <div class="modal-dialog">
     <div class="modal-content">
 
-      <div class="modal-header bg-primary text-white">
-        <h5 class="modal-title">Record Payment</h5>
+      <div class="modal-header modal-header-bg">
+        <h5 class="modal-title">Manual Fee Payment Entry</h5>
         <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
       </div>
 
@@ -17,17 +17,17 @@
 
           <div class="mb-3">
             <label class="fw-bold">Roll No *</label>
-            <input type="text" id="modal_roll_no" class="form-control" readonly>
+            <input type="text" id="modal_roll_no" class="form-control text-uppercase" readonly>
           </div>
 
           <div class="mb-3">
             <label class="fw-bold">Student Name *</label>
-            <input type="text" id="modal_student_name" class="form-control" readonly>
+            <input type="text" id="modal_student_name" class="form-control text-capitalize" readonly>
           </div>
 
           <div class="mb-3">
             <label class="fw-bold">Quarter *</label>
-            <input type="text" id="modal_quarter" class="form-control" readonly>
+            <input type="text" id="modal_quarter" class="form-control text-capitalize" readonly>
           </div>
 
           <div class="mb-3">
@@ -59,7 +59,7 @@
 
         <div class="modal-footer">
           <button type="button" class="btn btn-light" data-bs-dismiss="modal">Cancel</button>
-          <button type="submit" class="btn btn-success">Record Payment</button>
+          <button type="submit" class="btn btn-main">Record Payment</button>
         </div>
 
       </form>

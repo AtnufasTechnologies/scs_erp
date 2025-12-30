@@ -82,7 +82,7 @@
 
         </div>
         <div class="d-flex justify-content-center">
-          <button type="submit" class="btn btn-primary" id="payBtn" disabled>Proceed to Payment</button>
+          <button type="submit" class="btn btn-main" id="payBtn" disabled>Proceed to Payment</button>
         </div>
       </form>
     </div>

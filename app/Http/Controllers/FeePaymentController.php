@@ -67,6 +67,7 @@ class FeePaymentController extends Controller
                 $payment = $student->feepayment
                     ->where('fee_structure_id', $fs->id)
                     ->where('student_id', $student->id)
+                    ->where('status', 'success')
                     ->first();
 
                 return [
@@ -431,6 +432,8 @@ class FeePaymentController extends Controller
             'data' => $studentData
         ]);
     }
+
+    //student fee payment
     public function createOrder(Request $request)
     {
         $request->validate([
@@ -529,6 +532,8 @@ class FeePaymentController extends Controller
         return back()->withErrors('Payment initiation failed');
     }
 
+
+    /*
     function createOrderOld(Request $request)
     {
 
@@ -576,7 +581,6 @@ class FeePaymentController extends Controller
                 array_map('strval', $split) // values must be strings
             );
 
-            /**Check if same payment Record exist or not */
             $checkPayRec = StudentPayment::where('student_id', $studentId)->where('fee_structure_id', $request->fee_structure_id)
                 ->where('status', '!=', 'success')
                 ->first();
@@ -653,9 +657,8 @@ class FeePaymentController extends Controller
             }
         }
     }
+    */
 
-    //Easebuzz integration
-    public function startEasebuzzPayment($studentId, $payableAmount, $invoice, $splitPayments) {}
 
     public function paymentSuccess(Request $request)
     {
