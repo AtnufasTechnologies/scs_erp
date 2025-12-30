@@ -1,53 +1,129 @@
-@include('includes.header')
+<!DOCTYPE html>
+<html>
 
-<header class="profile-header">
-  <div class="header-content">
-    <div class="profile-img-container">
-      <img src="{{asset('admin/images/logo.png')}}" alt="logo" class="profile-img">
-    </div>
-    <div class="profile-info">
-      <h6><span class="text-uppercase">Fee Payment</span></h6>
-      <h1 class="text-capitalize">Salesian College Autonomous</h1>
-      <h2 class="text-capitalize">Sonada & Siliguri Campus</h2>
-      <div class="contact-links">
-        <a href="mailto:" aria-label="">
-          <i class="fas fa-envelope"></i> accounts.office@salesiancollege.net
-        </a>
-        <a href="tel:" target="_blank">
-          <i class="fas fa-phone"></i> +91 0000000095
-        </a>
+<head>
+  <title>Invoice {{ $invoiceId }}</title>
+  <link rel="stylesheet" href="{{asset('admin/css/inv.css')}}">
+</head>
 
+<body>
+  <div class="container">
 
+    {{-- HEADER --}}
+    <div class="header">
+      <div>
+        <a onclick="window.print()" style="cursor:pointer">Print</a>
+        <div class="title">INVOICE</div>
+        <p>
+          <strong>Invoice No:</strong> {{ $invoiceId }}<br>
+          <strong>Date:</strong> {{ $transactionDate }}<br>
+          <strong>Gateway Ref:</strong> {{ $gatewayRef }}
+        </p>
+      </div>
+
+      <div class="company">
+        <img src="{{asset('admin/images/logo.png')}}" alt="logo">
+        <strong>Salesian College Autonomous</strong><br>
+        Sonada & Siliguri<br>
+
+        Phone: 76020 32968(Sonada) <br>0353 254 5622(Siliguri) <br>
+        accountsoffice@salesiancollege.net
       </div>
     </div>
-  </div>
-</header>
 
-
-<div class="container mt-5">
-
-
-
-  <div class="d-flex justify-content-center">
-
-    <div class="card shadow p-3 center-card">
-      <h3 class="text-center text-capitalize">{{ $studentinfo->fullname }}</h3> <br>
-      <p><strong>Roll No:</strong><span class="text-uppercase"> {{ $studentinfo->roll_no}}</span></p>
-      <p><strong>Mobile:</strong> {{ $studentinfo->mobile_no }}</p>
-      <p><strong>Email:</strong> {{ $studentinfo->mail_id }}</p>
-      <p><strong>Invoice:</strong> {{ $txnid }}</p>
-      <p><strong>Gateway Ref# {{$gateway_id}}</strong></p>
-      <p><strong>Amount:</strong> {{ $amount }} /-</p>
-      <p><strong>Transaction Status -{{$status}}</strong></p>
-
-      <hr>
-      <p class="text-center">For any discrepancies, please contact the Accounts Department within 7 working days.</p>
-      <p class="text-center">Keep note of the Invoice No # {{ $txnid }}</p>
-      <button class="btn btn-success" onclick="window.print()">🖨️ Print</button>
+    {{-- STUDENT --}}
+    <div class="section">
+      <strong>Billed To</strong><br>
+      {{ ucFirst($student['first_name']) }} {{ ucFirst($student['last_name']) }}<br>
+      Roll No: {{ strtoupper($student['roll_no']) }}<br>
+      Mobile: {{ $student['mobile_no'] }}<br>
+      Email: {{ $student['mail_id'] }}
     </div>
+    {{-- FEE STRUCTURES --}}
+    @php $grandTotal = 0; @endphp
+
+    @foreach($transactions as $txn)
+    @php
+    $structure = $txn['feepaymentinfo'];
+    $courseFee = 0;
+    $otherFees = 0;
+    @endphp
+
+    {{-- CALCULATE --}}
+    @foreach($structure['fee_heads'] as $head)
+    @if($head['fee_head_id'] == 2)
+    @php $courseFee += $head['amount']; @endphp
+    @else
+    @php $otherFees += $head['amount']; @endphp
+    @endif
+    @endforeach
+
+    <div class="section">
+      <div class="section-title">
+        {{ strtoupper($structure['quarter_title']) }}
+      </div>
+
+      <table>
+        @if($courseFee > 0)
+        <tr>
+          <td>Course Fee</td>
+          <td class="amount">₹{{ number_format($courseFee, 2) }}</td>
+        </tr>
+        @endif
+
+        @if($otherFees > 0)
+        <tr>
+          <td>Others</td>
+          <td class="amount">₹{{ number_format($otherFees, 2) }}</td>
+        </tr>
+        @endif
+
+        <tr class="subtotal">
+          <td>Subtotal</td>
+          <td class="amount">
+            ₹{{ number_format($courseFee + $otherFees, 2) }}
+          </td>
+        </tr>
+      </table>
+    </div>
+
+    @php $grandTotal += ($courseFee + $otherFees); @endphp
+    @endforeach
+
+    {{-- GRAND TOTAL --}}
+    <table>
+      <tr class="grand-total">
+        <td style="padding:15px">Grand Total Paid</td>
+        <td class="amount" style="padding:15px">
+          ₹{{ number_format($grandTotal, 2) }}
+        </td>
+      </tr>
+    </table>
+
+    {{-- STATUS --}}
+    @php
+    $statusMap = [
+    'success' => ['PAID', 'status-success'],
+    'pending' => ['PENDING', 'status-pending'],
+    'failed' => ['FAILED', 'status-failed'],
+    'refunded' => ['REFUNDED', 'status-refunded'],
+    ];
+    $label = $statusMap[$status][0] ?? strtoupper($status);
+    $class = $statusMap[$status][1] ?? '';
+    @endphp
+
+    <div class="section">
+      <strong>Payment Status:</strong>
+      <span class="{{ $class }}">{{ $label }}</span>
+    </div>
+
+    {{-- FOOTER --}}
+    <div class="footer">
+      This is a system-generated invoice. No signature required. <br> For any discrepancies, please contact the Accounts Department within 7 working days.
+
+    </div>
+
   </div>
+</body>
 
-</div>
-
-
-@include('includes.footer')
+</html>

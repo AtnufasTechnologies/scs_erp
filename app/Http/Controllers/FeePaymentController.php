@@ -10,6 +10,7 @@ use App\Models\FeeStructureHasManyProgram;
 use App\Models\PaymentGatewayType;
 use App\Models\StudentMaster;
 use App\Models\StudentPayment;
+use Barryvdh\DomPDF\Facade\Pdf;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
@@ -687,16 +688,47 @@ class FeePaymentController extends Controller
 
     function showSuccessPage($txnId)
     {
-        $txnrec =  StudentPayment::where('invoice_id', $txnId)->first();
-        $studentId = $txnrec->student_id;
-        $studentInfo = StudentMaster::find($studentId);
+        $txnrecs =  StudentPayment::where('invoice_id', $txnId)->with([
+            'studentmaster:id,first_name,last_name,roll_no,mobile_no,mail_id',
+            'feepaymentinfo:id,quarter_title',
+            'feepaymentinfo.feeHeads.head:id,head_name'
+        ])->get();
+        $data = json_decode($txnrecs, true);
+
         return view('includes.success-page', [
-            'studentinfo' => $studentInfo,
-            'txnid' => $txnId,
-            'amount' => $txnrec->amount,
-            'status' => $txnrec->status,
-            'gateway_id' => $txnrec->gateway_ref_code
+            'invoiceId' => $data[0]['invoice_id'],
+            'gatewayRef' => $data[0]['gateway_ref_code'],
+            'transactionDate' => $data[0]['transaction_date'],
+            'student' => $data[0]['studentmaster'],
+            'transactions' => $data,
+            'status' => $data[0]['status'],
         ]);
+    }
+
+    function downloadInvoice($txnId)
+    {
+        $txnrecs =  StudentPayment::where('invoice_id', $txnId)->with([
+            'studentmaster:id,first_name,last_name,roll_no,mobile_no,mail_id',
+            'feepaymentinfo:id,quarter_title',
+            'feepaymentinfo.feeHeads.head:id,head_name'
+        ])->get();
+        $transactions = json_decode($txnrecs, true);
+
+        $data = [
+            'invoiceId'        => $transactions[0]['invoice_id'],
+            'gatewayRef'       => $transactions[0]['gateway_ref_code'],
+            'transactionDate' => $transactions[0]['transaction_date'],
+            'student'          => $transactions[0]['studentmaster'],
+            'transactions'     => $transactions,
+            'status'           => $transactions[0]['status'],
+        ];
+
+        $pdf = Pdf::loadView('includes.success-page', $data)
+            ->setPaper('A4', 'portrait');
+
+        return $pdf->download(
+            'invoice-' . $data['invoiceId'] . '.pdf'
+        );
     }
 
     public function paymentFailure(Request $request)

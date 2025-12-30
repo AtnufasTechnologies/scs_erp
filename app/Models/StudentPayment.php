@@ -23,4 +23,9 @@ class StudentPayment extends Model
     {
         return $this->hasOne(FeesStructure::class, 'id', 'fee_structure_id');
     }
+
+    function studentmaster()
+    {
+        return $this->hasOne(StudentMaster::class, 'id', 'student_id');
+    }
 }

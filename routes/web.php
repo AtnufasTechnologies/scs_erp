@@ -144,5 +144,6 @@ Route::group(['prefix' => '/erp'], function () {
         Route::post('payment-success', [FeePaymentController::class, 'paymentSuccess'])->name('payment.success');
         Route::post('payment-failure', [FeePaymentController::class, 'paymentFailure'])->name('payment.failure');
         Route::get('transaction-success/{id}', [FeePaymentController::class, 'showSuccessPage']);
+        Route::get('transaction-success/{id}/download-pdf', [FeePaymentController::class, 'downloadInvoice']);
     });
 });
