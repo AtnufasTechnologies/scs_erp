@@ -25,48 +25,13 @@ class LoginController extends Controller
         if ($user) {
 
             if (Hash::check($request->password, $user->password)) {
-
-                //checking user role
-                $userRole = UserHasRole::where('user_id', $user->id)->first();
-
-                if ($userRole->role_type == 'admin') {
-                    $data['user'] = $user;
-                    $data['user_role'] = $userRole->role_type;
-                    $data['campus_auth'] = $userRole->campus; //1 = Sonada,2 = Siliguri
-
-                } else if ($userRole->role_type == 'teacher') {
-
-                    $data['user'] = $user;
-                    $data['user_role'] = $userRole->role_type;
-                } else if ($userRole->role_type == 'office') {
-
-                    $data['user'] = $user;
-                    $data['user_role'] = $userRole->role_type;
-                } else {
-                    //applicatant --- future student
-                    $data['user'] = $user;
-                    $data['user_role'] = $userRole->role_type;
-                }
-
+                Auth::login($user, true);
                 return redirect('erp/admin/dashboard')->with('success', 'Login Success');
-                // return response()->json([
-                //     'status' => true,
-                //     'message' => 'Login Successful',
-                //     'data' => $data,
-                // ], 200);
             } else {
-                return response()->json([
-                    'status' => false,
-                    'message' => 'Password Incorrect',
-
-                ], 401);
+                return redirect('/')->with('error', 'Password Incorrect');
             }
         } else {
-            return response()->json([
-                'status' => false,
-                'message' => 'User Not Found',
-
-            ], 404);
+            return redirect('/')->with('error', 'User Not Found');
         }
     }
 

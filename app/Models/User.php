@@ -43,4 +43,15 @@ class User extends Authenticatable
         'email_verified_at' => 'datetime',
         'password' => 'hashed',
     ];
+
+    function roles()
+    {
+        return $this->hasMany(UserHasPermission::class, 'user_id', 'id');
+    }
+
+    public function permissions()
+    {
+        return $this->hasMany(UserHasPermission::class, 'user_id')
+            ->with('permissionmaster');
+    }
 }

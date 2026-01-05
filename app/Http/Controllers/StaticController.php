@@ -14,6 +14,7 @@ use App\Models\FeeStructureHasHead;
 use App\Models\ProgramGroup;
 use App\Models\StudentPayment;
 use App\Models\User;
+use App\Models\UserHasPermission;
 use Carbon\Carbon;
 use GuzzleHttp\Client;
 use Illuminate\Support\Facades\View;
@@ -210,5 +211,24 @@ class StaticController extends Controller
       'programgroupinfo.campus'
     ])->where('fee_course_master_id', $id)->get();
     return $data;
+  }
+
+  static function assignRoleToUser($userId, $roles)
+  {
+
+    $user = User::find($userId);
+    $user->roles = json_encode($roles);
+    $user->save();
+  }
+
+  static function fetchUserPermissions($permissionType)
+  {
+    $userId = Auth::user()->id;
+    $permission = UserHasPermission::where('user_id', $userId)->where('permission_name', $permissionType)->first();
+    if ($permission != null) {
+      return true;
+    } else {
+      return false;
+    }
   }
 }

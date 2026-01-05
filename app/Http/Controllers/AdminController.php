@@ -29,8 +29,13 @@ use App\Models\ReligionMaster;
 use App\Models\RoomMaster;
 use App\Models\Semester;
 use App\Models\StudentMaster;
+use App\Models\User;
+use App\Models\UserHasPermission;
+use App\Models\UserHasRole;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Str;
+use Illuminate\Testing\Fluent\Concerns\Has;
 
 class AdminController extends Controller
 {
@@ -826,5 +831,83 @@ class AdminController extends Controller
         ]);
 
         return redirect()->back()->with('success', 'Updated');
+    }
+
+    function userList()
+    {
+        $data = User::with('roles.permissionmaster:id,permission_name')->get();
+        return view('admin.user-manager.access-management', ['data' => $data]);
+    }
+
+    function createNewUser(Request $request)
+    {
+        $request->validate([
+            'name' => 'required|string|max:255',
+            'email' => 'required|string|email|max:255|unique:users',
+            'roles' => 'required|array|min:1',
+            'password' => 'required|string|min:8',
+        ]);
+
+        $rec = new User();
+        $rec->name = $request->name;
+        $rec->email = $request->email;
+        $rec->password = Hash::make($request->password);
+        $rec->status = 'ACTIVE';
+        $rec->otp_verification = 1;
+        $rec->save();
+
+        $userId = $rec->id;
+
+        $roles = $request->roles;
+        //adding permissions
+        for ($i = 0; $i < count($roles); $i++) {
+
+            $permission = new UserHasPermission();
+            $permission->user_id = $userId;
+            $permission->permission_name = $roles[$i];
+            $permission->save();
+        }
+
+        //adding role_type
+        $userType = new UserHasRole();
+        $userType->user_id = $userId;
+        $userType->role_type = 'ADMIN';
+        $userType->campus = $request->campus ?? null;
+        $userType->save();
+
+        return redirect()->back()->with('success', 'New User Created');
+    }
+
+    function updatePermission(Request $request)
+    {
+
+
+        $request->validate([
+            'roles' => 'required|array|min:1',
+            'user_id' => 'required',
+        ]);
+
+        $userId = $request->user_id;
+
+        $roles = $request->roles;
+
+        for ($i = 0; $i < count($roles); $i++) {
+
+            $duplicateCheck = UserHasPermission::where('user_id', $userId)->where('permission_name', $roles[$i])->first();
+            if ($duplicateCheck == null) {
+                $permission = new UserHasPermission();
+                $permission->user_id = $userId;
+                $permission->permission_name = $roles[$i];
+                $permission->save();
+            }
+        }
+
+        return redirect()->back()->with('success', 'Permissions Updated');
+    }
+
+    function removeUserPermission($id)
+    {
+        UserHasPermission::find($id)->delete();
+        return redirect()->back()->with('success', 'Permission Removed');
     }
 }

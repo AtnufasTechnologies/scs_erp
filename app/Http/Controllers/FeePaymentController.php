@@ -917,4 +917,32 @@ class FeePaymentController extends Controller
             'checksum' => $checksum
         ]);
     }
+
+
+    function allPayments(Request $request)
+    {
+        if ($request->has('from_date') && $request->has('to_date')) {
+            $from = Carbon::parse($request->from_date)->startOfDay();
+            $to = Carbon::parse($request->to_date)->endOfDay();
+
+            $payments = StudentPayment::with([
+                'studentmaster:id,first_name,last_name,roll_no',
+                'feepaymentinfo:id,quarter_title',
+                'gatewayType:id,title'
+            ])->whereBetween('transaction_date', [$from, $to])->orderBy('transaction_date', 'desc')->get();
+        } else {
+            $payments = StudentPayment::with([
+                'studentmaster:id,first_name,last_name,roll_no',
+                'feepaymentinfo:id,quarter_title',
+                'gatewayType:id,title'
+            ])->orderBy('created_at', 'desc')->get();
+        }
+
+
+
+
+        return view('admin.accounts.all-payments', [
+            'payments' => $payments
+        ]);
+    }
 }

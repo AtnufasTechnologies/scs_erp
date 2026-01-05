@@ -673,3 +673,22 @@ footer {
     background-image: linear-gradient(135deg, #7c1efe 0%, #d0d0d0 95%);
     color: #fff;
 }
+
+table tbody {
+    background-color: #fff !important;
+}
+
+table thead {
+    background-color: #423b5a !important;
+    color: #fff;
+}
+
+.btn-edit {
+    background-image: linear-gradient(-20deg, #6e45e2 0%, #88d3ce 100%);
+    border: none;
+    box-shadow: rgba(0, 0, 0, 0.3) 0px 8px 12px;
+    color: #fff;
+    &:hover {
+        color: #fff;
+    }
+}

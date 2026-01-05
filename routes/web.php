@@ -128,11 +128,21 @@ Route::group(['prefix' => '/erp'], function () {
 
             Route::get('invoice/{id}', [FeePaymentController::class, 'generateInvoice']);
             Route::get('print-feereciept/{studentId}/{feeId}', [FeePaymentController::class, 'generateFeeReciept']);
+            Route::get('all-payments', [FeePaymentController::class, 'allPayments'])->name('all.payments');
+            Route::get('transaction-info/{id}', [FeePaymentController::class, 'showSuccessPage'])->name('transaction.info');
         });
 
         //Academics
         Route::group(['prefix' => '/academics'], function () {
             Route::post('add/subject-semester', [SubjectController::class, 'addSemesterToSubject'])->name('add.semester.to.subject');
+        });
+
+        //user access management
+        Route::group(['prefix' => '/user-access'], function () {
+            Route::get('access-management', [AdminController::class, 'userList']);
+            Route::post('newuser', [AdminController::class, 'createNewUser']);
+            Route::post('update-permission', [AdminController::class, 'updatePermission']);
+            Route::get('remove-user-permission/{id}', [AdminController::class, 'removeUserPermission']);
         });
     });
 
