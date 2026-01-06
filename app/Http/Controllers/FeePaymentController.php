@@ -494,8 +494,8 @@ class FeePaymentController extends Controller
         $student = StudentMaster::findOrFail($studentId);
 
         /** Easebuzz Params */
-        $key = env('EASEBUZZ_KEY_TEST');
-        $salt = env('EASEBUZZ_SALT_TEST');
+        $key = env('EASEBUZZ_KEY');
+        $salt = env('EASEBUZZ_SALT');
         $txnid = $invoice;
         $productinfo = 'Salesian College Autonomous - Fee Payment';
 
@@ -504,7 +504,7 @@ class FeePaymentController extends Controller
 
         /** Initiate Payment */
         $client = new \GuzzleHttp\Client();
-        $response = $client->post(env('EASEBUZZ_INITIATE_URL_TEST'), [
+        $response = $client->post(env('EASEBUZZ_INITIATE_URL'), [
             'form_params' => [
                 'key' => $key,
                 'txnid' => $txnid,
@@ -524,7 +524,7 @@ class FeePaymentController extends Controller
         $apiResponse = json_decode($response->getBody(), true);
 
         if ($apiResponse['status'] == 1) {
-            return redirect(env('EASEBUZZ_PAYMENT_URL_TEST') . $apiResponse['data']);
+            return redirect(env('EASEBUZZ_PAYMENT_URL') . $apiResponse['data']);
         }
 
         return back()->withErrors('Payment initiation failed');
