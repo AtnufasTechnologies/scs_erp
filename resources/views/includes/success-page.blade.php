@@ -80,7 +80,7 @@ $userInfo = User::select('name')->find($userId);
 
     {{-- CALCULATE --}}
     @foreach($structure['fee_heads'] as $head)
-    @if($head['fee_head_id'] == 2)
+    @if($head['fee_head_id'] == 17)
     @php $courseFee += $head['amount']; @endphp
     @else
     @php $otherFees += $head['amount']; @endphp
