@@ -58,12 +58,15 @@
       <td class="text-capitalize">{{ $payment->studentmaster->first_name }} {{ $payment->studentmaster->last_name }}</td>
       <td>{{ $payment->captured_amount }}</td>
       <td>{{ $payment->gateway_ref_code }}</td>
-      <td> <span class="badge rounded-pill bg-info"> @if ($payment->gateway_type_id == 1)
+      <td> <span class="badge rounded-pill bg-info">
+          @if ($payment->gateway_type_id == 1)
           Easebuzz
           @elseif ($payment->gateway_type_id == 2)
           BillDesk
-          @else
+          @elseif ($payment->gateway_type_id == 3)
           Cash
+          @else
+          Offline
           @endif
         </span>
       </td>
