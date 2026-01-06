@@ -47,11 +47,14 @@
           </div>
 
           <div class="mb-3">
-            <label class="fw-bold">Payment Gateway *</label>
+            <label class="fw-bold">Payment Mode *</label>
             <select name="gateway_type_id" class="form-select" required>
+              <option value="">--Select Mode--</option>
               <option value="1">Easebuzz</option>
               <option value="2">Billdesk</option>
               <option value="3">Cash</option>
+              <option value="4">Offline</option>
+
             </select>
           </div>
 

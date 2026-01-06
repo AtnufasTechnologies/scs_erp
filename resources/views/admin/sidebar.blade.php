@@ -307,7 +307,7 @@ use App\Http\Controllers\StaticController;
             <div class="parent-icon">
               <i class="fas fa-arrow-alt-circle-right"></i>
             </div>
-            <div class="menu-title">Fee Collection</div>
+            <div class="menu-title">Fee Structure</div>
           </a>
         </li>
 
@@ -316,7 +316,7 @@ use App\Http\Controllers\StaticController;
             <div class="parent-icon">
               <i class="fas fa-arrow-alt-circle-right"></i>
             </div>
-            <div class="menu-title">Fee Payments</div>
+            <div class="menu-title">Fee Collection</div>
           </a>
         </li>
         <li>
@@ -732,7 +732,7 @@ use App\Http\Controllers\StaticController;
             <div class="parent-icon">
               <i class="fas fa-arrow-alt-circle-right"></i>
             </div>
-            <div class="menu-title">Fee Collection</div>
+            <div class="menu-title">Fee Structure</div>
           </a>
         </li>
 
@@ -741,7 +741,7 @@ use App\Http\Controllers\StaticController;
             <div class="parent-icon">
               <i class="fas fa-arrow-alt-circle-right"></i>
             </div>
-            <div class="menu-title">Fee Payments</div>
+            <div class="menu-title">Fee Collection</div>
           </a>
         </li>
         <li>

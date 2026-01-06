@@ -81,12 +81,14 @@ $timestamp = Carbon::now()
   <p>
 
     <?php
-    if ($payment->gateway_id == 1) {
+    if ($payment->gateway_type_id == 1) {
       $gateway = 'Easebuzz';
-    } else if ($payment->gateway_id == 3) {
+    } else if ($payment->gateway_type_id == 2) {
       $gateway = 'Billdesk';
-    } else {
+    } else if ($payment->gateway_type_id == 3) {
       $gateway = 'Cash';
+    } else {
+      $gateway = 'Offline';
     }
     ?>
     <strong>Payment Mode: </strong> {{$gateway}} {{ $payment->gateway_ref_code != null ?? ''}}

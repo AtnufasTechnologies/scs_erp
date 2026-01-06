@@ -188,10 +188,10 @@ class StaticController extends Controller
 
   static function generateInvoiceId($prefix)
   {
-    // $year = now()->format('Y');
-    // $count = StudentPayment::whereYear('created_at', $year)->count() + 1;
-    // $txnno =  $label . $year . str_pad($count, 5, '0', STR_PAD_LEFT);
-    $txnno = $prefix . round(microtime(true) * 1000);
+    $year = now()->format('Y');
+    $count = StudentPayment::whereYear('created_at', $year)->count() + 1;
+    $txnno =  $prefix . str_pad($count, 6, '0', STR_PAD_LEFT);
+    // $txnno = $prefix . round(microtime(true) * 1000);
     return $txnno;
   }
 

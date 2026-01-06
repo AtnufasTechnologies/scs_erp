@@ -123,138 +123,42 @@ class FeePaymentController extends Controller
          * 1 Easebuzz
          * 2 Billdesk
          * 3 Cash Offline
+         * 4 Offline
          */
         //generate Invoice #
 
-
         $feeStructureRecord  = FeesStructure::find($request->fee_structure_id);
         $paymentTitle = $feeStructureRecord->quarter_title;
+        $studentId = $request->student_id;
 
         if ($request->gateway_type_id == 1) {
-
-
-            $fee_structure_id = $request->fee_structure_id;
-            $splitData = FeeStructureHasHead::where('fee_structure_id', $fee_structure_id)
-                ->with('head.bankmaster:id,acc_label')
-                ->get();
-
-            $split = [];
-            $totalAmount = 0;
-
-            foreach ($splitData as $item) {
-                $label  = $item['head']['bankmaster']['acc_label'];
-                $amount = (float) $item['amount'];
-
-                $split[$label] = ($split[$label] ?? 0) + $amount;
-                $totalAmount += $amount;
-            }
-
-            $splitPayments = json_encode(
-                array_map('strval', $split) // values must be strings
-            );
-
-            $studentId = $request->student_id;
-            $student = StudentMaster::find($studentId);
-
-
-            /**Check is same payment Record exist or not */
-            $checkPayRec = StudentPayment::where('student_id', $studentId)->where('fee_structure_id', $request->fee_structure_id)
-                ->where('status', '!=', 'success')
-                ->first();
-
-            if ($checkPayRec != null) {
-                $invoice = 'EZ' . StaticController::generateInvoiceId();
-                StudentPayment::where('id', $checkPayRec->id)->update([
-                    'invoice_id' => $invoice,
-                    'gateway_type_id' => $request->gateway_type_id
-                ]);
-            } else {
-                $invoice = 'EZ' . StaticController::generateInvoiceId();
-                $rec = new StudentPayment();
-                $rec->invoice_id = $invoice;
-                $rec->student_id = $studentId;
-                $rec->fee_structure_id = $request->fee_structure_id;
-                $rec->status = 'initiated';
-                $rec->amount = $request->amount;
-                $rec->transaction_date = $request->transaction_date;
-                $rec->gateway_type_id = $request->gateway_type_id;
-                $rec->transaction_ref = $request->transaction_ref;
-                $rec->save();
-            }
-
-            $client = new \GuzzleHttp\Client();
-            $key = env('EASEBUZZ_KEY_TEST');
-            $txnid = $invoice;
-            $name = $student->fullname;
-            $phone = $student->mobile_no;
-            $email = $student->mail_id;
-            $productinfo = 'Salesian College Autonomous - ' . $paymentTitle;
-            $salt = env('EASEBUZZ_SALT_TEST');
-            $hash = "$key|$txnid|$totalAmount|$productinfo|$name|$email|$studentId||||||||||$salt";
-
-            $hashSequence = strtolower(hash("sha512", $hash));
-
-            $intiateLink = env('EASEBUZZ_INITIATE_URL_TEST');
-
-            $response = $client->request('POST', $intiateLink, [
-                'form_params' => [
-                    'key' => $key,
-                    'txnid' => $txnid,
-                    'amount' => $totalAmount,
-                    'productinfo' => $productinfo,
-                    'firstname' => $name,
-                    'phone' => $phone,
-                    'email' => $email,
-                    'surl' => route('payment.success'),
-                    'furl' => route('payment.failure'),
-                    'hash' => $hashSequence,
-                    'udf1' => $studentId,
-                    'split_payments' => $splitPayments
-                ],
-                'headers' => [
-                    'Accept' => 'application/json',
-                    'Content-Type' => 'application/x-www-form-urlencoded',
-                ],
-            ]);
-
-
-            $body = $response->getBody()->getContents();
-            $apiResponse = json_decode($body, true);
-
-            if ($apiResponse['status'] == 1) {
-                // Redirect to payment page
-                $accessKey = $apiResponse['data'];
-                return redirect(env('EASEBUZZ_PAYMENT_URL_TEST') . $accessKey);
-            } else {
-                return response()->json($apiResponse);
-            }
+            $invoice =  StaticController::generateInvoiceId('EZ' . $studentId);
         }
-
-
 
         if ($request->gateway_type_id == 2) {
 
-            return    $invoice = 'BD' . StaticController::generateInvoiceId();
-
-            dd('initiate billdesk logic');
+            $invoice =  StaticController::generateInvoiceId('BD' . $studentId);
         }
-
-
 
         if ($request->gateway_type_id == 3) {
-
-            $invoice = 'CA' . StaticController::generateInvoiceId();
-            $rec = new StudentPayment();
-            $rec->invoice_id = $invoice;
-            $rec->student_id = $request->student_id;
-            $rec->fee_structure_id = $request->fee_structure_id;
-            $rec->status = 'success';
-            $rec->amount = $request->amount;
-            $rec->transaction_date = $request->transaction_date;
-            $rec->gateway_type_id = $request->gateway_type_id;
-            $rec->message = "Manual Entry from Accounts Office";
-            $rec->save();
+            $invoice =  StaticController::generateInvoiceId('CA' . $studentId);
         }
+
+        if ($request->gateway_type_id == 4) {
+            $invoice =  StaticController::generateInvoiceId('OF' . $studentId);
+        }
+
+
+        $rec = new StudentPayment();
+        $rec->invoice_id = $invoice;
+        $rec->student_id = $request->student_id;
+        $rec->fee_structure_id = $request->fee_structure_id;
+        $rec->status = 'success';
+        $rec->amount = $request->amount;
+        $rec->transaction_date = $request->transaction_date;
+        $rec->gateway_type_id = $request->gateway_type_id;
+        $rec->message = "Manual Entry from Accounts Office";
+        $rec->save();
         return redirect()->back()->with('success', 'Payment updated successfully!');
     }
 
@@ -344,19 +248,7 @@ class FeePaymentController extends Controller
             abort(404, "No successful payment found for this fee");
         }
 
-        // Amount calculation
-        $amount = FeeStructureHasHead::where('fee_structure_id', $feeId)
-            ->sum('amount');
-
-        $invoiceData = [
-            'student' => $student,
-            'fee' => $fee,
-            'payment' => $payment,
-            'amount' => $amount,
-            'invoice_no' => "INV-" . now()->format('Ymd') . "-" . $student->id . "-" . $feeId,
-        ];
-
-        return view('pdf.fee-reciept', $invoiceData);
+        return $this->showSuccessPage($payment->invoice_id);
     }
 
     function studentValidation()
@@ -639,133 +531,6 @@ class FeePaymentController extends Controller
     }
 
 
-    /*
-    function createOrderOld(Request $request)
-    {
-
-        $request->validate([
-            'fee_structure_id' => 'required|array|min:1',
-            'gateway' => 'required'
-        ]);
-
-        $studentId = $request->studentId;
-        $fee_structure_id = $request->fee_structure_id;
-        $gateway = $request->gateway;
-
-        $payMaster = PaymentGatewayType::where('title', $gateway)->first();
-        $paymentGatewayId = $payMaster->id;
-
-        //generate Invoice #
-        if ($gateway == 'easebuzz') {
-            $invoice =  StaticController::generateInvoiceId('EZ');
-        } else {
-            $invoice =  StaticController::generateInvoiceId('BL');
-        }
-
-        //find total amount
-        $payableAmount =   StudentPayment::where('invoice_id', $invoice)->where('student_id', $studentId)->sum('amount');
-
-        if ($gateway == 'easebuzz') {
-
-            $fee_structure_id = $request->fee_structure_id;
-            $splitData = FeeStructureHasHead::where('fee_structure_id', $fee_structure_id)
-                ->with('head.bankmaster:id,acc_label')
-                ->get();
-
-            $split = [];
-            $totalAmount = 0;
-
-            foreach ($splitData as $item) {
-                $label  = $item['head']['bankmaster']['acc_label'];
-                $amount = (float) $item['amount'];
-
-                $split[$label] = ($split[$label] ?? 0) + $amount;
-                $totalAmount += $amount;
-            }
-
-            $splitPayments = json_encode(
-                array_map('strval', $split) // values must be strings
-            );
-
-            $checkPayRec = StudentPayment::where('student_id', $studentId)->where('fee_structure_id', $request->fee_structure_id)
-                ->where('status', '!=', 'success')
-                ->first();
-
-            if ($checkPayRec != null) {
-                StudentPayment::where('id', $checkPayRec->id)->update([
-                    'invoice_id' => $invoice,
-                    'gateway_type_id' => $paymentGatewayId
-                ]);
-            } else {
-
-                for ($i = 0; $i < count($fee_structure_id); $i++) {
-
-                    //find fee Structure Amount
-                    $amount = FeeStructureHasHead::where('fee_structure_id', $fee_structure_id[$i])->sum('amount');
-
-                    $rec = new StudentPayment();
-                    $rec->invoice_id = $invoice;
-                    $rec->student_id = $studentId;
-                    $rec->fee_structure_id = $fee_structure_id[$i];
-                    $rec->status = 'intiated';
-                    $rec->amount = $amount;
-                    $rec->transaction_date = Carbon::now();
-                    $rec->gateway_type_id = $paymentGatewayId;
-                    $rec->save();
-                }
-            }
-            $student = StudentMaster::find($studentId);
-            $client = new \GuzzleHttp\Client();
-            $key = env('EASEBUZZ_KEY_TEST');
-            $txnid = $invoice;
-            $name = $student->fullname;
-            $phone = $student->mobile_no;
-            $email = $student->mail_id;
-            $productinfo = 'Salesian College Autonomous - Fee Payment';
-            $salt = env('EASEBUZZ_SALT_TEST');
-            $hash = "$key|$txnid|$payableAmount|$productinfo|$name|$email|$studentId||||||||||$salt";
-
-            $hashSequence = strtolower(hash("sha512", $hash));
-
-            $intiateLink = env('EASEBUZZ_INITIATE_URL_TEST');
-
-            $response = $client->request('POST', $intiateLink, [
-                'form_params' => [
-                    'key' => $key,
-                    'txnid' => $txnid,
-                    'amount' => $payableAmount,
-                    'productinfo' => $productinfo,
-                    'firstname' => $name,
-                    'phone' => $phone,
-                    'email' => $email,
-                    'surl' => route('payment.success'),
-                    'furl' => route('payment.failure'),
-                    'hash' => $hashSequence,
-                    'udf1' => $studentId,
-                    'split_payments' => $splitPayments
-                ],
-                'headers' => [
-                    'Accept' => 'application/json',
-                    'Content-Type' => 'application/x-www-form-urlencoded',
-                ],
-            ]);
-
-
-            $body = $response->getBody()->getContents();
-            $apiResponse = json_decode($body, true);
-
-            if ($apiResponse['status'] == 1) {
-                // Redirect to payment page
-                $accessKey = $apiResponse['data'];
-                return redirect(env('EASEBUZZ_PAYMENT_URL_TEST') . $accessKey);
-            } else {
-                return response()->json($apiResponse);
-            }
-        }
-    }
-    */
-
-
     public function paymentSuccess(Request $request)
     {
 
@@ -807,6 +572,8 @@ class FeePaymentController extends Controller
             'student' => $data[0]['studentmaster'],
             'transactions' => $data,
             'status' => $data[0]['status'],
+            'gatewayType' => $data[0]['gateway_type_id'],
+
         ]);
     }
 
