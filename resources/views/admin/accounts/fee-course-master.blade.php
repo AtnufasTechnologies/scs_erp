@@ -67,7 +67,7 @@ $fetchPrograms = StaticController::fetchProgramGroupNew();
         <th>Name</th>
         <th>Program Groups</th>
         <th>Connect Programs</th>
-        <th>Edit</th>
+        <th>Edit Name</th>
         <th>Delete</th>
       </tr>
     </thead>
@@ -154,6 +154,7 @@ $fetchPrograms = StaticController::fetchProgramGroupNew();
             </div>
           </div>
         </td>
+
 
         <td>
           <button type="button" class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#edit{{$item->id}}">

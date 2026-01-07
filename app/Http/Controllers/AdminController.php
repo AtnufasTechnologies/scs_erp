@@ -598,14 +598,35 @@ class AdminController extends Controller
         $request->validate([
             'progs' => 'required|array|min:1',
         ]);
-
+        $courseMasterId =  $request->coursemasterId;
         $progs = $request->progs;
         for ($i = 0; $i < count($progs); $i++) {
+
+            if (FeeStructureGroup::where('fee_course_master_id', $courseMasterId)->where('program_group_id', $progs[$i])->exists()) {
+                continue;
+            }
+
             $rec = new FeeStructureGroup();
-            $rec->fee_course_master_id = $request->coursemasterId;
+            $rec->fee_course_master_id = $courseMasterId;
             $rec->program_group_id = $progs[$i];
             $rec->save();
         }
+        //find if any fee structure exist
+        $feeStructures = FeesStructure::where('course_name', $courseMasterId)->get();
+        foreach ($feeStructures as $fs) {
+            //link programs to fee structure
+            for ($j = 0; $j < count($progs); $j++) {
+                if (FeeStructureHasManyProgram::where('fee_structure_id', $fs->id)->where('std_program_id', $progs[$j])->exists()) {
+                    continue;
+                }
+                $pvt = new FeeStructureHasManyProgram();
+                $pvt->fee_structure_id = $fs->id;
+                $pvt->std_program_id = $progs[$j];
+                $pvt->save();
+            }
+        }
+
+
         return redirect()->back()->with('success', 'Group Created');
     }
 
