@@ -60,6 +60,7 @@ $banks = CollegeBankAccount::get();
         <th>#</th>
 
         <th>Head Name</th>
+        <th>Label</th>
         <th>Connected Bank Account</th>
         <th>Edit</th>
         <th>Delete</th>
@@ -73,6 +74,8 @@ $banks = CollegeBankAccount::get();
       <tr>
         <td>{{$sl++}}</td>
         <td> {{$item->head_name}}</td>
+        <td>{{$item->bankmaster ? $item->bankmaster->acc_label : ''}}</td>
+
         <td>{{$item->bankmaster ? $item->bankmaster->acc_name   .' - '.  $item->bankmaster->acc_no: ''}}</td>
         <td>
 
