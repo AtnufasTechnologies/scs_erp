@@ -606,25 +606,23 @@ class FeePaymentController extends Controller
     public function paymentFailure(Request $request)
     {
 
-
         $hash  =  $request->hash;
-        $amount = $request->amount;
         $msg = $request->error_Message;
         $easepayid = $request->easepayid;
         $status = $request->status;
         $txnid = $request->txnid;
-        $userId = $request->udf1;
 
-        //Record Transaction in Payments Log
-        $log = new FailedTransactionLog();
-        $log->txnid = $txnid;
-        $log->gateway_id = $easepayid;
-        $log->user_id = $userId;
-        $log->amount = $amount;
-        $log->hash = $hash;
-        $log->msg = $msg;
-        $log->status = $status;
-        $log->save();
+        StudentPayment::where('invoice_id', $txnid)
+            ->update(
+                [
+                    'gateway_ref_code' => $easepayid,
+                    'status' => $status,
+                    'message' => $msg,
+                    'hash' => $hash,
+                ]
+            );
+
+        return redirect('erp/student/fee-payment/')->with('error', 'Transaction Failed. Please try again.');
     }
 
 
