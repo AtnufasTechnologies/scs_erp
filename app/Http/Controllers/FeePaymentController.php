@@ -488,7 +488,7 @@ class FeePaymentController extends Controller
             $split[$label] = ($split[$label] ?? 0) + (float) $item->amount;
         }
 
-        $splitPayments = json_encode(array_map('strval', $split));
+        $splitPayments = json_encode($split);
 
         /** Student Details */
         $student = StudentMaster::findOrFail($studentId);
