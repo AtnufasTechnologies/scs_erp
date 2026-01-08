@@ -55,7 +55,10 @@
                   <strong>{{ $fee['fee_structure_name'] }}</strong><br>
                 </div>
                 <div class="col-md-4 text-end">
-                  <h5 class="text-danger">₹ {{ number_format($fee['total_amount']) }}</h5>
+                  <p>Fee Amount : ₹{{ $fee['base_amount'] }}</p>
+                  <p> Late Fee: ₹{{ $fee['late_fee'] }} /{{ $fee['late_days'] }} days</p>
+                  <hr>
+                  <h5 class="text-primary"><strong>₹ {{ number_format($fee['total_payable']) }}</strong></h5>
                 </div>
               </div>
             </div>
