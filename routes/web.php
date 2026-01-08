@@ -122,6 +122,7 @@ Route::group(['prefix' => '/erp'], function () {
             Route::post('update-fee-structure', [AdminController::class, 'updateFeeStructure']);
             Route::get('del-headpvt/{id}', [AdminController::class, 'delFeeHeadPvt']);
             Route::post('add-coursemaster-group', [AdminController::class, 'addCourseMasterGroup'])->name('link.coursemaster.prggroup');
+            Route::get('latefee', [AdminController::class, 'latefee']);
 
             Route::get('std-fee-payments', [FeePaymentController::class, 'index']);
             Route::post('manual-payment-payment', [FeePaymentController::class, 'manualFeePayment'])->name('manual.fee.payment');
