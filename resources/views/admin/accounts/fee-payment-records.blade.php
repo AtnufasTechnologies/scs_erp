@@ -99,7 +99,9 @@ $programgroups = ProgramGroup::with(['programInfo', 'campus'])->where('campus_id
         {{-- LEFT SIDE --}}
         <div>
           <div class="fee-title">{{ $fee['quarter'] }}</div>
-          <div class="text-muted">Amount: ₹{{ number_format($fee['total_amount']) }}</div>
+          <div class="text-muted">Fee Amount: ₹{{ number_format($fee['total_amount']) }}</div>
+          <div class="text-muted">Late Fee: ₹{{ $fee['late_fee'] }} / {{ $fee['late_days'] }} days</div>
+          <div class="text-title">Total Payable Amount <strong>₹{{ $fee['payable_amount'] }}</strong> </div>
         </div>
 
         {{-- RIGHT SIDE --}}
@@ -117,7 +119,7 @@ $programgroups = ProgramGroup::with(['programInfo', 'campus'])->where('campus_id
             data-student-name="{{ $item['studentinfo']['fullname'] }}"
             data-fee-id="{{ $fee['fee_structure_id'] }}"
             data-quarter="{{ $fee['quarter'] }}"
-            data-amount="{{ $fee['total_amount'] }}"
+            data-amount="{{ $fee['payable_amount'] }}"
             data-bs-toggle="modal"
             data-bs-target="#manualPayModal">
             PAY

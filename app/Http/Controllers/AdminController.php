@@ -21,6 +21,7 @@ use App\Models\FeeStructureGroup;
 use App\Models\FeeStructureHasHead;
 use App\Models\FeeStructureHasManyProgram;
 use App\Models\HourMaster;
+use App\Models\LateFee;
 use App\Models\LectureHallMaster;
 use App\Models\MainProgram;
 use App\Models\ProgramGroup;
@@ -930,5 +931,11 @@ class AdminController extends Controller
     {
         UserHasPermission::find($id)->delete();
         return redirect()->back()->with('success', 'Permission Removed');
+    }
+
+    function latefee()
+    {
+        $data = LateFee::find(1);
+        return view('admin.accounts.latefee', ['data' => $data]);
     }
 }

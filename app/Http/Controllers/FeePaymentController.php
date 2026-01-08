@@ -7,6 +7,7 @@ use App\Models\FailedTransactionLog;
 use App\Models\FeesStructure;
 use App\Models\FeeStructureHasHead;
 use App\Models\FeeStructureHasManyProgram;
+use App\Models\LateFee;
 use App\Models\PaymentGatewayType;
 use App\Models\StudentMaster;
 use App\Models\StudentPayment;
@@ -38,6 +39,7 @@ class FeePaymentController extends Controller
             $query->where(function ($q) use ($searchValues) {
                 foreach ($searchValues as $value) {
                     $q->orWhere('roll_no', 'LIKE', "%$value%");
+                    $q->orWhere('first_name', 'LIKE', "%$value%");
                 }
             });
         }
@@ -51,7 +53,7 @@ class FeePaymentController extends Controller
         }
 
         // ---- PAGINATION ----
-        $data = $query->paginate(20)->withQueryString(); // <<<<<< THIS IS THE KEY
+        $data = $query->paginate(36)->withQueryString(); // <<<<<< THIS IS THE KEY
 
         // ---- TRANSFORM EACH RECORD USING through() ----
         $students = $data->through(function ($student) {
@@ -62,8 +64,10 @@ class FeePaymentController extends Controller
                 })
                 ->whereIn('std_current_year', range(1, $student->current_year))
                 ->get();
+            $lateFeePerDay = LateFee::where('status', 1)->value('late_fee_amount'); // 100
 
-            $fsWithStatus = $applicableFS->map(function ($fs) use ($student) {
+            $fsWithStatus = $applicableFS->map(function ($fs) use ($student, $lateFeePerDay) {
+
 
                 $payment = $student->feepayment
                     ->where('fee_structure_id', $fs->id)
@@ -71,17 +75,39 @@ class FeePaymentController extends Controller
                     ->where('status', 'success')
                     ->first();
 
+                $totalAmount = $fs->feeHeads->sum('amount');
+
+                // ---- LATE FEE CALCULATION ----
+                $lateDays = 0;
+                $lateFee = 0;
+
+                if (!$payment) {
+                    $dueDate = Carbon::parse($fs->due_date)->timezone('asia/kolkata');
+
+                    $today = Carbon::today()->timezone('asia/kolkata');
+
+                    if ($today->gt($dueDate)) {
+
+                        $lateDays = $dueDate->diffInDays($today);
+                        $lateFee = $lateDays * $lateFeePerDay;
+                    }
+                }
+
                 return [
                     'paymentinfo' => $payment,
                     'fee_structure_id' => $fs->id,
                     'quarter' => $fs->quarter_title,
                     'year' => $fs->std_current_year,
-                    'total_amount' => $fs->feeHeads->sum('amount'),
+                    'total_amount' => $totalAmount,
+                    'late_days' => $lateDays,
+                    'late_fee' => $lateFee,
+                    'payable_amount' => $totalAmount + $lateFee,
                     'paid' => $payment ? true : false,
                     'paid_amount' => $payment->amount ?? 0,
-                    'status' => $payment->status ?? 'NOT PAID',
+                    'status' => $payment ? 'PAID' : ($lateFee > 0 ? 'LATE' : 'DUE'),
                 ];
             });
+
 
             return [
                 'studentinfo' => [

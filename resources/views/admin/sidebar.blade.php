@@ -275,6 +275,14 @@ use App\Http\Controllers\StaticController;
       </a>
       <ul>
         <li>
+          <a href="{{url('erp/admin/accounts/latefee')}}">
+            <div class="parent-icon">
+              <i class="fas fa-arrow-alt-circle-right"></i>
+            </div>
+            <div class="menu-title">Late Fee</div>
+          </a>
+        </li>
+        <li>
           <a href="{{url('erp/admin/accounts/bankinfo')}}">
             <div class="parent-icon">
               <i class="fas fa-arrow-alt-circle-right"></i>
@@ -699,6 +707,16 @@ use App\Http\Controllers\StaticController;
         <div class="menu-title">Accounts Office</div>
       </a>
       <ul>
+
+        <li>
+          <a href="{{url('erp/admin/accounts/latefee')}}">
+            <div class="parent-icon">
+              <i class="fas fa-arrow-alt-circle-right"></i>
+            </div>
+            <div class="menu-title">Late Fee</div>
+          </a>
+        </li>
+
         <li>
           <a href="{{url('erp/admin/accounts/bankinfo')}}">
             <div class="parent-icon">

@@ -4,6 +4,7 @@ use App\Http\Controllers\StaticController;
 use App\Models\BatchMaster;
 use App\Models\FeeCourseMaster;
 use App\Models\FeeHead;
+use App\Models\LateFee;
 use App\Models\MainProgram;
 use App\Models\ProgramGroup;
 use App\Models\StudentProgram;
@@ -13,21 +14,53 @@ $programs = MainProgram::with('campus')->get();
 $feeheads = FeeHead::latest()->get();
 $feecoursemaster = FeeCourseMaster::latest()->get();
 $programgroups = ProgramGroup::with(['programInfo'])->get();
+$latefee = LateFee::find(1);
 ?>
 @include('includes.header')
 @include('admin.sidebar')
 
 <h3><span class="text-uppercase">Fee Structure </span></h3>
-<!-- Button trigger modal -->
-<button class="cst-button mb-3" style="--clr: #21d9c7ff;" data-bs-toggle="modal" data-bs-target="#add">
-  <span class="button-decor"></span>
-  <div class="button-content">
-    <div class="button__icon">
-      <i class="fa fa-plus-circle"></i>
-    </div>
-    <span class="button__text">Add New</span>
+<div class="row">
+  <div class="col-lg-2">
+    <button class="cst-button mb-3" style="--clr: #21d9c7ff;" data-bs-toggle="modal" data-bs-target="#add">
+      <span class="button-decor"></span>
+      <div class="button-content">
+        <div class="button__icon">
+          <i class="fa fa-plus-circle"></i>
+        </div>
+        <span class="button__text">Add New</span>
+      </div>
+    </button>
   </div>
-</button>
+  <div class="col-lg-4 offset-6">
+    <div class="card shadow p-2">
+      <form action="" method="post">
+        <div class="row">
+          <label for="">Late Fee</label>
+          <div class="col-lg-6">
+
+            <div class="input-group">
+              <input type="text" class="form-control" value="{{$latefee->late_fee_amount}}">
+            </div>
+          </div>
+          <div class="col-lg-6">
+            <div class="input-group">
+              <select name="" class="form-select">
+                <option value="1 " {{$latefee->status == '1' ? 'selected' : ''}}>Active</option>
+                <option value="0 " {{$latefee->status == '0' ? 'selected' : ''}}>Inactive</option>
+              </select>
+              <button type="submit" class="btn btn-success">Update</button>
+
+            </div>
+          </div>
+
+        </div>
+      </form>
+    </div>
+
+  </div>
+</div>
+
 <!-- Modal -->
 <div class="modal fade" id="add" tabindex="-1" aria-labelledby="exampleModalLabel" aria-hidden="true">
   <div class="modal-dialog modal-lg">
