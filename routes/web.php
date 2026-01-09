@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\AdminController;
+use App\Http\Controllers\AdmissionController;
 use App\Http\Controllers\FeePaymentController;
 use App\Http\Controllers\LoginController;
 use App\Http\Controllers\SubjectController;
@@ -159,4 +160,14 @@ Route::group(['prefix' => '/erp'], function () {
         Route::get('transaction-success/{id}', [FeePaymentController::class, 'showSuccessPage']);
         Route::get('transaction-success/{id}/download-pdf', [FeePaymentController::class, 'downloadInvoice']);
     });
+
+    //admission
+    Route::group(['prefix' => 'admission'], function () {
+        Route::get('registration', [AdmissionController::class, 'index']);
+        Route::post('registration', [AdmissionController::class, 'admissionRegistration'])->name('admission.registration.submit');
+        Route::post('applicant-login', [AdmissionController::class, 'applicantLogin'])->name('applicant.login');
+        Route::get('getmainprograms', [AdmissionController::class, 'getMainPrograms']);
+    });
 });
+
+//ajax routes
