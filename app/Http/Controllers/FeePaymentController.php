@@ -736,4 +736,10 @@ class FeePaymentController extends Controller
             'payments' => $payments
         ]);
     }
+
+    function verifyTransaction($txnid)
+    {
+        $response = StaticController::easebuzz_verifyPaymentWithHash($txnid);
+        return  $record =  $response['msg']['0'];
+    }
 }

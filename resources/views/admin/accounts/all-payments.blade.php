@@ -71,7 +71,8 @@
         </span>
       </td>
       <td>
-        <button class="btn-sm {{$payment->status == 'success' ? 'btn-success' :  'btn-warning'}}">{{$payment->status}}</button>
+        <a href="{{url('erp/admin/accounts/verify-transaction/'.$payment->invoice_id)}}">
+          <button class="btn-sm {{$payment->status == 'success' ? 'btn-success' :  'btn-warning'}}">{{$payment->status}}</button></a>
       </td>
     </tr>
     @endforeach
