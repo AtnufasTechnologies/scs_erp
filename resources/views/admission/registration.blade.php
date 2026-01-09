@@ -16,9 +16,9 @@
     <div class="row">
       <!-- SIGN UP -->
       <div class="col align-items-center flex-col sign-up">
-        <div class="form-wrapper align-items-center">
+        <div class="form-wrapper align-items-center scroll-container">
 
-          <div class="form sign-up">
+          <div class="form sign-up ">
             <form action="{{route('admission.registration.submit')}}" method="post">
               @csrf
               <img src="{{asset('admin/images/logo.png')}}" alt="logo" width="80">
@@ -52,14 +52,14 @@
               </div>
 
               <div class="input-group">
-                <i class='fa fa-text'></i>
+                <i class="fas fa-user-circle"></i>
                 <input type="text" placeholder="First Name *" name="firstname">
                 @error('firstname')
                 <span class="text-danger">{{$message}}</span>
                 @enderror
               </div>
               <div class="input-group">
-                <i class='fa fa-text'></i>
+                <i class="fas fa-user-circle"></i>
                 <input type="text" placeholder="Last Name *" name="lastname">
                 @error('lastname')
                 <span class="text-danger">{{$message}}</span>

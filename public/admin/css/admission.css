@@ -55,6 +55,21 @@ body {
     max-width: 28rem;
 }
 
+.scroll-container {
+    padding: 10px 10px;
+    height: 100vh;
+    overflow-y: scroll;
+    scroll-behavior: smooth;
+    scrollbar-width: none; /* Hides for Firefox */
+    -ms-overflow-style: none; /* Hides for IE/Edge */
+}
+
+/* Chrome, Safari, and Opera */
+
+.scroll-container ::-webkit-scrollbar {
+    display: none;
+}
+
 .form {
     padding: 1rem;
     background-color: var(--white);
@@ -117,72 +132,9 @@ select {
     flex-direction: column;
 }
 
-.social-list {
-    margin: 2rem 0;
-    padding: 1rem;
-    border-radius: 1.5rem;
-    width: 100%;
-    box-shadow: rgba(0, 0, 0, 0.35) 0px 5px 15px;
-    transform: scale(0);
-    transition: 0.5s ease-in-out;
-    transition-delay: 1.2s;
-}
-
-.social-list > div {
-    color: var(--white);
-    margin: 0 0.5rem;
-    padding: 0.7rem;
-    cursor: pointer;
-    border-radius: 0.5rem;
-    cursor: pointer;
-    transform: scale(0);
-    transition: 0.5s ease-in-out;
-}
-
 .text-danger {
     color: #e1306c;
     text-align: left;
-}
-
-.social-list > div:nth-child(1) {
-    transition-delay: 1.4s;
-}
-
-.social-list > div:nth-child(2) {
-    transition-delay: 1.6s;
-}
-
-.social-list > div:nth-child(3) {
-    transition-delay: 1.8s;
-}
-
-.social-list > div:nth-child(4) {
-    transition-delay: 2s;
-}
-
-.social-list > div > i {
-    font-size: 1.5rem;
-    transition: 0.4s ease-in-out;
-}
-
-.social-list > div:hover i {
-    transform: scale(1.5);
-}
-
-.facebook-bg {
-    background-color: var(--facebook-color);
-}
-
-.google-bg {
-    background-color: var(--google-color);
-}
-
-.twitter-bg {
-    background-color: var(--twitter-color);
-}
-
-.insta-bg {
-    background-color: var(--insta-color);
 }
 
 .pointer {
@@ -299,10 +251,6 @@ select {
         right: 0;
     }
 
-    /* .container.sign-in .col.sign-up {
-        transform: translateY(100%);
-    } */
-
     .container.sign-in .col.sign-in,
     .container.sign-up .col.sign-up {
         transform: translateY(0);
@@ -320,7 +268,7 @@ select {
     .col {
         width: 100%;
         position: absolute;
-        padding: 2rem;
+        padding: 1rem;
         background-color: var(--white);
         border-top-left-radius: 2rem;
         border-top-right-radius: 2rem;
@@ -341,6 +289,7 @@ select {
     }
 
     .text {
+        display: none;
         margin: 0;
     }
 
@@ -351,5 +300,32 @@ select {
     .text h2 {
         margin: 0.5rem;
         font-size: 2rem;
+    }
+    .form img {
+        padding-top: 4rem;
+    }
+}
+
+@media only screen and (max-width: 1366px) and (max-height: 768px) {
+    .form-wrapper {
+        max-width: 25rem; /* Slightly narrower */
+    }
+
+    .form {
+        padding: 1.2rem; /* Reduced padding */
+    }
+
+    .input-group {
+        margin: 0.6rem 0; /* Reduced spacing between inputs */
+    }
+
+    .input-group input,
+    select {
+        padding: 0.8rem 2.5rem; /* Slimmer inputs */
+        font-size: 0.9rem;
+    }
+
+    .text h2 {
+        font-size: 2.8rem; /* Shrink large heading to fit screen */
     }
 }
