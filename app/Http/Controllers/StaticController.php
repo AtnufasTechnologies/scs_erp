@@ -21,6 +21,7 @@ use Illuminate\Support\Facades\View;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\Storage;
 use Intervention\Image\Facades\Image;
@@ -142,6 +143,9 @@ class StaticController extends Controller
     ]);
     return $response->json();
   }
+
+
+
 
   static function sendOtp_onMail($user, $otpcode)
   {

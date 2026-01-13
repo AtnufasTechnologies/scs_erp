@@ -131,6 +131,7 @@ Route::group(['prefix' => '/erp'], function () {
             Route::get('print-feereciept/{studentId}/{feeId}', [FeePaymentController::class, 'generateFeeReciept']);
             Route::get('all-payments', [FeePaymentController::class, 'allPayments'])->name('all.payments');
             Route::get('transaction-info/{id}', [FeePaymentController::class, 'showSuccessPage'])->name('transaction.info');
+            Route::get('verify-transaction/{id}', [FeePaymentController::class, 'verifyTransaction']);
         });
 
         //Academics

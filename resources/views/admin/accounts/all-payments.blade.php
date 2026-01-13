@@ -44,6 +44,7 @@
       <th>Gateway Ref #</th>
       <th>Gateway Type</th>
       <th>Status</th>
+      <th>Verify</th>
     </tr>
   </thead>
   <tbody>
@@ -71,7 +72,15 @@
         </span>
       </td>
       <td>
-        <button class="btn-sm {{$payment->status == 'success' ? 'btn-success' :  'btn-warning'}}">{{$payment->status}}</button>
+        <span class="badge rounded-pill {{$payment->status == 'success' ? 'bg-success' :  'bg-warning'}}">{{$payment->status}}</span>
+      </td>
+      <td>
+        @if($payment->gateway_ref_code != null)
+        <a href="{{url('erp/admin/accounts/verify-transaction/'.$payment->invoice_id)}}">
+          <button class="btn-sm btn-primary">Check</button>
+        </a>
+        @endif
+
       </td>
     </tr>
     @endforeach
