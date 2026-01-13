@@ -55,6 +55,7 @@ class FeePaymentController extends Controller
         // ---- PAGINATION ----
         $data = $query->paginate(36)->withQueryString(); // <<<<<< THIS IS THE KEY
 
+
         // ---- TRANSFORM EACH RECORD USING through() ----
         $students = $data->through(function ($student) {
 
@@ -68,11 +69,10 @@ class FeePaymentController extends Controller
 
             $fsWithStatus = $applicableFS->map(function ($fs) use ($student, $lateFeePerDay) {
 
-
                 $payment = $student->feepayment
                     ->where('fee_structure_id', $fs->id)
                     ->where('student_id', $student->id)
-                    ->where('status', 'success')
+                    ->whereIn('status', 'success')
                     ->first();
 
                 $totalAmount = $fs->feeHeads->sum('amount');
@@ -104,7 +104,7 @@ class FeePaymentController extends Controller
                     'payable_amount' => $totalAmount + $lateFee,
                     'paid' => $payment ? true : false,
                     'paid_amount' => $payment->amount ?? 0,
-                    'status' => $payment ? 'PAID' : ($lateFee > 0 ? 'LATE' : 'DUE'),
+                    'status' => $payment ? 'success' : ($lateFee > 0 ? 'LATE' : 'DUE'),
                 ];
             });
 
@@ -677,7 +677,7 @@ class FeePaymentController extends Controller
         }
 
         $splitPayments = json_encode($split);
-        dd($splitPayments);
+
 
         // ---- EASEBUZZ PARAMS ----
         $key = env('EASEBUZZ_KEY_TEST');
