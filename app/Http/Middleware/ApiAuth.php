@@ -15,9 +15,15 @@ class ApiAuth
      */
     public function handle(Request $request, Closure $next): Response
     {
+
+        // ✅ Skip ERP key check for Easebuzz webhook
+        if ($request->is('api/easebuzz/webhook')) {
+            return $next($request);
+        }
+
         $key = env('ERP_APIKEY');
         $apikey = $request->header('authorization');
-        
+
         if ($apikey != $key) {
             return response()->json(['message' => ' Api Key Error'], 401);
         }

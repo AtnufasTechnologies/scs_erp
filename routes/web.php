@@ -23,7 +23,6 @@ Route::get('forgot-password', [LoginController::class, 'forgotPassword']);
 Route::post('login', [LoginController::class, 'login']);
 Route::post('forgot-password', [LoginController::class, 'sendPasswordReset']);
 Route::get('logout', [LoginController::class, 'logout']);
-Route::post('easebuzz/webhook', [FeePaymentController::class, 'webhook']);
 
 Route::group(['prefix' => '/erp'], function () {
 
