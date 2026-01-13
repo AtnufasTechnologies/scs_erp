@@ -519,16 +519,33 @@ class AdminController extends Controller
     }
 
 
-    function feeStructure()
+    function feeStructure(Request $request)
     {
+        if (!empty($request->keyword)) {
+            $keyword = $request->keyword;
+            $searchValues = preg_split('/\s+/', $keyword, -1, PREG_SPLIT_NO_EMPTY);
+            $data = FeesStructure::with([
+                'program.campus',
+                'batch',
+                'feepvthead.head:id,head_name',
+                'feecoursemaster:id,name',
+                'programspivot.programgroupinfo.programInfo',
+            ])->whereHas('feecoursemaster', function ($q) use ($searchValues) {
+                foreach ($searchValues as $value) {
+                    $q->where('name', 'LIKE', "%$value%");
+                }
+            })->latest()->get();
+        } else {
+            $data = FeesStructure::with([
+                'program.campus',
+                'batch',
+                'feepvthead.head:id,head_name',
+                'feecoursemaster:id,name',
+                'programspivot.programgroupinfo.programInfo',
+            ])->latest()->get();
+        }
 
-        $data = FeesStructure::with([
-            'program.campus',
-            'batch',
-            'feepvthead.head:id,head_name',
-            'feecoursemaster:id,name',
-            'programspivot.programgroupinfo.programInfo',
-        ])->latest()->get();
+
         return view('admin.accounts.fee-structure', ['data' => $data]);
     }
 

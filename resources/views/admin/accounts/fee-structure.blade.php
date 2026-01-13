@@ -32,14 +32,16 @@ $latefee = LateFee::find(1);
       </div>
     </button>
   </div>
-  <div class="col-lg-4 offset-6">
+
+  <div class="col-lg-4 offset-3">
     <div class="card shadow p-2">
       <form action="" method="post">
         <div class="row">
-          <label for="">Late Fee</label>
+
           <div class="col-lg-6">
 
             <div class="input-group">
+              <span class="input-group-text">Late Fee</span>
               <input type="text" class="form-control" value="{{$latefee->late_fee_amount}}">
             </div>
           </div>
@@ -58,6 +60,15 @@ $latefee = LateFee::find(1);
       </form>
     </div>
 
+  </div>
+  <div class="col-lg-3 ">
+    <form action="{{url('erp/admin/accounts/fee-structure')}}" method="get">
+      <div class="input-group">
+        <a href="{{url('erp/admin/accounts/fee-structure')}}"><span class="input-group-text btn btn-outline-success"><i class="fa fa-redo-alt"></i></span></a>
+        <input type="text" name="keyword" placeholder="Search..." class="form-control">
+        <button class="btn btn-outline-primary"><i class="fa fa-search"></i></button>
+      </div>
+    </form>
   </div>
 </div>
 

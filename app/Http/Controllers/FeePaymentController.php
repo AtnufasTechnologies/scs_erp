@@ -55,6 +55,7 @@ class FeePaymentController extends Controller
         // ---- PAGINATION ----
         $data = $query->paginate(36)->withQueryString(); // <<<<<< THIS IS THE KEY
 
+
         // ---- TRANSFORM EACH RECORD USING through() ----
         $students = $data->through(function ($student) {
 
@@ -68,11 +69,10 @@ class FeePaymentController extends Controller
 
             $fsWithStatus = $applicableFS->map(function ($fs) use ($student, $lateFeePerDay) {
 
-
                 $payment = $student->feepayment
                     ->where('fee_structure_id', $fs->id)
                     ->where('student_id', $student->id)
-                    ->where('status', 'success')
+                    ->whereIn('status', 'success')
                     ->first();
 
                 $totalAmount = $fs->feeHeads->sum('amount');
@@ -104,7 +104,7 @@ class FeePaymentController extends Controller
                     'payable_amount' => $totalAmount + $lateFee,
                     'paid' => $payment ? true : false,
                     'paid_amount' => $payment->amount ?? 0,
-                    'status' => $payment ? 'PAID' : ($lateFee > 0 ? 'LATE' : 'DUE'),
+                    'status' => $payment ? 'success' : ($lateFee > 0 ? 'LATE' : 'DUE'),
                 ];
             });
 
@@ -282,6 +282,7 @@ class FeePaymentController extends Controller
         return view('student.fee-payment');
     }
 
+
     // public function studentFeeStatusOld(Request $request)
     // {
     //     $request->validate([
@@ -289,38 +290,40 @@ class FeePaymentController extends Controller
     //     ]);
     //     $roll = trim($request->rollno);
 
-
-    //     // Fetch student
+    //     // ---- FETCH STUDENT ----
     //     $student = StudentMaster::with([
     //         'batchmaster',
     //         'programgroup.programInfo',
     //         'stdfeestructure',
     //         'stdfeestructure.programspivot',
-    //         'feepayment'
-    //     ])->where('roll_no', $roll)
-    //         ->first();
+    //         'feepayment',
+    //         'feepayment.feestructuremaster.feeHeads',
+    //     ])
+    //         ->where('roll_no', $roll)
+    //         ->firstOrFail();
 
-
-
-    //     // ---- FETCH APPLICABLE FEE STRUCTURES ----
-    //     $applicableFS = FeesStructure::where('batch_id', $student->batch)
+    //     // ---- FETCH APPLICABLE FEE STRUCTURES (QUARTERS) ----
+    //     $applicableFS = FeesStructure::with('feeHeads')
+    //         ->where('batch_id', $student->batch)
     //         ->whereHas('programspivot', function ($q) use ($student) {
     //             $q->where('std_program_id', $student->programme);
     //         })
     //         ->whereIn('std_current_year', range(1, $student->current_year))
     //         ->where('is_payable', 1)
+    //         ->orderBy('std_current_year')
     //         ->get();
 
+    //     // ---- PREPARE FEE STATUS (QUARTER-WISE) ----
     //     $feeStatus = $applicableFS->map(function ($fs) use ($student) {
 
-    //         // SUCCESS payment (paid quarter)
+    //         // Check if SUCCESS payment exists for this quarter
     //         $successPayment = $student->feepayment
     //             ->where('fee_structure_id', $fs->id)
     //             ->where('student_id', $student->id)
     //             ->where('status', 'success')
     //             ->first();
 
-    //         // Failed / pending payments (optional info)
+    //         // Get latest payment attempt (success / failed / pending)
     //         $latestPayment = $student->feepayment
     //             ->where('fee_structure_id', $fs->id)
     //             ->where('student_id', $student->id)
@@ -331,6 +334,8 @@ class FeePaymentController extends Controller
     //             'fee_structure_id'   => $fs->id,
     //             'fee_structure_name' => $fs->quarter_title,
     //             'year'               => $fs->std_current_year,
+    //             'quarter'            => $fs->quarter_no,
+
     //             'total_amount'       => $fs->feeHeads->sum('amount'),
 
     //             // CORE LOGIC
@@ -338,13 +343,18 @@ class FeePaymentController extends Controller
     //             'paid_amount'        => $successPayment->amount ?? 0,
     //             'status'             => $successPayment ? 'PAID' : 'NOT PAID',
 
-    //             // Optional (for debugging / UI)
+    //             // Optional debug / UI info
+    //             'last_attempt_status' => $latestPayment->status ?? null,
     //             'paymentinfo'        => $latestPayment
     //         ];
     //     });
 
+    //     // ---- OPTIONAL: SHOW ONLY UNPAID QUARTERS ----
+    //     $feeStatus = $feeStatus
+    //         ->filter(fn($item) => $item['paid'] === false)
+    //         ->values();
 
-    //     // ---- FINAL RESPONSE ARRAY ----
+    //     // ---- FINAL RESPONSE ----
     //     $studentData = [
     //         'studentinfo' => [
     //             'id'       => $student->id,
@@ -353,10 +363,10 @@ class FeePaymentController extends Controller
     //             'mobile'   => $student->mobile_no,
     //             'email'    => $student->mail_id,
     //         ],
-    //         'programinfo' => $student->programgroup->programInfo->name ?? '',
-    //         'batch'       => $student->batchmaster->batch_name ?? '',
+    //         'programinfo'  => $student->programgroup->programInfo->name ?? '',
+    //         'batch'        => $student->batchmaster->batch_name ?? '',
     //         'current_year' => $student->current_year,
-    //         'feesinfo'    => $feeStatus
+    //         'feesinfo'     => $feeStatus
     //     ];
 
     //     return view('student.gateway-selection', [
@@ -364,12 +374,17 @@ class FeePaymentController extends Controller
     //     ]);
     // }
 
+
     public function studentFeeStatus(Request $request)
     {
         $request->validate([
             'rollno' => 'required'
         ]);
+
         $roll = trim($request->rollno);
+
+        // ---- FETCH LATE FEE (ONCE) ----
+        $lateFeePerDay = LateFee::value('late_fee_amount') ?? 0;
 
         // ---- FETCH STUDENT ----
         $student = StudentMaster::with([
@@ -383,7 +398,7 @@ class FeePaymentController extends Controller
             ->where('roll_no', $roll)
             ->firstOrFail();
 
-        // ---- FETCH APPLICABLE FEE STRUCTURES (QUARTERS) ----
+        // ---- FETCH APPLICABLE FEE STRUCTURES ----
         $applicableFS = FeesStructure::with('feeHeads')
             ->where('batch_id', $student->batch)
             ->whereHas('programspivot', function ($q) use ($student) {
@@ -394,22 +409,38 @@ class FeePaymentController extends Controller
             ->orderBy('std_current_year')
             ->get();
 
-        // ---- PREPARE FEE STATUS (QUARTER-WISE) ----
-        $feeStatus = $applicableFS->map(function ($fs) use ($student) {
+        // ---- PREPARE FEE STATUS ----
+        $feeStatus = $applicableFS->map(function ($fs) use ($student, $lateFeePerDay) {
 
-            // Check if SUCCESS payment exists for this quarter
+            // Success payment
             $successPayment = $student->feepayment
                 ->where('fee_structure_id', $fs->id)
                 ->where('student_id', $student->id)
                 ->where('status', 'success')
                 ->first();
 
-            // Get latest payment attempt (success / failed / pending)
+            // Latest attempt
             $latestPayment = $student->feepayment
                 ->where('fee_structure_id', $fs->id)
                 ->where('student_id', $student->id)
                 ->sortByDesc('created_at')
                 ->first();
+
+            $baseAmount = $fs->feeHeads->sum('amount');
+
+            // ---- LATE FEE LOGIC ----
+            $lateDays = 0;
+            $lateFee = 0;
+
+            if (!$successPayment && $fs->due_date) {
+                $dueDate = Carbon::parse($fs->due_date);
+                $today   = Carbon::today();
+
+                if ($today->gt($dueDate)) {
+                    $lateDays = $dueDate->diffInDays($today);
+                    $lateFee  = $lateDays * $lateFeePerDay;
+                }
+            }
 
             return [
                 'fee_structure_id'   => $fs->id,
@@ -417,20 +448,25 @@ class FeePaymentController extends Controller
                 'year'               => $fs->std_current_year,
                 'quarter'            => $fs->quarter_no,
 
-                'total_amount'       => $fs->feeHeads->sum('amount'),
+                'base_amount'        => $baseAmount,
+                'late_days'          => $lateDays,
+                'late_fee'           => $lateFee,
+                'total_payable'      => $baseAmount + $lateFee,
 
-                // CORE LOGIC
+                // CORE PAYMENT INFO
                 'paid'               => $successPayment ? true : false,
                 'paid_amount'        => $successPayment->amount ?? 0,
-                'status'             => $successPayment ? 'PAID' : 'NOT PAID',
+                'status'             => $successPayment
+                    ? 'PAID'
+                    : ($lateFee > 0 ? 'LATE' : 'DUE'),
 
-                // Optional debug / UI info
+                // UI / Debug
                 'last_attempt_status' => $latestPayment->status ?? null,
-                'paymentinfo'        => $latestPayment
+                'paymentinfo'         => $latestPayment
             ];
         });
 
-        // ---- OPTIONAL: SHOW ONLY UNPAID QUARTERS ----
+        // ---- SHOW ONLY UNPAID FEES ----
         $feeStatus = $feeStatus
             ->filter(fn($item) => $item['paid'] === false)
             ->values();
@@ -456,8 +492,105 @@ class FeePaymentController extends Controller
     }
 
 
-
     //student fee payment
+    // public function createOrderOld(Request $request)
+    // {
+    //     $request->validate([
+    //         'fee_structure_id' => 'required|array|min:1',
+    //         'gateway' => 'required'
+    //     ]);
+
+    //     $studentId = $request->studentId;
+    //     $feeStructureIds = $request->fee_structure_id;
+    //     $gateway = $request->gateway;
+
+    //     $payMaster = PaymentGatewayType::where('title', $gateway)->firstOrFail();
+    //     $paymentGatewayId = $payMaster->id;
+
+    //     // Generate UNIQUE Invoice
+    //     $prefix = $gateway === 'easebuzz' ? 'EZ' : 'BL';
+    //     $invoice = StaticController::generateInvoiceId($prefix . $studentId);
+
+    //     /** Remove previous initiated payments for same fees */
+    //     StudentPayment::where('student_id', $studentId)
+    //         ->whereIn('fee_structure_id', $feeStructureIds)
+    //         ->where('status', 'initiated')
+    //         ->delete();
+
+    //     /** Insert new payment rows */
+    //     foreach ($feeStructureIds as $feeId) {
+
+    //         $amount = FeeStructureHasHead::where('fee_structure_id', $feeId)->sum('amount');
+
+    //         $rec = new StudentPayment();
+    //         $rec->invoice_id = $invoice;
+    //         $rec->student_id = $studentId;
+    //         $rec->fee_structure_id = $feeId;
+    //         $rec->status = 'intiated';
+    //         $rec->amount = $amount;
+    //         $rec->transaction_date = Carbon::now();
+    //         $rec->gateway_type_id = $paymentGatewayId;
+    //         $rec->save();
+    //     }
+
+    //     /** Calculate FINAL payable amount */
+    //     $payableAmount = StudentPayment::where('invoice_id', $invoice)
+    //         ->where('student_id', $studentId)
+    //         ->sum('amount');
+
+    //     /** SPLIT PAYMENT (MULTIPLE FEES SAFE) */
+    //     $splitData = FeeStructureHasHead::whereIn('fee_structure_id', $feeStructureIds)
+    //         ->with('head.bankmaster:id,acc_label')
+    //         ->get();
+
+    //     $split = [];
+    //     foreach ($splitData as $item) {
+    //         $label = $item->head->bankmaster->acc_label;
+    //         $split[$label] = ($split[$label] ?? 0) + (float) $item->amount;
+    //     }
+
+    //     $splitPayments = json_encode($split);
+
+    //     /** Student Details */
+    //     $student = StudentMaster::findOrFail($studentId);
+
+    //     /** Easebuzz Params */
+    //     $key = env('EASEBUZZ_KEY');
+    //     $salt = env('EASEBUZZ_SALT');
+    //     $txnid = $invoice;
+    //     $productinfo = 'Salesian College Autonomous - Fee Payment';
+
+    //     $hashString = "$key|$txnid|$payableAmount|$productinfo|{$student->fullname}|{$student->mail_id}|$studentId||||||||||$salt";
+    //     $hash = strtolower(hash('sha512', $hashString));
+
+    //     /** Initiate Payment */
+    //     $client = new \GuzzleHttp\Client();
+    //     $response = $client->post(env('EASEBUZZ_INITIATE_URL'), [
+    //         'form_params' => [
+    //             'key' => $key,
+    //             'txnid' => $txnid,
+    //             'amount' => $payableAmount,
+    //             'productinfo' => $productinfo,
+    //             'firstname' => $student->fullname,
+    //             'phone' => $student->mobile_no,
+    //             'email' => $student->mail_id,
+    //             'surl' => route('payment.success'),
+    //             'furl' => route('payment.failure'),
+    //             'hash' => $hash,
+    //             'udf1' => $studentId,
+    //             'split_payments' => $splitPayments
+    //         ],
+    //     ]);
+
+    //     $apiResponse = json_decode($response->getBody(), true);
+
+    //     if ($apiResponse['status'] == 1) {
+    //         return redirect(env('EASEBUZZ_PAYMENT_URL') . $apiResponse['data']);
+    //     }
+
+    //     return back()->withErrors('Payment initiation failed');
+    // }
+
     public function createOrder(Request $request)
     {
         $request->validate([
@@ -472,38 +605,62 @@ class FeePaymentController extends Controller
         $payMaster = PaymentGatewayType::where('title', $gateway)->firstOrFail();
         $paymentGatewayId = $payMaster->id;
 
-        // Generate UNIQUE Invoice
+        // ---- FETCH LATE FEE (ONCE) ----
+        $lateFeePerDay = LateFee::value('late_fee_amount') ?? 0;
+
+        // ---- STUDENT ----
+        $student = StudentMaster::findOrFail($studentId);
+
+        // ---- INVOICE ----
         $prefix = $gateway === 'easebuzz' ? 'EZ' : 'BL';
         $invoice = StaticController::generateInvoiceId($prefix . $studentId);
 
-        /** Remove previous initiated payments for same fees */
+        // ---- REMOVE PREVIOUS INITIATED PAYMENTS ----
         StudentPayment::where('student_id', $studentId)
             ->whereIn('fee_structure_id', $feeStructureIds)
             ->where('status', 'initiated')
             ->delete();
 
-        /** Insert new payment rows */
+        $finalPayable = 0;
+
+        // ---- INSERT PAYMENT ROWS ----
         foreach ($feeStructureIds as $feeId) {
 
-            $amount = FeeStructureHasHead::where('fee_structure_id', $feeId)->sum('amount');
+            $feeStructure = FeesStructure::with('feeHeads')->findOrFail($feeId);
 
+            $baseAmount = $feeStructure->feeHeads->sum('amount');
+
+            // ---- LATE FEE CALCULATION ----
+            $lateDays = 0;
+            $lateFee  = 0;
+
+            if ($feeStructure->due_date) {
+                $dueDate = Carbon::parse($feeStructure->due_date);
+                $today   = Carbon::today();
+
+                if ($today->gt($dueDate)) {
+                    $lateDays = $dueDate->diffInDays($today);
+                    $lateFee  = $lateDays * $lateFeePerDay;
+                }
+            }
+
+            $totalPayable = $baseAmount + $lateFee;
+            $finalPayable += $totalPayable;
+
+            // ---- SAVE PAYMENT ROW ----
             $rec = new StudentPayment();
             $rec->invoice_id = $invoice;
             $rec->student_id = $studentId;
             $rec->fee_structure_id = $feeId;
             $rec->status = 'intiated';
-            $rec->amount = $amount;
+            $rec->amount = $baseAmount;
+            $rec->late_fee_amount  = $lateFee;
+            $rec->late_days  = $lateDays;
             $rec->transaction_date = Carbon::now();
             $rec->gateway_type_id = $paymentGatewayId;
             $rec->save();
         }
-
-        /** Calculate FINAL payable amount */
-        $payableAmount = StudentPayment::where('invoice_id', $invoice)
-            ->where('student_id', $studentId)
-            ->sum('amount');
-
-        /** SPLIT PAYMENT (MULTIPLE FEES SAFE) */
+        // ---- SPLIT PAYMENT (BASE AMOUNT ONLY) ----
         $splitData = FeeStructureHasHead::whereIn('fee_structure_id', $feeStructureIds)
             ->with('head.bankmaster:id,acc_label')
             ->get();
@@ -514,27 +671,30 @@ class FeePaymentController extends Controller
             $split[$label] = ($split[$label] ?? 0) + (float) $item->amount;
         }
 
+        // OPTIONAL: Add late fee under a separate head
+        if ($finalPayable > array_sum($split)) {
+            $split['SAL_FEES'] = $finalPayable - array_sum($split); //add Late Fee Label
+        }
+
         $splitPayments = json_encode($split);
 
-        /** Student Details */
-        $student = StudentMaster::findOrFail($studentId);
 
-        /** Easebuzz Params */
-        $key = env('EASEBUZZ_KEY');
-        $salt = env('EASEBUZZ_SALT');
+        // ---- EASEBUZZ PARAMS ----
+        $key = env('EASEBUZZ_KEY_TEST');
+        $salt = env('EASEBUZZ_SALT_TEST');
         $txnid = $invoice;
         $productinfo = 'Salesian College Autonomous - Fee Payment';
 
-        $hashString = "$key|$txnid|$payableAmount|$productinfo|{$student->fullname}|{$student->mail_id}|$studentId||||||||||$salt";
+        $hashString = "$key|$txnid|$finalPayable|$productinfo|{$student->fullname}|{$student->mail_id}|$studentId||||||||||$salt";
         $hash = strtolower(hash('sha512', $hashString));
 
-        /** Initiate Payment */
+        // ---- INITIATE PAYMENT ----
         $client = new \GuzzleHttp\Client();
-        $response = $client->post(env('EASEBUZZ_INITIATE_URL'), [
+        $response = $client->post(env('EASEBUZZ_INITIATE_URL_TEST'), [
             'form_params' => [
                 'key' => $key,
                 'txnid' => $txnid,
-                'amount' => $payableAmount,
+                'amount' => $finalPayable,
                 'productinfo' => $productinfo,
                 'firstname' => $student->fullname,
                 'phone' => $student->mobile_no,
@@ -550,11 +710,12 @@ class FeePaymentController extends Controller
         $apiResponse = json_decode($response->getBody(), true);
 
         if ($apiResponse['status'] == 1) {
-            return redirect(env('EASEBUZZ_PAYMENT_URL') . $apiResponse['data']);
+            return redirect(env('EASEBUZZ_PAYMENT_URL_TEST') . $apiResponse['data']);
         }
 
         return back()->withErrors('Payment initiation failed');
     }
+
 
 
     public function paymentSuccess(Request $request)
