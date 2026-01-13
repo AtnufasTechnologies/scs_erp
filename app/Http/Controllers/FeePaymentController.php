@@ -384,7 +384,7 @@ class FeePaymentController extends Controller
         $roll = trim($request->rollno);
 
         // ---- FETCH LATE FEE (ONCE) ----
-        $lateFeePerDay = LateFee::value('late_fee_amount') ?? 0;
+        $lateFeePerDay = LateFee::where('status', 1)->value('late_fee_amount'); // 100
 
         // ---- FETCH STUDENT ----
         $student = StudentMaster::with([
@@ -405,10 +405,8 @@ class FeePaymentController extends Controller
                 $q->where('std_program_id', $student->programme);
             })
             ->whereIn('std_current_year', range(1, $student->current_year))
-            ->where('is_payable', 1)
             ->orderBy('std_current_year')
             ->get();
-
         // ---- PREPARE FEE STATUS ----
         $feeStatus = $applicableFS->map(function ($fs) use ($student, $lateFeePerDay) {
 
@@ -447,7 +445,7 @@ class FeePaymentController extends Controller
                 'fee_structure_name' => $fs->quarter_title,
                 'year'               => $fs->std_current_year,
                 'quarter'            => $fs->quarter_no,
-
+                'is_payable'         => $fs->is_payable,
                 'base_amount'        => $baseAmount,
                 'late_days'          => $lateDays,
                 'late_fee'           => $lateFee,

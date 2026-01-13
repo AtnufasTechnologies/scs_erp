@@ -48,6 +48,7 @@
           <div class="card-body">
             <h4 class="mb-3">Pending Fees *</h4>
             @foreach($data['feesinfo'] as $fee)
+            @if($fee['is_payable'] == 1)
             <div class="border rounded p-3 mb-3 bg-light">
               <input type="checkbox" name="fee_structure_id[]" value="{{ $fee['fee_structure_id'] }}">
               <div class="row">
@@ -62,6 +63,7 @@
                 </div>
               </div>
             </div>
+            @endif
             @endforeach
 
           </div>

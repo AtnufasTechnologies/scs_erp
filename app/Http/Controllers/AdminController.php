@@ -814,6 +814,7 @@ class AdminController extends Controller
 
     function updateFeeStructureStatus($id)
     {
+
         $data =  FeesStructure::findOrFail($id);
 
         if ($data->is_payable == 1) {
