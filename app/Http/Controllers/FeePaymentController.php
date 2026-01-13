@@ -899,6 +899,7 @@ class FeePaymentController extends Controller
     function verifyTransaction($txnid)
     {
         $response = StaticController::easebuzz_verifyPaymentWithHash($txnid);
-        return  $record =  $response['msg']['0'];
+        $data =  $response['msg']['0'];
+        return view('admin.accounts.ez-payment-verification', ['data' => $data]);
     }
 }
