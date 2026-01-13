@@ -166,7 +166,14 @@ Route::group(['prefix' => '/erp'], function () {
         Route::post('registration', [AdmissionController::class, 'admissionRegistration'])->name('admission.registration.submit');
         Route::post('applicant-login', [AdmissionController::class, 'applicantLogin'])->name('applicant.login');
         Route::get('getmainprograms', [AdmissionController::class, 'getMainPrograms']);
+        Route::get('captcha-refresh', [AdmissionController::class, 'refreshCaptcha']);
+        Route::post('/otp/verify', [AdmissionController::class, 'verify'])->name('otp.verify');
+        Route::post('/otp/resend', [AdmissionController::class, 'otpResend'])->name('otp.resend');
+        Route::get('application-form/{id}', [AdmissionController::class, 'showApplicationPage']);
     });
 });
 
+Route::get('testpage', function () {
+    return view('admission.otp-verification');
+});
 //ajax routes

@@ -13,11 +13,18 @@ return new class extends Migration
     {
         Schema::create('admission_registrations', function (Blueprint $table) {
             $table->id();
-            $table->integer('user_id');
-            $table->integer('campus');
-            $table->integer('application_type'); //program - UG/PG
-            $table->integer('country');
-            $table->enum('application_filled', ['YES', 'NO'])->default('NO');
+            $table->integer('batch');
+            $table->string('fname');
+            $table->string('lname');
+            $table->string('mail_id');
+            $table->string('mobile_no');
+            $table->string('password');
+            $table->smallInteger('application_type'); //program - UG/PG
+            $table->smallInteger('country');
+            $table->smallInteger('application_status')->default(0);
+            $table->smallInteger('otp_verification')->default(0);
+            $table->smallInteger('payment_status')->default(0);
+            $table->smallInteger('account_status')->default(0);
             $table->timestamps();
         });
     }

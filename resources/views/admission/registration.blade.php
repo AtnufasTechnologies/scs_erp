@@ -53,47 +53,21 @@
 
               <div class="input-group">
                 <i class="fas fa-user-circle"></i>
-                <input type="text" placeholder="First Name *" name="firstname">
+                <input type="text" placeholder="First Name *" name="firstname" value="{{old('firstname')}}">
                 @error('firstname')
                 <span class="text-danger">{{$message}}</span>
                 @enderror
               </div>
               <div class="input-group">
                 <i class="fas fa-user-circle"></i>
-                <input type="text" placeholder="Last Name *" name="lastname">
+                <input type="text" placeholder="Last Name *" name="lastname" value="{{old('lastname')}}">
                 @error('lastname')
                 <span class="text-danger">{{$message}}</span>
                 @enderror
               </div>
 
               <div class="input-group">
-                <i class='fa fa-mobile-alt'></i>
-                <input type="text" placeholder="Mobile Number *" name="mobile_no">
-                @error('mobile_no')
-                <span class="text-danger">{{$message}}</span>
-                @enderror
-              </div>
-
-              <div class="input-group">
-                <input type="password" placeholder="Password *" name="password" id="password">
-                <span class="input-group-text" onclick="togglePassword()" style="cursor:pointer">
-                  <i class="fa fa-eye toggle-password" data-target="password"></i>
-                </span>
-                @error('password')
-                <span class="text-danger">{{$message}}</span>
-                @enderror
-              </div>
-
-              <div class="input-group">
-                <i class="fa fa-envelope"></i>
-                <input type="text" placeholder="Email *" name="mail_id">
-                @error('mail_id')
-                <span class="text-danger">{{$message}}</span>
-                @enderror
-              </div>
-
-              <div class="input-group">
-                <i class="fa fa-globe"></i>
+                <i class="fas fa-globe-asia"></i>
                 <select name="country" id="">
                   <option value="">Country *</option>
                   @foreach ($countries as $country)
@@ -105,9 +79,48 @@
                 @enderror
               </div>
 
+              <div class="input-group">
+                <i class='fa fa-mobile-alt'></i>
+                <input type="text" placeholder="Mobile Number *" name="mobile_no" value="{{old('mobile_no')}}">
+                @error('mobile_no')
+                <span class="text-danger">{{$message}}</span>
+                @enderror
+              </div>
+
+              <div class="input-group">
+                <input type="password" placeholder="Password (min 6 character) *" name="password" id="password">
+                <span class="input-group-text" onclick="togglePassword()" style="cursor:pointer">
+                  <i class="fa fa-eye toggle-password" data-target="password"></i>
+                </span>
+                @error('password')
+                <span class="text-danger">{{$message}}</span>
+                @enderror
+              </div>
+
+              <div class="input-group">
+                <i class="fa fa-envelope"></i>
+                <input type="text" placeholder="Email *" name="mail_id" value="{{old('mail_id')}}">
+                @error('mail_id')
+                <span class="text-danger">{{$message}}</span>
+                @enderror
+              </div>
+
+
+
+              <span class="captcha-image">{!! captcha_img('flat') !!}</span>
+              <div class="input-group">
+
+                <i class="fas fa-redo-alt " id="refresh-captcha"></i>
+                <input id="captcha_input" type="text" name="captcha_input">
+                @error('captcha_input')
+                <span class="text-danger">{{ $message }}</span>
+                @enderror
+              </div>
+
               <button type="submit">
                 Sign up
               </button>
+
               <p>
                 <span>
                   Already have an account?

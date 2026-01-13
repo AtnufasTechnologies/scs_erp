@@ -11,6 +11,7 @@ use App\Models\Department;
 use App\Models\FeeHead;
 use App\Models\FeeStructureGroup;
 use App\Models\FeeStructureHasHead;
+use App\Models\Otp;
 use App\Models\ProgramGroup;
 use App\Models\StudentPayment;
 use App\Models\User;
@@ -229,6 +230,37 @@ class StaticController extends Controller
       return true;
     } else {
       return false;
+    }
+  }
+
+  static function OtpGenerator($userId)
+  {
+    //Generate OTP 
+    $otp = random_int(100000, 999999);
+    $otrec = new Otp();
+    $otrec->user_id = $userId;
+    $otrec->otp = $otp;
+    $otrec->save();
+
+    return $otp;
+  }
+
+  static function otpSender($fields)
+  {
+    $response = Http::withHeaders([
+      'authorization' => 'J3CgcsRHf5yLoFAdwUPIGBxntp06r1z92ZmuTbqQhjvEl8kO7Nw7OiRypJkHBLan0ezA9KuCs4PS5Uc3',
+      'accept' => '*/*',
+      'cache-control' => 'no-cache',
+      'content-type' => 'application/json',
+    ])->timeout(30)->post('https://www.fast2sms.com/dev/bulkV2', $fields);
+
+    if ($response->failed()) {
+      // You can log or handle the error as needed
+      echo "HTTP Error: " . $response->body();
+    } else {
+      $jsonResponse = $response->json();
+      // Optionally return or process $jsonResponse
+      return $jsonResponse;
     }
   }
 }

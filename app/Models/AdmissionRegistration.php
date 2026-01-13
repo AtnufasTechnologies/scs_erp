@@ -13,12 +13,9 @@ class AdmissionRegistration extends Model
     {
         return  $this->hasOne(User::class, 'id', 'user_id');
     }
-    function campusInfo()
-    {
-        return  $this->hasOne(Campus::class, 'id', 'campus');
-    }
 
-    function programInfo()
+
+    function programinfo()
     {
         return  $this->hasOne(MainProgram::class, 'id', 'application_type');
     }
