@@ -607,7 +607,7 @@ class FeePaymentController extends Controller
         $lateFeePerDay = LateFee::value('late_fee_amount') ?? 0;
 
         // ---- STUDENT ----
-        $student = StudentMaster::findOrFail($studentId);
+        $student = StudentMaster::find($studentId);
 
         // ---- INVOICE ----
         $prefix = $gateway === 'easebuzz' ? 'EZ' : 'BL';
@@ -681,9 +681,13 @@ class FeePaymentController extends Controller
         $key = env('EASEBUZZ_KEY');
         $salt = env('EASEBUZZ_SALT');
         $txnid = $invoice;
+        $mobile_no = $student->mobile_no;
+        $mail_id = $student->mail_id;
+        $first_name = trim($student->first_name);
         $productinfo = 'Salesian College Autonomous - Fee Payment';
 
-        $hashString = "$key|$txnid|$finalPayable|$productinfo|{$student->fullname}|{$student->mail_id}|$studentId||||||||||$salt";
+        $hashString = "$key|$txnid|$finalPayable|$productinfo|$first_name|$mail_id|$studentId||||||||||$salt";
+
         $hash = strtolower(hash('sha512', $hashString));
 
         // ---- INITIATE PAYMENT ----
@@ -694,9 +698,9 @@ class FeePaymentController extends Controller
                 'txnid' => $txnid,
                 'amount' => $finalPayable,
                 'productinfo' => $productinfo,
-                'firstname' => $student->fullname,
-                'phone' => $student->mobile_no,
-                'email' => $student->mail_id,
+                'firstname' => $first_name,
+                'phone' => $mobile_no,
+                'email' => $mail_id,
                 'surl' => route('payment.success'),
                 'furl' => route('payment.failure'),
                 'hash' => $hash,
