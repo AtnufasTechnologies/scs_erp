@@ -145,6 +145,15 @@ Route::group(['prefix' => '/erp'], function () {
             Route::post('update-permission', [AdminController::class, 'updatePermission']);
             Route::get('remove-user-permission/{id}', [AdminController::class, 'removeUserPermission']);
         });
+
+        //admission routes
+        Route::group(['prefix' => '/admission'], function () {
+            Route::get('regisrations', [AdmissionController::class, 'admissionRegistrations'])->name('admission.registration');
+            Route::get('application', [AdmissionController::class, 'showApplicationPage'])->name('admission.apply.application');
+            Route::post('applicant-login', [AdmissionController::class, 'applicantLogin'])->name('applicant.login');
+            Route::get('logout', [AdmissionController::class, 'logout'])->name('admission.apply.logout');
+            Route::post('submit-application-form', [AdmissionController::class, 'applicantSubmit'])->name('submit.application.form');
+        });
     });
 
     //student
@@ -172,6 +181,9 @@ Route::group(['prefix' => '/erp'], function () {
         Route::get('application-form/{id}', [AdmissionController::class, 'showApplicationPage']);
     });
 });
+
+
+
 
 Route::get('testpage', function () {
     return view('admission.otp-verification');

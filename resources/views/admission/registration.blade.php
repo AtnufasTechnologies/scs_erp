@@ -8,6 +8,8 @@
   <link rel="stylesheet" href="{{asset('admin/css/admission.css')}}">
   <link rel="stylesheet" href="{{ asset('admin/fontawesomepro/all.min.css') }}" />
   <link rel="shortcut icon" href="{{asset('admin/images/logo.png')}}" type="image/x-icon">
+  <link rel="stylesheet" href="https://unpkg.com/@jarstone/dselect/dist/css/dselect.css">
+
 </head>
 
 <body>
@@ -68,7 +70,7 @@
 
               <div class="input-group">
                 <i class="fas fa-globe-asia"></i>
-                <select name="country" id="">
+                <select name="country" id="dselect-example">
                   <option value="">Country *</option>
                   @foreach ($countries as $country)
                   <option value="{{$country->id}}">{{$country->name}} {{$country->phone_code}}</option>
@@ -222,6 +224,8 @@
     <!-- END CONTENT SECTION -->
   </div>
   <script src="{{asset('admin/js/jquery.min.js')}}"></script>
+  <script src="https://unpkg.com/@jarstone/dselect/dist/js/dselect.js"></script>
+
   <script>
     let container = document.getElementById('container')
 

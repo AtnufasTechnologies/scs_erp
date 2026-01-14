@@ -64,6 +64,8 @@ return new class extends Migration
             $table->string('mode')->nullable(); //gateway
             $table->text('hash')->nullable(); //gateway
             $table->string('msg')->nullable(); //gateway
+            $table->smallInteger('application_status')->default(0); //0-saved,1-applied
+            $table->smallInteger('payment_status')->default(0); //0-pending,1-success,2-failed
             $table->timestamps();
             $table->softDeletes();
         });

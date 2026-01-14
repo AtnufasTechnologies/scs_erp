@@ -4,6 +4,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <link rel="shortcut icon" href="{{asset('admin/images/logo.png')}}" type="image/x-icon">
   <link rel="stylesheet" href="{{asset('admin/css/login.css')}}">
   <link rel="stylesheet" href="{{ asset('admin/fontawesomepro/all.min.css') }}" />
   <link href="{{asset('admin/css/bootstrap.min.css')}}" rel="stylesheet">

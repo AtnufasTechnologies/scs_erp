@@ -6,7 +6,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
 
-
+  <link rel="shortcut icon" href="{{asset('admin/images/logo.png')}}" type="image/x-icon">
   <!--plugins-->
   <link href="{{asset('admin/plugins/simplebar/css/simplebar.css')}}" rel="stylesheet" />
   <link href="{{asset('admin/plugins/perfect-scrollbar/css/perfect-scrollbar.css')}}" rel="stylesheet" />

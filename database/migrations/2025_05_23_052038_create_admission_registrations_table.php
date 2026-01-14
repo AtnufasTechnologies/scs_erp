@@ -23,7 +23,6 @@ return new class extends Migration
             $table->smallInteger('country');
             $table->smallInteger('application_status')->default(0);
             $table->smallInteger('otp_verification')->default(0);
-            $table->smallInteger('payment_status')->default(0);
             $table->smallInteger('account_status')->default(0);
             $table->timestamps();
         });

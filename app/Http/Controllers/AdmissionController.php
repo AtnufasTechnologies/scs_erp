@@ -4,10 +4,14 @@ namespace App\Http\Controllers;
 
 use App\Models\AdmissionRegistration;
 use App\Models\BatchMaster;
+use App\Models\BloodGroupMaster;
 use App\Models\Campus;
 use App\Models\Country;
+use App\Models\DepartmentMaster;
 use App\Models\MainProgram;
 use App\Models\Otp;
+use App\Models\ProgramGroup;
+use App\Models\ReligionMaster;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Hash;
@@ -19,6 +23,9 @@ class AdmissionController extends Controller
 {
     function index()
     {
+        if (Auth::check()) {
+            return redirect()->route('admission.apply.application');
+        }
         $campus = Campus::all();
         $countries = Country::all();
         return view('admission.registration', [
@@ -131,11 +138,12 @@ class AdmissionController extends Controller
 
         $user = AdmissionRegistration::where('mobile_no', $request->registered_no)
             ->orWhere('mail_id', $request->registered_no)
-            ->first();
+            ->where('otp_verification', 1)
+            ->firstOrFail();
 
         if ($user && Hash::check($request->registered_password, $user->password)) {
-            Auth::login($user);
-            return redirect()->route('dashboard');
+            Auth::login($user, true);
+            return redirect()->route('admission.apply.application');
         } else {
             return back()->withErrors(['registered_no' => 'Invalid credentials.']);
         }
@@ -161,23 +169,42 @@ class AdmissionController extends Controller
                 'otp_verification' => 1,
                 'account_status' => 1
             ]);
-            $userInfo = AdmissionRegistration::find($userId);
-            Auth::login($userInfo, true);
-            return redirect('erp/admission/application-form/' . $userId);
+            $user = AdmissionRegistration::where('id', $userId)->firstOrFail();
+            Auth::login($user, true);
+            return route('admission.apply.application');
         } else {
             return view('admission.otp-verification', ['userId' => $userId])->with('info', 'Invalid OTP');;
         }
     }
 
 
-    function showApplicationPage($userId)
+
+
+
+    function showApplicationPage()
     {
+        Auth::check();
+        $userId = Auth::id();
         //find the application
-        $registrationInfo = AdmissionRegistration::with('programinfo')->where('id', $userId)->firstOrFail();
+        $registrationInfo = AdmissionRegistration::with([
+            'programinfo.campus',
+        ])->where('id', $userId)->firstOrFail();
         if ($registrationInfo->programinfo->name == 'UG') {
-            return view('admission.ug-application', ['userId' => $userId]);
+            $batch = BatchMaster::where('admission_active_batch', 1)->value('batch_name');
+            $campusId = $registrationInfo->programinfo->campus->id;
+
+
+
+            return view('admission.ug-application', [
+                'data' => $registrationInfo,
+                'departments' => DepartmentMaster::where('campus_id', $campusId)
+                    ->where('status', 1)->get(),
+                'bloodgroups' => BloodGroupMaster::all(),
+                'religions' => ReligionMaster::all(),
+
+            ]);
         } else {
-            return view('admission.pg-application', ['userId' => $userId]);
+            return view('admission.pg-application', ['data' => $registrationInfo]);
         }
     }
 
@@ -188,11 +215,18 @@ class AdmissionController extends Controller
     }
 
 
+    function admissionRegistrations()
+    {
+        $registrations = AdmissionRegistration::orderBy('id', 'desc')->get();
+        return view('admin.admission.registration', ['registrations' => $registrations]);
+    }
+
+
+
+
     function logout()
     {
         Auth::logout();
-        return redirect('/');
-
-        $this->applicantId = '';
+        return view('admission.registration')->with('success', 'Logged out successfully.');
     }
 }
