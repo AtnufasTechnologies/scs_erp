@@ -2,6 +2,8 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\AdmissionApplication;
+use App\Models\AdmissionFirstPhase;
 use App\Models\AdmissionRegistration;
 use App\Models\BatchMaster;
 use App\Models\BloodGroupMaster;
@@ -12,6 +14,10 @@ use App\Models\MainProgram;
 use App\Models\Otp;
 use App\Models\ProgramGroup;
 use App\Models\ReligionMaster;
+use App\Models\SmsLog;
+use App\Models\UserCampusSetting;
+use App\Models\UserHasPermission;
+use GuzzleHttp\Client;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Hash;
@@ -214,13 +220,227 @@ class AdmissionController extends Controller
         return MainProgram::where('campus_id', $request->campusId)->get();
     }
 
+    /**
+     * Admin Functions
+     */
+    //Admin Structure to view Registrations
 
-    function admissionRegistrations()
+    function admissionRegistrations(Request $request)
     {
-        $registrations = AdmissionRegistration::orderBy('id', 'desc')->get();
+        $type = $request->type;
+        //Check user has permission
+        $superadmin =  StaticController::permissionValidator('Super Admin');
+        $admission_central_office = StaticController::permissionValidator('Admission Central Admin');
+        $admissionoffice = StaticController::permissionValidator('Admission Admin');
+
+        if ($superadmin || $admission_central_office) {
+            $registrations = AdmissionRegistration::with([
+                'countrymaster',
+                'programinfo',
+                'applicationmaster',
+            ])
+                ->whereHas('programinfo', function ($query) use ($type) {
+                    $query->where('name', $type);
+                })
+                ->latest()
+                ->get();
+        } else {
+            if ($admissionoffice) {
+                //fetch user's campus
+                $campusId =  StaticController::fetchCampusSettings();
+                $registrations = AdmissionRegistration::with([
+                    'countrymaster',
+                    'programinfo',
+                    'applicationmaster',
+                ])->whereHas('programinfo.campus', function ($query) use ($campusId) {
+                    $query->where('id', $campusId);
+                })->whereHas('programinfo', function ($query) use ($type) {
+                    $query->where('name', $type);
+                })->latest()
+                    ->get();
+            } else {
+                return redirect()->route('admin.dashboard')->with('error', 'You do not have permission to access this page.');
+            }
+        }
         return view('admin.admission.registration', ['registrations' => $registrations]);
     }
 
+    function ugApplications()
+    {
+        //Check user has permission
+        $superadmin =  StaticController::permissionValidator('Super Admin');
+        $admission_central_office = StaticController::permissionValidator('Admission Central Admin');
+        $admissionoffice = StaticController::permissionValidator('Admission Admin');
+        if ($superadmin || $admission_central_office) {
+            $data = AdmissionApplication::with([
+                'registrationmaster.countrymaster',
+            ])
+                ->whereHas('registrationmaster.programinfo', function ($query) {
+                    $query->where('name', 'UG');
+                })
+                ->latest()
+                ->get();
+        } else {
+            if ($admissionoffice) {
+                //fetch user's campus
+                $campusId =  StaticController::fetchCampusSettings();
+                $data = AdmissionApplication::with([
+                    'registrationmaster.countrymaster',
+                ])
+                    ->whereHas('registrationmaster.programinfo', function ($query) {
+                        $query->where('name', 'UG');
+                    })
+                    ->whereHas('registrationmaster.programinfo.campus', function ($query) use ($campusId) {
+                        $query->where('id', $campusId);
+                    })
+                    ->latest()
+                    ->get();
+            } else {
+                return redirect()->route('admin.dashboard')->with('error', 'You do not have permission to access this page.');
+            }
+        }
+
+        return view('admin.admission.ug.applications', ['data' => $data]);
+    }
+
+    function ugPhase1Registrations()
+    {
+        //Check user has permission
+        $superadmin =  StaticController::permissionValidator('Super Admin');
+        $admission_central_office = StaticController::permissionValidator('Admission Central Admin');
+        $admissionoffice = StaticController::permissionValidator('Admission Admin');
+
+        if ($superadmin || $admission_central_office) {
+            $data =   AdmissionFirstPhase::with([
+                'applicationinfo.registrationmaster.countrymaster',
+                'applicationinfo.programinfo',
+            ])->latest()->get();
+        } else {
+            if ($admissionoffice) {
+                //fetch user's campus
+                $campusId =  StaticController::fetchCampusSettings();
+                $data =  AdmissionFirstPhase::with([
+                    'applicationinfo.registrationmaster.countrymaster',
+                    'applicationinfo.programinfo',
+                ])->latest()->get();
+            } else {
+                return redirect()->route('admin.dashboard')->with('error', 'You do not have permission to access this page.');
+            }
+        }
+        return view('admin.admission.ug.phase1', ['data' => $data]);
+    }
+
+
+    function ugApplicationSingle($id)
+    {
+        //Check user has permission
+        $superadmin =  StaticController::permissionValidator('Super Admin');
+        $admission_central_office = StaticController::permissionValidator('Admission Central Admin');
+        $admissionoffice = StaticController::permissionValidator('Admission Admin');
+
+        if ($superadmin || $admission_central_office || $admissionoffice) {
+            $data = AdmissionApplication::with([
+                'registrationmaster.countrymaster',
+            ])->where('id', $id)
+                ->whereHas('registrationmaster.programinfo', function ($query) {
+                    $query->where('name', 'UG');
+                })
+                ->firstOrFail();
+        } else {
+            if ($admissionoffice) {
+                $campusId =  StaticController::fetchCampusSettings();
+                $data =  AdmissionApplication::with([
+                    'registrationmaster.countrymaster',
+                ])->where('id', $id)
+                    ->whereHas('registrationmaster.programinfo', function ($query) {
+                        $query->where('name', 'UG');
+                    })->whereHas('registrationmaster.campus', function ($query) use ($campusId) {
+                        $query->where('id', $campusId);
+                    })
+                    ->firstOrFail();
+            } else {
+                return redirect()->route('admin.dashboard')->with('error', 'You do not have permission to access this page.');
+            }
+        }
+
+        return view('admin.admission.ug.application-single', ['data' => $data]);
+    }
+
+    //sms Notification for phase 1
+    function sendPhase1Notification(Request $request)
+    {
+        $request->validate([
+            'programs' => 'required|array|min:1',
+            'interview_time' => 'required',
+        ]);
+
+        $programs = $request->programs;
+        $interviewDateTime = date('d-m-Y h:i A', strtotime($request->interview_time));
+
+        $data = AdmissionApplication::with('registrationmaster:id,mobile_no,first_name,last_name')
+            ->whereIn('programme_id', $programs)
+            ->where('application_status', 1) //approved applications
+            ->get();
+
+        if ($data->isEmpty()) {
+            return back()->with('error', 'No applicants found for the selected programs.');
+        }
+        //send sms to each applicant
+        $mobileNumbers = [];
+        $firstname = [];
+        $messageId = 186601; //preset message id for interview notification
+        foreach ($data as $applicant) {
+            $phoneNo = $applicant->registrationmaster->mobile_no;
+            $mobileNumbers[] = $phoneNo;
+            $fullname = $applicant->registrationmaster->first_name;
+            $firstname[] = $fullname;
+        }
+        $fields = [
+            'body' => json_encode([
+                'route' => 'dlt',
+                'requests' => [
+                    [
+                        'sender_id' => 'ATNFAS',
+                        'numbers' => implode(',', $mobileNumbers),
+                        'message' => $messageId,
+                        'variables_values' => implode(',', $firstname) . ',' . $interviewDateTime,
+                    ]
+                ]
+            ])
+        ];
+        //bulk sms sender
+        $apiResponse = StaticController::bulkSmsSender($fields);
+        $jsonResponse = json_decode($apiResponse, true);
+
+        if ($jsonResponse['return'] == true) {
+
+            //store sms log if needed
+            SmsLog::create([
+                'message_id' => $messageId,
+                'message_type' => 'Notification',
+                'request_id' => $jsonResponse['request_id'],
+                'message' => $jsonResponse['message'][0] ?? null,
+                'sender_id' => Auth::user()->id,
+            ]);
+
+            //Create Interview Phase 1 List
+            foreach ($data as $applicant) {
+                AdmissionFirstPhase::create(
+                    [
+                        'application_id' => $applicant->id,
+                        'reg_id' => $applicant->registrationmaster->id,
+                        'interview_datetime' => $interviewDateTime,
+
+                    ]
+                );
+            }
+
+            //return back with success
+            return back()->with('success', 'Interview SMS sent successfully to selected applicants.');
+        } else {
+            return back()->with('error', 'Failed to send Interview SMS. Please try again.');
+        }
+    }
 
 
 

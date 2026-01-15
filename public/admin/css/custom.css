@@ -692,3 +692,34 @@ table thead {
         color: #fff;
     }
 }
+.campus-badge {
+    background-color: #3fb5a1;
+    color: #fff;
+    padding: 5px 10px;
+    border-radius: 12px;
+    font-size: 0.85em;
+    font-weight: 500;
+}
+.campus-badge--secondary {
+    background-color: #9e9e9e;
+}
+.fixed-card {
+    height: 400px;
+    &:hover {
+        box-shadow: 0 8px 24px rgba(79, 60, 100, 0.713); /* Purple shadow on hover */
+    }
+}
+
+.scrollable-card {
+    height: 320px;
+    overflow-y: auto;
+    scrollbar-width: none;
+}
+.scrollable-card::-webkit-scrollbar {
+    display: none;
+}
+
+.scrollable-card {
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+}

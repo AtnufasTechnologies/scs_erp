@@ -75,13 +75,20 @@ $campusMaster = Campus::all()
 <div class="row">
   @foreach ($data as $itm)
   <div class="col-lg-3 mb-4">
-    <div class="card mb-4">
-      <div class="card-body">
+    <div class="card mb-4 fixed-card">
+      <div class="card-body scrollable-card">
+
         <h5 class="card-title">{{ $itm->name }}</h5>
         <p class="card-text"><strong>Email:</strong> {{ $itm->email }}</p>
+        <p class="card-text"><strong>Access</strong>
+          @if ($itm->campuspermission && $itm->campuspermission->campus)
+          <span class="badge campus-badge">{{ $itm->campuspermission->campus->name }}</span>
+          @else
+          <span class="badge campus-badge campus-badge--secondary">No Campus Assigned</span>
+          @endif
+        </p>
         <p class="card-text"><strong>Role:</strong>
         <ul>
-
           @foreach ($itm->roles as $role)
           <li>
             <span> <a href="{{url('erp/admin/user-access/remove-user-permission/'.$role->id  )}}" id="citadel">
@@ -91,17 +98,14 @@ $campusMaster = Campus::all()
           </li>
           @endforeach
         </ul>
-
         </p>
       </div>
       <hr>
       <div class="card-body">
         <button class="btn btn-edit mb-3" data-bs-toggle="modal" data-bs-target="#edit{{$itm->id}}">
-
           Edit Permission
       </div>
       </button>
-
       <div class="modal fade" id="edit{{$itm->id}}" tabindex="-1" aria-labelledby="exampleModalLabel" aria-hidden="true">
         <div class="modal-dialog">
           <div class="modal-content">
@@ -112,20 +116,14 @@ $campusMaster = Campus::all()
             <form action="{{url('erp/admin/user-access/update-permission')}}" method="post" enctype="multipart/form-data">
               @csrf
               <div class="modal-body">
-
-
                 <label for="">Roles *</label>
                 <select name="roles[]" class="form-control mb-3 select-multiple" multiple>
                   @foreach ($permissionMaster as $pm)
                   <option value="{{ $pm->permission_name }}">{{ $pm->permission_name }}</option>
                   @endforeach
                 </select>
-
                 <input type="hidden" name="user_id" value="{{$itm->id}}">
-
               </div>
-
-
               <div class="modal-footer">
                 <button type="submit" class="btn btn-edit">Update</button>
               </div>

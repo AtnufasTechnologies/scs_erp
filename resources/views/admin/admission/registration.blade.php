@@ -18,6 +18,7 @@
         <th>Application Filled Status</th>
         <th>Payment Status</th>
         <th>Account Status</th>
+        <th>Created </th>
       </tr>
 
     </thead>
@@ -26,18 +27,51 @@
 
       @foreach ($registrations as $item)
       <tr>
-        <td>{{$loop->iterations}}</td>
-        <td>{{$item->batch}}</td>
-        <td class="text-capitalize">{{$item->first_name}}</td>
-        <td class="text-capitalize">{{$item->last_name}}</td>
-        <td><a href="mailto:{{$item->mail_id}}">{{$item->mail_id}}</a></td>
-        <td>{{$item->mobile_no}}</td>
-        <td class="text-capitalize">{{$item->countrymaster != null ? $item->countrymaster->name : ''}}</td>
-        <td>{{$item->programmaster != null ? $item->programmaster->program_code : ''}}</td>
-        <td>{{$item->otp_verified == '1' ? 'Verified' : 'Not Verified'}}</td>
-        <td>{{$item->application_filled == '1' ? 'Filled' : 'Not Filled'}}</td>
-        <td>{{$item->payment_status == '1' ? 'Paid' : 'Not Paid'}}</td>
-        <td>{{$item->account_status == '1' ? 'Active' : 'Inactive'}}</td>
+        <td>{{$loop->iteration}}</td>
+        <td><span class="badge bg-primary">{{$item->batch}}</span></td>
+        <td class="text-capitalize fw-semibold">{{$item->first_name}}</td>
+        <td class="text-capitalize fw-semibold">{{$item->last_name}}</td>
+        <td>
+          <a href="mailto:{{$item->mail_id}}" class="text-decoration-none text-info">
+            <i class="bi bi-envelope"></i> {{$item->mail_id}}
+          </a>
+        </td>
+        <td><i class="bi bi-telephone"></i> {{$item->mobile_no}}</td>
+        <td class="text-capitalize">{{$item->countrymaster != null ? $item->countrymaster->name : '-'}}</td>
+        <td>
+          <span class="badge bg-info text-dark">
+            {{$item->programinfo != null ? $item->programinfo->name : '-'}}
+          </span>
+        </td>
+        <td>
+          @if($item->otp_verification == '1')
+          <span class="badge bg-success"><i class="bi bi-check-circle"></i> Verified</span>
+          @else
+          <span class="badge bg-danger"><i class="bi bi-x-circle"></i> Not Verified</span>
+          @endif
+        </td>
+        <td>
+          @if($item->application_filled == '1')
+          <span class="badge bg-success">Filled</span>
+          @else
+          <span class="badge bg-warning text-dark">Not Filled</span>
+          @endif
+        </td>
+        <td>
+          @if($item->payment_status == '1')
+          <span class="badge bg-success">Paid</span>
+          @else
+          <span class="badge bg-danger">Not Paid</span>
+          @endif
+        </td>
+        <td>
+          @if($item->account_status == '1')
+          <span class="badge bg-success">Active</span>
+          @else
+          <span class="badge bg-secondary">Inactive</span>
+          @endif
+        </td>
+        <td>{{date('d-m-Y', strtotime($item->created_at))}}</td>
       </tr>
       @endforeach
       @else

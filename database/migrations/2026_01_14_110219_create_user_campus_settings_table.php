@@ -11,15 +11,11 @@ return new class extends Migration
      */
     public function up(): void
     {
-        Schema::create('sms_logs', function (Blueprint $table) {
+        Schema::create('user_campus_settings', function (Blueprint $table) {
             $table->id();
-            $table->string('message_id');
-            $table->enum('message_type', ['OTP', 'Notification']); //1=OTP, 2=Notification
-            $table->string('request_id');
-            $table->string('message')->nullable();
-            $table->integer('sender_id')->nullable();
+            $table->integer('user_id');
+            $table->integer('campus_id');
             $table->timestamps();
-            $table->softDeletes();
         });
     }
 
@@ -28,6 +24,6 @@ return new class extends Migration
      */
     public function down(): void
     {
-        Schema::dropIfExists('sms_logs');
+        Schema::dropIfExists('user_campus_settings');
     }
 };

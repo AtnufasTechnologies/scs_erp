@@ -235,7 +235,7 @@ use App\Http\Controllers\StaticController;
             <div class="parent-icon">
               <i class="fas fa-badge"></i>
             </div>
-            <div class="menu-title">PGAdmissions </div>
+            <div class="menu-title">PG Admissions </div>
           </a>
           <ul>
             <li>
@@ -295,7 +295,7 @@ use App\Http\Controllers\StaticController;
           </a>
           <ul>
             <li>
-              <a href="{{route('admission.registration')}}">
+              <a href="{{route('admission.registration', ['type' => 'UG'])}}">
                 <div class="parent-icon">
                   <i class="fas fa-arrow-alt-circle-right"></i>
                 </div>
@@ -304,7 +304,7 @@ use App\Http\Controllers\StaticController;
             </li>
 
             <li>
-              <a href="{{url('erp/admin/master/subject-type')}}">
+              <a href="{{route('admission.ug.applications')}}">
                 <div class="parent-icon">
                   <i class="fas fa-arrow-alt-circle-right"></i>
                 </div>
@@ -833,6 +833,149 @@ use App\Http\Controllers\StaticController;
       </ul>
     </li>
     @endif
+
+
+    <!-- Admission Portal -->
+    @if(StaticController::fetchUserPermissions('Central Admission Admin') == true || StaticController::fetchUserPermissions('Admission Admin') == true)
+
+    <li>
+      <a class="has-arrow" href="javascript:;">
+        <div class="parent-icon">
+          <i class="fas fa-check-circle"></i>
+        </div>
+        <div class="menu-title"> Admissions</div>
+      </a>
+      <ul>
+        <!--Admission PG Master -->
+        <li>
+          <a class="has-arrow" href="javascript:;">
+            <div class="parent-icon">
+              <i class="fas fa-badge"></i>
+            </div>
+            <div class="menu-title">PG Admissions </div>
+          </a>
+          <ul>
+            <li>
+              <a href="{{url('erp/admin/master/subjects')}}">
+                <div class="parent-icon">
+                  <i class="fas fa-arrow-alt-circle-right"></i>
+                </div>
+                <div class="menu-title">New Registrations </div>
+              </a>
+            </li>
+
+            <li>
+              <a href="{{url('erp/admin/master/subject-type')}}">
+                <div class="parent-icon">
+                  <i class="fas fa-arrow-alt-circle-right"></i>
+                </div>
+                <div class="menu-title"> Applications </div>
+              </a>
+            </li>
+
+            <li>
+              <a href="{{url('erp/admin/academics/program-objectives')}}">
+                <div class="parent-icon">
+                  <i class="fas fa-arrow-alt-circle-right"></i>
+                </div>
+                <div class="menu-title">Selection Phase 1</div>
+              </a>
+            </li>
+
+            <li>
+              <a href="{{url('erp/admin/academics/program-objectives')}}">
+                <div class="parent-icon">
+                  <i class="fas fa-arrow-alt-circle-right"></i>
+                </div>
+                <div class="menu-title">Selection Phase 2</div>
+              </a>
+            </li>
+
+            <li>
+              <a href="{{url('erp/admin/academics/program-objectives')}}">
+                <div class="parent-icon">
+                  <i class="fas fa-arrow-alt-circle-right"></i>
+                </div>
+                <div class="menu-title">Dept Access Control</div>
+              </a>
+            </li>
+
+          </ul>
+        </li>
+        <!--Admission UG Master -->
+        <li>
+          <a class="has-arrow" href="javascript:;">
+            <div class="parent-icon">
+              <i class="fas fa-certificate"></i>
+            </div>
+            <div class="menu-title">UG Admissions</div>
+          </a>
+          <ul>
+            <li>
+              <a href="{{route('admission.registration', ['type' => 'UG'])}}">
+                <div class="parent-icon">
+                  <i class="fas fa-arrow-alt-circle-right"></i>
+                </div>
+                <div class="menu-title">New Registrations </div>
+              </a>
+            </li>
+
+            <li>
+              <a href="{{route('admission.ug.applications')}}">
+                <div class="parent-icon">
+                  <i class="fas fa-arrow-alt-circle-right"></i>
+                </div>
+                <div class="menu-title"> Applications </div>
+              </a>
+            </li>
+
+            <li>
+              <a href="{{route('admission.ug.phase1')}}">
+                <div class="parent-icon">
+                  <i class="fas fa-arrow-alt-circle-right"></i>
+                </div>
+                <div class="menu-title">Selection Phase 1</div>
+              </a>
+            </li>
+
+            <li>
+              <a href="{{url('erp/admin/academics/program-objectives')}}">
+                <div class="parent-icon">
+                  <i class="fas fa-arrow-alt-circle-right"></i>
+                </div>
+                <div class="menu-title">Selection Phase 2</div>
+              </a>
+            </li>
+
+            <li>
+              <a href="{{url('erp/admin/academics/program-objectives')}}">
+                <div class="parent-icon">
+                  <i class="fas fa-arrow-alt-circle-right"></i>
+                </div>
+                <div class="menu-title">Dept Access Control</div>
+              </a>
+            </li>
+
+
+
+          </ul>
+        </li>
+
+        <li>
+          <a href="http://127.0.0.1:8000/erp/admission/registration" target="_blank">
+            <div class=" parent-icon">
+              <i class="fas fa-pencil-alt"></i>
+            </div>
+            <div class="menu-title text-warning">Std Admission Portal</div>
+          </a>
+        </li>
+
+      </ul>
+    </li>
+
+    @endif
+
+
 
     @if(StaticController::fetchUserPermissions('Account Master') == true)
     <!--Accounts Master -->

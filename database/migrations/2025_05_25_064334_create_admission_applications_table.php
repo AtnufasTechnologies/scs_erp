@@ -17,12 +17,10 @@ return new class extends Migration
             $table->integer('user_id');
             $table->integer('reg_id'); //gives you program UG or PG / and Campus
             $table->integer('dept_id');
-            $table->integer('course_id');
+            $table->integer('programme_id');
             $table->string('name');
-            $table->string('email');
-            $table->string('phone');
             $table->date('dob');
-            $table->string('bloodgroup');
+            $table->integer('bloodgroup');
             $table->string('gender');
             $table->integer('religion_id');
             $table->string('baptism')->nullable();
@@ -61,11 +59,10 @@ return new class extends Migration
             $table->string('payment_gateway_status')->nullable(); //gateway status check    
             $table->integer('amount_refunded')->nullable(); //gateway
             $table->string('captured_currency')->nullable(); //gateway
-            $table->string('mode')->nullable(); //gateway
             $table->text('hash')->nullable(); //gateway
             $table->string('msg')->nullable(); //gateway
-            $table->smallInteger('application_status')->default(0); //0-saved,1-applied
-            $table->smallInteger('payment_status')->default(0); //0-pending,1-success,2-failed
+            $table->enum('gateway_type', ['easebuzz', 'billdesk'])->nullable(); //gateway
+            $table->enum('application_status', ['saved', 'applied'])->default('saved'); //0-saved,1-applied
             $table->timestamps();
             $table->softDeletes();
         });

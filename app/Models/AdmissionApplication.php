@@ -2,15 +2,17 @@
 
 namespace App\Models;
 
+
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Database\Eloquent\Casts\Attribute;
 
 class AdmissionApplication extends Model
 {
     use HasFactory;
 
-    public function registration()
+    public function registrationmaster()
     {
         return $this->hasOne(AdmissionRegistration::class, 'id', 'reg_id');
     }
@@ -22,6 +24,8 @@ class AdmissionApplication extends Model
     // {
     //     return $this->hasOne(CourseCombination::class, 'id', 'course_id');
     // }
+
+
     public function religionInfo()
     {
         return $this->hasOne(ReligionMaster::class, 'id', 'religion_id');
@@ -32,17 +36,18 @@ class AdmissionApplication extends Model
     }
     protected $table = 'admission_applications';
 
-    protected $appends = ['pic_url', 'adhaar_url', 'certificate_x', 'certificate_xii', 'UgDoc'];
+    // protected $appends = ['pic_url', 'adhaar_url', 'certificate_x', 'certificate_xii', 'UgDoc'];
 
     /**
      * Return full Wasabi URL of the profile picture.
      */
+    /*
     public function getPicUrlAttribute()
     {
         if ($this->pic) {
             return Storage::disk('s3')->url('profile/' . $this->pic);
         }
-        return null; // fallback if needed
+        return null;
     }
 
     public function getAdhaarUrlAttribute()
@@ -58,7 +63,7 @@ class AdmissionApplication extends Model
         if ($this->pic) {
             return Storage::disk('s3')->url('certificate10/' . $this->certificate_10);
         }
-        return null; // fallback if needed
+        return null;
     }
 
     public function getCertificateXiiAttribute()
@@ -66,7 +71,7 @@ class AdmissionApplication extends Model
         if ($this->pic) {
             return Storage::disk('s3')->url('certificate12/' . $this->certificate_12);
         }
-        return null; // fallback if needed
+        return null;
     }
 
     public function getUgDocAttribute()
@@ -74,6 +79,15 @@ class AdmissionApplication extends Model
         if ($this->pic) {
             return Storage::disk('s3')->url('pgdoc/' . $this->lastinstdoc);
         }
-        return null; // fallback if needed
+        return null;
+    }
+        */
+
+    // Total amount for this fee structure
+    protected function fullName(): Attribute
+    {
+        return Attribute::make(
+            get: fn($value, $attributes) => $attributes['first_name'] . ' ' . $attributes['last_name'],
+        );
     }
 }

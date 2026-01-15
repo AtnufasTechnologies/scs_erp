@@ -54,4 +54,10 @@ class User extends Authenticatable
         return $this->hasMany(UserHasPermission::class, 'user_id')
             ->with('permissionmaster');
     }
+
+    public function campuspermission()
+    {
+        return $this->hasOne(UserCampusSetting::class, 'user_id')
+            ->with('campus');
+    }
 }

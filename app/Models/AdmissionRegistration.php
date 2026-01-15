@@ -19,12 +19,17 @@ class AdmissionRegistration extends Authenticatable
         return  $this->hasOne(MainProgram::class, 'id', 'application_type');
     }
 
-    function countryInfo()
+    function countrymaster()
     {
         return  $this->hasOne(Country::class, 'id', 'country');
     }
-    function applicationInfo()
+    function applicationmaster()
     {
         return  $this->hasOne(AdmissionApplication::class, 'reg_id', 'id');
+    }
+
+    function programmaster()
+    {
+        return  $this->hasOne(ProgramMaster::class, 'id', 'application_type');
     }
 }

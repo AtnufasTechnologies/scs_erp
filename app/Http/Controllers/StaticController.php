@@ -15,6 +15,7 @@ use App\Models\Otp;
 use App\Models\ProgramGroup;
 use App\Models\StudentPayment;
 use App\Models\User;
+use App\Models\UserCampusSetting;
 use App\Models\UserHasPermission;
 use Carbon\Carbon;
 use GuzzleHttp\Client;
@@ -245,6 +246,8 @@ class StaticController extends Controller
     return $otp;
   }
 
+  /**SMS Senders */
+  //Fast2SMS OTP Sender 
   static function otpSender($fields)
   {
     $response = Http::withHeaders([
@@ -262,5 +265,45 @@ class StaticController extends Controller
       // Optionally return or process $jsonResponse
       return $jsonResponse;
     }
+  }
+
+  static function bulkSmsSender($fields)
+
+  {
+    $client = new Client();
+    $response = $client->request('POST', 'https://www.fast2sms.com/dev/custom', [
+      'body' => $fields['body'],
+      'headers' => [
+        'accept' => 'application/json',
+        'authorization' => env('SMSAPIKEY'),
+        'content-type' => 'application/json',
+      ],
+    ]);
+    return $response->getBody();
+  }
+
+  static function fetchMessageData($message_id)
+  {
+    $client = new Client();
+
+    $response = $client->request('GET', 'https://www.fast2sms.com/dev/dlr/' . $message_id . '?authorization=' . env('SMSAPIKEY'));
+
+    $jsonResponse = json_decode($response->getBody());
+    return $jsonResponse;
+  }
+
+  /**sms sender ends */
+
+  static function permissionValidator($permissionName)
+  {
+    return UserHasPermission::where('user_id', Auth::id())
+      ->where('permission_name', $permissionName)
+      ->exists();
+  }
+
+  static function fetchCampusSettings()
+  {
+    $campus_id = UserCampusSetting::where('user_id', Auth::id())->value('campus_id');
+    return $campus_id;
   }
 }

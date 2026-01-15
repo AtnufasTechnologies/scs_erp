@@ -29,7 +29,7 @@ Route::group(['prefix' => '/erp'], function () {
 
     //admin - superuser routes
     Route::group(['prefix' => '/admin'], function () {
-        Route::get('dashboard', [AdminController::class, 'index']);
+        Route::get('dashboard', [AdminController::class, 'index'])->name('admin.dashboard');
         Route::get('std-master-sonada', [AdminController::class, 'stdMasterSonada']);
         Route::get('std-master-siliguri', [AdminController::class, 'stdMasterSiliguri']);
         Route::get('faculty-master', [AdminController::class, 'facultyMaster']);
@@ -146,13 +146,22 @@ Route::group(['prefix' => '/erp'], function () {
             Route::get('remove-user-permission/{id}', [AdminController::class, 'removeUserPermission']);
         });
 
-        //admission routes
+        //admission routes Admin
         Route::group(['prefix' => '/admission'], function () {
             Route::get('regisrations', [AdmissionController::class, 'admissionRegistrations'])->name('admission.registration');
             Route::get('application', [AdmissionController::class, 'showApplicationPage'])->name('admission.apply.application');
             Route::post('applicant-login', [AdmissionController::class, 'applicantLogin'])->name('applicant.login');
             Route::get('logout', [AdmissionController::class, 'logout'])->name('admission.apply.logout');
             Route::post('submit-application-form', [AdmissionController::class, 'applicantSubmit'])->name('submit.application.form');
+            //UG 
+            Route::get('ug-applications', [AdmissionController::class, 'ugApplications'])->name('admission.ug.applications');
+            Route::get('application-single/{id}', [AdmissionController::class, 'ugApplicationSingle'])->name('admin.admission.ug.application-single');
+
+            Route::get('phase1', [AdmissionController::class, 'ugPhase1Registrations'])->name('admission.ug.phase1');
+
+
+            //controls
+            Route::post('send-phase1-notification', [AdmissionController::class, 'sendPhase1Notification'])->name('send.phase1.notification');
         });
     });
 
@@ -171,7 +180,7 @@ Route::group(['prefix' => '/erp'], function () {
 
     //admission
     Route::group(['prefix' => 'admission'], function () {
-        Route::get('registration', [AdmissionController::class, 'index']);
+        Route::get('registration/{type}', [AdmissionController::class, 'index']);
         Route::post('registration', [AdmissionController::class, 'admissionRegistration'])->name('admission.registration.submit');
         Route::post('applicant-login', [AdmissionController::class, 'applicantLogin'])->name('applicant.login');
         Route::get('getmainprograms', [AdmissionController::class, 'getMainPrograms']);
@@ -180,6 +189,8 @@ Route::group(['prefix' => '/erp'], function () {
         Route::post('/otp/resend', [AdmissionController::class, 'otpResend'])->name('otp.resend');
         Route::get('application-form/{id}', [AdmissionController::class, 'showApplicationPage']);
     });
+
+    Route::get('sms-data/{id}', [AdminController::class, 'smsData']);
 });
 
 

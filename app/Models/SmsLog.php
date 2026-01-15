@@ -10,5 +10,5 @@ class SmsLog extends Model
 {
     use HasFactory, SoftDeletes;
 
-    protected $fillable = ['user_id', 'name', 'phone', 'request_id', 'message'];
+    protected $fillable = ['message_id', 'message_type', 'request_id', 'message', 'sender_id'];
 }

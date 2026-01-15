@@ -14,8 +14,8 @@ return new class extends Migration
         Schema::create('admission_registrations', function (Blueprint $table) {
             $table->id();
             $table->integer('batch');
-            $table->string('fname');
-            $table->string('lname');
+            $table->string('first_name');
+            $table->string('last_name');
             $table->string('mail_id');
             $table->string('mobile_no');
             $table->string('password');

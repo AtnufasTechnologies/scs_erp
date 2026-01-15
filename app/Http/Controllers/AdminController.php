@@ -30,6 +30,7 @@ use App\Models\RoomMaster;
 use App\Models\Semester;
 use App\Models\StudentMaster;
 use App\Models\User;
+use App\Models\UserCampusSetting;
 use App\Models\UserHasPermission;
 use App\Models\UserHasRole;
 use Illuminate\Http\Request;
@@ -856,7 +857,9 @@ class AdminController extends Controller
 
     function userList()
     {
-        $data = User::with('roles.permissionmaster:id,permission_name')->get();
+        $data = User::with('roles.permissionmaster:id,permission_name')
+            ->with('campuspermission.campus:id,name')
+            ->get();
         return view('admin.user-manager.access-management', ['data' => $data]);
     }
 
@@ -896,13 +899,19 @@ class AdminController extends Controller
         $userType->campus = $request->campus ?? null;
         $userType->save();
 
+        //check CAMPUS ASSIGNMENT
+        if (!empty($request->campus)) {
+            $campus = new UserCampusSetting();
+            $campus->user_id = $userId;
+            $campus->campus_id = $request->campus;
+            $campus->save();
+        }
+
         return redirect()->back()->with('success', 'New User Created');
     }
 
     function updatePermission(Request $request)
     {
-
-
         $request->validate([
             'roles' => 'required|array|min:1',
             'user_id' => 'required',
@@ -930,5 +939,11 @@ class AdminController extends Controller
     {
         UserHasPermission::find($id)->delete();
         return redirect()->back()->with('success', 'Permission Removed');
+    }
+
+    function smsData($msgid)
+    {
+        $data = StaticController::fetchMessageData($msgid);
+        return $data;
     }
 }
