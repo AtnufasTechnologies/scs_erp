@@ -16,6 +16,7 @@ use App\Models\Otp;
 use App\Models\ProgramGroup;
 use App\Models\ReligionMaster;
 use App\Models\SmsLog;
+use App\Models\StudentProgram;
 use App\Models\UserCampusSetting;
 use App\Models\UserHasPermission;
 use GuzzleHttp\Client;
@@ -407,7 +408,71 @@ class AdmissionController extends Controller
     }
 
     //sms Notification for phase 1
-    function sendPhase1Notification(Request $request)
+
+    function sendPhase1NotificationSingle(Request $request)
+    {
+        $request->validate([
+            'interview_time' => 'required',
+        ]);
+
+        $regId = $request->id;
+        $interviewDateTime = date('d-m-Y h:i A', strtotime($request->interview_time));
+        $applicant = AdmissionRegistration::where('id', $regId)->firstOrFail();
+
+        if (!$applicant) {
+            return back()->with('info', 'No applicant found for the given application ID.');
+        }
+
+        //send sms to applicant
+        $phoneNo = $applicant->mobile_no;
+        $fullname = $applicant->first_name;
+
+        $messageId = 186601; //preset message id for interview notification
+
+        $fields = [
+            'body' => json_encode([
+                'route' => 'dlt',
+                'requests' => [
+                    [
+                        'sender_id' => 'ATNFAS',
+                        'numbers' => $phoneNo,
+                        'message' => $messageId,
+                        'variables_values' => $fullname . ',' . $interviewDateTime,
+                    ]
+                ]
+            ])
+        ];
+
+        //single sms sender
+        $apiResponse = StaticController::bulkSmsSender($fields);
+        $jsonResponse = json_decode($apiResponse, true);
+
+        if ($jsonResponse['return'] == true) {
+
+            //store sms log if needed
+            SmsLog::create([
+                'message_id' => $messageId,
+                'message_type' => 'Notification',
+                'request_id' => $jsonResponse['request_id'],
+                'message' => $jsonResponse['message'][0] ?? null,
+                'sender_id' => Auth::user()->id,
+            ]);
+
+            //Update the Record
+            AdmissionFirstPhase::where('reg_id', $regId)->update(
+                [
+                    'interview_datetime' => $interviewDateTime,
+                ]
+            );
+
+            //return back with success
+            return back()->with('success', 'Interview SMS sent successfully to the applicant.');
+        } else {
+            return back()->with('error', 'Failed to send Interview SMS. Please try again.');
+        }
+    }
+
+    function sendPhase1BulkNotification(Request $request)
     {
         $request->validate([
             'programs' => 'required|array|min:1',
@@ -502,6 +567,26 @@ class AdmissionController extends Controller
         return back()->with('success', 'Phase 1 Interview status updated successfully.');
     }
 
+
+    function shiftUgProgram(Request $request, $id)
+    {
+        $request->validate([
+            'new_program' => 'required',
+        ]);
+        //Find Student Program Groupd
+        $new_program = $request->new_program;
+        $programGroupId = ProgramGroup::where('program_id', $new_program)->value('id');
+
+        $phase1Record = AdmissionFirstPhase::findOrFail($id);
+        $application = AdmissionApplication::findOrFail($phase1Record->application_id);
+
+        // Update the programme_id in the application
+        $application->program_group_id = $programGroupId;
+        $application->programme_id = $request->new_program;
+        $application->save();
+
+        return back()->with('success', 'Applicant program shifted successfully.');
+    }
 
 
     function logout()

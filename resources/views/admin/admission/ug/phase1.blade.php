@@ -1,3 +1,8 @@
+<?php
+
+use App\Models\StudentProgram;
+?>
+
 @include('includes.header')
 @include('admin.sidebar')
 
@@ -35,7 +40,7 @@
           <div class="profile-title">{{ $item->registrationmaster->mobile_no  }}</div>
           <div class="profile-title">{{ $item->registrationmaster->mail_id  }}</div>
           <div class="profile-bio">
-            Applied for {{ $item->applicationinfo->stdprogramMaster->code }} - {{ $item->applicationinfo->stdprogramMaster->name }}
+            {{ $item->applicationinfo->stdprogramMaster->code }} - {{ $item->applicationinfo->stdprogramMaster->name }}
           </div>
           <label for="">{{$item->interview_datetime}}</label>
         </div>
@@ -76,7 +81,7 @@
               @if ($item->dept_interview_remark != null)
               <i class="fa fa-comment-alt text-success" data-bs-toggle="modal" data-bs-target="#deptRemarkModal{{ $item->id }}"></i>
               @else
-              No Remark
+              N/A
               @endif
             </div>
             <div class="stat-label ">Dept Remark</div>
@@ -86,7 +91,7 @@
               @if ($item->mgt_interview_remark != null)
               <i class="fa fa-comment-alt text-success" data-bs-toggle="modal" data-bs-target="#mgtRemarkModal{{ $item->id }}"></i>
               @else
-              No Remark
+              N/A
               @endif
             </div>
             <div class="stat-label ">Mgt Remark</div>
@@ -99,7 +104,7 @@
           </button>
           <ul class="dropdown-menu" aria-labelledby="dropdownMenuButton{{ $item->id }}">
             <li><a class="dropdown-item" data-bs-toggle="modal" data-bs-target="#updateStatusModal{{ $item->id }}">Update Status</a></li>
-            <li><a class="dropdown-item" href="#">Shift Program</a></li>
+            <li><a class="dropdown-item" data-bs-toggle="modal" data-bs-target="#shiftProgram{{ $item->id }}"> Program Transfer</a></li>
             <li><a class="dropdown-item" href="#">Schedule Interview</a></li>
           </ul>
         </div>
@@ -217,8 +222,46 @@
       </div>
     </div>
 
+    <!-- Modal for Management Remark -->
+    <div class="modal fade" id="shiftProgram{{ $item->id }}" tabindex="-1" aria-labelledby="shiftProgram{{ $item->id }}" aria-hidden="true">
+      <div class="modal-dialog">
+        <div class="modal-content">
+          <div class="modal-header">
+            <h5 class="modal-title" id="shiftProgram{{ $item->id }}">Program Transfer - {{ $item->applicationinfo->application_id }}</h5>
+            <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+          </div>
+          <div class="modal-body">
+            <form action="{{ route('admission.ug.phase1.shift-program', $item->id) }}" method="POST">
+              @csrf
+              @method('PUT')
+              <div class="mb-3">
+                <?php
+                $programs = StudentProgram::where('id', '!=', $item->programme_id)
+                  ->where('campus_id', $item->registrationmaster->programinfo->campus_id)->get();
+
+                ?>
+                <label for="new_program{{ $item->id }}" class="form-label">Select New Program</label>
+                <select class="form-select dselect-example" id="new_program{{ $item->id }}" name="new_program" required>
+                  <option value="">Select Program</option>
+                  @foreach($programs as $program)
+                  <option value="{{ $program->id }}">{{ $program->code }} - {{ $program->name }}</option>
+                  @endforeach
+                </select>
+              </div>
+              <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                <button type="submit" class="btn btn-primary">Transfer Program</button>
+              </div>
+            </form>
+          </div>
+
+        </div>
+      </div>
+    </div>
+
     @endforeach
 
   </div>
+
 </div>
 @include('includes.footer')

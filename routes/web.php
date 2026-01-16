@@ -158,8 +158,10 @@ Route::group(['prefix' => '/erp'], function () {
 
 
             //controls
-            Route::post('send-phase1-notification', [AdmissionController::class, 'sendPhase1Notification'])->name('send.phase1.notification');
+            Route::post('send-phase1-notification-single', [AdmissionController::class, 'sendPhase1NotificationSingle'])->name('send.phase1.notification.single');
+            Route::post('send-phase1-notification', [AdmissionController::class, 'sendPhase1BulkNotification'])->name('send.phase1.notification');
             Route::put('phase1/update-status/{id}', [AdmissionController::class, 'updateUgPhase1Status'])->name('admission.ug.phase1.update-status');
+            Route::put('phase1/program-shift/{id}', [AdmissionController::class, 'shiftUgProgram'])->name('admission.ug.phase1.shift-program');
         });
     });
 

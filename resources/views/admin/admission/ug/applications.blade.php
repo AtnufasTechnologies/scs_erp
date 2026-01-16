@@ -105,16 +105,41 @@ $programs = Qs::getProgramGroups();
             <td>
 
 
-              <a href="#" class="btn btn-sm btn-dark" title="Edit">
+              <a href="#" class="btn  btn-dark" title="Edit">
                 <i class="fas fa-edit"></i>
               </a>
-              <!-- <form action="#" method="POST" class="d-inline" onsubmit="return confirm('Are you sure you want to delete this application?');">
-                @csrf
-                @method('DELETE')
-                <button class="btn btn-sm btn-danger" title="Delete">
-                  <i class="fas fa-trash"></i>
-                </button>
-              </form> -->
+
+              <!-- Button to trigger modal -->
+              <button type="button" class="btn btn-info" data-bs-toggle="modal" data-bs-target="#sendSmsModal{{ $item->id }}" title="Send Interview SMS">
+                <i class="fas fa-sms"></i>
+              </button>
+
+              <!-- Modal -->
+              <div class="modal fade" id="sendSmsModal{{ $item->id }}" tabindex="-1" aria-labelledby="sendSmsModalLabel{{ $item->id }}" aria-hidden="true">
+                <div class="modal-dialog">
+                  <form method="POST" action="{{ route('send.phase1.notification.single') }}">
+                    @csrf
+                    <div class="modal-content">
+                      <div class="modal-header">
+                        <h5 class="modal-title" id="sendSmsModalLabel{{ $item->id }}">Send Interview SMS</h5>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                      </div>
+                      <div class="modal-body">
+                        <div class="mb-3">
+                          <label class="form-label">Interview Date & Time</label>
+                          <input type="datetime-local" name="interview_time" class="form-control" required>
+                        </div>
+                        <input type="hidden" name="id" value="{{ $item->registrationmaster->id }}">
+                      </div>
+                      <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                        <button type="submit" class="btn btn-main"><i class="fas fa-sms"></i> Send SMS</button>
+                      </div>
+                    </div>
+                  </form>
+                </div>
+              </div>
+
             </td>
           </tr>
           @endforeach
