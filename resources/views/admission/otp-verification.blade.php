@@ -28,38 +28,37 @@
 
 
 <div class="container mt-5">
-  <div class="row justify-content-center">
-    <div class="col-md-6">
-      <div class="card shadow">
 
-        <div class="card-body">
-          @if(session('error'))
-          <div class="alert alert-danger">{{ session('error') }}</div>
-          @endif
-          @if(session('success'))
-          <div class="alert alert-success">{{ session('success') }}</div>
-          @endif
-          <form method="POST" action="{{ route('otp.verify') }}">
-            @csrf
-            <div class="form-group mb-3">
-              <label for="otp">OTP</label>
-              <input type="text" name="otp" id="otp" class="form-control @error('otp') is-invalid @enderror" required autofocus>
-              @error('otp')
-              <span class="invalid-feedback" role="alert"><strong>{{ $message }}</strong></span>
-              @enderror
-            </div>
-            <input type="hidden" name="applicantId" value="{{$userId}}">
-            <button type="submit" class="btn btn-main w-100">Verify OTP</button>
-          </form>
-          <form method="POST" action="{{ route('otp.resend') }}" class="mt-3">
-            @csrf
-            <input type="hidden" name="applicantId" value="{{$userId}}">
-            <button type="submit" id="resendBtn" class="btn btn-link w-100" disabled>Resend OTP <span id="timer">(02:00)</span></button>
-          </form>
+  @if(session('error'))
+  <div class="alert alert-danger">{{ session('error') }}</div>
+  @endif
+  @if(session('success'))
+  <div class="alert alert-success">{{ session('success') }}</div>
+  @endif
+
+  <div class="d-flex justify-content-center">
+    <form method="POST" action="{{ route('otp.verify') }}" class="form-card">
+      @csrf
+      <div class="form-group mb-3 ">
+        <p class="form-card-title">Verification Code</p>
+        <p class="form-card-prompt">Enter 6 digits OTP sent on Mobile Number and Email</p>
+        <div class="form-card-input-wrapper">
+          <input class="form-card-input" placeholder="______" maxlength="6" type="tel" name="otp">
+          <div class="form-card-input-bg"></div>
         </div>
+        @error('otp')
+        <span class="invalid-feedback" role="alert"><strong>{{ $message }}</strong></span>
+        @enderror
       </div>
-    </div>
+
+      <button type="submit" class="btn btn-main w-100">Submit </button>
+    </form>
   </div>
+  <form method="POST" action="{{ route('otp.resend') }}" class="mt-3">
+    @csrf
+    <button type="submit" id="resendBtn" class="btn btn-link w-100" disabled>Resend OTP <span id="timer">(02:00)</span></button>
+  </form>
+
 </div>
 
 <script>

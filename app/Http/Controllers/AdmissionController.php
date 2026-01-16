@@ -64,8 +64,8 @@ class AdmissionController extends Controller
 
         $rec = new AdmissionRegistration();
         $rec->batch = $batch;
-        $rec->fname = $request->firstname;
-        $rec->lname = $request->lastname;
+        $rec->first_name = $request->firstname;
+        $rec->last_name = $request->lastname;
         $rec->mobile_no = $request->mobile_no;
         $rec->mail_id = $request->mail_id;
         $rec->application_type = $request->applicationType;
@@ -73,26 +73,42 @@ class AdmissionController extends Controller
         $rec->password = Hash::make($request->password);
         $rec->save();
 
-        $userId = $rec->id;
-        //send OTP for Verification
-        $otp = StaticController::OtpGenerator($userId);
+        Auth::login($rec, true);
+        return redirect()->route('otp.verification.page');
+    }
 
-        //OTP on EMAIL
-        $this->sendOTPEmail($otp, $request->mail_id);
 
-        //OTP ON NUMBER
-        $phoneNo = $request->mobile_no;
-        $fullname = $request->firstname . ' ' . $request->lastname;
-        $fields = array(
-            "sender_id" => 'ATNFAS',
-            "message" => '186603',
-            "variables_values" => $fullname . '|' . $otp . '|2mins. Admission Committee Salesian College  ',
-            "route" => "dlt",
-            "numbers" => $phoneNo,
-        );
-        StaticController::otpSender($fields);
+    function showOtpVerificationPage(Request $request)
+    {
+        $userId = Auth::user()->id;
+        $isOtpVerified = Otp::where('user_id', $userId)->where('status', 1)->first();
+        if (!$isOtpVerified) {
+            //OTP on EMAIL
 
-        return view('admission.otp-verification', ['userId' => $userId])->with('success', 'OTP sent to Registered Mail and Number');;
+            $otp = StaticController::OtpGenerator($userId);
+            $user = AdmissionRegistration::find($userId);
+            //OTP ON NUMBER
+            $phoneNo = $user->mobile_no;
+            $fullname = $user->first_name . ' ' . $user->last_name;
+            $fields = array(
+                "sender_id" => 'ATNFAS',
+                "message" => '186603',
+                "variables_values" => $fullname . '|' . $otp . '|2mins. Admission Committee Salesian College  ',
+                "route" => "dlt",
+                "numbers" => $phoneNo,
+            );
+
+            //Send Otp on Whatsapp
+
+            /**Pending Approval from Client */
+
+            //Send Otp on Phone
+            StaticController::otpSender($fields);
+            //Send Otp on Email
+            $usermail = $user->mail_id;
+            $this->sendOTPEmail($otp, $usermail);
+        }
+        return view('admission.otp-verification');
     }
 
     public function sendOTPEmail($otp, $email)
@@ -111,7 +127,7 @@ class AdmissionController extends Controller
 
     function otpResend(Request $request)
     {
-        $userId = $request->applicantId;
+        $userId = Auth::user()->id;
         Otp::where('user_id', $userId)->where('status', 1)->update(['status' => 0]);
 
         $otp = StaticController::OtpGenerator($userId);
@@ -158,10 +174,9 @@ class AdmissionController extends Controller
     function verify(Request $request)
     {
         $request->validate([
-
             'otp' => 'required|numeric',
         ]);
-        $userId = $request->applicantId;
+        $userId = Auth::user()->id;
         $record = Otp::where('user_id', $userId)
             ->where('otp', $request->otp)
             ->where('status', 1)
@@ -175,11 +190,10 @@ class AdmissionController extends Controller
                 'otp_verification' => 1,
                 'account_status' => 1
             ]);
-            $user = AdmissionRegistration::where('id', $userId)->firstOrFail();
-            Auth::login($user, true);
-            return route('admission.apply.application');
+
+            return redirect()->route('admission.apply.application');
         } else {
-            return view('admission.otp-verification', ['userId' => $userId])->with('info', 'Invalid OTP');;
+            return back()->withErrors(['otp' => 'Invalid OTP. Please try again.']);
         }
     }
 
@@ -493,6 +507,6 @@ class AdmissionController extends Controller
     function logout()
     {
         Auth::logout();
-        return view('admission.registration')->with('success', 'Logged out successfully.');
+        return redirect()->route('new.admission.registration');
     }
 }

@@ -170,6 +170,7 @@ Route::group(['prefix' => '/erp'], function () {
         Route::post('applicant-login', [AdmissionController::class, 'applicantLogin'])->name('applicant.login');
         Route::get('getmainprograms', [AdmissionController::class, 'getMainPrograms']);
         Route::get('captcha-refresh', [AdmissionController::class, 'refreshCaptcha']);
+        Route::get('otp-verification', [AdmissionController::class, 'showOtpVerificationPage'])->name('otp.verification.page');
         Route::post('/otp/verify', [AdmissionController::class, 'verify'])->name('otp.verify');
         Route::post('/otp/resend', [AdmissionController::class, 'otpResend'])->name('otp.resend');
         Route::get('logout', [AdmissionController::class, 'logout'])->name('admission.apply.logout');
