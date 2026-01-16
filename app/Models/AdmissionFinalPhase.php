@@ -8,4 +8,10 @@ use Illuminate\Database\Eloquent\Model;
 class AdmissionFinalPhase extends Model
 {
     use HasFactory;
+
+    protected $fillable = [
+        'application_id',
+        'reg_id',
+
+    ];
 }

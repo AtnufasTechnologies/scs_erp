@@ -551,7 +551,6 @@ class AdmissionController extends Controller
     function updateUgPhase1Status(Request $request, $id)
     {
 
-
         $phase1Record = AdmissionFirstPhase::findOrFail($id);
 
         $phase1Record->document_verified = $request->document_verified;
@@ -564,7 +563,12 @@ class AdmissionController extends Controller
         $phase1Record->final_status = $request->final_status;
         $phase1Record->save();
 
-        return back()->with('success', 'Phase 1 Interview status updated successfully.');
+        if (($request->final_status == 1)) {
+            //move to final phase
+            Qs::moveToAdmissonFinalPhase($id);
+        }
+
+        return back()->with('success', 'Updated successfully.');
     }
 
 
@@ -587,6 +591,8 @@ class AdmissionController extends Controller
 
         return back()->with('success', 'Applicant program shifted successfully.');
     }
+
+
 
 
     function logout()

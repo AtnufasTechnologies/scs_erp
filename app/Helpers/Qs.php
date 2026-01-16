@@ -2,6 +2,8 @@
 
 namespace App\Helpers;
 
+use App\Models\AdmissionFinalPhase;
+use App\Models\AdmissionFirstPhase;
 use App\Models\StudentProgram;
 use App\Models\UserCampusSetting;
 use Illuminate\Support\Facades\Auth;
@@ -37,5 +39,17 @@ class Qs
   static function returnToDashboard()
   {
     return redirect()->route('admin.dashboard')->with('error', 'You do not have permission to access this page.');
+  }
+
+  static function moveToAdmissonFinalPhase($id)
+  {
+    $data = AdmissionFirstPhase::find($id);
+
+    $application_id = $data->application_id;
+    $reg_id = $data->reg_id;
+    AdmissionFinalPhase::create([
+      'application_id' => $application_id,
+      'reg_id' => $reg_id,
+    ]);
   }
 }

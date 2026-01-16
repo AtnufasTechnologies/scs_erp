@@ -105,7 +105,6 @@ use App\Models\StudentProgram;
           <ul class="dropdown-menu" aria-labelledby="dropdownMenuButton{{ $item->id }}">
             <li><a class="dropdown-item" data-bs-toggle="modal" data-bs-target="#updateStatusModal{{ $item->id }}">Update Status</a></li>
             <li><a class="dropdown-item" data-bs-toggle="modal" data-bs-target="#shiftProgram{{ $item->id }}"> Program Transfer</a></li>
-            <li><a class="dropdown-item" href="#">Schedule Interview</a></li>
           </ul>
         </div>
       </div>
