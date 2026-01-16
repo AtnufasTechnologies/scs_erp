@@ -40,6 +40,10 @@ return [
             'driver' => 'session',
             'provider' => 'users',
         ],
+        'applicantauth' => [
+            'driver' => 'session',
+            'provider' => 'applicantauth',
+        ],
     ],
 
     /*
@@ -64,7 +68,10 @@ return [
             'driver' => 'eloquent',
             'model' => App\Models\User::class,
         ],
-
+        'applicantauth' => [
+            'driver' => 'eloquent',
+            'model' => App\Models\AdmissionRegistration::class,
+        ],
         // 'users' => [
         //     'driver' => 'database',
         //     'table' => 'users',

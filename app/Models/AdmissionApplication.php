@@ -11,7 +11,12 @@ use Illuminate\Database\Eloquent\Casts\Attribute;
 class AdmissionApplication extends Model
 {
     use HasFactory;
+    protected $table = 'admission_applications';
 
+    public function stdprogramMaster()
+    {
+        return $this->belongsTo(StudentProgram::class, 'programme_id', 'id');
+    }
     public function registrationmaster()
     {
         return $this->hasOne(AdmissionRegistration::class, 'id', 'reg_id');
@@ -34,7 +39,6 @@ class AdmissionApplication extends Model
     {
         return $this->hasOne(AdmissionApplicationPaymentLog::class, 'user_id', 'user_id');
     }
-    protected $table = 'admission_applications';
 
     // protected $appends = ['pic_url', 'adhaar_url', 'certificate_x', 'certificate_xii', 'UgDoc'];
 

@@ -51,17 +51,25 @@
           @endif
         </td>
         <td>
-          @if($item->application_filled == '1')
+          @if($item->applicationmaster == null)
+          <span class="badge bg-warning text-dark">Pending</span>
+          @else
+          @if($item->applicationmaster->application_status == 1)
           <span class="badge bg-success">Filled</span>
           @else
           <span class="badge bg-warning text-dark">Not Filled</span>
           @endif
+          @endif
         </td>
         <td>
-          @if($item->payment_status == '1')
+          @if($item->applicationmaster == null)
+          <span class="badge bg-danger">Not Paid</span>
+          @else
+          @if($item->applicationmaster->application_status == 1)
           <span class="badge bg-success">Paid</span>
           @else
           <span class="badge bg-danger">Not Paid</span>
+          @endif
           @endif
         </td>
         <td>

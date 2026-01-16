@@ -46,7 +46,7 @@ $programs = Qs::getProgramGroups();
 
 
 <div class="container-fluid mt-4">
-  <div class="card shadow-sm">
+  <div class=" ">
     <div class="card-header d-flex justify-content-between align-items-center">
       <span class="h5 mb-0">UG Applications</span>
     </div>
@@ -70,10 +70,11 @@ $programs = Qs::getProgramGroups();
       </form>
 
       <table class="table table-hover" id="exportTable">
-        <thead class="table-light">
+        <thead class="table-dark">
           <tr>
             <th>#</th>
-            <th>Application Code</th>
+            <th>Batch</th>
+            <th>Code #</th>
             <th>Applicant Name</th>
             <th>Email</th>
             <th>Mobile</th>
@@ -87,13 +88,14 @@ $programs = Qs::getProgramGroups();
           @foreach($data as $item)
           <tr>
             <td>{{ $loop->iteration  }}</td>
-            <td>{{ $item->application_id }}</td>
-            <td>{{ $item->registrationmaster->first_name }} {{ $item->registrationmaster->last_name }}</td>
+            <td>{{$item->registrationmaster->batch}}</td>
+            <td><a href="{{ route('admin.admission.ug.application-single', $item->id) }}" class="btn btn-main " title="View">{{ $item->application_id }}</a></td>
+            <td><span class="text-capitalize">{{ $item->registrationmaster->first_name }} {{ $item->registrationmaster->last_name }}</span></td>
             <td>{{ $item->registrationmaster->mail_id }}</td>
             <td>{{ $item->registrationmaster->mobile_no }}</td>
-            <td>{{ $item->program }}</td>
+            <td>{{ $item->stdprogramMaster->code }} -{{ $item->stdprogramMaster->name }}</td>
             <td>
-              @if($item->payment_gateway_status == 'success')
+              @if($item->application_status == 1)
               <span class="badge bg-success">Payment Success</span>
               @else
               <span class="badge bg-primary text-light">Form Saved</span>
@@ -101,21 +103,18 @@ $programs = Qs::getProgramGroups();
             </td>
             <td>{{ $item->created_at->format('d M Y') }}</td>
             <td>
-              <a href="{{ route('admin.admission.ug.application-single', $item->id) }}" class="btn btn-sm btn-info" title="View">
-                <i class="fas fa-eye"></i>
-              </a>
 
 
-              <a href="#" class="btn btn-sm btn-warning" title="Edit">
+              <a href="#" class="btn btn-sm btn-dark" title="Edit">
                 <i class="fas fa-edit"></i>
               </a>
-              <form action="#" method="POST" class="d-inline" onsubmit="return confirm('Are you sure you want to delete this application?');">
+              <!-- <form action="#" method="POST" class="d-inline" onsubmit="return confirm('Are you sure you want to delete this application?');">
                 @csrf
                 @method('DELETE')
                 <button class="btn btn-sm btn-danger" title="Delete">
                   <i class="fas fa-trash"></i>
                 </button>
-              </form>
+              </form> -->
             </td>
           </tr>
           @endforeach

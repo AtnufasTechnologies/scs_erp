@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Helpers\Qs;
 use App\Models\AdmissionApplication;
 use App\Models\AdmissionFirstPhase;
 use App\Models\AdmissionRegistration;
@@ -25,13 +26,12 @@ use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\View;
 use Mews\Captcha\Captcha;
 
+
 class AdmissionController extends Controller
 {
     function index()
     {
-        if (Auth::check()) {
-            return redirect()->route('admission.apply.application');
-        }
+
         $campus = Campus::all();
         $countries = Country::all();
         return view('admission.registration', [
@@ -199,8 +199,6 @@ class AdmissionController extends Controller
             $batch = BatchMaster::where('admission_active_batch', 1)->value('batch_name');
             $campusId = $registrationInfo->programinfo->campus->id;
 
-
-
             return view('admission.ug-application', [
                 'data' => $registrationInfo,
                 'departments' => DepartmentMaster::where('campus_id', $campusId)
@@ -259,7 +257,7 @@ class AdmissionController extends Controller
                 })->latest()
                     ->get();
             } else {
-                return redirect()->route('admin.dashboard')->with('error', 'You do not have permission to access this page.');
+                return Qs::returnToDashboard();
             }
         }
         return view('admin.admission.registration', ['registrations' => $registrations]);
@@ -274,6 +272,7 @@ class AdmissionController extends Controller
         if ($superadmin || $admission_central_office) {
             $data = AdmissionApplication::with([
                 'registrationmaster.countrymaster',
+                'stdprogramMaster',
             ])
                 ->whereHas('registrationmaster.programinfo', function ($query) {
                     $query->where('name', 'UG');
@@ -286,6 +285,7 @@ class AdmissionController extends Controller
                 $campusId =  StaticController::fetchCampusSettings();
                 $data = AdmissionApplication::with([
                     'registrationmaster.countrymaster',
+                    'stdprogramMaster'
                 ])
                     ->whereHas('registrationmaster.programinfo', function ($query) {
                         $query->where('name', 'UG');
@@ -296,14 +296,14 @@ class AdmissionController extends Controller
                     ->latest()
                     ->get();
             } else {
-                return redirect()->route('admin.dashboard')->with('error', 'You do not have permission to access this page.');
+                return Qs::returnToDashboard();
             }
         }
 
         return view('admin.admission.ug.applications', ['data' => $data]);
     }
 
-    function ugPhase1Registrations()
+    function ugPhase1Registrations(Request $request)
     {
         //Check user has permission
         $superadmin =  StaticController::permissionValidator('Super Admin');
@@ -311,20 +311,46 @@ class AdmissionController extends Controller
         $admissionoffice = StaticController::permissionValidator('Admission Admin');
 
         if ($superadmin || $admission_central_office) {
-            $data =   AdmissionFirstPhase::with([
-                'applicationinfo.registrationmaster.countrymaster',
-                'applicationinfo.programinfo',
-            ])->latest()->get();
+
+            if (!empty($request->search)) {
+                $search = $request->search;
+                $data =   AdmissionFirstPhase::with([
+                    'registrationmaster',
+                    'applicationinfo',
+                ])->whereHas('applicationinfo', function ($query) use ($search) {
+                    $query->where('application_id', 'like', '%' . $search . '%');
+                })->latest()->get();
+            } else {
+                $data =   AdmissionFirstPhase::with([
+                    'registrationmaster',
+                    'applicationinfo',
+                ])->latest()->get();
+            }
         } else {
             if ($admissionoffice) {
                 //fetch user's campus
                 $campusId =  StaticController::fetchCampusSettings();
-                $data =  AdmissionFirstPhase::with([
-                    'applicationinfo.registrationmaster.countrymaster',
-                    'applicationinfo.programinfo',
-                ])->latest()->get();
+                if (!empty($request->search)) {
+                    $search = $request->search;
+                    $data =   AdmissionFirstPhase::with([
+                        'registrationmaster',
+                        'applicationinfo',
+                    ])->whereHas('applicationinfo', function ($query) use ($search) {
+                        $query->where('application_id', 'like', '%' . $search . '%');
+                    })
+                        ->whereHas('registrationmaster.programinfo.campus', function ($query) use ($campusId) {
+                            $query->where('id', $campusId);
+                        })->latest()->get();
+                } else {
+                    $data =  AdmissionFirstPhase::with([
+                        'registrationmaster',
+                        'applicationinfo',
+                    ])->whereHas('registrationmaster.programinfo.campus', function ($query) use ($campusId) {
+                        $query->where('id', $campusId);
+                    })->latest()->get();
+                }
             } else {
-                return redirect()->route('admin.dashboard')->with('error', 'You do not have permission to access this page.');
+                return Qs::returnToDashboard();
             }
         }
         return view('admin.admission.ug.phase1', ['data' => $data]);
@@ -354,12 +380,12 @@ class AdmissionController extends Controller
                 ])->where('id', $id)
                     ->whereHas('registrationmaster.programinfo', function ($query) {
                         $query->where('name', 'UG');
-                    })->whereHas('registrationmaster.campus', function ($query) use ($campusId) {
+                    })->whereHas('registrationmaster.programinfo.campus', function ($query) use ($campusId) {
                         $query->where('id', $campusId);
                     })
                     ->firstOrFail();
             } else {
-                return redirect()->route('admin.dashboard')->with('error', 'You do not have permission to access this page.');
+                return Qs::returnToDashboard();
             }
         }
 
@@ -440,6 +466,26 @@ class AdmissionController extends Controller
         } else {
             return back()->with('error', 'Failed to send Interview SMS. Please try again.');
         }
+    }
+
+
+    function updateUgPhase1Status(Request $request, $id)
+    {
+
+
+        $phase1Record = AdmissionFirstPhase::findOrFail($id);
+
+        $phase1Record->document_verified = $request->document_verified;
+        $phase1Record->proficiency_test_status = $request->proficiency_test_status;
+        $phase1Record->proficiency_test_remarks = $request->proficiency_test_remarks;
+        $phase1Record->dept_interview = $request->dept_interview;
+        $phase1Record->dept_interview_remark = $request->dept_interview_remark;
+        $phase1Record->mgt_interview_status = $request->mgt_interview_status;
+        $phase1Record->mgt_interview_remark = $request->mgt_interview_remark;
+        $phase1Record->final_status = $request->final_status;
+        $phase1Record->save();
+
+        return back()->with('success', 'Phase 1 Interview status updated successfully.');
     }
 
 

@@ -5,6 +5,7 @@ use App\Http\Controllers\AdmissionController;
 use App\Http\Controllers\FeePaymentController;
 use App\Http\Controllers\LoginController;
 use App\Http\Controllers\SubjectController;
+use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Route;
 
 /*
@@ -148,22 +149,35 @@ Route::group(['prefix' => '/erp'], function () {
 
         //admission routes Admin
         Route::group(['prefix' => '/admission'], function () {
-            Route::get('regisrations', [AdmissionController::class, 'admissionRegistrations'])->name('admission.registration');
-            Route::get('application', [AdmissionController::class, 'showApplicationPage'])->name('admission.apply.application');
-            Route::post('applicant-login', [AdmissionController::class, 'applicantLogin'])->name('applicant.login');
-            Route::get('logout', [AdmissionController::class, 'logout'])->name('admission.apply.logout');
-            Route::post('submit-application-form', [AdmissionController::class, 'applicantSubmit'])->name('submit.application.form');
+
+            Route::get('registrations/{type}', [AdmissionController::class, 'admissionRegistrations'])->name('admission.registration');
             //UG 
             Route::get('ug-applications', [AdmissionController::class, 'ugApplications'])->name('admission.ug.applications');
             Route::get('application-single/{id}', [AdmissionController::class, 'ugApplicationSingle'])->name('admin.admission.ug.application-single');
-
             Route::get('phase1', [AdmissionController::class, 'ugPhase1Registrations'])->name('admission.ug.phase1');
 
 
             //controls
             Route::post('send-phase1-notification', [AdmissionController::class, 'sendPhase1Notification'])->name('send.phase1.notification');
+            Route::put('phase1/update-status/{id}', [AdmissionController::class, 'updateUgPhase1Status'])->name('admission.ug.phase1.update-status');
         });
     });
+
+    //admission student routes
+    Route::group(['prefix' => '/new-admission'], function () {
+        Route::get('registration', [AdmissionController::class, 'index'])->name('new.admission.registration');
+        Route::post('registration', [AdmissionController::class, 'admissionRegistration'])->name('admission.registration.submit');
+        Route::post('applicant-login', [AdmissionController::class, 'applicantLogin'])->name('applicant.login');
+        Route::get('getmainprograms', [AdmissionController::class, 'getMainPrograms']);
+        Route::get('captcha-refresh', [AdmissionController::class, 'refreshCaptcha']);
+        Route::post('/otp/verify', [AdmissionController::class, 'verify'])->name('otp.verify');
+        Route::post('/otp/resend', [AdmissionController::class, 'otpResend'])->name('otp.resend');
+        Route::get('logout', [AdmissionController::class, 'logout'])->name('admission.apply.logout');
+        Route::get('application', [AdmissionController::class, 'showApplicationPage'])->name('admission.apply.application');
+        Route::post('submit-application-form', [AdmissionController::class, 'applicantSubmit'])->name('submit.application.form');
+    });
+
+
 
     //student
     Route::group(['prefix' => 'student'], function () {
@@ -178,16 +192,9 @@ Route::group(['prefix' => '/erp'], function () {
         Route::get('transaction-success/{id}/download-pdf', [FeePaymentController::class, 'downloadInvoice']);
     });
 
-    //admission
-    Route::group(['prefix' => 'admission'], function () {
-        Route::get('registration/{type}', [AdmissionController::class, 'index']);
-        Route::post('registration', [AdmissionController::class, 'admissionRegistration'])->name('admission.registration.submit');
-        Route::post('applicant-login', [AdmissionController::class, 'applicantLogin'])->name('applicant.login');
-        Route::get('getmainprograms', [AdmissionController::class, 'getMainPrograms']);
-        Route::get('captcha-refresh', [AdmissionController::class, 'refreshCaptcha']);
-        Route::post('/otp/verify', [AdmissionController::class, 'verify'])->name('otp.verify');
-        Route::post('/otp/resend', [AdmissionController::class, 'otpResend'])->name('otp.resend');
-        Route::get('application-form/{id}', [AdmissionController::class, 'showApplicationPage']);
+    Route::get('logout', function () {
+        Auth::logout();
+        return redirect('/');
     });
 
     Route::get('sms-data/{id}', [AdminController::class, 'smsData']);

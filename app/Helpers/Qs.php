@@ -33,4 +33,9 @@ class Qs
 
     return $programs;
   }
+
+  static function returnToDashboard()
+  {
+    return redirect()->route('admin.dashboard')->with('error', 'You do not have permission to access this page.');
+  }
 }

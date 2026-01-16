@@ -956,13 +956,11 @@ use App\Http\Controllers\StaticController;
               </a>
             </li>
 
-
-
           </ul>
         </li>
 
         <li>
-          <a href="http://127.0.0.1:8000/erp/admission/registration" target="_blank">
+          <a href="{{route('new.admission.registration')}}" target="_blank">
             <div class=" parent-icon">
               <i class="fas fa-pencil-alt"></i>
             </div>
@@ -1170,7 +1168,7 @@ use App\Http\Controllers\StaticController;
 
     <!-- logout -->
     <li>
-      <a href="{{url('logout')}}">
+      <a href="{{url('erp/logout')}}">
         <div class="parent-icon">
           <i class="fas fa-sign-out-alt"></i>
         </div>
