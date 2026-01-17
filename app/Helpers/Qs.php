@@ -52,4 +52,10 @@ class Qs
       'reg_id' => $reg_id,
     ]);
   }
+
+  static function fetchPhase1FinalStatus($reg_id)
+  {
+    $status = AdmissionFirstPhase::where('reg_id', $reg_id)->value('final_status');
+    return $status;
+  }
 }

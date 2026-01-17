@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Mail\OtpMail;
 use App\Models\AdminNotify;
 use App\Models\AdmissionApplication;
+use App\Models\AdmissionRegistration;
 use App\Models\AnnualSession;
 use App\Models\CourseCombination;
 use App\Models\Department;
@@ -305,5 +306,21 @@ class StaticController extends Controller
   {
     $campus_id = UserCampusSetting::where('user_id', Auth::id())->value('campus_id');
     return $campus_id;
+  }
+
+  static function addToStudentMaster($id)
+  {
+    //code to add student to student master
+    $data = AdmissionRegistration::with([
+      'studentInfo',
+      'programinfo',
+      'countrymaster',
+      'applicationmaster',
+      'programmaster'
+    ])->find($id);
+    //Generate Student RollNo
+
+    //Insert record to StudentMaster
+
   }
 }

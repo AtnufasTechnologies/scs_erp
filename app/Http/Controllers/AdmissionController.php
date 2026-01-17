@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Helpers\Qs;
 use App\Models\AdmissionApplication;
+use App\Models\AdmissionFinalPhase;
 use App\Models\AdmissionFirstPhase;
 use App\Models\AdmissionRegistration;
 use App\Models\BatchMaster;
@@ -592,6 +593,82 @@ class AdmissionController extends Controller
         return back()->with('success', 'Applicant program shifted successfully.');
     }
 
+
+    //Selection Phase 2
+    function ugPhase2Registrations(Request $request)
+    {
+        //Check user has permission
+        $superadmin =  StaticController::permissionValidator('Super Admin');
+        $admission_central_office = StaticController::permissionValidator('Admission Central Admin');
+        $admissionoffice = StaticController::permissionValidator('Admission Admin');
+
+        if ($superadmin || $admission_central_office) {
+
+            if (!empty($request->search)) {
+                $search = $request->search;
+                $data =   AdmissionFinalPhase::with([
+                    'registrationmaster',
+                    'applicationinfo',
+                ])->whereHas('applicationinfo', function ($query) use ($search) {
+                    $query->where('application_id', 'like', '%' . $search . '%');
+                })->latest()->get();
+            } else {
+                $data =   AdmissionFinalPhase::with([
+                    'registrationmaster',
+                    'applicationinfo',
+                ])->latest()->get();
+            }
+        } else {
+            if ($admissionoffice) {
+                //fetch user's campus
+                $campusId =  StaticController::fetchCampusSettings();
+                if (!empty($request->search)) {
+                    $search = $request->search;
+                    $data =   AdmissionFinalPhase::with([
+                        'registrationmaster',
+                        'applicationinfo',
+                    ])->whereHas('applicationinfo', function ($query) use ($search) {
+                        $query->where('application_id', 'like', '%' . $search . '%');
+                    })
+                        ->whereHas('registrationmaster.programinfo.campus', function ($query) use ($campusId) {
+                            $query->where('id', $campusId);
+                        })->latest()->get();
+                } else {
+                    $data =  AdmissionFinalPhase::with([
+                        'registrationmaster',
+                        'applicationinfo',
+                    ])->whereHas('registrationmaster.programinfo.campus', function ($query) use ($campusId) {
+                        $query->where('id', $campusId);
+                    })->latest()->get();
+                }
+            } else {
+                return Qs::returnToDashboard();
+            }
+        }
+        return view('admin.admission.ug.phase2', ['data' => $data]);
+    }
+
+    function updateUgPhase2Status(Request $request, $id)
+    {
+
+        $phase2Record = AdmissionFinalPhase::findOrFail($id);
+
+        $phase2Record->is_doc_validated = $request->is_doc_validated;
+        $phase2Record->is_subject_selected = $request->is_subject_selected;
+        $phase2Record->uniform_applied = $request->uniform_applied;
+        $phase2Record->fee_paid = $request->fee_paid;
+        $phase2Record->icard_generated = $request->icard_generated;
+        $phase2Record->contract_signed = $request->contract_signed;
+        $phase2Record->enroll_status = $request->enroll_status;
+        $phase2Record->save();
+
+        if ($request->enroll_status == 1) {
+            // Add Information into Student Master Table
+            StaticController::addToStudentMaster($phase2Record->reg_id);
+        }
+
+        return back()->with('success', 'Updated successfully.');
+    }
 
 
 

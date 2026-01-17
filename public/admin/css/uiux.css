@@ -41,7 +41,9 @@
     text-align: left;
     margin-bottom: 1.5rem;
 }
-
+.profile-info span.badge {
+    font-size: 14px;
+}
 .profile-name {
     font-size: 1.2rem;
     font-weight: 600;

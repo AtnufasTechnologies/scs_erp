@@ -322,7 +322,7 @@ use App\Http\Controllers\StaticController;
             </li>
 
             <li>
-              <a href="{{url('erp/admin/academics/program-objectives')}}">
+              <a href="{{route('admission.ug.phase2')}}">
                 <div class="parent-icon">
                   <i class="fas fa-arrow-alt-circle-right"></i>
                 </div>
@@ -331,7 +331,7 @@ use App\Http\Controllers\StaticController;
             </li>
 
             <li>
-              <a href="{{url('erp/admin/academics/program-objectives')}}">
+              <a href="{{route('admission.ug.dept-access')}}">
                 <div class="parent-icon">
                   <i class="fas fa-arrow-alt-circle-right"></i>
                 </div>
