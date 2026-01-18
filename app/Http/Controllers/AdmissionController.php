@@ -670,7 +670,21 @@ class AdmissionController extends Controller
         return back()->with('success', 'Updated successfully.');
     }
 
+    function userAccessUg()
+    {
+        //Check user has permission
+        $superadmin =  StaticController::permissionValidator('Super Admin');
+        $admission_central_office = StaticController::permissionValidator('Admission Central Admin');
 
+        if ($superadmin || $admission_central_office) {
+            return view('admin.admission.ug.user-access');
+        } else {
+            return Qs::returnToDashboard();
+        }
+
+
+        return view('admin.admission.ug.user-access');
+    }
 
     function logout()
     {

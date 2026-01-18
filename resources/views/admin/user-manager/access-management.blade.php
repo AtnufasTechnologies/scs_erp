@@ -1,10 +1,11 @@
 <?php
 
 use App\Models\Campus;
+use App\Models\MenuMaster;
 use App\Models\PermissionMaster;
 
+$permissionMaster = MenuMaster::all();
 
-$permissionMaster = PermissionMaster::all();
 $campusMaster = Campus::all()
 ?>
 
@@ -52,10 +53,10 @@ $campusMaster = Campus::all()
             @endforeach
           </select>
 
-          <label for="">Roles *</label>
+          <label for="">Access Permission *</label>
           <select name="roles[]" class="form-control mb-3 select-multiple" multiple>
             @foreach ($permissionMaster as $pm)
-            <option value="{{ $pm->permission_name }}">{{ $pm->permission_name }}</option>
+            <option value="{{ $pm->slug }}">{{ $pm->menu_name }} - {{ $pm->module_type }}</option>
             @endforeach
           </select>
 

@@ -18,6 +18,7 @@ use App\Models\StudentPayment;
 use App\Models\User;
 use App\Models\UserCampusSetting;
 use App\Models\UserHasPermission;
+use App\Models\UserMenuPermission;
 use Carbon\Carbon;
 use GuzzleHttp\Client;
 use Illuminate\Support\Facades\View;
@@ -322,5 +323,23 @@ class StaticController extends Controller
 
     //Insert record to StudentMaster
 
+  }
+
+  static function subMenuRights($slug)
+  {
+    return UserMenuPermission::where('user_id', Auth::id())
+      ->whereHas('menu_master', function ($query) use ($slug) {
+        $query->where('slug', $slug);
+      })
+      ->exists();
+  }
+
+  static function mainMenuRights($type)
+  {
+    return UserMenuPermission::where('user_id', Auth::id())
+      ->whereHas('menu_master', function ($query) use ($type) {
+        $query->where('module_type', $type);
+      })
+      ->exists();
   }
 }
