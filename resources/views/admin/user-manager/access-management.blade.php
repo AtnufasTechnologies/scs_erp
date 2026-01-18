@@ -3,9 +3,10 @@
 use App\Models\Campus;
 use App\Models\MenuMaster;
 use App\Models\PermissionMaster;
+use App\Models\UserType;
 
 $permissionMaster = MenuMaster::all();
-
+$userTypes = UserType::all();
 $campusMaster = Campus::all()
 ?>
 
@@ -44,6 +45,14 @@ $campusMaster = Campus::all()
 
           <label for="">Login Password * (min 8 characters)</label>
           <input type="password" name="password" class="form-control mb-3" placeholder="Type Here...">
+
+          <label for="">User Type</label>
+          <select name="user_type" class=" mb-3 dselect-example">
+            <option value="">Select User Type</option>
+            @foreach ($userTypes as $ut)
+            <option value="{{ $ut->id }}">{{ $ut->name }}</option>
+            @endforeach
+          </select>
 
           <label for="">Authorized For Campus </label>
           <select name="campus" class="form-control mb-3">
@@ -89,16 +98,7 @@ $campusMaster = Campus::all()
           @endif
         </p>
         <p class="card-text"><strong>Role:</strong>
-        <ul>
-          @foreach ($itm->roles as $role)
-          <li>
-            <span> <a href="{{url('erp/admin/user-access/remove-user-permission/'.$role->id  )}}" id="citadel">
-                <i class="fa fa-trash text-danger"></i></a></span>
-            {{ $role->permissionmaster->permission_name  }}
-            <span class="mx-1"><i class="fa fa-check-circle text-success"></i></span>
-          </li>
-          @endforeach
-        </ul>
+
         </p>
       </div>
       <hr>

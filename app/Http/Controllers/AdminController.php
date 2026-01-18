@@ -869,7 +869,7 @@ class AdminController extends Controller
             'name' => 'required|string|max:255',
             'email' => 'required|string|email|max:255|unique:users',
             'roles' => 'required|array|min:1',
-            'password' => 'required|string|min:8',
+            'password' => 'required|string|min:6',
         ]);
 
         $rec = new User();
@@ -895,8 +895,7 @@ class AdminController extends Controller
         //adding role_type
         $userType = new UserHasRole();
         $userType->user_id = $userId;
-        $userType->role_type = 'ADMIN';
-        $userType->campus = $request->campus ?? null;
+        $userType->role_id = $request->user_type ?? 2; //default to admin
         $userType->save();
 
         //check CAMPUS ASSIGNMENT

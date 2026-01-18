@@ -27,8 +27,6 @@ use App\Http\Controllers\StaticController;
       </a>
     </li>
 
-
-
     <!-- Master -->
     @if (StaticController::mainMenuRights('master') )
     <li>
@@ -190,60 +188,12 @@ use App\Http\Controllers\StaticController;
     @endif
 
 
-    <!--Faculty Master -->
-    @if (StaticController::subMenuRights('student-master-sonada') || StaticController::subMenuRights('student-master-siliguri') )
-    <li>
-      <a href="{{url('erp/admin/faculty-master')}}">
-        <div class="parent-icon">
-          <i class="fas fa-users"></i>
-        </div>
-        <div class="menu-title">Faculty Master</div>
-      </a>
-    </li>
-    @endif
-
-
-    @if (StaticController::subMenuRights('student-master-sonada') || StaticController::subMenuRights('student-master-siliguri') )
-    <li>
-      <a class="has-arrow" href="javascript:;">
-        <div class="parent-icon">
-          <i class="fas fa-user-tie"></i>
-        </div>
-        <div class="menu-title"> Student Master</div>
-      </a>
-      <ul>
-        <!--Student Master -->
-        @if (StaticController::subMenuRights('student-master-sonada') )
-        <li>
-          <a href="{{url('erp/admin/std-master-sonada')}}">
-            <div class="parent-icon">
-              <i class="fas fa-arrow-alt-circle-right"></i>
-            </div>
-            <div class="menu-title"> Sonada</div>
-          </a>
-        </li>
-        @endif
-
-        @if (StaticController::subMenuRights('student-master-siliguri') )
-        <li>
-          <a href="{{url('erp/admin/std-master-siliguri')}}">
-            <div class="parent-icon">
-              <i class="fas fa-arrow-alt-circle-right"></i>
-            </div>
-            <div class="menu-title">Siliguri</div>
-          </a>
-        </li>
-        @endif
-      </ul>
-    </li>
-    @endif
-
     <!-- Admission Portal -->
     @if (StaticController::mainMenuRights('admission-pg') || StaticController::mainMenuRights('admission-ug'))
     <li>
       <a class="has-arrow" href="javascript:;">
         <div class="parent-icon">
-          <i class="fas fa-check-circle"></i>
+          <i class="fas fa-sparkles"></i>
         </div>
         <div class="menu-title"> Admissions</div>
       </a>
@@ -298,16 +248,7 @@ use App\Http\Controllers\StaticController;
               </a>
             </li>
             @endif
-            @if (StaticController::subMenuRights('admission-dept-access-pg') )
-            <li>
-              <a href="{{url('erp/admin/academics/program-objectives')}}">
-                <div class="parent-icon">
-                  <i class="fas fa-arrow-alt-circle-right"></i>
-                </div>
-                <div class="menu-title">Dept Access Control</div>
-              </a>
-            </li>
-            @endif
+
           </ul>
         </li>
         @endif
@@ -361,17 +302,20 @@ use App\Http\Controllers\StaticController;
               </a>
             </li>
             @endif
-            @if (StaticController::subMenuRights('admission-dept-access-ug') )
-            <li>
-              <a href="{{route('admission.ug.dept-access')}}">
-                <div class="parent-icon">
-                  <i class="fas fa-arrow-alt-circle-right"></i>
-                </div>
-                <div class="menu-title">Dept Access Control</div>
-              </a>
-            </li>
-            @endif
+
           </ul>
+        </li>
+        @endif
+
+        <!--Departmental Access Control -->
+        @if (StaticController::subMenuRights('admission-dept-access') )
+        <li>
+          <a href="{{route('admission.dept-access')}}">
+            <div class="parent-icon">
+              <i class="fas fa-fingerprint"></i>
+            </div>
+            <div class="menu-title">Departmental Auth </div>
+          </a>
         </li>
         @endif
         <li>
@@ -379,20 +323,66 @@ use App\Http\Controllers\StaticController;
             <div class=" parent-icon">
               <i class="fas fa-pencil-alt"></i>
             </div>
-            <div class="menu-title text-warning">Std Admission Portal</div>
+            <div class="menu-title "> Admission Portal</div>
           </a>
         </li>
-        <!-- <li>
-          <a href="">
-            <div class=" parent-icon">
-              <i class="fas fa-cogs"></i>
-            </div>
-            <div class="menu-title text-info">Settings</div>
-          </a>
-        </li> -->
+
       </ul>
     </li>
     @endif
+
+
+
+
+    <!--Faculty Master -->
+    @if (StaticController::subMenuRights('student-master-sonada') || StaticController::subMenuRights('student-master-siliguri') )
+    <li>
+      <a href="{{url('erp/admin/faculty-master')}}">
+        <div class="parent-icon">
+          <i class="fas fa-users"></i>
+        </div>
+        <div class="menu-title">Faculty Master</div>
+      </a>
+    </li>
+    @endif
+
+
+    @if (StaticController::subMenuRights('student-master-sonada') || StaticController::subMenuRights('student-master-siliguri') )
+    <li>
+      <a class="has-arrow" href="javascript:;">
+        <div class="parent-icon">
+          <i class="fas fa-user-tie"></i>
+        </div>
+        <div class="menu-title"> Student Master</div>
+      </a>
+      <ul>
+        <!--Student Master -->
+        @if (StaticController::subMenuRights('student-master-sonada') )
+        <li>
+          <a href="{{url('erp/admin/std-master-sonada')}}">
+            <div class="parent-icon">
+              <i class="fas fa-arrow-alt-circle-right"></i>
+            </div>
+            <div class="menu-title"> Sonada</div>
+          </a>
+        </li>
+        @endif
+
+        @if (StaticController::subMenuRights('student-master-siliguri') )
+        <li>
+          <a href="{{url('erp/admin/std-master-siliguri')}}">
+            <div class="parent-icon">
+              <i class="fas fa-arrow-alt-circle-right"></i>
+            </div>
+            <div class="menu-title">Siliguri</div>
+          </a>
+        </li>
+        @endif
+      </ul>
+    </li>
+    @endif
+
+
 
     <!--Academic Master -->
     @if (StaticController::mainMenuRights('academics') )

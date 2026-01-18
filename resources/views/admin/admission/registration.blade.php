@@ -8,12 +8,13 @@
       <tr>
         <th>#</th>
         <th>Batch </th>
+        <th>Campus</th>
+        <th>Program Applied</th>
         <th>First Name</th>
         <th>Last Name</th>
         <th>mail ID</th>
         <th>Phone</th>
         <th>Country</th>
-        <th>Program Applied</th>
         <th>OTP Verification Status</th>
         <th>Application Filled Status</th>
         <th>Payment Status</th>
@@ -24,25 +25,26 @@
     </thead>
     <tbody>
       @if (count($registrations))
-
       @foreach ($registrations as $item)
       <tr>
         <td>{{$loop->iteration}}</td>
         <td><span class="badge bg-primary">{{$item->batch}}</span></td>
+        <td><span class="badge bg-primary">{{$item->programinfo->campus->name}}</span></td>
+        <td>
+          <span class="badge bg-primary">
+            {{$item->programinfo != null ? $item->programinfo->name : '-'}}
+          </span>
+        </td>
         <td class="text-capitalize fw-semibold">{{$item->first_name}}</td>
         <td class="text-capitalize fw-semibold">{{$item->last_name}}</td>
         <td>
-          <a href="mailto:{{$item->mail_id}}" class="text-decoration-none text-info">
+          <a href="mailto:{{$item->mail_id}}" class="text-decoration-none ">
             <i class="bi bi-envelope"></i> {{$item->mail_id}}
           </a>
         </td>
         <td><i class="bi bi-telephone"></i> {{$item->mobile_no}}</td>
         <td class="text-capitalize">{{$item->countrymaster != null ? $item->countrymaster->name : '-'}}</td>
-        <td>
-          <span class="badge bg-info text-dark">
-            {{$item->programinfo != null ? $item->programinfo->name : '-'}}
-          </span>
-        </td>
+
         <td>
           @if($item->otp_verification == '1')
           <span class="badge bg-success"><i class="bi bi-check-circle"></i> Verified</span>

@@ -46,28 +46,9 @@ $programs = Qs::getProgramGroups();
 
 
 <div class="container-fluid mt-4">
-  <div class=" ">
-    <div class="card-header d-flex justify-content-between align-items-center">
-      <span class="h5 mb-0">UG Applications</span>
-    </div>
-    <div class="card-body">
-      <form method="GET" action="" class="mb-3">
-        <div class="row g-2">
+  <div class="card">
 
-          <div class="col-md-3">
-            <select name="status" class="form-select">
-              <option value="">All Statuses</option>
-              <option value="0">Pending</option>
-              <option value="1">Paid</option>
-            </select>
-          </div>
-          <div class="col-md-2">
-            <button type="submit" class="btn btn-outline-secondary w-100">
-              <i class="fas fa-search"></i> Filter
-            </button>
-          </div>
-        </div>
-      </form>
+    <div class="card-body">
 
       <table class="table table-hover" id="exportTable">
         <thead class="table-dark">
@@ -103,14 +84,12 @@ $programs = Qs::getProgramGroups();
             </td>
             <td>{{ $item->created_at->format('d M Y') }}</td>
             <td>
-
-
-              <a href="#" class="btn  btn-dark" title="Edit">
+              <a href="#" class="btn  btn-dark mb-3" title="Edit">
                 <i class="fas fa-edit"></i>
               </a>
 
               <!-- Button to trigger modal -->
-              <button type="button" class="btn btn-info" data-bs-toggle="modal" data-bs-target="#sendSmsModal{{ $item->id }}" title="Send Interview SMS">
+              <button type="button" class="btn btn-info mb-3" data-bs-toggle="modal" data-bs-target="#sendSmsModal{{ $item->id }}" title="Send Interview SMS">
                 <i class="fas fa-sms"></i>
               </button>
 

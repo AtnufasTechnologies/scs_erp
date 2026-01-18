@@ -19,7 +19,7 @@ $(document).ready(function () {
                 },
                 success: function (response) {
                     $("#mainPrograms").append(
-                        '<option value="">Select Program *</option>'
+                        '<option value="">Select Program *</option>',
                     );
 
                     $.each(response, function (key, value) {
@@ -28,7 +28,7 @@ $(document).ready(function () {
                                 value["id"] +
                                 '">' +
                                 value["name"] +
-                                "</option>"
+                                "</option>",
                         );
                     });
                 },

@@ -217,18 +217,8 @@ class MenuMasterSeeder extends Seeder
                 'created_at' => $created_at,
                 'updated_at' => $updated_at,
             ],
-            [
-                'slug' => 'admission-dept-access-pg',
-                'menu_name' => 'Admission Dept Access Pg',
-                'status' => 'active',
-                'module_type' => 'admission-pg',
-                'created_at' => $created_at,
-                'updated_at' => $updated_at,
-            ],
 
             //UG Menus
-
-
             [
                 'slug' => 'admission-registration-ug',
                 'menu_name' => 'Admission Registration Ug',
@@ -261,14 +251,7 @@ class MenuMasterSeeder extends Seeder
                 'created_at' => $created_at,
                 'updated_at' => $updated_at,
             ],
-            [
-                'slug' => 'admission-dept-access-ug',
-                'menu_name' => 'Admission Dept Access Ug',
-                'status' => 'active',
-                'module_type' => 'admission-ug',
-                'created_at' => $created_at,
-                'updated_at' => $updated_at,
-            ],
+
 
             //Academics Menu
             [
@@ -642,7 +625,14 @@ class MenuMasterSeeder extends Seeder
                 'updated_at' => $updated_at,
             ],
 
-
+            [
+                'slug' => 'admission-dept-access',
+                'menu_name' => 'Admission Dept Access',
+                'status' => 'active',
+                'module_type' => 'user-access',
+                'created_at' => $created_at,
+                'updated_at' => $updated_at,
+            ],
 
 
 

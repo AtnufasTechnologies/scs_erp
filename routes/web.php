@@ -162,7 +162,9 @@ Route::group(['prefix' => '/erp'], function () {
             Route::post('send-phase1-notification', [AdmissionController::class, 'sendPhase1BulkNotification'])->name('send.phase1.notification');
             Route::put('phase1/update-status/{id}', [AdmissionController::class, 'updateUgPhase1Status'])->name('admission.ug.phase1.update-status');
             Route::put('phase1/program-shift/{id}', [AdmissionController::class, 'shiftUgProgram'])->name('admission.ug.phase1.shift-program');
-            Route::get('user-access-ug', [AdmissionController::class, 'userAccessUg'])->name('admission.ug.dept-access');
+            Route::get('dept-access', [AdmissionController::class, 'deptAccess'])->name('admission.dept-access');
+            Route::post('assign-dept-access', [AdmissionController::class, 'assignDeptAccess'])->name('admin.admission.grant-access');
+            Route::get('getprogramsbydepartment', [AdmissionController::class, 'getProgramsByDepartment']);
         });
     });
 

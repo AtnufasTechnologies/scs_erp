@@ -18,8 +18,10 @@ use App\Models\ProgramGroup;
 use App\Models\ReligionMaster;
 use App\Models\SmsLog;
 use App\Models\StudentProgram;
+use App\Models\User;
 use App\Models\UserCampusSetting;
 use App\Models\UserHasPermission;
+use App\Models\UserHasRole;
 use GuzzleHttp\Client;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -242,12 +244,9 @@ class AdmissionController extends Controller
     function admissionRegistrations(Request $request)
     {
         $type = $request->type;
-        //Check user has permission
-        $superadmin =  StaticController::permissionValidator('Super Admin');
-        $admission_central_office = StaticController::permissionValidator('Admission Central Admin');
-        $admissionoffice = StaticController::permissionValidator('Admission Admin');
+        $campusId =  StaticController::fetchCampusSettings();
 
-        if ($superadmin || $admission_central_office) {
+        if ($campusId == null) {
             $registrations = AdmissionRegistration::with([
                 'countrymaster',
                 'programinfo',
@@ -259,33 +258,27 @@ class AdmissionController extends Controller
                 ->latest()
                 ->get();
         } else {
-            if ($admissionoffice) {
-                //fetch user's campus
-                $campusId =  StaticController::fetchCampusSettings();
-                $registrations = AdmissionRegistration::with([
-                    'countrymaster',
-                    'programinfo',
-                    'applicationmaster',
-                ])->whereHas('programinfo.campus', function ($query) use ($campusId) {
-                    $query->where('id', $campusId);
-                })->whereHas('programinfo', function ($query) use ($type) {
-                    $query->where('name', $type);
-                })->latest()
-                    ->get();
-            } else {
-                return Qs::returnToDashboard();
-            }
+
+            $registrations = AdmissionRegistration::with([
+                'countrymaster',
+                'programinfo',
+                'applicationmaster',
+            ])->whereHas('programinfo.campus', function ($query) use ($campusId) {
+                $query->where('id', $campusId);
+            })->whereHas('programinfo', function ($query) use ($type) {
+                $query->where('name', $type);
+            })->latest()
+                ->get();
         }
+
         return view('admin.admission.registration', ['registrations' => $registrations]);
     }
 
     function ugApplications()
     {
-        //Check user has permission
-        $superadmin =  StaticController::permissionValidator('Super Admin');
-        $admission_central_office = StaticController::permissionValidator('Admission Central Admin');
-        $admissionoffice = StaticController::permissionValidator('Admission Admin');
-        if ($superadmin || $admission_central_office) {
+        //fetch user's campus
+        $campusId =  StaticController::fetchCampusSettings();
+        if ($campusId == null) {
             $data = AdmissionApplication::with([
                 'registrationmaster.countrymaster',
                 'stdprogramMaster',
@@ -296,24 +289,19 @@ class AdmissionController extends Controller
                 ->latest()
                 ->get();
         } else {
-            if ($admissionoffice) {
-                //fetch user's campus
-                $campusId =  StaticController::fetchCampusSettings();
-                $data = AdmissionApplication::with([
-                    'registrationmaster.countrymaster',
-                    'stdprogramMaster'
-                ])
-                    ->whereHas('registrationmaster.programinfo', function ($query) {
-                        $query->where('name', 'UG');
-                    })
-                    ->whereHas('registrationmaster.programinfo.campus', function ($query) use ($campusId) {
-                        $query->where('id', $campusId);
-                    })
-                    ->latest()
-                    ->get();
-            } else {
-                return Qs::returnToDashboard();
-            }
+
+            $data = AdmissionApplication::with([
+                'registrationmaster.countrymaster',
+                'stdprogramMaster'
+            ])
+                ->whereHas('registrationmaster.programinfo', function ($query) {
+                    $query->where('name', 'UG');
+                })
+                ->whereHas('registrationmaster.programinfo.campus', function ($query) use ($campusId) {
+                    $query->where('id', $campusId);
+                })
+                ->latest()
+                ->get();
         }
 
         return view('admin.admission.ug.applications', ['data' => $data]);
@@ -326,8 +314,11 @@ class AdmissionController extends Controller
         $admission_central_office = StaticController::permissionValidator('Admission Central Admin');
         $admissionoffice = StaticController::permissionValidator('Admission Admin');
 
-        if ($superadmin || $admission_central_office) {
+        //fetch user's campus
+        $campusId =  StaticController::fetchCampusSettings();
 
+
+        if ($campusId == null) {
             if (!empty($request->search)) {
                 $search = $request->search;
                 $data =   AdmissionFirstPhase::with([
@@ -343,30 +334,26 @@ class AdmissionController extends Controller
                 ])->latest()->get();
             }
         } else {
-            if ($admissionoffice) {
-                //fetch user's campus
-                $campusId =  StaticController::fetchCampusSettings();
-                if (!empty($request->search)) {
-                    $search = $request->search;
-                    $data =   AdmissionFirstPhase::with([
-                        'registrationmaster',
-                        'applicationinfo',
-                    ])->whereHas('applicationinfo', function ($query) use ($search) {
-                        $query->where('application_id', 'like', '%' . $search . '%');
-                    })
-                        ->whereHas('registrationmaster.programinfo.campus', function ($query) use ($campusId) {
-                            $query->where('id', $campusId);
-                        })->latest()->get();
-                } else {
-                    $data =  AdmissionFirstPhase::with([
-                        'registrationmaster',
-                        'applicationinfo',
-                    ])->whereHas('registrationmaster.programinfo.campus', function ($query) use ($campusId) {
+
+
+            if (!empty($request->search)) {
+                $search = $request->search;
+                $data =   AdmissionFirstPhase::with([
+                    'registrationmaster',
+                    'applicationinfo',
+                ])->whereHas('applicationinfo', function ($query) use ($search) {
+                    $query->where('application_id', 'like', '%' . $search . '%');
+                })
+                    ->whereHas('registrationmaster.programinfo.campus', function ($query) use ($campusId) {
                         $query->where('id', $campusId);
                     })->latest()->get();
-                }
             } else {
-                return Qs::returnToDashboard();
+                $data =  AdmissionFirstPhase::with([
+                    'registrationmaster',
+                    'applicationinfo',
+                ])->whereHas('registrationmaster.programinfo.campus', function ($query) use ($campusId) {
+                    $query->where('id', $campusId);
+                })->latest()->get();
             }
         }
         return view('admin.admission.ug.phase1', ['data' => $data]);
@@ -375,12 +362,9 @@ class AdmissionController extends Controller
 
     function ugApplicationSingle($id)
     {
-        //Check user has permission
-        $superadmin =  StaticController::permissionValidator('Super Admin');
-        $admission_central_office = StaticController::permissionValidator('Admission Central Admin');
-        $admissionoffice = StaticController::permissionValidator('Admission Admin');
+        $campusId =  StaticController::fetchCampusSettings();
 
-        if ($superadmin || $admission_central_office || $admissionoffice) {
+        if ($campusId == null) {
             $data = AdmissionApplication::with([
                 'registrationmaster.countrymaster',
             ])->where('id', $id)
@@ -389,20 +373,15 @@ class AdmissionController extends Controller
                 })
                 ->firstOrFail();
         } else {
-            if ($admissionoffice) {
-                $campusId =  StaticController::fetchCampusSettings();
-                $data =  AdmissionApplication::with([
-                    'registrationmaster.countrymaster',
-                ])->where('id', $id)
-                    ->whereHas('registrationmaster.programinfo', function ($query) {
-                        $query->where('name', 'UG');
-                    })->whereHas('registrationmaster.programinfo.campus', function ($query) use ($campusId) {
-                        $query->where('id', $campusId);
-                    })
-                    ->firstOrFail();
-            } else {
-                return Qs::returnToDashboard();
-            }
+            $data =  AdmissionApplication::with([
+                'registrationmaster.countrymaster',
+            ])->where('id', $id)
+                ->whereHas('registrationmaster.programinfo', function ($query) {
+                    $query->where('name', 'UG');
+                })->whereHas('registrationmaster.programinfo.campus', function ($query) use ($campusId) {
+                    $query->where('id', $campusId);
+                })
+                ->firstOrFail();
         }
 
         return view('admin.admission.ug.application-single', ['data' => $data]);
@@ -418,7 +397,7 @@ class AdmissionController extends Controller
 
         $regId = $request->id;
         $interviewDateTime = date('d-m-Y h:i A', strtotime($request->interview_time));
-        $applicant = AdmissionRegistration::where('id', $regId)->firstOrFail();
+        $applicant = AdmissionRegistration::with('applicationmaster')->where('id', $regId)->firstOrFail();
 
         if (!$applicant) {
             return back()->with('info', 'No applicant found for the given application ID.');
@@ -459,12 +438,26 @@ class AdmissionController extends Controller
                 'sender_id' => Auth::user()->id,
             ]);
 
-            //Update the Record
-            AdmissionFirstPhase::where('reg_id', $regId)->update(
-                [
-                    'interview_datetime' => $interviewDateTime,
-                ]
-            );
+            $checkExistingRecord = AdmissionFirstPhase::where('reg_id', $regId)->first();
+            if ($checkExistingRecord == null) {
+
+                //Create Interview Phase 1 List
+                AdmissionFirstPhase::create(
+                    [
+                        'application_id' => $applicant->applicationmaster->id,
+                        'reg_id' => $regId,
+                        'interview_datetime' => $interviewDateTime,
+
+                    ]
+                );
+            } else {
+                //Update Interview DateTime if record exists
+                AdmissionFirstPhase::where('reg_id', $regId)->update(
+                    [
+                        'interview_datetime' => $interviewDateTime,
+                    ]
+                );
+            }
 
             //return back with success
             return back()->with('success', 'Interview SMS sent successfully to the applicant.');
@@ -598,11 +591,8 @@ class AdmissionController extends Controller
     function ugPhase2Registrations(Request $request)
     {
         //Check user has permission
-        $superadmin =  StaticController::permissionValidator('Super Admin');
-        $admission_central_office = StaticController::permissionValidator('Admission Central Admin');
-        $admissionoffice = StaticController::permissionValidator('Admission Admin');
-
-        if ($superadmin || $admission_central_office) {
+        $campusId =  StaticController::fetchCampusSettings();
+        if ($campusId == null) {
 
             if (!empty($request->search)) {
                 $search = $request->search;
@@ -619,30 +609,26 @@ class AdmissionController extends Controller
                 ])->latest()->get();
             }
         } else {
-            if ($admissionoffice) {
-                //fetch user's campus
-                $campusId =  StaticController::fetchCampusSettings();
-                if (!empty($request->search)) {
-                    $search = $request->search;
-                    $data =   AdmissionFinalPhase::with([
-                        'registrationmaster',
-                        'applicationinfo',
-                    ])->whereHas('applicationinfo', function ($query) use ($search) {
-                        $query->where('application_id', 'like', '%' . $search . '%');
-                    })
-                        ->whereHas('registrationmaster.programinfo.campus', function ($query) use ($campusId) {
-                            $query->where('id', $campusId);
-                        })->latest()->get();
-                } else {
-                    $data =  AdmissionFinalPhase::with([
-                        'registrationmaster',
-                        'applicationinfo',
-                    ])->whereHas('registrationmaster.programinfo.campus', function ($query) use ($campusId) {
+
+
+            if (!empty($request->search)) {
+                $search = $request->search;
+                $data =   AdmissionFinalPhase::with([
+                    'registrationmaster',
+                    'applicationinfo',
+                ])->whereHas('applicationinfo', function ($query) use ($search) {
+                    $query->where('application_id', 'like', '%' . $search . '%');
+                })
+                    ->whereHas('registrationmaster.programinfo.campus', function ($query) use ($campusId) {
                         $query->where('id', $campusId);
                     })->latest()->get();
-                }
             } else {
-                return Qs::returnToDashboard();
+                $data =  AdmissionFinalPhase::with([
+                    'registrationmaster',
+                    'applicationinfo',
+                ])->whereHas('registrationmaster.programinfo.campus', function ($query) use ($campusId) {
+                    $query->where('id', $campusId);
+                })->latest()->get();
             }
         }
         return view('admin.admission.ug.phase2', ['data' => $data]);
@@ -670,20 +656,59 @@ class AdmissionController extends Controller
         return back()->with('success', 'Updated successfully.');
     }
 
-    function userAccessUg()
+    function deptAccess()
     {
-        //Check user has permission
-        $superadmin =  StaticController::permissionValidator('Super Admin');
-        $admission_central_office = StaticController::permissionValidator('Admission Central Admin');
+        $departments = DepartmentMaster::all();
+        $campusId =  StaticController::fetchCampusSettings();
 
-        if ($superadmin || $admission_central_office) {
-            return view('admin.admission.ug.user-access');
+        if ($campusId != null) {
+            $departments = DepartmentMaster::where('campus_id', $campusId)->where('status', 1)->get();
         } else {
-            return Qs::returnToDashboard();
+            $departments = DepartmentMaster::where('status', 1)->get();
         }
 
+        return view('admin.admission.dept-access', ['departments' => $departments]);
+    }
 
-        return view('admin.admission.ug.user-access');
+    function assignDeptAccess(Request $request)
+    {
+        $request->validate([
+            'deptartment' => 'required',
+            'email' => 'required|email|unique:users,email',
+            'password' => 'required|min:6',
+            'role' => 'required',
+        ]);
+        $data = DepartmentMaster::where('id', $request->deptartment)->first();
+
+        $departmentId = $request->department_id;
+        //create user
+        $rec = new User();
+        $rec->name =  $data->name . ' Dept Admin';
+        $rec->email = $request->email;
+        $rec->password = Hash::make($request->password);
+        $rec->otp_verification = 1;
+        $rec->status = 'ACTIVE';
+        $rec->save();
+
+        //assign department access permission
+        UserHasRole::create([
+            'user_id' => $rec->id,
+            'role_id' =>  7, //Head of Department Admin Role
+        ]);
+
+
+        return back()->with('success', 'Department access assigned successfully.');
+    }
+
+    function getProgramsByDepartment(Request $request)
+    {
+        $campusId =  StaticController::fetchCampusSettings();
+        $deptId = $request->deptId;
+        if ($campusId == null) {
+            return StudentProgram::where('department', $deptId)->get();
+        } else {
+            return StudentProgram::where('department', $deptId)->where('campus_id', $campusId)->get();
+        }
     }
 
     function logout()

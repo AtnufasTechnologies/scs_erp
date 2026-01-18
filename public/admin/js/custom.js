@@ -10,12 +10,12 @@ $(document).ready(function () {
 
     $('input[name="fee_structure_id[]"], input[name="gateway"]').on(
         "change",
-        toggleButton
+        toggleButton,
     );
     //end
 
     var tooltipTriggerList = [].slice.call(
-        document.querySelectorAll('[data-bs-toggle="tooltip"]')
+        document.querySelectorAll('[data-bs-toggle="tooltip"]'),
     );
     var tooltipList = tooltipTriggerList.map(function (tooltipTriggerEl) {
         return new bootstrap.Tooltip(tooltipTriggerEl);
@@ -68,7 +68,7 @@ $(document).ready(function () {
         var myArray = [];
         $("input[type=checkbox]").prop("checked", $(this).prop("checked"));
         var checkboxes = document.querySelectorAll(
-            "input[id=checkboxItem]:checked"
+            "input[id=checkboxItem]:checked",
         );
         for (var i = 0; i < checkboxes.length; i++) {
             myArray.push(checkboxes[i].value);
@@ -80,7 +80,7 @@ $(document).ready(function () {
         var myArray = [];
         $("input[type=checkbox]").prop("checked", $(this).prop("checked"));
         var checkboxes = document.querySelectorAll(
-            "input[id=checkboxItem]:checked"
+            "input[id=checkboxItem]:checked",
         );
         for (var i = 0; i < checkboxes.length; i++) {
             myArray.push(checkboxes[i].value);

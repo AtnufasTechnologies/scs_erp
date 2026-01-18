@@ -25,7 +25,7 @@ use App\Models\StudentProgram;
   <div class="row">
     @foreach ($data as $item)
     <div class="col-lg-3">
-      <!-- From Uiverse.io by narmesh_sah -->
+
       <div class="profile-card">
         <div class="profile-image">
           <img src="{{asset('admin/images/logo.png')}}" alt="proile picture" />
