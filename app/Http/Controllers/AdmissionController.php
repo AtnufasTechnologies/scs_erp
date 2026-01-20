@@ -18,6 +18,8 @@ use App\Models\ProgramGroup;
 use App\Models\ReligionMaster;
 use App\Models\SmsLog;
 use App\Models\StudentProgram;
+use App\Models\Subject;
+use App\Models\SubjectHasStudentProgam;
 use App\Models\User;
 use App\Models\UserCampusSetting;
 use App\Models\UserHasPermission;
@@ -557,9 +559,15 @@ class AdmissionController extends Controller
         $phase1Record->final_status = $request->final_status;
         $phase1Record->save();
 
+
+
+
         if (($request->final_status == 1)) {
-            //move to final phase
-            Qs::moveToAdmissonFinalPhase($id);
+            $checkExistingRecord =  AdmissionFinalPhase::where('reg_id', $phase1Record->reg_id)->first();
+            if ($checkExistingRecord == null) {
+                //move to final phase
+                Qs::moveToAdmissonFinalPhase($id);
+            }
         }
 
         return back()->with('success', 'Updated successfully.');
@@ -656,58 +664,78 @@ class AdmissionController extends Controller
         return back()->with('success', 'Updated successfully.');
     }
 
-    function deptAccess()
-    {
-        $departments = DepartmentMaster::all();
-        $campusId =  StaticController::fetchCampusSettings();
-
-        if ($campusId != null) {
-            $departments = DepartmentMaster::where('campus_id', $campusId)->where('status', 1)->get();
-        } else {
-            $departments = DepartmentMaster::where('status', 1)->get();
-        }
-
-        return view('admin.admission.dept-access', ['departments' => $departments]);
-    }
-
-    function assignDeptAccess(Request $request)
-    {
-        $request->validate([
-            'deptartment' => 'required',
-            'email' => 'required|email|unique:users,email',
-            'password' => 'required|min:6',
-            'role' => 'required',
-        ]);
-        $data = DepartmentMaster::where('id', $request->deptartment)->first();
-
-        $departmentId = $request->department_id;
-        //create user
-        $rec = new User();
-        $rec->name =  $data->name . ' Dept Admin';
-        $rec->email = $request->email;
-        $rec->password = Hash::make($request->password);
-        $rec->otp_verification = 1;
-        $rec->status = 'ACTIVE';
-        $rec->save();
-
-        //assign department access permission
-        UserHasRole::create([
-            'user_id' => $rec->id,
-            'role_id' =>  7, //Head of Department Admin Role
-        ]);
-
-
-        return back()->with('success', 'Department access assigned successfully.');
-    }
 
     function getProgramsByDepartment(Request $request)
     {
-        $campusId =  StaticController::fetchCampusSettings();
         $deptId = $request->deptId;
-        if ($campusId == null) {
-            return StudentProgram::where('department', $deptId)->get();
+        $campusId = $request->campusId;
+
+        return SubjectHasStudentProgam::where('subject_id', $deptId)->whereHas('student_program.campusmaster', function ($query) use ($campusId) {
+            $query->where('id', $campusId);
+        })->with('student_program')
+            ->get();
+    }
+
+
+    function sendPhase2BulkNotification(Request $request)
+    {
+        $request->validate([
+            'programs' => 'required|array|min:1',
+            'interview_time' => 'required',
+        ]);
+
+        $programs = $request->programs;
+        $interviewDateTime = date('d-m-Y h:i A', strtotime($request->interview_time));
+
+        $data = AdmissionApplication::with('registrationmaster:id,mobile_no,first_name,last_name')
+            ->whereIn('programme_id', $programs)
+            ->where('application_status', 1) //approved applications
+            ->get();
+
+        if ($data->isEmpty()) {
+            return back()->with('error', 'No applicants found for the selected programs.');
+        }
+        //send sms to each applicant
+        $mobileNumbers = [];
+        $firstname = [];
+        $messageId = 186601; //preset message id for interview notification
+        foreach ($data as $applicant) {
+            $phoneNo = $applicant->registrationmaster->mobile_no;
+            $mobileNumbers[] = $phoneNo;
+            $fullname = $applicant->registrationmaster->first_name;
+            $firstname[] = $fullname;
+        }
+        $fields = [
+            'body' => json_encode([
+                'route' => 'dlt',
+                'requests' => [
+                    [
+                        'sender_id' => 'ATNFAS',
+                        'numbers' => implode(',', $mobileNumbers),
+                        'message' => $messageId,
+                        'variables_values' => implode(',', $firstname) . ',' . $interviewDateTime,
+                    ]
+                ]
+            ])
+        ];
+        //bulk sms sender
+        $apiResponse = StaticController::bulkSmsSender($fields);
+        $jsonResponse = json_decode($apiResponse, true);
+
+        if ($jsonResponse['return'] == true) {
+
+            //store sms log if needed
+            SmsLog::create([
+                'message_id' => $messageId,
+                'message_type' => 'Notification',
+                'request_id' => $jsonResponse['request_id'],
+                'message' => $jsonResponse['message'][0] ?? null,
+                'sender_id' => Auth::user()->id,
+            ]);
+            //return back with success
+            return back()->with('success', 'Phase 2 SMS sent successfully to selected Programs.');
         } else {
-            return StudentProgram::where('department', $deptId)->where('campus_id', $campusId)->get();
+            return back()->with('error', 'Failed to send Interview SMS. Please try again.');
         }
     }
 

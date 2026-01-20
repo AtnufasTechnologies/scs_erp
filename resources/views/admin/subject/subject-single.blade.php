@@ -13,7 +13,7 @@ $programs = StudentProgram::latest()->get();
 
 <div class="p-5 mb-4 profile-header-sub text-white rounded-3 shadow">
   <div class="container-fluid py-3">
-    <h1 class="display-5 fw-bold text-light text-capitalize"><span class="fw-semibold"> {{ $data->program_master->title }} -</span> {{ $data->title }} </h1>
+    <h1 class="display-5 fw-bold text-light text-capitalize"><span class="fw-semibold"> {{ $data->program_master->title }} -</span> {{ $data->title }} ({{ $data->code }}) </h1>
     Academic Batch: <span class="fw-semibold text-warning">{{ $batchmaster->batch_name }}</span>
 
     <div class="row mb-3">
@@ -78,6 +78,8 @@ $programs = StudentProgram::latest()->get();
                     @endforeach
                   </select>
 
+                  <input type="hidden" name="subject_id" value="{{$data->id}}">
+
                 </div>
                 <div class="modal-footer">
                   <button type="submit" class="btn btn-success">Submit</button>
@@ -136,96 +138,107 @@ $programs = StudentProgram::latest()->get();
 </div>
 
 <div class="row">
-  <div class="col-lg-7">
+  <div class="col-lg-8">
     <div class="container my-5">
       <h2 class="h3 text-dark border-bottom pb-2 mb-4">Course Syllabus</h2>
 
-      {{-- Group syllabus items by semester for cleaner display --}}
-      @php
-      $syllabiBySemester = collect($data['syllabus'])->groupBy('semester_id');
-      @endphp
-
-      <div class="accordion" id="syllabusAccordion">
-        @foreach ($syllabiBySemester as $semesterId => $syllabi)
-        {{-- Accordion Item: Semester Header --}}
-        <div class="accordion-item shadow-sm mb-3">
-          <h2 class="accordion-header" id="heading-{{ $semesterId }}">
-            <button class="accordion-button fs-5 @if($loop->first) @else collapsed @endif" type="button"
-              data-bs-toggle="collapse" data-bs-target="#collapse-{{ $semesterId }}"
-              aria-expanded="@if($loop->first) true @else false @endif" aria-controls="collapse-{{ $semesterId }}">
-              📚 {{ $syllabi[0]['semestermaster']['title'] }}
+      <div class="accordion modern-accordion" id="syllabusAccordion">
+        @foreach ($data->semesters as $semester)
+        <div class="accordion-item border-0 mb-3 shadow-sm rounded-3 overflow-hidden">
+          <h2 class="accordion-header" id="headingOne">
+            <button class="accordion-button fw-semibold bg-light text-dark collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#collapse{{ $semester->id }}" aria-expanded="false" aria-controls="collapse{{ $semester->id }}" style="transition: background 0.2s;">
+              <i class="fa fa-book-open me-2 text-primary"></i> {{ $semester->semestermaster->title }}
             </button>
           </h2>
+          <div id="collapse{{ $semester->id }}" class="accordion-collapse collapse" aria-labelledby="headingOne" data-bs-parent="#syllabusAccordion">
+            <div class="accordion-body bg-white">
+              <!-- Syllabus List -->
+              @if($semester->syllabus && count($semester->syllabus))
+              <ul class="list-group mb-3">
+                @foreach($semester->syllabus as $syllabus)
+                <li class="list-group-item d-flex justify-content-between align-items-center">
+                  <span>{{ $syllabus->topic }}</span>
+                  <span class="text-muted">{{ $syllabus->description }}</span>
+                </li>
+                @endforeach
+              </ul>
+              @else
+              <p class="text-muted">No syllabus added for this semester.</p>
+              @endif
 
-          {{-- Accordion Content: Syllabus Cards --}}
-          <div id="collapse-{{ $semesterId }}" class="accordion-collapse collapse @if($loop->first) show @endif"
-            aria-labelledby="heading-{{ $semesterId }}" data-bs-parent="#syllabusAccordion">
-            <div class="accordion-body bg-light">
-              <div class="row row-cols-1 row-cols-md-2 row-cols-lg-3 g-4">
+              <!-- Button trigger syllabus modal -->
+              <button type="button" class="btn btn-primary btn-sm mb-2" data-bs-toggle="modal" data-bs-target="#addSyllabusModal{{ $semester->id }}">
+                <i class="fa fa-plus"></i> Add Syllabus
+              </button>
 
-                @foreach ($syllabi as $item)
-                <div class="col">
-                  <div class="card h-100 border-0 shadow-sm">
-                    <div class="card-body">
-                      {{-- Badge for Subject Type --}}
-                      @php
-                      $badgeClass = 'bg-secondary';
-                      if ($item['subtypemaster']['title'] == 'CORE') {
-                      $badgeClass = 'bg-indigo'; // Custom class or utility-color for indigo
-                      } elseif ($item['subtypemaster']['title'] == 'MDC') {
-                      $badgeClass = 'bg-success';
-                      }
-                      @endphp
-                      <span class="badge {{ $badgeClass }} mb-2">{{ $item['subtypemaster']['title'] }}</span>
-
-                      <h5 class="card-title fw-bold">{{ $item['title'] }}</h5>
-                      <p class="card-text text-muted">{{ $item['content'] }}</p>
-
-                      @if (isset($item['timetable']))
-                      <div class="mt-3 pt-3 border-top">
-                        <p class="card-subtitle text-sm fw-medium text-dark">Timetable Info:</p>
-                        <ul class="list-unstyled small text-muted mt-1">
-                          <li>Weekday ID: **{{ $item->timetable->weekdaymaster->title }}**</li>
-                          <li>Hour ID: **{{ $item->timetable->hourmaster->title }}**</li>
-                          <li>Lecture Hall ID: **{{ $item->timetable->lecturehallmaster->acblockmaster->title }}**</li>
-                        </ul>
+              <!-- Add Syllabus Modal -->
+              <div class="modal fade" id="addSyllabusModal{{ $semester->id }}" tabindex="-1" aria-labelledby="addSyllabusLabel{{ $semester->id }}" aria-hidden="true">
+                <div class="modal-dialog">
+                  <div class="modal-content">
+                    <form action="{{ route('add.syllabus.to.semester') }}" method="post">
+                      @csrf
+                      <div class="modal-header">
+                        <h5 class="modal-title" id="addSyllabusLabel{{ $semester->id }}">Add Syllabus for {{ $semester->semestermaster->title }}</h5>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
                       </div>
-                      @else
-                      <p class="mt-3 small text-danger">No timetable assigned.</p>
-                      @endif
-                    </div>
+                      <div class="modal-body">
+                        <input type="hidden" name="semester_id" value="{{ $semester->id }}">
+                        <input type="hidden" name="subject_id" value="{{ $data->id }}">
+                        <div class="mb-3">
+                          <label for="topic{{ $semester->id }}" class="form-label">Topic</label>
+                          <input type="text" class="form-control" id="topic{{ $semester->id }}" name="topic" required>
+                        </div>
+                        <div class="mb-3">
+                          <label for="description{{ $semester->id }}" class="form-label">Description</label>
+                          <textarea class="form-control" id="description{{ $semester->id }}" name="description" rows="3" required></textarea>
+                        </div>
+                      </div>
+                      <div class="modal-footer">
+                        <button type="submit" class="btn btn-success">Add</button>
+                      </div>
+                    </form>
                   </div>
                 </div>
-                @endforeach
-
               </div>
+
             </div>
           </div>
         </div>
         @endforeach
+
+
       </div>
+      <style>
+
+      </style>
+
     </div>
   </div>
-  <div class="col-lg-5">
+
+
+  <div class="col-lg-4">
     <div class="container my-5">
       <h2 class="h3 text-dark border-bottom pb-2 mb-4">Connected Programs - {{ $data->programs->count() }}</h2>
-      @foreach ($data->programs as $program)
-
-      <div class="radius-30  alert alert-info d-flex justify-content-between align-items-center shadow" role="alert">
-        <div>
-          <strong>{{ $program->student_program->code }} - {{ $program->student_program->name }}</strong>
+      <div class="card">
+        <div class="card-body  global-scroll-card">
+          @foreach ($data->programs as $program)
+          <div class="radius-10  alert alert-info d-flex justify-content-between align-items-center shadow" role="alert">
+            <div>
+              <strong>{{ $program->student_program->code }} - {{ $program->student_program->name }}</strong>
+            </div>
+            <form action="" method="post" onsubmit="return confirm('Are you sure you want to remove this program from the subject?');">
+              @csrf
+              <input type="hidden" name="subject_id" value="{{ $data->id }}">
+              <input type="hidden" name="program_id" value="{{ $program->student_program->id }}">
+              <button type="submit" class="btn btn-sm btn-danger">
+                <i class="fa fa-trash"></i>
+              </button>
+            </form>
+          </div>
+          @endforeach
         </div>
-        <form action="" method="post" onsubmit="return confirm('Are you sure you want to remove this program from the subject?');">
-          @csrf
-          <input type="hidden" name="subject_id" value="{{ $data->id }}">
-          <input type="hidden" name="program_id" value="{{ $program->student_program->id }}">
-          <button type="submit" class="btn btn-sm btn-danger">
-            <i class="fa fa-trash"></i> Remove
-          </button>
-        </form>
       </div>
 
-      @endforeach
     </div>
   </div>
   <div class="col-lg-12">

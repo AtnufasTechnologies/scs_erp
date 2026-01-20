@@ -10,6 +10,7 @@ use App\Models\LectureHallMaster;
 use App\Models\Subject;
 use App\Models\SubjectHasCombination;
 use App\Models\SubjectHasRoutine;
+use App\Models\SubjectHasSemester;
 use App\Models\SubjectHasStudentProgam;
 use App\Models\SubjectHasSyllabus;
 use App\Models\SubjectTypeMaster;
@@ -76,6 +77,7 @@ class SubjectController extends Controller
             'syllabus.timetable.lecturehallmaster.acblockmaster:id,title',
             'program_master:id,title',
             'programs',
+            'semesters.semestermaster:id,title',
 
         ])->with('syllabus', function ($q) use ($batchId) {
             $q->where('session_id', $batchId);
@@ -100,19 +102,16 @@ class SubjectController extends Controller
 
     function addSyllabus(Request $request)
     {
-        $validator  =  Validator::make($request->all(), [
-            'dept_id' => 'required',
+        $request->validate([
             'subject_id' => 'required',
-            'session_id' => 'required',
+            'batch' => 'required',
             'semester_id' => 'required',
             'title' => 'required',
             'desc' => 'required',
             'subject_type_id' => 'required'
         ]);
 
-        if ($validator->fails()) {
-            return response()->json(['message' => 'Validation failed', 'status' => false], 400);
-        }
+
 
         $rec = new SubjectHasSyllabus();
         $rec->dept_id = $request->dept_id;
@@ -175,26 +174,17 @@ class SubjectController extends Controller
 
     function addSemesterToSubject(Request $request)
     {
-        $validator  =  Validator::make($request->all(), [
-            'subject_id' => 'required',
-            'semesters' => 'required',
+        $semester = $request->semester;
+        $subject_id = $request->subject_id;
+        $batch = $request->batch;
 
+        SubjectHasSemester::create([
+            'subject_id' => $subject_id,
+            'semester_id' => $semester,
+            'session_id' => $batch,
         ]);
 
-        if ($validator->fails()) {
-            return response()->json(['message' => 'Validation failed', 'status' => false], 400);
-        }
-
-        $semesters = $request->semesters;
-        $subject_id = $request->subject_id;
-
-        for ($i = 0; $i < count($semesters); $i++) {
-            $subject = new SubjectHasSyllabus();
-            $subject->subject_id = $subject_id;
-            $subject->semester_id = $semesters[$i];
-            $subject->save();
-        }
-        return redirect()->back()->with('success', 'Subject Deleted');
+        return redirect()->back()->with('success', 'Semester Added');
     }
 
     function deleteSubject($id)

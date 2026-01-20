@@ -9,7 +9,7 @@ use App\Http\Controllers\StaticController;
   <div class="sidebar-header">
 
     <div class="logo-text">
-      ERP
+      SCMS
     </div>
     <div class=" toggle-icon ms-auto">
       <ion-icon name="menu-sharp"></ion-icon>
@@ -298,19 +298,9 @@ use App\Http\Controllers\StaticController;
         </li>
         @endif
 
-        <!--Departmental Access Control -->
-        @if (StaticController::subMenuRights('admission-dept-access') )
+
         <li>
-          <a href="{{route('admission.dept-access')}}">
-            <div class="parent-icon">
-              <i class="fas fa-fingerprint"></i>
-            </div>
-            <div class="menu-title">Departmental Auth </div>
-          </a>
-        </li>
-        @endif
-        <li>
-          <a href="http://127.0.0.1:8000/erp/admission/registration" target="_blank">
+          <a href="http://127.0.0.1:8000/erp/admission-new/registration" target="_blank">
             <div class=" parent-icon">
               <i class="fas fa-pencil-alt"></i>
             </div>
@@ -894,21 +884,43 @@ use App\Http\Controllers\StaticController;
 
 
     @if (StaticController::mainMenuRights('access-control') )
-    <!--     User Access Management -->
-    @if (StaticController::subMenuRights('user-list') )
+
     <li>
-      <a href="{{url('erp/admin/user-access/access-management')}}">
+      <a class="has-arrow" href="javascript:;">
         <div class="parent-icon">
           <i class="fas fa-fingerprint"></i>
         </div>
-        <div class="menu-title">Access Control </div>
+        <div class="menu-title">Authentication </div>
       </a>
-    </li>
-    @endif
+      <ul>
+        <!--     User Access Management -->
+        @if (StaticController::subMenuRights('user-list') )
+        <li>
+          <a href="{{url('erp/admin/user-access/access-management')}}">
+            <div class="parent-icon">
+              <i class="fas fa-fingerprint"></i>
+            </div>
+            <div class="menu-title">Access Control </div>
+          </a>
+        </li>
+        @endif
+        <!--Departmental Access Control -->
+        @if (StaticController::subMenuRights('admission-dept-access') )
+        <li>
+          <a href="{{route('admission.dept-access')}}">
+            <div class="parent-icon">
+              <i class="fas fa-fingerprint"></i>
+            </div>
+            <div class="menu-title">Departmental Auth </div>
+          </a>
+        </li>
+        @endif
+      </ul>
 
-    @endif
 
-    <!-- logout -->
+      @endif
+
+      <!-- logout -->
     <li>
       <a href="{{url('erp/logout')}}">
         <div class="parent-icon">

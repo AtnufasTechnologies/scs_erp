@@ -4,7 +4,7 @@
     width: 100%;
     background: rgba(255, 255, 255, 0.9);
     -webkit-backdrop-filter: blur(48px);
-    backdrop-filter: blur(48px);
+
     border-radius: 20px;
     padding: 2rem;
     box-shadow: 12px 12px 12px -20px rgba(0, 0, 0, 0.3);
@@ -65,13 +65,13 @@
 }
 
 .social-links {
-    display: flex;
     gap: 0.5rem;
     margin-bottom: 1.5rem;
+    width: 100%;
 }
 
 .social-btn {
-    width: 40px;
+    width: 100px;
     height: 40px;
     border-radius: 50%;
     border: none;
@@ -124,7 +124,9 @@
     color: white;
     font-weight: 600;
     cursor: pointer;
-    transition: transform 0.2s, background 0.2s;
+    transition:
+        transform 0.2s,
+        background 0.2s;
 }
 
 .cta-button:hover {
@@ -152,4 +154,38 @@
 .stat-label {
     font-size: 0.8rem;
     color: #666;
+}
+.modern-accordion .accordion-button {
+    border-radius: 0.75rem !important;
+    box-shadow: none;
+    font-size: 1.1rem;
+    padding: 1rem 1.25rem;
+    background: #f8fafc;
+}
+
+.modern-accordion .accordion-button:not(.collapsed) {
+    background: linear-gradient(90deg, #21d9c7ff 0%, #aedd21 100%);
+    color: #fff;
+}
+
+.modern-accordion .accordion-item {
+    border: none;
+    background: transparent;
+}
+
+.modern-accordion .accordion-body {
+    border-top: 1px solid #e9ecef;
+    padding: 1.25rem;
+    background: #fff;
+    border-radius: 0 0 0.75rem 0.75rem;
+}
+
+.global-scroll-card {
+    height: 500px;
+    overflow: auto;
+    scrollbar-width: none; /* Firefox */
+    -ms-overflow-style: none; /* IE and Edge */
+}
+.global-scroll-card::-webkit-scrollbar {
+    display: none; /* Chrome, Safari, Opera */
 }

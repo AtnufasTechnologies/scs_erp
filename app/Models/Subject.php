@@ -20,6 +20,11 @@ class Subject extends Model
         return $this->hasMany(SubjectHasSyllabus::class, 'subject_id', 'id');
     }
 
+    function semesters()
+    {
+        return $this->hasMany(SubjectHasSemester::class, 'subject_id', 'id');
+    }
+
 
     function programs()
     {

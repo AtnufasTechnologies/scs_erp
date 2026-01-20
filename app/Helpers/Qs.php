@@ -20,18 +20,29 @@ class Qs
   {
     $campusId = self::getCampusSettings();
 
-    $programs = StudentProgram::with('applicationCount')
+    if ($campusId == null) {
+      $programs = StudentProgram::with('applicationCount')
 
-      ->whereHas('campusmaster', function ($query) use ($campusId) {
-        $query->where('id', $campusId);
-      })
-      ->whereHas('applicationmaster', function ($query) {
-        $query->where('application_status', 1); //approved applications only
-        $query->whereHas('registrationmaster.programinfo', function ($query) {
-          $query->where('name', 'UG');
-        });
-      })->distinct()
-      ->get();
+        ->whereHas('applicationmaster', function ($query) {
+          $query->where('application_status', 1); //approved applications only
+          $query->whereHas('registrationmaster.programinfo', function ($query) {
+            $query->where('name', 'UG');
+          });
+        })->distinct()
+        ->get(); // Return an empty collection if no campus is set
+    } else {
+      $programs = StudentProgram::with('applicationCount')
+        ->whereHas('campusmaster', function ($query) use ($campusId) {
+          $query->where('id', $campusId);
+        })
+        ->whereHas('applicationmaster', function ($query) {
+          $query->where('application_status', 1); //approved applications only
+          $query->whereHas('registrationmaster.programinfo', function ($query) {
+            $query->where('name', 'UG');
+          });
+        })->distinct()
+        ->get();
+    }
 
     return $programs;
   }

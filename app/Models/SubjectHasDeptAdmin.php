@@ -5,8 +5,8 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 
-class UserHasRole extends Model
+class SubjectHasDeptAdmin extends Model
 {
     use HasFactory;
-    protected $fillable = ['user_id', 'role_id'];
+    protected $fillable = ['subject_id', 'user_id', 'campus_id'];
 }

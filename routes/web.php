@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\AccessController;
 use App\Http\Controllers\AdminController;
 use App\Http\Controllers\AdmissionController;
 use App\Http\Controllers\FeePaymentController;
@@ -139,6 +140,7 @@ Route::group(['prefix' => '/erp'], function () {
         //Academics
         Route::group(['prefix' => '/academics'], function () {
             Route::post('add/subject-semester', [SubjectController::class, 'addSemesterToSubject'])->name('add.semester.to.subject');
+            Route::post('add/subject-syllabus', [SubjectController::class, 'addSyllabus'])->name('add.syllabus.to.semester');
         });
 
         //user access management
@@ -147,6 +149,9 @@ Route::group(['prefix' => '/erp'], function () {
             Route::post('newuser', [AdminController::class, 'createNewUser']);
             Route::post('update-permission', [AdminController::class, 'updatePermission']);
             Route::get('remove-user-permission/{id}', [AdminController::class, 'removeUserPermission']);
+            Route::get('dept-access', [AccessController::class, 'deptAccess'])->name('admission.dept-access');
+            Route::post('assign-dept-access', [AccessController::class, 'assignDeptAccess'])->name('admin.admission.grant-access');
+            Route::get('getprogramsbydepartment', [AdmissionController::class, 'getProgramsByDepartment']);
         });
 
         //admission routes Admin
@@ -164,9 +169,7 @@ Route::group(['prefix' => '/erp'], function () {
             Route::post('send-phase1-notification', [AdmissionController::class, 'sendPhase1BulkNotification'])->name('send.phase1.notification');
             Route::put('phase1/update-status/{id}', [AdmissionController::class, 'updateUgPhase1Status'])->name('admission.ug.phase1.update-status');
             Route::put('phase1/program-shift/{id}', [AdmissionController::class, 'shiftUgProgram'])->name('admission.ug.phase1.shift-program');
-            Route::get('dept-access', [AdmissionController::class, 'deptAccess'])->name('admission.dept-access');
-            Route::post('assign-dept-access', [AdmissionController::class, 'assignDeptAccess'])->name('admin.admission.grant-access');
-            Route::get('getprogramsbydepartment', [AdmissionController::class, 'getProgramsByDepartment']);
+            Route::post('send-phase2-notification', [AdmissionController::class, 'sendPhase2BulkNotification'])->name('send.phase2.notification');
         });
     });
 
@@ -204,6 +207,8 @@ Route::group(['prefix' => '/erp'], function () {
         Auth::logout();
         return redirect('/');
     });
+
+
 
     Route::get('sms-data/{id}', [AdminController::class, 'smsData']);
 });
