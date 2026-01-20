@@ -32,7 +32,7 @@
 
           <div class="mb-3">
             <label class="fw-bold">Amount *</label>
-            <input type="number" id="amount" name="amount" class="form-control" readonly>
+            <input type="number" id="amount" name="amount" class="form-control">
           </div>
 
 

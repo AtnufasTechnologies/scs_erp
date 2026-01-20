@@ -40,6 +40,7 @@
       <th>Description</th>
       <th>Roll No</th>
       <th>Student Name</th>
+      <th>Base Amount</th>
       <th>Captured Amount</th>
       <th>Gateway Ref #</th>
       <th>Gateway Type</th>
@@ -57,6 +58,7 @@
       <td>{{$payment->feepaymentinfo->quarter_title}}</td>
       <td class="text-uppercase">{{ $payment->studentmaster->roll_no }}</td>
       <td class="text-capitalize">{{ $payment->studentmaster->first_name }} {{ $payment->studentmaster->last_name }}</td>
+      <td>{{ $payment->amount }}</td>
       <td>{{ $payment->captured_amount }}</td>
       <td>{{ $payment->gateway_ref_code }}</td>
       <td> <span class="badge rounded-pill bg-info">
