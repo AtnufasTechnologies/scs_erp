@@ -98,16 +98,7 @@ use App\Http\Controllers\StaticController;
           </a>
         </li>
         @endif
-        @if(StaticController::subMenuRights('academic-department-master'))
-        <li>
-          <a href="{{url('erp/admin/master/academic-dept')}}">
-            <div class="parent-icon">
-              <i class="fas fa-arrow-alt-circle-right"></i>
-            </div>
-            <div class="menu-title">Academic Departments</div>
-          </a>
-        </li>
-        @endif
+
         @if(StaticController::subMenuRights('main-program-master'))
         <li>
           <a href="{{url('erp/admin/master/programs')}}">

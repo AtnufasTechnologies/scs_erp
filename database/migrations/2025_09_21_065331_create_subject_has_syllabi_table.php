@@ -13,8 +13,8 @@ return new class extends Migration
     {
         Schema::create('subject_has_syllabi', function (Blueprint $table) {
             $table->id();
-            $table->foreignId('dept_id')->constrained('departments')->onDelete('cascade');
-            $table->foreignId('subject_id')->constrained('subjects')->onDelete('cascade');
+            $table->foreignId('dept_id');
+            $table->foreignId('subject_id');
             $table->integer('session_id');
             $table->integer('semester_id');
             $table->text('title');
@@ -30,6 +30,8 @@ return new class extends Migration
      */
     public function down(): void
     {
+        Schema::disableForeignKeyConstraints();
         Schema::dropIfExists('subject_has_syllabi');
+        Schema::enableForeignKeyConstraints();
     }
 };

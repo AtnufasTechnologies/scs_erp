@@ -2,9 +2,11 @@
 
 use App\Models\BatchMaster;
 use App\Models\Semester;
+use App\Models\StudentProgram;
 
 $batches = BatchMaster::get();
 $semesters = Semester::get();
+$programs = StudentProgram::latest()->get();
 ?>
 @include('includes.header')
 @include('admin.sidebar')
@@ -12,10 +14,11 @@ $semesters = Semester::get();
 <div class="p-5 mb-4 profile-header-sub text-white rounded-3 shadow">
   <div class="container-fluid py-3">
     <h1 class="display-5 fw-bold text-light text-capitalize"><span class="fw-semibold"> {{ $data->program_master->title }} -</span> {{ $data->title }} </h1>
+    Academic Batch: <span class="fw-semibold text-warning">{{ $batchmaster->batch_name }}</span>
+
     <div class="row mb-3">
 
       <div class="col-lg-2">
-        Academic Batch: <span class="fw-semibold text-warning">{{ $batchmaster->batch_name }}</span>
         <form action="{{url('erp/admin/master/view-subject')}}" method="get">
           <input type="hidden" name="id" value="{{$data->id}}">
           <input type="hidden" name="slug" value="{{$data->slug}}">
@@ -29,6 +32,8 @@ $semesters = Semester::get();
           </div>
         </form>
       </div>
+
+
 
 
     </div>
@@ -84,6 +89,45 @@ $semesters = Semester::get();
       </div>
 
 
+      <div class="col-lg-2">
+        <button class="cst-button mb-3" style="--clr: rgb(174, 217, 33);" data-bs-toggle="modal" data-bs-target="#programConnect">
+          <span class="button-decor"></span>
+          <div class="button-content">
+            <div class="button__icon">
+              <i class="fa fa-link"></i>
+            </div>
+            <span class="button__text"> Connect Programs</span>
+          </div>
+        </button>
+        <div class="modal fade" id="programConnect" tabindex="-1" aria-labelledby="exampleModalLabel" aria-hidden="true">
+          <div class="modal-dialog">
+            <div class="modal-content">
+              <div class="modal-header">
+                <h5 class="modal-title text-dark" id="exampleModalLabel">Connect Programs for {{$data->title}} </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+              </div>
+              <form action="{{route('add.programs.to.subject')}}" method="post" enctype="multipart/form-data">
+                @csrf
+                <div class="modal-body">
+                  <input type="hidden" name="batch_id" value=" {{$batchmaster->id}}">
+                  <label for="" class="text-dark">Select Program</label>
+                  <select name="programs[]" class="form-select mb-3 select-multiple" multiple>
+                    @foreach ($programs as $prg)
+                    <option value="{{$prg->id}}">{{$prg->code}} - {{$prg->name}}</option>
+                    @endforeach
+                  </select>
+                  <input type="hidden" name="subject_id" value="{{$data->id}}">
+
+                </div>
+                <div class="modal-footer">
+                  <button type="submit" class="btn btn-success">Submit</button>
+                </div>
+              </form>
+            </div>
+          </div>
+        </div>
+      </div>
+
 
     </div>
 
@@ -92,7 +136,7 @@ $semesters = Semester::get();
 </div>
 
 <div class="row">
-  <div class="col-lg-8">
+  <div class="col-lg-7">
     <div class="container my-5">
       <h2 class="h3 text-dark border-bottom pb-2 mb-4">Course Syllabus</h2>
 
@@ -162,7 +206,29 @@ $semesters = Semester::get();
       </div>
     </div>
   </div>
-  <div class="col-lg-4">
+  <div class="col-lg-5">
+    <div class="container my-5">
+      <h2 class="h3 text-dark border-bottom pb-2 mb-4">Connected Programs - {{ $data->programs->count() }}</h2>
+      @foreach ($data->programs as $program)
+
+      <div class="radius-30  alert alert-info d-flex justify-content-between align-items-center shadow" role="alert">
+        <div>
+          <strong>{{ $program->student_program->code }} - {{ $program->student_program->name }}</strong>
+        </div>
+        <form action="" method="post" onsubmit="return confirm('Are you sure you want to remove this program from the subject?');">
+          @csrf
+          <input type="hidden" name="subject_id" value="{{ $data->id }}">
+          <input type="hidden" name="program_id" value="{{ $program->student_program->id }}">
+          <button type="submit" class="btn btn-sm btn-danger">
+            <i class="fa fa-trash"></i> Remove
+          </button>
+        </form>
+      </div>
+
+      @endforeach
+    </div>
+  </div>
+  <div class="col-lg-12">
     <div class="container my-5">
       <h2 class="h3 text-dark border-bottom pb-2 mb-4">Faculty</h2>
     </div>

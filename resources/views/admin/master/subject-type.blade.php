@@ -9,8 +9,8 @@
     <thead>
       <tr>
         <th>#</th>
-        <th>Subject Type Name</th>
-
+        <th>Code</th>
+        <th>Description</th>
       </tr>
     </thead>
     <tbody>
@@ -20,6 +20,7 @@
       <tr>
         <td>{{$sl++}}</td>
         <td>{{$item->title}}</td>
+        <td>{{$item->description}}</td>
       </tr>
       @endforeach
 

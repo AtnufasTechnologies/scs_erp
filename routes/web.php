@@ -74,7 +74,9 @@ Route::group(['prefix' => '/erp'], function () {
 
             Route::post('subject', [SubjectController::class, 'addSubject']);
             Route::get('view-subject', [SubjectController::class, 'subjectSingle']);
-
+            Route::get('delete-subject/{id}', [SubjectController::class, 'deleteSubject']);
+            Route::post('link-student-programs', [SubjectController::class, 'linkStdPrograms'])->name('add.programs.to.subject');
+            Route::post('add-subject-semester', [SubjectController::class, 'addSemesterToSubject'])->name('add.semester.to.subject');
             //lecture halls
 
             Route::get('lecturehalls', [AdminController::class, 'lectureHalls']);

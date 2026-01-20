@@ -37,7 +37,9 @@ $programs = ProgramMaster::latest()->get();
             <option value="{{$item->id}}">{{$item->title}}</option>
             @endforeach
           </select>
-          <label for="">Subject Name</label>
+          <label for="">Subject Code</label>
+          <input type="text" class="form-control mb-3" name="code" placeholder="Type here...">
+          <label for="">Subject Title</label>
           <input type="text" class="form-control mb-3" name="title" placeholder="Type here...">
 
         </div>
@@ -56,6 +58,7 @@ $programs = ProgramMaster::latest()->get();
       <tr>
         <th>#</th>
         <th>Program </th>
+        <th>Code</th>
         <th>Subject Name</th>
         <th>View</th>
         <th>Delete</th>
@@ -68,26 +71,25 @@ $programs = ProgramMaster::latest()->get();
       <tr>
         <td>{{$sl++}}</td>
         <td>{{$item->program_master->title}}</td>
+        <td><span class="text-capitalize">{{$item->code}}</span></td>
         <td><span class="text-capitalize">{{$item->title}}</span></td>
         <td>
           <form action="{{url('erp/admin/master/view-subject')}}" method="get">
             <input type="hidden" name="id" value="{{$item->id}}">
             <input type="hidden" name="slug" value="{{$item->slug}}">
-
             <button class="btn btn-primary"><i class="fa fa-eye"></i></button>
           </form>
 
         </td>
 
         <td>
-          <a href="" id="citadel"><button class="btn btn-outline-danger"><i class="fa fa-trash-alt"></i></button></a>
+          <a href="{{url('erp/admin/master/delete-subject/'.$item->id) }}" id="citadel"><button class="btn btn-outline-danger"><i class="fa fa-trash-alt"></i></button></a>
         </td>
 
       </tr>
       @endforeach
 
-      @else
-      <p class="display-4 text-center">No Records</p>
+
       @endif
     </tbody>
 

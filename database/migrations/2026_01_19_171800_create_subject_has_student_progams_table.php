@@ -11,11 +11,10 @@ return new class extends Migration
      */
     public function up(): void
     {
-        Schema::create('attendance_qr_masters', function (Blueprint $table) {
+        Schema::create('subject_has_student_progams', function (Blueprint $table) {
             $table->id();
-            $table->foreignId('syllabus_faculty_id')->constrained('syllabus_has_faculties')->onDelete('cascade');
-            $table->string('code');
-            $table->smallInteger('status')->default(1);
+            $table->unsignedBigInteger('subject_id');
+            $table->unsignedBigInteger('student_program_id');
             $table->timestamps();
             $table->softDeletes();
         });
@@ -26,9 +25,8 @@ return new class extends Migration
      */
     public function down(): void
     {
-
         Schema::disableForeignKeyConstraints();
-        Schema::dropIfExists('attendance_qr_masters');
+        Schema::dropIfExists('subject_has_student_progams');
         Schema::enableForeignKeyConstraints();
     }
 };
