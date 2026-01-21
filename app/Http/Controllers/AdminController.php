@@ -24,6 +24,7 @@ use App\Models\HourMaster;
 use App\Models\LateFee;
 use App\Models\LectureHallMaster;
 use App\Models\MainProgram;
+use App\Models\MenuMaster;
 use App\Models\ProgramGroup;
 use App\Models\ProgramMaster;
 use App\Models\ReligionMaster;
@@ -34,6 +35,7 @@ use App\Models\User;
 use App\Models\UserCampusSetting;
 use App\Models\UserHasPermission;
 use App\Models\UserHasRole;
+use App\Models\UserMenuPermission;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Str;
@@ -876,7 +878,7 @@ class AdminController extends Controller
 
     function userList()
     {
-        $data = User::with('roles.permissionmaster:id,permission_name')
+        $data = User::with('roles')
             ->with('campuspermission.campus:id,name')
             ->get();
         return view('admin.user-manager.access-management', ['data' => $data]);
@@ -930,6 +932,7 @@ class AdminController extends Controller
 
     function updatePermission(Request $request)
     {
+
         $request->validate([
             'roles' => 'required|array|min:1',
             'user_id' => 'required',
@@ -941,11 +944,15 @@ class AdminController extends Controller
 
         for ($i = 0; $i < count($roles); $i++) {
 
-            $duplicateCheck = UserHasPermission::where('user_id', $userId)->where('permission_name', $roles[$i])->first();
+            $duplicateCheck = UserMenuPermission::where('user_id', $userId)->where('menu_master_id', $roles[$i])->first();
             if ($duplicateCheck == null) {
-                $permission = new UserHasPermission();
+
+                $record = MenuMaster::find($roles[$i]);
+
+                $permission = new UserMenuPermission();
                 $permission->user_id = $userId;
-                $permission->permission_name = $roles[$i];
+                $permission->menu_master_id = $roles[$i];
+                $permission->permission_name = $record->slug;
                 $permission->save();
             }
         }

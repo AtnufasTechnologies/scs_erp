@@ -46,7 +46,7 @@ class User extends Authenticatable
 
     function roles()
     {
-        return $this->hasMany(UserHasPermission::class, 'user_id', 'id');
+        return $this->hasMany(UserMenuPermission::class, 'user_id', 'id');
     }
 
     function role()

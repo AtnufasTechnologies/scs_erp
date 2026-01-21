@@ -98,7 +98,9 @@ $campusMaster = Campus::all()
           @endif
         </p>
         <p class="card-text"><strong>Role:</strong>
-
+          @foreach ($itm->roles as $role)
+          <span class="badge bg-success">{{ $role->permission_name }}</span>
+          @endforeach
         </p>
       </div>
       <hr>
@@ -120,7 +122,7 @@ $campusMaster = Campus::all()
                 <label for="">Roles *</label>
                 <select name="roles[]" class="form-control mb-3 select-multiple" multiple>
                   @foreach ($permissionMaster as $pm)
-                  <option value="{{ $pm->permission_name }}">{{ $pm->permission_name }}</option>
+                  <option value="{{ $pm->id }}">{{ $pm->menu_name }} - {{ $pm->module_type }}</option>
                   @endforeach
                 </select>
                 <input type="hidden" name="user_id" value="{{$itm->id}}">

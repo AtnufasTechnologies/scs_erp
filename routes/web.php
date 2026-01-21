@@ -148,7 +148,7 @@ Route::group(['prefix' => '/erp'], function () {
         Route::group(['prefix' => '/user-access'], function () {
             Route::get('access-management', [AdminController::class, 'userList']);
             Route::post('newuser', [AdminController::class, 'createNewUser']);
-            Route::post('update-permission', [AdminController::class, 'updatePermission']);
+            Route::post('update-permission', [AdminController::class, 'updatePermission'])->name('update.user.permission');
             Route::get('remove-user-permission/{id}', [AdminController::class, 'removeUserPermission']);
             Route::get('dept-access', [AccessController::class, 'deptAccess'])->name('admission.dept-access');
             Route::post('assign-dept-access', [AccessController::class, 'assignDeptAccess'])->name('admin.admission.grant-access');
