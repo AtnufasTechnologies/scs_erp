@@ -878,9 +878,11 @@ class AdminController extends Controller
 
     function userList()
     {
-        $data = User::with('roles')
-            ->with('campuspermission.campus:id,name')
-            ->get();
+        $data = User::with([
+            'userroletype',
+            'roles',
+            'campuspermission.campus:id,name'
+        ])->get();
         return view('admin.user-manager.access-management', ['data' => $data]);
     }
 
@@ -907,8 +909,10 @@ class AdminController extends Controller
         //adding permissions
         for ($i = 0; $i < count($roles); $i++) {
 
-            $permission = new UserHasPermission();
+            $menu = MenuMaster::where('slug', $roles[$i])->first();
+            $permission = new UserMenuPermission();
             $permission->user_id = $userId;
+            $permission->menu_master_id = $menu->id;
             $permission->permission_name = $roles[$i];
             $permission->save();
         }
@@ -916,7 +920,7 @@ class AdminController extends Controller
         //adding role_type
         $userType = new UserHasRole();
         $userType->user_id = $userId;
-        $userType->role_id = $request->user_type ?? 2; //default to admin
+        $userType->role_name = $request->user_type; //default to admin
         $userType->save();
 
         //check CAMPUS ASSIGNMENT

@@ -49,7 +49,7 @@ class User extends Authenticatable
         return $this->hasMany(UserMenuPermission::class, 'user_id', 'id');
     }
 
-    function role()
+    function userroletype()
     {
         return $this->hasOne(UserHasRole::class, 'user_id', 'id');
     }

@@ -43,14 +43,14 @@ $campusMaster = Campus::all()
           <input type="email" name="email" class="form-control mb-3" placeholder="Type Here...">
 
 
-          <label for="">Login Password * (min 8 characters)</label>
+          <label for="">Login Password * (min 6 characters)</label>
           <input type="password" name="password" class="form-control mb-3" placeholder="Type Here...">
 
           <label for="">User Type</label>
           <select name="user_type" class=" mb-3 dselect-example">
             <option value="">Select User Type</option>
             @foreach ($userTypes as $ut)
-            <option value="{{ $ut->id }}">{{ $ut->name }}</option>
+            <option value="{{ $ut->slug }}">{{ $ut->name }}</option>
             @endforeach
           </select>
 
@@ -90,6 +90,7 @@ $campusMaster = Campus::all()
 
         <h5 class="card-title">{{ $itm->name }}</h5>
         <p class="card-text"><strong>Email:</strong> {{ $itm->email }}</p>
+        <p class="card-text"> <span class="badge campus-badge"><strong> {{$itm->userroletype != null ? $itm->userroletype->role_name : ''}}</strong></span>
         <p class="card-text"><strong>Access</strong>
           @if ($itm->campuspermission && $itm->campuspermission->campus)
           <span class="badge campus-badge">{{ $itm->campuspermission->campus->name }}</span>

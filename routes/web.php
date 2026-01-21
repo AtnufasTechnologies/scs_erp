@@ -6,8 +6,11 @@ use App\Http\Controllers\AdmissionController;
 use App\Http\Controllers\FeePaymentController;
 use App\Http\Controllers\LoginController;
 use App\Http\Controllers\SubjectController;
+use App\Models\User;
+use App\Models\UserType;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Route;
+use Illuminate\Support\Str;
 
 /*
 |--------------------------------------------------------------------------
@@ -209,15 +212,16 @@ Route::group(['prefix' => '/erp'], function () {
         return redirect('/');
     });
 
-
-
     Route::get('sms-data/{id}', [AdminController::class, 'smsData']);
 });
 
 
-
-
 Route::get('testpage', function () {
-    return view('admission.otp-verification');
+    $types = UserType::get();
+    for ($i = 0; $i < count($types); $i++) {
+        $user = UserType::find($types[$i]->id);
+        $slug = Str::slug($user->name);
+        UserType::where('id', $user->id)->update(['slug' => $slug]);
+    }
 });
 //ajax routes

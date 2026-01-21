@@ -51,7 +51,7 @@ class AccessController extends Controller
         //assign campus access permission
         UserHasRole::create([
             'user_id' => $rec->id,
-            'role_id' =>  7, //Head of Department Admin Role
+            'role_name' =>  $request->role_type, //Department Admin
         ]);
 
         //assign department
