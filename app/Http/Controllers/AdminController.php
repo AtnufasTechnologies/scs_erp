@@ -878,7 +878,8 @@ class AdminController extends Controller
 
     function userList()
     {
-        $data = User::with('role')
+        $data = User::with('menupermission')
+            ->with('userroletype')
             ->with('campuspermission.campus:id,name')
             ->get();
         return view('admin.user-manager.access-management', ['data' => $data]);
@@ -990,5 +991,11 @@ class AdminController extends Controller
     {
         $data = StaticController::fetchMessageData($msgid);
         return $data;
+    }
+
+    function deleteUserAccess($id)
+    {
+        User::findOrFail($id)->delete();
+        return redirect()->back()->with('success', 'User Deleted');
     }
 }

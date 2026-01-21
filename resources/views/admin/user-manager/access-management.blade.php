@@ -87,7 +87,6 @@ $campusMaster = Campus::all()
   <div class="col-lg-3 mb-4">
     <div class="card mb-4 fixed-card">
       <div class="card-body scrollable-card">
-
         <h5 class="card-title">{{ $itm->name }}</h5>
         <p class="card-text"><strong>Email:</strong> {{ $itm->email }}</p>
         <p class="card-text"> <span class="badge campus-badge"><strong> {{$itm->userroletype != null ? $itm->userroletype->role_name : ''}}</strong></span>
@@ -99,17 +98,28 @@ $campusMaster = Campus::all()
           @endif
         </p>
         <p class="card-text"><strong>Role:</strong>
-          @foreach ($itm->roles as $role)
+          @if ($itm->menupermission != null)
+          @foreach ($itm->menupermission as $role)
           <span class="badge bg-success">{{ $role->permission_name }}</span>
           @endforeach
+          @endif
         </p>
       </div>
       <hr>
       <div class="card-body">
-        <button class="btn btn-edit mb-3" data-bs-toggle="modal" data-bs-target="#edit{{$itm->id}}">
-          Edit Permission
+        <div class="row">
+          <div class="col-lg-6">
+            <button class="btn btn-edit mb-3" data-bs-toggle="modal" data-bs-target="#edit{{$itm->id}}">
+              <i class="fa fa-edit"></i> Permission
+            </button>
+          </div>
+          <div class="col-lg-6">
+            <a href="{{route('admin.user-access.delete', $itm->id)}}"><button class="btn btn-danger"><i class="fa fa-trash"></i> Delete</button></a>
+          </div>
+        </div>
       </div>
-      </button>
+
+
       <div class="modal fade" id="edit{{$itm->id}}" tabindex="-1" aria-labelledby="exampleModalLabel" aria-hidden="true">
         <div class="modal-dialog">
           <div class="modal-content">
@@ -135,6 +145,8 @@ $campusMaster = Campus::all()
           </div>
         </div>
       </div>
+
+
     </div>
   </div>
 

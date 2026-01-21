@@ -156,6 +156,7 @@ Route::group(['prefix' => '/erp'], function () {
             Route::get('dept-access', [AccessController::class, 'deptAccess'])->name('admission.dept-access');
             Route::post('assign-dept-access', [AccessController::class, 'assignDeptAccess'])->name('admin.admission.grant-access');
             Route::get('getprogramsbydepartment', [AdmissionController::class, 'getProgramsByDepartment']);
+            Route::get('delete-user-access/{id}', [AdminController::class, 'deleteUserAccess'])->name('admin.user-access.delete');
         });
 
         //admission routes Admin
