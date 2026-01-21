@@ -65,7 +65,7 @@ $campusMaster = Campus::all()
           <label for="">Access Permission *</label>
           <select name="roles[]" class="form-control mb-3 select-multiple" multiple>
             @foreach ($permissionMaster as $pm)
-            <option value="{{ $pm->slug }}">{{ $pm->menu_name }} - {{ $pm->module_type }}</option>
+            <option value="{{ $pm->id }}">{{ $pm->menu_name }} - {{ $pm->module_type }}</option>
             @endforeach
           </select>
 

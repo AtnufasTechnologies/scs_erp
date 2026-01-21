@@ -311,12 +311,7 @@ class AdmissionController extends Controller
 
     function ugPhase1Registrations(Request $request)
     {
-        //Check user has permission
-        $superadmin =  StaticController::permissionValidator('Super Admin');
-        $admission_central_office = StaticController::permissionValidator('Admission Central Admin');
-        $admissionoffice = StaticController::permissionValidator('Admission Admin');
 
-        //fetch user's campus
         $campusId =  StaticController::fetchCampusSettings();
 
 

@@ -300,7 +300,7 @@ use App\Http\Controllers\StaticController;
 
 
         <li>
-          <a href="http://127.0.0.1:8000/erp/admission-new/registration" target="_blank">
+          <a href="http://127.0.0.1:8000/erp/new-admission/registration" target="_blank">
             <div class=" parent-icon">
               <i class="fas fa-pencil-alt"></i>
             </div>

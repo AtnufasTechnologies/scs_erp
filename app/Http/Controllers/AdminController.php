@@ -878,20 +878,19 @@ class AdminController extends Controller
 
     function userList()
     {
-        $data = User::with([
-            'userroletype',
-            'roles',
-            'campuspermission.campus:id,name'
-        ])->get();
+        $data = User::with('role')
+            ->with('campuspermission.campus:id,name')
+            ->get();
         return view('admin.user-manager.access-management', ['data' => $data]);
     }
 
     function createNewUser(Request $request)
     {
+
+
         $request->validate([
             'name' => 'required|string|max:255',
             'email' => 'required|string|email|max:255|unique:users',
-            'roles' => 'required|array|min:1',
             'password' => 'required|string|min:6',
         ]);
 
@@ -904,17 +903,34 @@ class AdminController extends Controller
         $rec->save();
 
         $userId = $rec->id;
+        if ($request->user_type == 'super-admin' || $request->user_type == 'principal') {
+            $roles = MenuMaster::pluck('id')->toArray();
+        } else {
 
-        $roles = $request->roles;
+            $request->validate([
+                'roles' => 'required|array|min:1'
+            ]);
+
+            $roles = $request->roles;
+
+            //check CAMPUS ASSIGNMENT
+            if (!empty($request->campus)) {
+                $campus = new UserCampusSetting();
+                $campus->user_id = $userId;
+                $campus->campus_id = $request->campus;
+                $campus->save();
+            }
+        }
         //adding permissions
         for ($i = 0; $i < count($roles); $i++) {
-
-            $menu = MenuMaster::where('slug', $roles[$i])->first();
-            $permission = new UserMenuPermission();
-            $permission->user_id = $userId;
-            $permission->menu_master_id = $menu->id;
-            $permission->permission_name = $roles[$i];
-            $permission->save();
+            $data = MenuMaster::find($roles[$i]);
+            if ($data) {
+                $permission = new UserMenuPermission();
+                $permission->user_id = $userId;
+                $permission->menu_master_id = $data->id;
+                $permission->permission_name = $data->slug;
+                $permission->save();
+            }
         }
 
         //adding role_type
@@ -923,13 +939,7 @@ class AdminController extends Controller
         $userType->role_name = $request->user_type; //default to admin
         $userType->save();
 
-        //check CAMPUS ASSIGNMENT
-        if (!empty($request->campus)) {
-            $campus = new UserCampusSetting();
-            $campus->user_id = $userId;
-            $campus->campus_id = $request->campus;
-            $campus->save();
-        }
+
 
         return redirect()->back()->with('success', 'New User Created');
     }
