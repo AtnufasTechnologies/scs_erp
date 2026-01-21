@@ -50,7 +50,7 @@ $campusMaster = Campus::all()
           <select name="user_type" class=" mb-3 dselect-example">
             <option value="">Select User Type</option>
             @foreach ($userTypes as $ut)
-            <option value="{{ $ut->id }}">{{ $ut->name }}</option>
+            <option value="{{ $ut->slug }}">{{ $ut->name }}</option>
             @endforeach
           </select>
 
@@ -65,7 +65,7 @@ $campusMaster = Campus::all()
           <label for="">Access Permission *</label>
           <select name="roles[]" class="form-control mb-3 select-multiple" multiple>
             @foreach ($permissionMaster as $pm)
-            <option value="{{ $pm->slug }}">{{ $pm->menu_name }} - {{ $pm->module_type }}</option>
+            <option value="{{ $pm->id }}">{{ $pm->menu_name }} - {{ $pm->module_type }}</option>
             @endforeach
           </select>
 

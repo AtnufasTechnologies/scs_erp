@@ -6,7 +6,12 @@
 <header class="profile-header">
   <div class="header-content">
     <div class="profile-img-container">
-      <img src="https://media.gettyimages.com/id/1487465664/photo/portrait-employee-and-asian-woman-with-happiness-selfie-and-confident-entrepreneur-with.jpg?s=2048x2048&w=gi&k=20&c=RIO9RHVRQBf98Gg15xgB7qzGYbRqH3M5gRYA6eIq_uE=" alt="ProfilePicture" class="profile-img">
+      @if ($data->gender == 1)
+      <img src="{{asset('admin/images/male.png')}}" alt="ProfilePicture" class="profile-img">
+      @else
+      <img src="{{asset('admin/images/female.png')}}" alt="ProfilePicture" class="profile-img">
+      @endif
+
     </div>
     <div class="profile-info">
       <h6><span class="text-uppercase">{{$data->roll_no}} | {{$data->campusmaster != null ? $data->campusmaster->name : ''}}</span></h6>
