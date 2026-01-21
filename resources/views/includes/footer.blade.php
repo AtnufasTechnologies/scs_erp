@@ -73,6 +73,60 @@
         window.location.href = href;
       } else if (result.isDenied) {}
     });
+
+
+  });
+</script>
+
+<script>
+  document.addEventListener('DOMContentLoaded', function() {
+    const ctx = document.getElementById('enrollmentChart').getContext('2d');
+    const enrollmentChart = new Chart(ctx, {
+      type: 'line',
+      data: {
+        labels: ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'],
+        datasets: [{
+          label: 'Enrollments',
+          data: [120, 135, 150, 145, 160, 170, 180, 175, 165, 155, 140, 130],
+          backgroundColor: 'rgba(102, 126, 234, 0.15)',
+          borderColor: '#667eea',
+          borderWidth: 3,
+          pointBackgroundColor: '#667eea',
+          pointBorderColor: '#fff',
+          pointRadius: 5,
+          fill: true,
+          tension: 0.4
+        }]
+      },
+      options: {
+        responsive: true,
+        plugins: {
+          legend: {
+            display: false
+          },
+          tooltip: {
+            mode: 'index',
+            intersect: false
+          }
+        },
+        scales: {
+          x: {
+            grid: {
+              display: false
+            }
+          },
+          y: {
+            beginAtZero: true,
+            grid: {
+              color: '#e5e7eb'
+            },
+            ticks: {
+              stepSize: 20
+            }
+          }
+        }
+      }
+    });
   });
 </script>
 </body>

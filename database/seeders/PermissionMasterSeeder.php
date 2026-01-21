@@ -78,5 +78,16 @@ class PermissionMasterSeeder extends Seeder
             'permission_name' => 'User Access Management',
             'created_at' => Carbon::now(),
         ]);
+
+        //Admission Office Permissions
+        PermissionMaster::insert([
+            'permission_name' => 'Admission Admin',
+            'created_at' => Carbon::now(),
+        ]);
+
+        PermissionMaster::insert([
+            'permission_name' => 'Admission Central Admin',
+            'created_at' => Carbon::now(),
+        ]);
     }
 }

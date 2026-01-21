@@ -8,6 +8,8 @@
   <link rel="stylesheet" href="{{asset('admin/css/admission.css')}}">
   <link rel="stylesheet" href="{{ asset('admin/fontawesomepro/all.min.css') }}" />
   <link rel="shortcut icon" href="{{asset('admin/images/logo.png')}}" type="image/x-icon">
+  <link rel="stylesheet" href="https://unpkg.com/@jarstone/dselect/dist/css/dselect.css">
+
 </head>
 
 <body>
@@ -16,9 +18,9 @@
     <div class="row">
       <!-- SIGN UP -->
       <div class="col align-items-center flex-col sign-up">
-        <div class="form-wrapper align-items-center">
+        <div class="form-wrapper align-items-center scroll-container">
 
-          <div class="form sign-up">
+          <div class="form sign-up ">
             <form action="{{route('admission.registration.submit')}}" method="post">
               @csrf
               <img src="{{asset('admin/images/logo.png')}}" alt="logo" width="80">
@@ -52,49 +54,23 @@
               </div>
 
               <div class="input-group">
-                <i class='fa fa-text'></i>
-                <input type="text" placeholder="First Name *" name="firstname">
+                <i class="fas fa-user-circle"></i>
+                <input type="text" placeholder="First Name *" name="firstname" value="{{old('firstname')}}">
                 @error('firstname')
                 <span class="text-danger">{{$message}}</span>
                 @enderror
               </div>
               <div class="input-group">
-                <i class='fa fa-text'></i>
-                <input type="text" placeholder="Last Name *" name="lastname">
+                <i class="fas fa-user-circle"></i>
+                <input type="text" placeholder="Last Name *" name="lastname" value="{{old('lastname')}}">
                 @error('lastname')
                 <span class="text-danger">{{$message}}</span>
                 @enderror
               </div>
 
               <div class="input-group">
-                <i class='fa fa-mobile-alt'></i>
-                <input type="text" placeholder="Mobile Number *" name="mobile_no">
-                @error('mobile_no')
-                <span class="text-danger">{{$message}}</span>
-                @enderror
-              </div>
-
-              <div class="input-group">
-                <input type="password" placeholder="Password *" name="password" id="password">
-                <span class="input-group-text" onclick="togglePassword()" style="cursor:pointer">
-                  <i class="fa fa-eye toggle-password" data-target="password"></i>
-                </span>
-                @error('password')
-                <span class="text-danger">{{$message}}</span>
-                @enderror
-              </div>
-
-              <div class="input-group">
-                <i class="fa fa-envelope"></i>
-                <input type="text" placeholder="Email *" name="mail_id">
-                @error('mail_id')
-                <span class="text-danger">{{$message}}</span>
-                @enderror
-              </div>
-
-              <div class="input-group">
-                <i class="fa fa-globe"></i>
-                <select name="country" id="">
+                <i class="fas fa-globe-asia"></i>
+                <select name="country" id="dselect-example">
                   <option value="">Country *</option>
                   @foreach ($countries as $country)
                   <option value="{{$country->id}}">{{$country->name}} {{$country->phone_code}}</option>
@@ -105,9 +81,48 @@
                 @enderror
               </div>
 
+              <div class="input-group">
+                <i class='fa fa-mobile-alt'></i>
+                <input type="text" placeholder="Mobile Number *" name="mobile_no" value="{{old('mobile_no')}}">
+                @error('mobile_no')
+                <span class="text-danger">{{$message}}</span>
+                @enderror
+              </div>
+
+              <div class="input-group">
+                <input type="password" placeholder="Password (min 6 character) *" name="password" id="password">
+                <span class="input-group-text" onclick="togglePassword()" style="cursor:pointer">
+                  <i class="fa fa-eye toggle-password" data-target="password"></i>
+                </span>
+                @error('password')
+                <span class="text-danger">{{$message}}</span>
+                @enderror
+              </div>
+
+              <div class="input-group">
+                <i class="fa fa-envelope"></i>
+                <input type="text" placeholder="Email *" name="mail_id" value="{{old('mail_id')}}">
+                @error('mail_id')
+                <span class="text-danger">{{$message}}</span>
+                @enderror
+              </div>
+
+
+
+              <span class="captcha-image">{!! captcha_img('flat') !!}</span>
+              <div class="input-group">
+
+                <i class="fas fa-redo-alt " id="refresh-captcha"></i>
+                <input id="captcha_input" type="text" name="captcha_input">
+                @error('captcha_input')
+                <span class="text-danger">{{ $message }}</span>
+                @enderror
+              </div>
+
               <button type="submit">
                 Sign up
               </button>
+
               <p>
                 <span>
                   Already have an account?
@@ -209,6 +224,8 @@
     <!-- END CONTENT SECTION -->
   </div>
   <script src="{{asset('admin/js/jquery.min.js')}}"></script>
+  <script src="https://unpkg.com/@jarstone/dselect/dist/js/dselect.js"></script>
+
   <script>
     let container = document.getElementById('container')
 

@@ -5,7 +5,8 @@ $(document).ready(function () {
     $("#regcampusId").change(function () {
         var campusId = $("#regcampusId").val();
         $("#mainPrograms").empty();
-        if (campusId == null) {
+        if (campusId == "") {
+            alert("Select Campus");
             $("#dynamicProg").hide();
         } else {
             $("#dynamicProg").show();
@@ -18,16 +19,16 @@ $(document).ready(function () {
                 },
                 success: function (response) {
                     $("#mainPrograms").append(
-                        '<option value="">Select Program *</option>'
+                        '<option value="">Select Program *</option>',
                     );
 
                     $.each(response, function (key, value) {
                         $("#mainPrograms").append(
                             '<option value="' +
-                                value[" id"] +
+                                value["id"] +
                                 '">' +
                                 value["name"] +
-                                "</option>"
+                                "</option>",
                         );
                     });
                 },
@@ -47,6 +48,20 @@ $(document).ready(function () {
                 input.type = "password";
                 this.classList.replace("fa-eye-slash", "fa-eye");
             }
+        });
+    });
+
+    $("#refresh-captcha").click(function () {
+        $.ajax({
+            type: "GET",
+            url: "captcha-refresh",
+            success: function (data) {
+                // Find the image inside the span and update its src
+                $(".captcha-image img").attr("src", data.captcha);
+            },
+            error: function (err) {
+                console.log("Error refreshing captcha");
+            },
         });
     });
 });

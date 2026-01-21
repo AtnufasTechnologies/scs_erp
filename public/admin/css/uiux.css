@@ -1,0 +1,191 @@
+/* From Uiverse.io  */
+.profile-card {
+    position: relative;
+    width: 100%;
+    background: rgba(255, 255, 255, 0.9);
+    -webkit-backdrop-filter: blur(48px);
+
+    border-radius: 20px;
+    padding: 2rem;
+    box-shadow: 12px 12px 12px -20px rgba(0, 0, 0, 0.3);
+    transform: perspective(1000px) scale(0.8); /*adjust the scale to view properly*/
+    transform-style: preserve-3d;
+}
+
+.profile-image img {
+    width: 100px;
+    height: 100px;
+    border-radius: 50%;
+    background-color: #f0f2f5;
+    margin: 0 auto 1rem;
+    overflow: hidden;
+    border: 3px solid white;
+    box-shadow: 0px 0px 6px rgba(0, 0, 0, 0.6);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+.profile-image::before {
+    content: "";
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: 100%;
+    height: 96px;
+    background-color: #7d988a;
+    border-radius: 20px 20px 0 0;
+    z-index: -1;
+}
+
+.profile-info {
+    text-align: left;
+    margin-bottom: 1.5rem;
+}
+.profile-info span.badge {
+    font-size: 14px;
+}
+.profile-name {
+    font-size: 1.2rem;
+    font-weight: 600;
+    color: #1a1a1a;
+    margin-bottom: 0.25rem;
+}
+
+.profile-title {
+    font-size: 0.9rem;
+    color: #666;
+    margin-bottom: 0.5rem;
+}
+
+.profile-bio {
+    font-size: 0.85rem;
+    color: #777;
+    line-height: 1.4;
+    margin-bottom: 1.5rem;
+}
+
+.social-links {
+    gap: 0.5rem;
+    margin-bottom: 1.5rem;
+    width: 100%;
+}
+
+.social-btn {
+    width: 100px;
+    height: 40px;
+    border-radius: 50%;
+    border: none;
+    background: #f0f2f5;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
+}
+
+.social-btn:hover {
+    background: #e4e6e9;
+    transform: translateY(-6px);
+    box-shadow: 0 4px 10px rgba(0, 0, 0, 0.15);
+}
+
+.social-btn svg {
+    width: 20px;
+    height: 20px;
+    fill: #1a1a1a;
+    transition: all 0.2s ease;
+}
+
+.social-btn:hover svg {
+    fill: #0066ff;
+}
+
+/* Specific colors for each social platform */
+.social-btn.twitter:hover svg {
+    fill: #1da1f2;
+}
+.social-btn.instagram:hover svg {
+    fill: #e4405f;
+}
+.social-btn.linkedin:hover svg {
+    fill: #0a66c2;
+}
+.social-btn.github:hover svg {
+    fill: #333333;
+}
+
+.cta-button {
+    width: 100%;
+    padding: 0.8rem;
+    border: none;
+    border-radius: 10px;
+    background: #7d988a;
+    color: white;
+    font-weight: 600;
+    cursor: pointer;
+    transition:
+        transform 0.2s,
+        background 0.2s;
+}
+
+.cta-button:hover {
+    background: #4d5d54;
+    transform: translateY(-2px);
+}
+
+.stats {
+    display: flex;
+    justify-content: space-between;
+    margin-top: 1rem;
+    padding-top: 1rem;
+    border-top: 1px solid #eee;
+}
+
+.stat-item {
+    text-align: center;
+}
+
+.stat-value {
+    font-weight: 600;
+    color: #1a1a1a;
+}
+
+.stat-label {
+    font-size: 0.8rem;
+    color: #666;
+}
+.modern-accordion .accordion-button {
+    border-radius: 0.75rem !important;
+    box-shadow: none;
+    font-size: 1.1rem;
+    padding: 1rem 1.25rem;
+    background: #f8fafc;
+}
+
+.modern-accordion .accordion-button:not(.collapsed) {
+    background: linear-gradient(90deg, #21d9c7ff 0%, #aedd21 100%);
+    color: #fff;
+}
+
+.modern-accordion .accordion-item {
+    border: none;
+    background: transparent;
+}
+
+.modern-accordion .accordion-body {
+    border-top: 1px solid #e9ecef;
+    padding: 1.25rem;
+    background: #fff;
+    border-radius: 0 0 0.75rem 0.75rem;
+}
+
+.global-scroll-card {
+    height: 500px;
+    overflow: auto;
+    scrollbar-width: none; /* Firefox */
+    -ms-overflow-style: none; /* IE and Edge */
+}
+.global-scroll-card::-webkit-scrollbar {
+    display: none; /* Chrome, Safari, Opera */
+}

@@ -5,16 +5,20 @@ namespace App\Http\Controllers;
 use App\Mail\OtpMail;
 use App\Models\AdminNotify;
 use App\Models\AdmissionApplication;
+use App\Models\AdmissionRegistration;
 use App\Models\AnnualSession;
 use App\Models\CourseCombination;
 use App\Models\Department;
 use App\Models\FeeHead;
 use App\Models\FeeStructureGroup;
 use App\Models\FeeStructureHasHead;
+use App\Models\Otp;
 use App\Models\ProgramGroup;
 use App\Models\StudentPayment;
 use App\Models\User;
+use App\Models\UserCampusSetting;
 use App\Models\UserHasPermission;
+use App\Models\UserMenuPermission;
 use Carbon\Carbon;
 use GuzzleHttp\Client;
 use Illuminate\Support\Facades\View;
@@ -234,5 +238,112 @@ class StaticController extends Controller
     } else {
       return false;
     }
+  }
+
+  static function OtpGenerator($userId)
+  {
+    //Generate OTP 
+    $otp = random_int(100000, 999999);
+    $otrec = new Otp();
+    $otrec->user_id = $userId;
+    $otrec->otp = $otp;
+    $otrec->save();
+
+    return $otp;
+  }
+
+  /**SMS Senders */
+  //Fast2SMS OTP Sender 
+  static function otpSender($fields)
+  {
+    $response = Http::withHeaders([
+      'authorization' => 'J3CgcsRHf5yLoFAdwUPIGBxntp06r1z92ZmuTbqQhjvEl8kO7Nw7OiRypJkHBLan0ezA9KuCs4PS5Uc3',
+      'accept' => '*/*',
+      'cache-control' => 'no-cache',
+      'content-type' => 'application/json',
+    ])->timeout(30)->post('https://www.fast2sms.com/dev/bulkV2', $fields);
+
+    if ($response->failed()) {
+      // You can log or handle the error as needed
+      echo "HTTP Error: " . $response->body();
+    } else {
+      $jsonResponse = $response->json();
+      // Optionally return or process $jsonResponse
+      return $jsonResponse;
+    }
+  }
+
+  static function bulkSmsSender($fields)
+
+  {
+    $client = new Client();
+    $response = $client->request('POST', 'https://www.fast2sms.com/dev/custom', [
+      'body' => $fields['body'],
+      'headers' => [
+        'accept' => 'application/json',
+        'authorization' => env('SMSAPIKEY'),
+        'content-type' => 'application/json',
+      ],
+    ]);
+    return $response->getBody();
+  }
+
+  static function fetchMessageData($message_id)
+  {
+    $client = new Client();
+
+    $response = $client->request('GET', 'https://www.fast2sms.com/dev/dlr/' . $message_id . '?authorization=' . env('SMSAPIKEY'));
+
+    $jsonResponse = json_decode($response->getBody());
+    return $jsonResponse;
+  }
+
+  /**sms sender ends */
+
+  static function permissionValidator($permissionName)
+  {
+    return UserHasPermission::where('user_id', Auth::id())
+      ->where('permission_name', $permissionName)
+      ->exists();
+  }
+
+  static function fetchCampusSettings()
+  {
+    $campus_id = UserCampusSetting::where('user_id', Auth::id())->value('campus_id');
+    return $campus_id;
+  }
+
+  static function addToStudentMaster($id)
+  {
+    //code to add student to student master
+    $data = AdmissionRegistration::with([
+      'studentInfo',
+      'programinfo',
+      'countrymaster',
+      'applicationmaster',
+      'programmaster'
+    ])->find($id);
+    //Generate Student RollNo
+
+    //Insert record to StudentMaster
+
+  }
+
+  static function subMenuRights($slug)
+  {
+    return UserMenuPermission::where('user_id', Auth::id())
+      ->whereHas('menu_master', function ($query) use ($slug) {
+        $query->where('slug', $slug);
+      })
+      ->exists();
+  }
+
+  static function mainMenuRights($type)
+  {
+    return UserMenuPermission::where('user_id', Auth::id())
+      ->whereHas('menu_master', function ($query) use ($type) {
+        $query->where('module_type', $type);
+      })
+      ->exists();
   }
 }

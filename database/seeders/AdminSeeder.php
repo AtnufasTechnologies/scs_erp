@@ -2,8 +2,11 @@
 
 namespace Database\Seeders;
 
+use App\Models\MenuMaster;
 use App\Models\User;
 use App\Models\UserHasRole;
+use App\Models\UserMenuPermission;
+use App\Models\UserType;
 use Carbon\Carbon;
 use Illuminate\Auth\Events\Verified;
 use Illuminate\Database\Console\Seeds\WithoutModelEvents;
@@ -17,34 +20,11 @@ class AdminSeeder extends Seeder
      */
     public function run(): void
     {
-
-
-        $userIdSonada = User::insertGetId([
-            'name' => 'ERP Admin',
-            'email' => 'erpadmin@admin.com',
-            'phone' => '8100556241',
-            'verified_at' => Carbon::now(),
-            'password' => Hash::make('123456'),
-            'decrypted_password' => '123456',
-            'status' => 'ACTIVE',
-            'otp_verification' => 1,
-            'created_at' => Carbon::now(),
-            'updated_at' => Carbon::now()
-
-        ]);
-
-        UserHasRole::insert([
-            'user_id' => $userIdSonada,
-            'role_type' => 'admin',
-            'campus' => 1,
-            'created_at' => Carbon::now(),
-            'updated_at' => Carbon::now()
-        ]);
-        /*
-        $userIdnew = User::insertGetId([
-            'name' => 'WebDev',
+        $permission = MenuMaster::get();
+        $userId = User::insertGetId([
+            'name' => 'Super User',
             'email' => 'info@atnufas.com',
-            'phone' => '8981702535',
+            'phone' => '8100556241',
             'verified_at' => Carbon::now(),
             'password' => Hash::make('atnufastech'),
             'decrypted_password' => '',
@@ -54,13 +34,21 @@ class AdminSeeder extends Seeder
             'updated_at' => Carbon::now()
 
         ]);
-
         UserHasRole::insert([
-            'user_id' => $userIdnew,
-            'role_type' => 'admin',
-            'campus' => 1,
+            'user_id' => $userId,
+            'role_id' => 1,
             'created_at' => Carbon::now(),
             'updated_at' => Carbon::now()
-        ]);*/
+        ]);
+
+        foreach ($permission as $perm) {
+            UserMenuPermission::insert([
+                'user_id' => $userId,
+                'menu_master_id' => $perm->id,
+                'permission_name' => $perm->slug,
+                'created_at' => Carbon::now(),
+                'updated_at' => Carbon::now()
+            ]);
+        }
     }
 }

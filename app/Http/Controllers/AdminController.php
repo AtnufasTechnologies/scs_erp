@@ -31,6 +31,7 @@ use App\Models\RoomMaster;
 use App\Models\Semester;
 use App\Models\StudentMaster;
 use App\Models\User;
+use App\Models\UserCampusSetting;
 use App\Models\UserHasPermission;
 use App\Models\UserHasRole;
 use Illuminate\Http\Request;
@@ -875,7 +876,9 @@ class AdminController extends Controller
 
     function userList()
     {
-        $data = User::with('roles.permissionmaster:id,permission_name')->get();
+        $data = User::with('roles.permissionmaster:id,permission_name')
+            ->with('campuspermission.campus:id,name')
+            ->get();
         return view('admin.user-manager.access-management', ['data' => $data]);
     }
 
@@ -885,7 +888,7 @@ class AdminController extends Controller
             'name' => 'required|string|max:255',
             'email' => 'required|string|email|max:255|unique:users',
             'roles' => 'required|array|min:1',
-            'password' => 'required|string|min:8',
+            'password' => 'required|string|min:6',
         ]);
 
         $rec = new User();
@@ -911,17 +914,22 @@ class AdminController extends Controller
         //adding role_type
         $userType = new UserHasRole();
         $userType->user_id = $userId;
-        $userType->role_type = 'ADMIN';
-        $userType->campus = $request->campus ?? null;
+        $userType->role_id = $request->user_type ?? 2; //default to admin
         $userType->save();
+
+        //check CAMPUS ASSIGNMENT
+        if (!empty($request->campus)) {
+            $campus = new UserCampusSetting();
+            $campus->user_id = $userId;
+            $campus->campus_id = $request->campus;
+            $campus->save();
+        }
 
         return redirect()->back()->with('success', 'New User Created');
     }
 
     function updatePermission(Request $request)
     {
-
-
         $request->validate([
             'roles' => 'required|array|min:1',
             'user_id' => 'required',
@@ -955,5 +963,11 @@ class AdminController extends Controller
     {
         $data = LateFee::find(1);
         return view('admin.accounts.latefee', ['data' => $data]);
+    }
+
+    function smsData($msgid)
+    {
+        $data = StaticController::fetchMessageData($msgid);
+        return $data;
     }
 }

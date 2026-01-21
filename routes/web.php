@@ -1,10 +1,12 @@
 <?php
 
+use App\Http\Controllers\AccessController;
 use App\Http\Controllers\AdminController;
 use App\Http\Controllers\AdmissionController;
 use App\Http\Controllers\FeePaymentController;
 use App\Http\Controllers\LoginController;
 use App\Http\Controllers\SubjectController;
+use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Route;
 
 /*
@@ -28,7 +30,7 @@ Route::group(['prefix' => '/erp'], function () {
 
     //admin - superuser routes
     Route::group(['prefix' => '/admin'], function () {
-        Route::get('dashboard', [AdminController::class, 'index']);
+        Route::get('dashboard', [AdminController::class, 'index'])->name('admin.dashboard');
         Route::get('std-master-sonada', [AdminController::class, 'stdMasterSonada']);
         Route::get('std-master-siliguri', [AdminController::class, 'stdMasterSiliguri']);
         Route::get('faculty-master', [AdminController::class, 'facultyMaster']);
@@ -72,7 +74,9 @@ Route::group(['prefix' => '/erp'], function () {
 
             Route::post('subject', [SubjectController::class, 'addSubject']);
             Route::get('view-subject', [SubjectController::class, 'subjectSingle']);
-
+            Route::get('delete-subject/{id}', [SubjectController::class, 'deleteSubject']);
+            Route::post('link-student-programs', [SubjectController::class, 'linkStdPrograms'])->name('add.programs.to.subject');
+            Route::post('add-subject-semester', [SubjectController::class, 'addSemesterToSubject'])->name('add.semester.to.subject');
             //lecture halls
 
             Route::get('lecturehalls', [AdminController::class, 'lectureHalls']);
@@ -137,6 +141,7 @@ Route::group(['prefix' => '/erp'], function () {
         //Academics
         Route::group(['prefix' => '/academics'], function () {
             Route::post('add/subject-semester', [SubjectController::class, 'addSemesterToSubject'])->name('add.semester.to.subject');
+            Route::post('add/subject-syllabus', [SubjectController::class, 'addSyllabus'])->name('add.syllabus.to.semester');
         });
 
         //user access management
@@ -145,8 +150,46 @@ Route::group(['prefix' => '/erp'], function () {
             Route::post('newuser', [AdminController::class, 'createNewUser']);
             Route::post('update-permission', [AdminController::class, 'updatePermission']);
             Route::get('remove-user-permission/{id}', [AdminController::class, 'removeUserPermission']);
+            Route::get('dept-access', [AccessController::class, 'deptAccess'])->name('admission.dept-access');
+            Route::post('assign-dept-access', [AccessController::class, 'assignDeptAccess'])->name('admin.admission.grant-access');
+            Route::get('getprogramsbydepartment', [AdmissionController::class, 'getProgramsByDepartment']);
+        });
+
+        //admission routes Admin
+        Route::group(['prefix' => '/admission'], function () {
+
+            Route::get('registrations/{type}', [AdmissionController::class, 'admissionRegistrations'])->name('admission.registration');
+            //UG 
+            Route::get('ug-applications', [AdmissionController::class, 'ugApplications'])->name('admission.ug.applications');
+            Route::get('application-single/{id}', [AdmissionController::class, 'ugApplicationSingle'])->name('admin.admission.ug.application-single');
+            Route::get('phase1', [AdmissionController::class, 'ugPhase1Registrations'])->name('admission.ug.phase1');
+            Route::get('phase2', [AdmissionController::class, 'ugPhase2Registrations'])->name('admission.ug.phase2');
+            Route::put('phase2/update-status/{id}', [AdmissionController::class, 'updateUgPhase2Status'])->name('admission.ug.phase2.update-status');
+            //controls
+            Route::post('send-phase1-notification-single', [AdmissionController::class, 'sendPhase1NotificationSingle'])->name('send.phase1.notification.single');
+            Route::post('send-phase1-notification', [AdmissionController::class, 'sendPhase1BulkNotification'])->name('send.phase1.notification');
+            Route::put('phase1/update-status/{id}', [AdmissionController::class, 'updateUgPhase1Status'])->name('admission.ug.phase1.update-status');
+            Route::put('phase1/program-shift/{id}', [AdmissionController::class, 'shiftUgProgram'])->name('admission.ug.phase1.shift-program');
+            Route::post('send-phase2-notification', [AdmissionController::class, 'sendPhase2BulkNotification'])->name('send.phase2.notification');
         });
     });
+
+    //admission student routes
+    Route::group(['prefix' => '/new-admission'], function () {
+        Route::get('registration', [AdmissionController::class, 'index'])->name('new.admission.registration');
+        Route::post('registration', [AdmissionController::class, 'admissionRegistration'])->name('admission.registration.submit');
+        Route::post('applicant-login', [AdmissionController::class, 'applicantLogin'])->name('applicant.login');
+        Route::get('getmainprograms', [AdmissionController::class, 'getMainPrograms']);
+        Route::get('captcha-refresh', [AdmissionController::class, 'refreshCaptcha']);
+        Route::get('otp-verification', [AdmissionController::class, 'showOtpVerificationPage'])->name('otp.verification.page');
+        Route::post('/otp/verify', [AdmissionController::class, 'verify'])->name('otp.verify');
+        Route::post('/otp/resend', [AdmissionController::class, 'otpResend'])->name('otp.resend');
+        Route::get('logout', [AdmissionController::class, 'logout'])->name('admission.apply.logout');
+        Route::get('application', [AdmissionController::class, 'showApplicationPage'])->name('admission.apply.application');
+        Route::post('submit-application-form', [AdmissionController::class, 'applicantSubmit'])->name('submit.application.form');
+    });
+
+
 
     //student
     Route::group(['prefix' => 'student'], function () {
@@ -161,13 +204,20 @@ Route::group(['prefix' => '/erp'], function () {
         Route::get('transaction-success/{id}/download-pdf', [FeePaymentController::class, 'downloadInvoice']);
     });
 
-    //admission
-    Route::group(['prefix' => 'admission'], function () {
-        Route::get('registration', [AdmissionController::class, 'index']);
-        Route::post('registration', [AdmissionController::class, 'admissionRegistration'])->name('admission.registration.submit');
-        Route::post('applicant-login', [AdmissionController::class, 'applicantLogin'])->name('applicant.login');
-        Route::get('getmainprograms', [AdmissionController::class, 'getMainPrograms']);
+    Route::get('logout', function () {
+        Auth::logout();
+        return redirect('/');
     });
+
+
+
+    Route::get('sms-data/{id}', [AdminController::class, 'smsData']);
 });
 
+
+
+
+Route::get('testpage', function () {
+    return view('admission.otp-verification');
+});
 //ajax routes

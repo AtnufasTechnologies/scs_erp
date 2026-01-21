@@ -14,7 +14,10 @@ return new class extends Migration
         Schema::create('subject_type_masters', function (Blueprint $table) {
             $table->id();
             $table->string('title');
+            $table->string('description')->nullable();
+            $table->smallInteger('part_id')->nullable();
             $table->timestamps();
+            $table->softDeletes();
         });
     }
 

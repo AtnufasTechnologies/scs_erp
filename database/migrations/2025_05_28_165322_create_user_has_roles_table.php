@@ -14,8 +14,7 @@ return new class extends Migration
         Schema::create('user_has_roles', function (Blueprint $table) {
             $table->id();
             $table->integer('user_id');
-            $table->enum('role_type', ['student', 'admin', 'office', 'applicant', 'teacher']);
-            $table->smallInteger('campus')->nullable();
+            $table->integer('role_id');
             $table->timestamps();
         });
     }

@@ -14,33 +14,33 @@ class WeekdaySeeder extends Seeder
      */
     public function run(): void
     {
-  
-            Weekday::insert([
+
+        Weekday::insert([
             'title' => 'Monday',
             'created_at' => Carbon::now(),
             'updated_at' => Carbon::now()
         ]);
-         Weekday::insert([
+        Weekday::insert([
             'title' => 'Tueday',
             'created_at' => Carbon::now(),
             'updated_at' => Carbon::now()
         ]);
-         Weekday::insert([
+        Weekday::insert([
             'title' => 'Wednesday',
             'created_at' => Carbon::now(),
             'updated_at' => Carbon::now()
         ]);
-          Weekday::insert([
+        Weekday::insert([
             'title' => 'Thursday',
             'created_at' => Carbon::now(),
             'updated_at' => Carbon::now()
         ]);
-          Weekday::insert([
+        Weekday::insert([
             'title' => 'Friday',
             'created_at' => Carbon::now(),
             'updated_at' => Carbon::now()
         ]);
-          Weekday::insert([
+        Weekday::insert([
             'title' => 'Saturday',
             'created_at' => Carbon::now(),
             'updated_at' => Carbon::now()
@@ -50,6 +50,5 @@ class WeekdaySeeder extends Seeder
             'created_at' => Carbon::now(),
             'updated_at' => Carbon::now()
         ]);
-        
     }
 }

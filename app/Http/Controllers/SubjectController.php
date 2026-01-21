@@ -10,6 +10,8 @@ use App\Models\LectureHallMaster;
 use App\Models\Subject;
 use App\Models\SubjectHasCombination;
 use App\Models\SubjectHasRoutine;
+use App\Models\SubjectHasSemester;
+use App\Models\SubjectHasStudentProgam;
 use App\Models\SubjectHasSyllabus;
 use App\Models\SubjectTypeMaster;
 use App\Models\SyllabusHasFaculty;
@@ -36,6 +38,7 @@ class SubjectController extends Controller
     function addSubject(Request $request)
     {
         $request->validate([
+            'code' => 'required|string|max:100',
             'title' => 'required|string|max:255',
         ]);
         $slug = Str::slug($request->title);
@@ -46,6 +49,7 @@ class SubjectController extends Controller
             $rec = new Subject();
             $rec->program_id = $request->program_id;
             $rec->slug =   $slug;
+            $rec->code = Str::upper($request->code);
             $rec->title = Str::lower($request->title);
             $rec->save();
             return redirect()->back()->with('success', 'Created');
@@ -72,6 +76,8 @@ class SubjectController extends Controller
             'syllabus.timetable.hourmaster:id,title',
             'syllabus.timetable.lecturehallmaster.acblockmaster:id,title',
             'program_master:id,title',
+            'programs',
+            'semesters.semestermaster:id,title',
 
         ])->with('syllabus', function ($q) use ($batchId) {
             $q->where('session_id', $batchId);
@@ -96,19 +102,16 @@ class SubjectController extends Controller
 
     function addSyllabus(Request $request)
     {
-        $validator  =  Validator::make($request->all(), [
-            'dept_id' => 'required',
+        $request->validate([
             'subject_id' => 'required',
-            'session_id' => 'required',
+            'batch' => 'required',
             'semester_id' => 'required',
             'title' => 'required',
             'desc' => 'required',
             'subject_type_id' => 'required'
         ]);
 
-        if ($validator->fails()) {
-            return response()->json(['message' => 'Validation failed', 'status' => false], 400);
-        }
+
 
         $rec = new SubjectHasSyllabus();
         $rec->dept_id = $request->dept_id;
@@ -171,8 +174,46 @@ class SubjectController extends Controller
 
     function addSemesterToSubject(Request $request)
     {
-        dd($request->all());
-        $batch = $request->batch;
         $semester = $request->semester;
+        $subject_id = $request->subject_id;
+        $batch = $request->batch;
+
+        SubjectHasSemester::create([
+            'subject_id' => $subject_id,
+            'semester_id' => $semester,
+            'session_id' => $batch,
+        ]);
+
+        return redirect()->back()->with('success', 'Semester Added');
+    }
+
+    function deleteSubject($id)
+    {
+        $subject = Subject::findOrFail($id);
+        $subject->delete();
+        return redirect()->back()->with('success', 'Subject Deleted');
+    }
+
+    function linkStdPrograms(Request $request)
+    {
+        $validator  =  $request->validate([
+            'subject_id' => 'required',
+            'programs' => 'required|array|min:1',
+
+        ]);
+
+        $programs = $request->programs;
+        $subject_id = $request->subject_id;
+
+        for ($i = 0; $i < count($programs); $i++) {
+            $subject = new SubjectHasStudentProgam();
+            $subject->subject_id = $subject_id;
+            $subject->student_program_id = $programs[$i];
+            $subject->save();
+        }
+
+
+
+        return redirect()->back()->with('success', 'Programs linked successfully');
     }
 }

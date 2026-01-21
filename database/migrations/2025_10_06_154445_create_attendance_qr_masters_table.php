@@ -26,6 +26,9 @@ return new class extends Migration
      */
     public function down(): void
     {
+
+        Schema::disableForeignKeyConstraints();
         Schema::dropIfExists('attendance_qr_masters');
+        Schema::enableForeignKeyConstraints();
     }
 };

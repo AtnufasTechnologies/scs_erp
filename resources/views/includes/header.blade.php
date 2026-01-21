@@ -6,7 +6,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
 
-
+  <link rel="shortcut icon" href="{{asset('admin/images/logo.png')}}" type="image/x-icon">
   <!--plugins-->
   <link href="{{asset('admin/plugins/simplebar/css/simplebar.css')}}" rel="stylesheet" />
   <link href="{{asset('admin/plugins/perfect-scrollbar/css/perfect-scrollbar.css')}}" rel="stylesheet" />
@@ -17,7 +17,7 @@
   <link href="{{asset('admin/css/bootstrap-extended.css')}}" rel="stylesheet">
   <link href="{{asset('admin/css/custom.css')}}" rel="stylesheet">
   <link href="{{asset('admin/css/style.css')}}" rel="stylesheet">
-
+  <link rel="stylesheet" href="{{asset('admin/css/uiux.css')}}">
   <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;500&amp;display=swap" rel="stylesheet">
   <!--Theme Styles-->
   <link href="{{asset('admin/css/dark-theme.css')}}" rel="stylesheet" />

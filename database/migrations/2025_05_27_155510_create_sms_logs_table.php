@@ -13,11 +13,11 @@ return new class extends Migration
     {
         Schema::create('sms_logs', function (Blueprint $table) {
             $table->id();
-            $table->integer('user_id');
-            $table->string('name');
-            $table->string('phone');
+            $table->string('message_id');
+            $table->enum('message_type', ['OTP', 'Notification']); //1=OTP, 2=Notification
             $table->string('request_id');
             $table->string('message')->nullable();
+            $table->integer('sender_id')->nullable();
             $table->timestamps();
             $table->softDeletes();
         });
