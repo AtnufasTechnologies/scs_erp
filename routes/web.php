@@ -131,7 +131,7 @@ Route::group(['prefix' => '/erp'], function () {
             Route::post('add-coursemaster-group', [AdminController::class, 'addCourseMasterGroup'])->name('link.coursemaster.prggroup');
             Route::get('latefee', [AdminController::class, 'latefee']);
 
-            Route::get('std-fee-payments', [FeePaymentController::class, 'index']);
+            Route::get('std-fee-payments', [FeePaymentController::class, 'index'])->name('student.fee.payments');
             Route::post('manual-payment-payment', [FeePaymentController::class, 'manualFeePayment'])->name('manual.fee.payment');
 
             Route::get('invoice/{id}', [FeePaymentController::class, 'generateInvoice']);
@@ -139,6 +139,8 @@ Route::group(['prefix' => '/erp'], function () {
             Route::get('all-payments', [FeePaymentController::class, 'allPayments'])->name('all.payments');
             Route::get('transaction-info/{id}', [FeePaymentController::class, 'showSuccessPage'])->name('transaction.info');
             Route::get('verify-transaction/{id}', [FeePaymentController::class, 'verifyTransaction']);
+
+            Route::get('defaulters-list', [FeePaymentController::class, 'defaultersList'])->name('defaulters-list');
         });
 
         //Academics

@@ -906,4 +906,89 @@ class FeePaymentController extends Controller
         $data =  $response['msg']['0'];
         return view('admin.accounts.ez-payment-verification', ['data' => $data]);
     }
+
+    function defaultersList(Request $request)
+    {
+        //fetch user's campus
+        $campusId =  StaticController::fetchCampusSettings();
+        if ($campusId == null) {
+            $query = StudentMaster::with([
+                'batchmaster',
+                'programgroup.programInfo',
+                'stdfeestructure',
+                'stdfeestructure.programspivot',
+                'feepayment'
+            ]);
+        } else {
+            $query = StudentMaster::with([
+                'batchmaster',
+                'programgroup.programInfo',
+                'stdfeestructure',
+                'stdfeestructure.programspivot',
+                'feepayment'
+            ])->where('campus_id', $campusId);
+        }
+
+
+        // ---- Apply Filters ----
+        if ($request->filter_batch) {
+            $query->where('batch', $request->filter_batch);
+        }
+
+        if ($request->filter_semester) {
+            $query->where('current_year', $request->filter_semester);
+        }
+
+        if ($request->filter_program) {
+            $query->whereHas('programgroup.programInfo', function ($q) use ($request) {
+                $q->where('id', $request->filter_program);
+            });
+        }
+
+        $students = $query->get();
+
+        $defaulters = [];
+
+        $lateFeePerDay = LateFee::where('status', 1)->value('late_fee_amount') ?? 0;
+
+        foreach ($students as $student) {
+            $applicableFS = FeesStructure::where('batch_id', $student->batch)
+                ->whereHas('programspivot', function ($q) use ($student) {
+                    $q->where('std_program_id', $student->programme);
+                })
+                ->whereIn('std_current_year', range(1, $student->current_year))
+                ->where('is_payable', 1)
+                ->get();
+
+            foreach ($applicableFS as $fs) {
+                $payment = $student->feepayment
+                    ->where('fee_structure_id', $fs->id)
+                    ->where('student_id', $student->id)
+                    ->where('status', 'success')
+                    ->first();
+
+                if (!$payment && $fs->due_date) {
+                    $dueDate = Carbon::parse($fs->due_date)->timezone('asia/kolkata');
+                    $today = Carbon::today()->timezone('asia/kolkata');
+
+                    if ($today->gt($dueDate)) {
+                        $lateDays = $dueDate->diffInDays($today);
+                        $lateFee = $lateDays * $lateFeePerDay;
+
+                        $defaulters[] = [
+                            'student' => $student,
+                            'fee_structure' => $fs,
+                            'late_days' => $lateDays,
+                            'late_fee' => $lateFee,
+                            'due_date' => $fs->due_date,
+                        ];
+                    }
+                }
+            }
+        }
+
+        return view('admin.accounts.defaulters', [
+            'defaulters' => $defaulters
+        ]);
+    }
 }

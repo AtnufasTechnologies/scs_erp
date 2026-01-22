@@ -585,7 +585,14 @@ use App\Http\Controllers\StaticController;
           </a>
         </li> -->
         @endif
-
+        <li>
+          <a href="{{route('defaulters-list')}}">
+            <div class="parent-icon">
+              <i class="fas fa-arrow-alt-circle-right"></i>
+            </div>
+            <div class="menu-title">Defaulters List</div>
+          </a>
+        </li>
 
       </ul>
     </li>
