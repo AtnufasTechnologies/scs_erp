@@ -964,7 +964,7 @@ use App\Http\Controllers\StaticController;
           </a>
         </li>
         @endif
-        @if (StaticController::subMenuRights('menu-access-auth') )
+
         <li>
           <a href="{{route('admin.menu-access-types')}}">
             <div class="parent-icon">
@@ -973,7 +973,7 @@ use App\Http\Controllers\StaticController;
             <div class="menu-title">Menu Access Types </div>
           </a>
         </li>
-        @endif
+
 
       </ul>
 

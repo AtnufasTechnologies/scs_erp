@@ -44,7 +44,7 @@ $campusMaster = Campus::all()
 
 
           <label for="">Login Password * (min 6 characters)</label>
-          <input type="password" name="password" class="form-control mb-3" placeholder="Type Here...">
+          <input type="text" name="password" class="form-control mb-3" placeholder="Type Here...">
 
           <label for="">User Type <small>(For SuperAdmin and Principal all permissions are granted)</small></label>
           <select name="user_type" class=" mb-3 dselect-example">
