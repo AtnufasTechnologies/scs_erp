@@ -406,6 +406,7 @@ use App\Http\Controllers\StaticController;
           </a>
         </li>
         @endif
+        @if (StaticController::subMenuRights('program-course-master') )
         <li>
           <a href="{{route('program-course.master')}}">
             <div class="parent-icon">
@@ -414,6 +415,7 @@ use App\Http\Controllers\StaticController;
             <div class="menu-title">Program Course Master </div>
           </a>
         </li>
+        @endif
         @if (StaticController::subMenuRights('program-objective-master') )
         <!-- <li>
           <a href="">
