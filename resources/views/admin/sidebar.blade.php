@@ -94,7 +94,7 @@ use App\Http\Controllers\StaticController;
             <div class="parent-icon">
               <i class="fas fa-arrow-alt-circle-right"></i>
             </div>
-            <div class="menu-title">All Departments</div>
+            <div class="menu-title">Old Departments</div>
           </a>
         </li>
         @endif
@@ -191,7 +191,7 @@ use App\Http\Controllers\StaticController;
       <ul>
         <!--Admission PG Master -->
         @if (StaticController::mainMenuRights('admission-pg') )
-        <li>
+        <!-- <li>
           <a class="has-arrow" href="javascript:;">
             <div class="parent-icon">
               <i class="fas fa-badge"></i>
@@ -241,7 +241,7 @@ use App\Http\Controllers\StaticController;
             @endif
 
           </ul>
-        </li>
+        </li> -->
         @endif
         <!--Admission UG Master -->
         @if (StaticController::mainMenuRights('admission-ug') )
@@ -381,7 +381,7 @@ use App\Http\Controllers\StaticController;
             <div class="parent-icon">
               <i class="fas fa-arrow-alt-circle-right"></i>
             </div>
-            <div class="menu-title">Subjects </div>
+            <div class="menu-title">New Departments </div>
           </a>
         </li>
         @endif
@@ -391,60 +391,95 @@ use App\Http\Controllers\StaticController;
             <div class="parent-icon">
               <i class="fas fa-arrow-alt-circle-right"></i>
             </div>
-            <div class="menu-title">Subject Type </div>
+            <div class="menu-title">Course Type </div>
           </a>
         </li>
         @endif
-        @if (StaticController::subMenuRights('program-objective-master') )
+
+        @if (StaticController::subMenuRights('course-combination-master') )
         <li>
-          <a href="{{url('erp/admin/academics/program-objectives')}}">
+          <a href="{{route('course-combination.master')}}">
+            <div class="parent-icon">
+              <i class="fas fa-arrow-alt-circle-right"></i>
+            </div>
+            <div class="menu-title">Course Combination Master </div>
+          </a>
+        </li>
+        @endif
+        <li>
+          <a href="{{route('program-course.master')}}">
+            <div class="parent-icon">
+              <i class="fas fa-arrow-alt-circle-right"></i>
+            </div>
+            <div class="menu-title">Program Course Master </div>
+          </a>
+        </li>
+        @if (StaticController::subMenuRights('program-objective-master') )
+        <!-- <li>
+          <a href="">
             <div class="parent-icon">
               <i class="fas fa-arrow-alt-circle-right"></i>
             </div>
             <div class="menu-title">Program Objectives</div>
           </a>
-        </li>
+        </li> -->
         @endif
         @if (StaticController::subMenuRights('course-specific-objective') )
-        <li>
-          <a href="{{url('erp/admin/academics/course-objectives')}}">
+        <!-- <li>
+          <a href="">
             <div class="parent-icon">
               <i class="fas fa-arrow-alt-circle-right"></i>
             </div>
             <div class="menu-title">Course Objectives</div>
           </a>
-        </li>
+        </li> -->
         @endif
 
         @if (StaticController::subMenuRights('course-specific-objective') )
-        <li>
+        <!-- <li>
           <a href="{{url('erp/admin/academics/course-specific-objective')}}">
             <div class="parent-icon">
               <i class="fas fa-arrow-alt-circle-right"></i>
             </div>
             <div class="menu-title">Course Specific Objectives</div>
           </a>
-        </li>
+        </li> -->
         @endif
         @if (StaticController::subMenuRights('question-bank-master') )
-        <li>
+        <!-- <li>
           <a href="#">
             <div class="parent-icon">
               <i class="fas fa-arrow-alt-circle-right"></i>
             </div>
             <div class="menu-title">Question Bank</div>
           </a>
-        </li>
+        </li> -->
         @endif
         @if (StaticController::subMenuRights('attendance-master') )
+        <!-- <li>
+          <a href="#">
+            <div class="parent-icon">
+              <i class="fas fa-arrow-alt-circle-right"></i>
+            </div>
+            <div class="menu-title">Record Attendance</div>
+          </a>
+        </li>
         <li>
           <a href="#">
             <div class="parent-icon">
               <i class="fas fa-arrow-alt-circle-right"></i>
             </div>
-            <div class="menu-title">Attendance</div>
+            <div class="menu-title">Faculty Attendance</div>
           </a>
         </li>
+        <li>
+          <a href="#">
+            <div class="parent-icon">
+              <i class="fas fa-arrow-alt-circle-right"></i>
+            </div>
+            <div class="menu-title">Student Attendance</div>
+          </a>
+        </li> -->
         @endif
 
       </ul>
@@ -528,25 +563,25 @@ use App\Http\Controllers\StaticController;
         @endif
 
         @if (StaticController::subMenuRights('admission-application-fee') )
-        <li>
+        <!-- <li>
           <a href="{{url('erp/admin/accounts/all-payments')}}">
             <div class="parent-icon">
               <i class="fas fa-arrow-alt-circle-right"></i>
             </div>
             <div class="menu-title">Admission Application Fee</div>
           </a>
-        </li>
+        </li> -->
         @endif
 
         @if (StaticController::subMenuRights('faculty-pay-roll') )
-        <li>
+        <!-- <li>
           <a href="{{url('erp/admin/accounts/all-payments')}}">
             <div class="parent-icon">
               <i class="fas fa-arrow-alt-circle-right"></i>
             </div>
             <div class="menu-title">Faculty Pay Roll</div>
           </a>
-        </li>
+        </li> -->
         @endif
 
 
@@ -556,7 +591,7 @@ use App\Http\Controllers\StaticController;
 
 
     <!--HR Master -->
-    @if (StaticController::mainMenuRights('hr') )
+    <!-- @if (StaticController::mainMenuRights('hr') )
     <li>
       <a class="has-arrow" href="javascript:;">
         <div class="parent-icon">
@@ -622,21 +657,22 @@ use App\Http\Controllers\StaticController;
 
       </ul>
     </li>
-    @endif
+    @endif -->
 
     @if (StaticController::mainMenuRights('pre-exam') || StaticController::mainMenuRights('during-exam') || StaticController::mainMenuRights('post-exam') )
     <!--Examination Master -->
-    <li>
+
+    <!-- <li>
       <a class="has-arrow" href="javascript:;">
         <div class="parent-icon">
           <i class="far fa-analytics"></i>
         </div>
         <div class="menu-title">Examination </div>
       </a>
-      <ul>
-        <!-- pre examination -->
-        @if (StaticController::mainMenuRights('pre-exam') )
-        <li>
+      <ul> -->
+    <!-- pre examination -->
+    @if (StaticController::mainMenuRights('pre-exam') )
+    <!-- <li>
           <a class="has-arrow" href="javascript:;">
             <div class="parent-icon">
               <i class="fas fa-cog"></i>
@@ -747,13 +783,13 @@ use App\Http\Controllers\StaticController;
             @endif
 
           </ul>
-        </li>
-        @endif
+        </li> -->
+    @endif
 
 
-        <!-- during examination -->
-        @if (StaticController::mainMenuRights('during-exam') )
-        <li>
+    <!-- during examination -->
+    @if (StaticController::mainMenuRights('during-exam') )
+    <!-- <li>
           <a class="has-arrow" href="javascript:;">
             <div class="parent-icon">
               <i class="fal fa-chart-line"></i>
@@ -783,12 +819,12 @@ use App\Http\Controllers\StaticController;
             </li>
             @endif
           </ul>
-        </li>
-        @endif
+        </li> -->
+    @endif
 
-        <!-- post examination -->
-        @if (StaticController::mainMenuRights('post-exam') )
-        <li>
+    <!-- post examination -->
+    @if (StaticController::mainMenuRights('post-exam') )
+    <!-- <li>
           <a class="has-arrow" href="javascript:;">
             <div class="parent-icon">
               <i class="far fa-person-carry"></i>
@@ -873,13 +909,13 @@ use App\Http\Controllers\StaticController;
             </li>
             @endif
           </ul>
-        </li>
-        @endif
+        </li> -->
+    @endif
 
 
 
-      </ul>
-    </li>
+    <!-- </ul>
+  </li> -->
     @endif
 
 
@@ -888,17 +924,17 @@ use App\Http\Controllers\StaticController;
     <li>
       <a class="has-arrow" href="javascript:;">
         <div class="parent-icon">
-          <i class="fas fa-fingerprint"></i>
+          <i class="fas fa-shield"></i>
         </div>
-        <div class="menu-title">Authentication </div>
+        <div class="menu-title">Security and Authorization </div>
       </a>
       <ul>
         <!--     User Access Management -->
         @if (StaticController::subMenuRights('user-list') )
         <li>
-          <a href="{{url('erp/admin/user-access/access-management')}}">
+          <a href="{{route('admin.user.management')}}">
             <div class="parent-icon">
-              <i class="fas fa-fingerprint"></i>
+              <i class="fas fa-arrow-alt-circle-right"></i>
             </div>
             <div class="menu-title">Access Control </div>
           </a>
@@ -909,12 +945,34 @@ use App\Http\Controllers\StaticController;
         <li>
           <a href="{{route('admission.dept-access')}}">
             <div class="parent-icon">
-              <i class="fas fa-fingerprint"></i>
+              <i class="fas fa-arrow-alt-circle-right"></i>
             </div>
             <div class="menu-title">Departmental Auth </div>
           </a>
         </li>
         @endif
+        <!--User Type Access Control -->
+        @if (StaticController::subMenuRights('user-type-auth') )
+        <li>
+          <a href="{{route('admin.user-types')}}">
+            <div class="parent-icon">
+              <i class="fas fa-arrow-alt-circle-right"></i>
+            </div>
+            <div class="menu-title">User Types </div>
+          </a>
+        </li>
+        @endif
+        @if (StaticController::subMenuRights('menu-access-auth') )
+        <li>
+          <a href="{{route('admin.menu-access-types')}}">
+            <div class="parent-icon">
+              <i class="fas fa-arrow-alt-circle-right"></i>
+            </div>
+            <div class="menu-title">Menu Access Types </div>
+          </a>
+        </li>
+        @endif
+
       </ul>
 
 

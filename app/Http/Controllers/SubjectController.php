@@ -7,6 +7,8 @@ use App\Models\CognitiveLevelMaster;
 use App\Models\Department;
 use App\Models\Faculty;
 use App\Models\LectureHallMaster;
+use App\Models\ProgramCourseMaster;
+use App\Models\StudentProgram;
 use App\Models\Subject;
 use App\Models\SubjectHasCombination;
 use App\Models\SubjectHasRoutine;
@@ -215,5 +217,51 @@ class SubjectController extends Controller
 
 
         return redirect()->back()->with('success', 'Programs linked successfully');
+    }
+
+    function callCourseCombinations()
+    {
+        $data = StudentProgram::with('departmentmaster.campusmaster')->get();
+        return view('admin.academics.course-combinations', ['data' => $data]);
+    }
+
+    function programCourseMaster(Request $request)
+    {
+
+        $query = ProgramCourseMaster::with([
+            'semestermaster',
+            'coursetypemaster',
+            'departmentmaster.campusmaster',
+        ]);
+
+        if (!empty($request->department)) {
+            $query->where('DEPARTMENT', $request->department);
+        }
+
+        if (!empty($request->course_type)) {
+            $query->where('COURSE_TYPE', $request->course_type);
+        }
+
+        if (!empty($request->semester)) {
+            $query->where('SEMESTER_ID', $request->semester);
+        }
+
+        if (!empty($request->academic_year)) {
+            $query->where('ACADEMIC_YEAR', $request->academic_year);
+        }
+
+        if (empty($request)) {
+            $data = ProgramCourseMaster::with([
+                'semestermaster',
+                'coursetypemaster',
+                'departmentmaster.campusmaster',
+            ])->orderby('COURSE_ROOT_ID', 'DESC')->get();
+        }
+
+        $data = $query->orderby('COURSE_ROOT_ID', 'DESC')->get();
+
+
+
+        return view('admin.academics.program-course-master', ['data' => $data]);
     }
 }

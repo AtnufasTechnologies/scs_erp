@@ -36,6 +36,7 @@ use App\Models\UserCampusSetting;
 use App\Models\UserHasPermission;
 use App\Models\UserHasRole;
 use App\Models\UserMenuPermission;
+use App\Models\UserType;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Str;
@@ -997,5 +998,77 @@ class AdminController extends Controller
     {
         User::findOrFail($id)->delete();
         return redirect()->back()->with('success', 'User Deleted');
+    }
+
+    function userTypes()
+    {
+        $data = UserType::latest()->get();
+        return view('admin.user-manager.user-types', ['data' => $data]);
+    }
+
+    function addUserType(Request $request)
+    {
+        $request->validate([
+            'name' => 'required|string|max:255',
+        ]);
+
+        $slug = Str::slug($request->name);
+
+        UserType::where('slug', $slug)->first();
+        $check = UserType::where('slug', $slug)->first();
+        if ($check !== null) {
+            return redirect()->back()->with('error', 'User type already exists');
+        } else {
+            $rec = new UserType();
+            $rec->name = $request->name;
+            $rec->slug = $slug;
+            $rec->is_active = 1;
+            $rec->save();
+        }
+
+        return redirect()->back()->with('success', 'Done');
+    }
+
+    function menuAccessTypes()
+    {
+
+        $data = MenuMaster::latest()->get();
+        return view('admin.user-manager.menu-rights', ['data' => $data]);
+    }
+
+    function addMenuAccessType(Request $request)
+    {
+
+        $request->validate([
+            'name' => 'required|string|max:255',
+            'module_type' => 'required|string|max:255',
+
+        ]);
+        $slug = Str::slug($request->name);
+        MenuMaster::where('slug', $slug)->first();
+        $check = MenuMaster::where('slug', $slug)->first();
+        if ($check !== null) {
+            return redirect()->back()->with('error', 'Permission already exists');
+        }
+        $rec = new MenuMaster();
+        $rec->menu_name = $request->name;
+        $rec->slug = $slug;
+        $rec->module_type = $request->module_type;
+        $rec->save();
+        //add permission to super admin
+        $superAdmins = User::whereHas('userroletype', function ($q) {
+            $q->orWhere('role_name', 'super-admin');
+            $q->orWhere('role_name', 'principal');
+        })->get();
+
+        foreach ($superAdmins as $sa) {
+            $permission = new UserMenuPermission();
+            $permission->user_id = $sa->id;
+            $permission->menu_master_id = $rec->id;
+            $permission->permission_name = $rec->slug;
+            $permission->save();
+        }
+
+        return redirect()->back()->with('success', 'Done');
     }
 }

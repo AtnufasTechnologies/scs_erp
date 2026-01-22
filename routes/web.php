@@ -145,18 +145,25 @@ Route::group(['prefix' => '/erp'], function () {
         Route::group(['prefix' => '/academics'], function () {
             Route::post('add/subject-semester', [SubjectController::class, 'addSemesterToSubject'])->name('add.semester.to.subject');
             Route::post('add/subject-syllabus', [SubjectController::class, 'addSyllabus'])->name('add.syllabus.to.semester');
+            Route::get('all-course-combinations', [SubjectController::class, 'callCourseCombinations'])->name('course-combination.master');
+            Route::get('program-course-master', [SubjectController::class, 'programCourseMaster'])->name('program-course.master');
         });
 
         //user access management
-        Route::group(['prefix' => '/user-access'], function () {
-            Route::get('access-management', [AdminController::class, 'userList']);
-            Route::post('newuser', [AdminController::class, 'createNewUser']);
+        Route::group(['prefix' => '/access-control'], function () {
+            Route::get('access-management', [AdminController::class, 'userList'])->name('admin.user.management');
+            Route::post('newuser', [AdminController::class, 'createNewUser'])->name('add.newuser');
             Route::post('update-permission', [AdminController::class, 'updatePermission'])->name('update.user.permission');
             Route::get('remove-user-permission/{id}', [AdminController::class, 'removeUserPermission']);
             Route::get('dept-access', [AccessController::class, 'deptAccess'])->name('admission.dept-access');
             Route::post('assign-dept-access', [AccessController::class, 'assignDeptAccess'])->name('admin.admission.grant-access');
             Route::get('getprogramsbydepartment', [AdmissionController::class, 'getProgramsByDepartment']);
             Route::get('delete-user-access/{id}', [AdminController::class, 'deleteUserAccess'])->name('admin.user-access.delete');
+            Route::get('user-types', [AdminController::class, 'userTypes'])->name('admin.user-types');
+            Route::post('add-usertype', [AdminController::class, 'addUserType'])->name('admin.add.usertype');
+
+            Route::get('menu-access-types', [AdminController::class, 'menuAccessTypes'])->name('admin.menu-access-types');
+            Route::post('add-menu-access-type', [AdminController::class, 'addMenuAccessType'])->name('admin.add.menu-access-type');
         });
 
         //admission routes Admin

@@ -32,7 +32,7 @@ $campusMaster = Campus::all()
         <h5 class="modal-title" id="exampleModalLabel">New User Info</h5>
         <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
       </div>
-      <form action="{{url('erp/admin/user-access/newuser')}}" method="post" enctype="multipart/form-data">
+      <form action="{{route('add.newuser')}}" method="post" enctype="multipart/form-data">
         @csrf
         <div class="modal-body">
 
@@ -46,7 +46,7 @@ $campusMaster = Campus::all()
           <label for="">Login Password * (min 6 characters)</label>
           <input type="password" name="password" class="form-control mb-3" placeholder="Type Here...">
 
-          <label for="">User Type</label>
+          <label for="">User Type <small>(For SuperAdmin and Principal all permissions are granted)</small></label>
           <select name="user_type" class=" mb-3 dselect-example">
             <option value="">Select User Type</option>
             @foreach ($userTypes as $ut)

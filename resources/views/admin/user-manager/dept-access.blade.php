@@ -54,6 +54,9 @@ $campusMaster = App\Models\Campus::all();
             <button type="submit" class="btn btn-primary">Allow Access</button>
           </div>
         </div>
+
+      </div>
+
     </form>
   </div>
 </div>

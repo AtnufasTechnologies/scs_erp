@@ -23,4 +23,9 @@ class StudentProgram extends Model
     {
         return $this->hasMany(AdmissionApplication::class, 'programme_id', 'id');
     }
+
+    function departmentmaster()
+    {
+        return $this->hasOne(DepartmentMaster::class, 'id', 'department');
+    }
 }
