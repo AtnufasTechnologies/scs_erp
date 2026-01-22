@@ -28,7 +28,7 @@ class PasswordResetOtpMail extends Mailable
     public function envelope(): Envelope
     {
         return new Envelope(
-            subject: 'Password Reset Otp Mail',
+            subject: 'SCMS Password Reset ',
         );
     }
 

@@ -36,23 +36,23 @@
                                 </tr>
                                 <tr>
                                     <td style="padding:0 35px;">
-                                        <img src="{{asset('admin/images/logo.png')}}"
-                                            alt="Kalisya-logo" width="200">
-                                        <h1
-                                            style="color:#1e1e2d; font-weight:500; margin:0;font-size:32px;font-family:'Rubik',sans-serif;">
+                                        <h2>Salesian College Autonomous</h2>
+                                        <p>Sonada and Siliguri</p>
+
+                                        <h3
+                                            style="color:#1e1e2d; font-weight:500; margin:0;font-size:24px;font-family:'Rubik',sans-serif;">
                                             You have
-                                            requested to reset your password</h1>
+                                            requested to reset your password</h3>
                                         <span
                                             style="display:inline-block; vertical-align:middle; margin:29px 0 26px; border-bottom:1px solid #cecece; width:100px;"></span>
                                         <p style="color:#455056; font-size:15px;line-height:24px; margin:0;">
                                             We cannot simply send you your old password. A unique link to reset your
-                                            password has been generated for you. To reset your password, click the
+                                            password has been generated. To reset your password, click the
                                             following link and follow the instructions.
                                         </p>
-                                        <a href="http://127.0.0.1:8000/verify-mail-reset-token/{{$details['token']}}"
+                                        <a href="http://erpsalesiancollege.sdbinc.org/verify-mail-reset-token/{{$details['token']}}"
                                             style="background:#20e277;text-decoration:none !important; font-weight:500; margin-top:35px; color:#fff;text-transform:uppercase; font-size:14px;padding:10px 24px;display:inline-block;border-radius:50px;"
-                                            target="_blank">Reset
-                                            Password</a>
+                                            target="_blank">Click Here </a>
                                     </td>
                                 </tr>
                                 <tr>
@@ -68,8 +68,8 @@
                             <p
                                 style="font-size:14px; color:rgba(69, 80, 86, 0.7411764705882353); line-height:18px; margin:0 0 0;">
                                 &copy; <strong>
-                                    <p>System Generated Notification </p>
-                                    <h2>Salesian College Autonomous, Sonada and Siliguri</h2>
+                                    <p>System Generated Notification</p><br>
+                                    Salesan College Autonomous Management System
                                 </strong></p>
                         </td>
                     </tr>
