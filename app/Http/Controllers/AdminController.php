@@ -1071,4 +1071,10 @@ class AdminController extends Controller
 
         return redirect()->back()->with('success', 'Done');
     }
+
+    function deleteUserPermission($id)
+    {
+        UserMenuPermission::findOrFail($id)->delete();
+        return redirect()->back()->with('success', 'Deleted');
+    }
 }

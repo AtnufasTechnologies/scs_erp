@@ -97,10 +97,13 @@ $campusMaster = Campus::all()
           <span class="badge campus-badge campus-badge--secondary">No Campus Assigned</span>
           @endif
         </p>
-        <p class="card-text"><strong>Role:</strong>
+        <p class="card-text"><strong>Permissions:</strong>
           @if ($itm->menupermission != null)
           @foreach ($itm->menupermission as $role)
+          <br>
+          <a href="{{route('admin.user-access.delete-permission', $role->id)}}" id="citadel"><i class="fa fa-trash text-danger"></i></a>
           <span class="badge bg-success">{{ $role->permission_name }}</span>
+
           @endforeach
           @endif
         </p>

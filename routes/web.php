@@ -141,6 +141,7 @@ Route::group(['prefix' => '/erp'], function () {
             Route::get('verify-transaction/{id}', [FeePaymentController::class, 'verifyTransaction']);
 
             Route::get('defaulters-list', [FeePaymentController::class, 'defaultersList'])->name('defaulters-list');
+            Route::get('delete-user-permission/{id}', [AdminController::class, 'deleteUserPermission'])->name('admin.user-access.delete-permission');
         });
 
         //Academics
