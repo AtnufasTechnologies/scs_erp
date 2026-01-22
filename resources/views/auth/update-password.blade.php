@@ -9,8 +9,7 @@
   <link rel="stylesheet" href="{{ asset('admin/fontawesomepro/all.min.css') }}" />
   <link href="{{asset('admin/css/bootstrap.min.css')}}" rel="stylesheet">
   <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
-
-  <title>Forgot Passowrd | ERP Salesian College Autonomous</title>
+  <title>Salesian College Autonomous Management System</title>
 </head>
 
 <body>
@@ -19,28 +18,34 @@
     <div class="screen">
       <div class="screen__content">
 
-        <form class="login" action="{{url('forgot-password')}}" method="POST">
+        <form class="login" action="{{route('update.password')}}" method="POST">
           @csrf
+
           <img src="{{asset('admin/images/scslogo.png')}}" alt="logo" class="logo">
+
           <div class="login__field">
             <i class="login__icon fas fa-envelope"></i>
-            <input type="text" class="login__input" placeholder="Registered Email" name="email" value="{{old('email')}}">
-            @error('email')
+            <input type="password" class="login__input" name="password" value="{{old('password')}}" placeholder="New Password">
+            @error('password')
             <span class="text-danger">{{$message}}</span>
             @enderror
           </div>
+          <div class="login__field">
+            <i class="login__icon fas fa-eye" id="eye"></i>
 
+            <input type="text" class="login__input" placeholder="Confirm Password" id="pwd" name="confirm_password">
+            @error('confirm_password')
+            <span class="text-danger">{{$message}}</span>
+            @enderror
+
+            <input type="hidden" name="email" value="{{ $data->email }}">
+          </div>
           <button class="button login__submit">
-            <span class="button__text">Reset</span>
+            <span class="button__text">Update Password</span>
             <i class="button__icon fas fa-chevron-right"></i>
           </button>
         </form>
-        <div class="social-login">
-          <a href="{{url('/')}}">
-            <h6 class="forgot_password">Sign In</h6>
-          </a>
 
-        </div>
       </div>
       <div class="screen__background">
         <span class="screen__background__shape screen__background__shape4"></span>
@@ -52,6 +57,35 @@
   </div>
   <script src="{{asset('admin/js/jquery.min.js')}}"></script>
   <script src="{{asset('admin/js/bootstrap.bundle.min.js')}}"></script>
+
 </body>
+
+<script>
+  // Show/hide password onClick of button using Javascript only
+
+  // https://stackoverflow.com/questions/31224651/show-hide-password-onclick-of-button-using-javascript-only
+
+  function show() {
+    var p = document.getElementById('pwd');
+    p.setAttribute('type', 'text');
+  }
+
+  function hide() {
+    var p = document.getElementById('pwd');
+    p.setAttribute('type', 'password');
+  }
+
+  var pwShown = 0;
+
+  document.getElementById("eye").addEventListener("click", function() {
+    if (pwShown == 0) {
+      pwShown = 1;
+      show();
+    } else {
+      pwShown = 0;
+      hide();
+    }
+  }, false);
+</script>
 
 </html>

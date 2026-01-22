@@ -27,6 +27,8 @@ Route::get('/', [LoginController::class, 'index'])->name('login');
 Route::get('forgot-password', [LoginController::class, 'forgotPassword']);
 Route::post('login', [LoginController::class, 'login']);
 Route::post('forgot-password', [LoginController::class, 'sendPasswordReset']);
+Route::get('verify-mail-reset-token/{id}', [LoginController::class, 'verifyResetToken']);
+Route::post('update-password', [LoginController::class, 'updatePassword'])->name('update.password');
 Route::get('logout', [LoginController::class, 'logout']);
 
 Route::group(['prefix' => '/erp'], function () {

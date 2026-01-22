@@ -2,12 +2,15 @@
 
 namespace App\Http\Controllers;
 
+use App\Mail\PasswordResetOtpMail;
 use App\Models\Faculty;
+use App\Models\PasswordReset;
 use App\Models\User;
 use App\Models\UserHasRole;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\Mail;
 use Laravel\Sanctum\PersonalAccessToken;
 
 class LoginController extends Controller
@@ -134,6 +137,68 @@ class LoginController extends Controller
 
             ], 404);
         }
+    }
+
+    function forgotPassword()
+    {
+        return view('auth.forgot-password');
+    }
+
+    function sendPasswordReset(Request $request)
+    {
+        $userdata = User::where(['email' => $request->email])->first();
+
+        if ($userdata) {
+            $code = sha1(uniqid());
+            $rec = new PasswordReset();
+            $rec->email = $request->email;
+            $rec->token = $code;
+            $rec->status = 1;
+            $rec->save();
+
+            $details = [
+                'token' =>  $code,
+            ];
+            Mail::to($request->email)->send(new PasswordResetOtpMail($details));
+            return redirect()->back()->with('success', 'Reset Link Sent on Email');
+        } else {
+            return redirect()->back()->with('error', 'Email not found');
+        }
+    }
+
+    function verifyResetToken($code)
+    {
+        $data =  PasswordReset::where('token', $code)->where('status', 1)->first();
+        if ($data) {
+            return view('auth.update-password', ['data' => $data]);
+        } else {
+            return redirect('login')->with('error', 'Link Expired... Please Reset Again');
+        }
+    }
+
+    function updatePassword(Request $request)
+    {
+        $request->validate([
+            'password' => 'required|string|min:6|max:190',
+            'confirm_password' => 'required|same:password',
+        ]);
+
+        $data = User::where('email', $request->email)->first();
+        if ($data) {
+            $data->password = Hash::make($request->password);
+            $data->save();
+
+            //invalidate the token
+            PasswordReset::where('email', $request->email)->update(['status' => 0]);
+
+            return redirect()->route('login')->with('success', 'Password Updated Successfully. Please Login');
+        } else {
+            return redirect()->route('login')->with('info', 'User Not Found');
+        }
+    }
+    function resetPassword()
+    {
+        return view('auth.reset-password');
     }
 
 
