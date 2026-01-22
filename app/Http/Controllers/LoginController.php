@@ -10,7 +10,9 @@ use App\Models\UserHasRole;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Mail;
+use Illuminate\View\View;
 use Laravel\Sanctum\PersonalAccessToken;
 
 class LoginController extends Controller
@@ -155,11 +157,20 @@ class LoginController extends Controller
             $rec->token = $code;
             $rec->status = 1;
             $rec->save();
-
+            $email =   $request->email;
             $details = [
                 'token' =>  $code,
             ];
-            Mail::to($request->email)->send(new PasswordResetOtpMail($details));
+            $html = View::make('emails.password-reset', ['details' => $details])->render();
+            $applicant_email = trim((string) $email);
+            $response = Http::withToken(env('RESEND_API_KEY'))
+                ->post('https://api.resend.com/emails', [
+                    'from' => 'salesian college autonomous <onboarding@resend.dev>', // Use verified sender
+                    'to' =>  $applicant_email,
+                    'subject' => 'SCMS Password Reset Link',
+                    'html' => $html,
+                ]);
+
             return redirect()->back()->with('success', 'Reset Link Sent on Email');
         } else {
             return redirect()->back()->with('error', 'Email not found');
