@@ -585,6 +585,7 @@ use App\Http\Controllers\StaticController;
           </a>
         </li> -->
         @endif
+        @if(StaticController::subMenuRights('fee-defaulter-list'))
         <li>
           <a href="{{route('defaulters-list')}}">
             <div class="parent-icon">
@@ -593,6 +594,7 @@ use App\Http\Controllers\StaticController;
             <div class="menu-title">Defaulters List</div>
           </a>
         </li>
+        @endif
 
       </ul>
     </li>
