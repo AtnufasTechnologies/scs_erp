@@ -148,28 +148,24 @@ class LoginController extends Controller
 
     function sendPasswordReset(Request $request)
     {
-        $userdata = User::where(['email' => $request->email])->first();
+        $request->validate([
+            'email' => 'required|email',
+        ]);
+        $email =   $request->email;
+        $userdata = User::where('email', $email)->first();
 
-        if ($userdata) {
+        if ($userdata != null) {
             $code = sha1(uniqid());
             $rec = new PasswordReset();
             $rec->email = $request->email;
             $rec->token = $code;
             $rec->status = 1;
             $rec->save();
-            $email =   $request->email;
+
             $details = [
                 'token' =>  $code,
             ];
-            $html = View::make('emails.password-reset', ['details' => $details])->render();
-            $applicant_email = trim((string) $email);
-            $response = Http::withToken(env('RESEND_API_KEY'))
-                ->post('https://api.resend.com/emails', [
-                    'from' => 'salesian college autonomous <onboarding@resend.dev>', // Use verified sender
-                    'to' =>  $applicant_email,
-                    'subject' => 'SCMS Password Reset Link',
-                    'html' => $html,
-                ]);
+            Mail::to($email)->send(new PasswordResetOtpMail($details));
 
             return redirect()->back()->with('success', 'Reset Link Sent on Email');
         } else {

@@ -39,6 +39,9 @@ class SubjectController extends Controller
 
     function addSubject(Request $request)
     {
+
+
+
         $request->validate([
             'code' => 'required|string|max:100',
             'title' => 'required|string|max:255',
@@ -196,28 +199,28 @@ class SubjectController extends Controller
         return redirect()->back()->with('success', 'Subject Deleted');
     }
 
-    function linkStdPrograms(Request $request)
-    {
-        $validator  =  $request->validate([
-            'subject_id' => 'required',
-            'programs' => 'required|array|min:1',
+    // function linkStdPrograms(Request $request)
+    // {
 
-        ]);
+    //     $validator  =  $request->validate([
+    //         'subject_id' => 'required',
+    //         'programs' => 'required|array|min:1',
 
-        $programs = $request->programs;
-        $subject_id = $request->subject_id;
+    //     ]);
 
-        for ($i = 0; $i < count($programs); $i++) {
-            $subject = new SubjectHasStudentProgam();
-            $subject->subject_id = $subject_id;
-            $subject->student_program_id = $programs[$i];
-            $subject->save();
-        }
+    //     $programs = $request->programs;
+    //     $subject_id = $request->subject_id;
+    //     $department = [];
+    //     for ($i = 0; $i < count($programs); $i++) {
+    //         $program = Department::find($programs[$i]);
+    //         $subject = new SubjectHasStudentProgam();
+    //         $subject->subject_id = $subject_id;
+    //         $subject->student_program_id = $programs[$i];
+    //         $subject->save();
+    //     }
 
-
-
-        return redirect()->back()->with('success', 'Programs linked successfully');
-    }
+    //     return redirect()->back()->with('success', 'Old Departments Connected successfully');
+    // }
 
     function callCourseCombinations()
     {
