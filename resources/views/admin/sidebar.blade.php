@@ -381,7 +381,7 @@ use App\Http\Controllers\StaticController;
             <div class="parent-icon">
               <i class="fas fa-arrow-alt-circle-right"></i>
             </div>
-            <div class="menu-title">Subjects </div>
+            <div class="menu-title">Academic Departments </div>
           </a>
         </li>
         @endif

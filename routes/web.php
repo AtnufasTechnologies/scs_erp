@@ -175,11 +175,12 @@ Route::group(['prefix' => '/erp'], function () {
 
     //admission student routes
     Route::group(['prefix' => '/new-admission'], function () {
+        Route::get('login', [AdmissionController::class, 'login'])->name('new.admission.login');
         Route::get('registration', [AdmissionController::class, 'index'])->name('new.admission.registration');
         Route::post('registration', [AdmissionController::class, 'admissionRegistration'])->name('admission.registration.submit');
         Route::post('applicant-login', [AdmissionController::class, 'applicantLogin'])->name('applicant.login');
         Route::get('getmainprograms', [AdmissionController::class, 'getMainPrograms']);
-        Route::get('captcha-refresh', [AdmissionController::class, 'refreshCaptcha']);
+        Route::get('captcha-refresh', [AdmissionController::class, 'refreshCaptcha'])->name('captcha.refresh');
         Route::get('otp-verification', [AdmissionController::class, 'showOtpVerificationPage'])->name('otp.verification.page');
         Route::post('/otp/verify', [AdmissionController::class, 'verify'])->name('otp.verify');
         Route::post('/otp/resend', [AdmissionController::class, 'otpResend'])->name('otp.resend');

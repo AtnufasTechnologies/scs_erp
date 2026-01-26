@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\BatchMaster;
+use App\Models\Campus;
 use App\Models\CognitiveLevelMaster;
 use App\Models\Department;
 use App\Models\Faculty;
@@ -24,7 +25,7 @@ class SubjectController extends Controller
     function index()
     {
         $data = Subject::with([
-            'program_master'
+            'campusmaster'
         ])->latest()->get();
         return view('admin.master.subject', ['data' => $data]);
     }
@@ -40,18 +41,34 @@ class SubjectController extends Controller
         $request->validate([
             'code' => 'required|string|max:100',
             'title' => 'required|string|max:255',
+            'campus' => 'required',
         ]);
         $slug = Str::slug($request->title);
         $check = Subject::where('slug', $slug)->count();
         if ($check > 0) {
             return response()->json(['msg' => 'Subject already exists', 'status' => 'error']);
         } else {
-            $rec = new Subject();
-            $rec->program_id = $request->program_id;
-            $rec->slug =   $slug;
-            $rec->code = Str::upper($request->code);
-            $rec->title = Str::lower($request->title);
-            $rec->save();
+
+            if ($request->campus == 3) {
+                $campuses = Campus::all();
+                foreach ($campuses as $campus) {
+                    $rec = new Subject();
+                    $rec->campus_id = $campus->id;
+                    $rec->slug =   $slug;
+                    $rec->code = Str::upper($request->code);
+                    $rec->title = Str::lower($request->title);
+                    $rec->save();
+                }
+            } else {
+                $rec = new Subject();
+                $rec->campus_id = $request->campus;
+                $rec->slug =   $slug;
+                $rec->code = Str::upper($request->code);
+                $rec->title = Str::lower($request->title);
+                $rec->save();
+            }
+
+
             return redirect()->back()->with('success', 'Created');
         }
     }

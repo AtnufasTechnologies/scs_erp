@@ -10,9 +10,9 @@ class Subject extends Model
 {
     use HasFactory, SoftDeletes;
 
-    function program_master()
+    function campusmaster()
     {
-        return $this->hasOne(ProgramMaster::class, 'id', 'program_id');
+        return $this->hasOne(Campus::class, 'id', 'campus_id');
     }
 
     function syllabus()

@@ -96,20 +96,20 @@ class AdmissionController extends Controller
             //OTP ON NUMBER
             $phoneNo = $user->mobile_no;
             $fullname = $user->first_name . ' ' . $user->last_name;
-            $fields = array(
-                "sender_id" => 'ATNFAS',
-                "message" => '186603',
-                "variables_values" => $fullname . '|' . $otp . '|2mins. Admission Committee Salesian College  ',
-                "route" => "dlt",
-                "numbers" => $phoneNo,
-            );
+            // $fields = array(
+            //     "sender_id" => 'ATNFAS',
+            //     "message" => '186603',
+            //     "variables_values" => $fullname . '|' . $otp . '|2mins. Admission Committee Salesian College  ',
+            //     "route" => "dlt",
+            //     "numbers" => $phoneNo,
+            // );
 
             //Send Otp on Whatsapp
 
             /**Pending Approval from Client */
 
             //Send Otp on Phone
-            StaticController::otpSender($fields);
+            // StaticController::otpSender($fields);
             //Send Otp on Email
             $usermail = $user->mail_id;
             $this->sendOTPEmail($otp, $usermail);
@@ -159,7 +159,6 @@ class AdmissionController extends Controller
     function applicantLogin(Request $request)
     {
         $request->validate([
-
             'registered_no' => 'required',
             'registered_password' => 'required',
         ]);
@@ -167,14 +166,23 @@ class AdmissionController extends Controller
         $user = AdmissionRegistration::where('mobile_no', $request->registered_no)
             ->orWhere('mail_id', $request->registered_no)
             ->where('otp_verification', 1)
-            ->firstOrFail();
-
-        if ($user && Hash::check($request->registered_password, $user->password)) {
-            Auth::login($user, true);
-            return redirect()->route('admission.apply.application');
+            ->first();
+        if ($user != null) {
+            if ($user && Hash::check($request->registered_password, $user->password)) {
+                Auth::login($user, true);
+                return redirect()->route('admission.apply.application');
+            } else {
+                return back()->withErrors(['registered_no' => 'Invalid credentials.']);
+            }
         } else {
-            return back()->withErrors(['registered_no' => 'Invalid credentials.']);
+            return back()->withErrors(['registered_no' => 'No verified account found with the provided details.']);
         }
+    }
+
+
+    function login()
+    {
+        return view('admission.login');
     }
 
     function verify(Request $request)
@@ -214,21 +222,25 @@ class AdmissionController extends Controller
         //find the application
         $registrationInfo = AdmissionRegistration::with([
             'programinfo.campus',
+            'countrymaster',
         ])->where('id', $userId)->firstOrFail();
         if ($registrationInfo->programinfo->name == 'UG') {
             $batch = BatchMaster::where('admission_active_batch', 1)->value('batch_name');
             $campusId = $registrationInfo->programinfo->campus->id;
+            $courses = ProgramGroup::whereHas('programInfo', function ($q) use ($campusId) {
+                $q->where('campus_id', $campusId);
+            })->where('campus_id', $campusId)->get();
 
             return view('admission.ug-application', [
                 'data' => $registrationInfo,
-                'departments' => DepartmentMaster::where('campus_id', $campusId)
-                    ->where('status', 1)->get(),
+                'courses' => $courses,
                 'bloodgroups' => BloodGroupMaster::all(),
                 'religions' => ReligionMaster::all(),
+                'batch' => $batch,
 
             ]);
         } else {
-            return view('admission.pg-application', ['data' => $registrationInfo]);
+            return view('admission.ug-application', ['data' => $registrationInfo]);
         }
     }
 
@@ -734,9 +746,59 @@ class AdmissionController extends Controller
         }
     }
 
+
+    function submitApplication(Request $request)
+    {
+        $request->validate([
+            'department' => 'required',
+            'course' => 'required',
+            'dob' => 'required|date',
+            'bloodgroup' => 'required',
+            'gender' => 'required',
+            'religion' => 'required',
+            'mothertongue' => 'required',
+            'phychallenged' => 'required',
+
+            'father_name' => 'required|string|max:255',
+            'mother_name' => 'required|string|max:255',
+
+            'father_contact' => 'required|digits:10|regex:/^[0-9]+$/',
+            'mother_contact' => 'required|digits:10|regex:/^[0-9]+$/',
+
+            'father_occupation' => 'string|max:255',
+            'mother_occupation' => 'string|max:255',
+
+            'income' => 'required|regex:/^[0-9]+$/',
+            'permanent_address' => 'required',
+            'permanent_address_pincode' => 'required|regex:/^[0-9]+$/',
+
+            'photo' => 'required',
+
+            'institution10' => 'required',
+            'institution12' => 'required',
+            'certificate10' => 'required',
+            'certificate12' => 'required',
+
+            'sub1' => 'required|string|max:255',
+            'sub2' => 'required|string|max:255',
+            'sub3' => 'required|string|max:255',
+            'sub4' => 'required|string|max:255',
+            'sub5' => 'required|string|max:255',
+
+            'score1' => 'required|regex:/^[0-9]+$/',
+            'score2' => 'required|regex:/^[0-9]+$/',
+            'score3' => 'required|regex:/^[0-9]+$/',
+            'score4' => 'required|regex:/^[0-9]+$/',
+            'score5' => 'required|regex:/^[0-9]+$/',
+            'caste' =>  'required',
+            'adhaar' => 'required',
+
+        ]);
+    }
+
     function logout()
     {
         Auth::logout();
-        return redirect()->route('new.admission.registration');
+        return redirect()->route('new.admission.login')->with('success', 'Logged out successfully.');
     }
 }

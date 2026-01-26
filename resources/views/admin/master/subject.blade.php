@@ -1,13 +1,14 @@
 <?php
 
+use App\Models\Campus;
 use App\Models\ProgramMaster;
 
 $programs = ProgramMaster::latest()->get();
-
+$campuses = Campus::latest()->get();
 ?>
 @include('includes.header')
 @include('admin.sidebar')
-<h3><span class="text-uppercase">Subject Master</span></h3>
+<h3><span class="text-uppercase">Academic Departments Master</span></h3>
 <button class="cst-button mb-3" style="--clr: #21d9c7ff;" data-bs-toggle="modal" data-bs-target="#add">
   <span class="button-decor"></span>
   <div class="button-content">
@@ -17,8 +18,6 @@ $programs = ProgramMaster::latest()->get();
     <span class="button__text">Add New</span>
   </div>
 </button>
-
-
 
 <!-- Modal -->
 <div class="modal fade" id="add" tabindex="-1" aria-labelledby="exampleModalLabel" aria-hidden="true">
@@ -31,16 +30,36 @@ $programs = ProgramMaster::latest()->get();
       <form action="{{url('erp/admin/master/subject')}}" method="post">
         @csrf
         <div class="modal-body">
+          <div class="row">
+            <div class="col-4">
+              <select name="campus" class="form-control">
+                <option value="">Select Campus *</option>
+                @foreach ($campuses as $campus)
+                <option value="{{$campus->id}}">{{$campus->name}}</option>
+                @endforeach
+                <option value="3">Sonada and Siliguri</option>
+              </select>
+            </div>
+            <div class="col-4">
+              <select name="program_id" class="form-control">
+                <option value="">Degree Type *</option>
+                @foreach ($programs as $item)
+                <option value="{{$item->id}}">{{$item->title}}</option>
+                @endforeach
+              </select>
+            </div>
+            <div class="col-4">
+              <input type="text" class="form-control mb-3" name="code" placeholder="Subject Code *">
+            </div>
+            <div class="col-12">
+              <label for="">Subject Title</label>
+              <input type="text" class="form-control mb-3" name="title" placeholder="Type here...">
 
-          <select name="program_id" class="form-control">
-            @foreach ($programs as $item)
-            <option value="{{$item->id}}">{{$item->title}}</option>
-            @endforeach
-          </select>
-          <label for="">Subject Code</label>
-          <input type="text" class="form-control mb-3" name="code" placeholder="Type here...">
-          <label for="">Subject Title</label>
-          <input type="text" class="form-control mb-3" name="title" placeholder="Type here...">
+            </div>
+          </div>
+
+
+
 
         </div>
         <div class="modal-footer">
@@ -57,7 +76,7 @@ $programs = ProgramMaster::latest()->get();
     <thead>
       <tr>
         <th>#</th>
-        <th>Program </th>
+        <th>Campus </th>
         <th>Code</th>
         <th>Subject Name</th>
         <th>View</th>
@@ -70,7 +89,7 @@ $programs = ProgramMaster::latest()->get();
       @foreach ($data as $item)
       <tr>
         <td>{{$sl++}}</td>
-        <td>{{$item->program_master->title}}</td>
+        <td>{{$item->campusmaster->name}}</td>
         <td><span class="text-capitalize">{{$item->code}}</span></td>
         <td><span class="text-capitalize">{{$item->title}}</span></td>
         <td>
