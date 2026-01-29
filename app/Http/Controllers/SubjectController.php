@@ -54,6 +54,7 @@ class SubjectController extends Controller
                 foreach ($campuses as $campus) {
                     $rec = new Subject();
                     $rec->campus_id = $campus->id;
+                    $rec->main_program_type = 'PG';
                     $rec->slug =   $slug;
                     $rec->code = Str::upper($request->code);
                     $rec->title = Str::lower($request->title);
@@ -62,6 +63,7 @@ class SubjectController extends Controller
             } else {
                 $rec = new Subject();
                 $rec->campus_id = $request->campus;
+                $rec->main_program_type = 'UG';
                 $rec->slug =   $slug;
                 $rec->code = Str::upper($request->code);
                 $rec->title = Str::lower($request->title);

@@ -33,7 +33,7 @@
   <link rel="stylesheet" type="text/css" href="//cdn.jsdelivr.net/npm/slick-carousel@1.8.1/slick/slick.css" />
   <link rel="stylesheet" href="{{asset('admin/css/icofont.min.css')}}">
   <link rel="stylesheet" href="https://unpkg.com/@jarstone/dselect/dist/css/dselect.css">
-  <title>ERP | Salesian College Autonomous (Siliguri & Sonada) </title>
+  <title>SCMS | Salesian College Autonomous (Siliguri & Sonada) </title>
 
 </head>
 

@@ -231,13 +231,17 @@ class AdmissionController extends Controller
                 $q->where('campus_id', $campusId);
             })->where('campus_id', $campusId)->get();
 
+            $academic_departments = Subject::where('campus_id', $campusId)
+                ->where('main_program_type', 'UG')
+                ->get();
+
             return view('admission.ug-application', [
                 'data' => $registrationInfo,
                 'courses' => $courses,
                 'bloodgroups' => BloodGroupMaster::all(),
                 'religions' => ReligionMaster::all(),
                 'batch' => $batch,
-
+                'academic_departments' => $academic_departments,
             ]);
         } else {
             return view('admission.ug-application', ['data' => $registrationInfo]);
@@ -747,7 +751,7 @@ class AdmissionController extends Controller
     }
 
 
-    function submitApplication(Request $request)
+    function ugApplicationSubmit(Request $request)
     {
         $request->validate([
             'department' => 'required',

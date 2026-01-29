@@ -52,7 +52,7 @@ $campuses = Campus::latest()->get();
               <input type="text" class="form-control mb-3" name="code" placeholder="Subject Code *">
             </div>
             <div class="col-12">
-              <label for="">Subject Title</label>
+              <label for=""> Title</label>
               <input type="text" class="form-control mb-3" name="title" placeholder="Type here...">
 
             </div>
@@ -78,7 +78,8 @@ $campuses = Campus::latest()->get();
         <th>#</th>
         <th>Campus </th>
         <th>Code</th>
-        <th>Subject Name</th>
+        <th>Academic Department Name</th>
+        <th>Main Program Type</th>
         <th>View</th>
         <th>Delete</th>
       </tr>
@@ -92,6 +93,7 @@ $campuses = Campus::latest()->get();
         <td>{{$item->campusmaster->name}}</td>
         <td><span class="text-capitalize">{{$item->code}}</span></td>
         <td><span class="text-capitalize">{{$item->title}}</span></td>
+        <td><span class="text-capitalize">{{$item->main_program_type}}</span></td>
         <td>
           <form action="{{url('erp/admin/master/view-subject')}}" method="get">
             <input type="hidden" name="id" value="{{$item->id}}">
@@ -102,7 +104,9 @@ $campuses = Campus::latest()->get();
         </td>
 
         <td>
-          <a href="{{url('erp/admin/master/delete-subject/'.$item->id) }}" id="citadel"><button class="btn btn-outline-danger"><i class="fa fa-trash-alt"></i></button></a>
+          <a href="{{url('erp/admin/master/delete-subject/'.$item->id) }}" id="citadel">
+            <button class="btn btn-outline-danger"><i class="fa fa-trash"></i></button>
+          </a>
         </td>
 
       </tr>

@@ -32,7 +32,7 @@
           <button class="mb-3 btn btn-dark">Logout</button>
         </a>
       </div>
-      <form action="{{route('submit.application.form')}}" enctype="multipart/form-data" method="POST" id="admission-application-form">
+      <form action="{{route('submit.ug.application.form')}}" enctype="multipart/form-data" method="POST" id="admission-application-form">
         @csrf
         <div class="row">
           <div class="col-lg-6">
@@ -81,14 +81,22 @@
           <h5>{{$data->programInfo->campus->name}} - {{$data->programInfo->name}} </h5>
 
           <div class="col-lg-6 col-sm-12">
-            <label for="">Course Applied For<span class="text-danger">*</span></label><br>
-            @error('course') <span class="text-danger">{{ $message }}</span> @enderror
-            <select class="form-control mb-3 radius-20 dark dselect-example" name="course" id="course">
-              <option value="">-- Select Course--</option>
-              @foreach ($courses as $item)
-              <option value="{{$item->programInfo->id}}" {{ old('course') == $item->id ? 'selected' : '' }}>{{$item->programInfo->code}} - {{$item->programInfo->name}}</option>
+            <label for="">Department Applying For<span class="text-danger">*</span></label><br>
+            @error('department') <span class="text-danger">{{ $message }}</span> @enderror
+            <select class="form-control mb-3 radius-20 dark " name="department" id="department">
+              <option value="">-- Select Department--</option>
+              @foreach ($academic_departments as $dept)
+              <option value="{{$dept->id}}">{{$dept->title}}</option>
               @endforeach
             </select>
+          </div>
+
+          <div class="col-lg-6 col-sm-12">
+            <label for="">Departmental Combinations<span class="text-danger">*</span></label><br>
+            @error('course') <span class="text-danger">{{ $message }}</span> @enderror
+            <select class="form-control mb-3 radius-20 dark dselect-example" name="course" id="course">
+            </select>
+
           </div>
 
           <div class="col-lg-3 col-sm-12">
@@ -529,7 +537,7 @@
 
 
           <hr>
-          <h3>Class XII</h3>
+          <h3>Class XII </h3>
           <div class="col-lg-5 col-sm-12">
             <div class="row">
               <div class="col-lg-12 col-sm-12">
@@ -680,7 +688,9 @@
 
 
         </div>
-        <button type="submit" class="btn btn-main radius-20 mt-3" id="admission-submitBtn">Continue Payment</button>
+        <center>
+          <button type="submit" class="btn btn-main radius-30 mt-3" id="admission-submitBtn">Continue To Payment >> </button>
+        </center>
 
       </form>
 
