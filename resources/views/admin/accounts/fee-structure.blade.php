@@ -212,7 +212,31 @@ $latefee = LateFee::find(1);
 
           <h4>{{$item->program->name}} - {{$item->program->campus->name}}</h2>
             <p>{{$item->feecoursemaster->name}}</p>
-            <p> {{$item->std_current_year}} year - {{$item->quarter_title}}</p>
+            <div class="row mb-2">
+              <div class="col-6">
+                <small class="text-info">Activation Date</small>
+                <p class="mb-0 fw-bold"><span class="badge bg-info">{{date('d M, Y', strtotime($item->reminder_date))}}</span></p>
+              </div>
+              <div class="col-6">
+                <small class="text-warning">Due Date</small>
+                <p class="mb-0 fw-bold"><span class="badge bg-warning">{{date('d M, Y', strtotime($item->due_date))}}</span></p>
+              </div>
+            </div>
+            <div class="fee-meta-info">
+              <div class="meta-item">
+                <span class="meta-label text-white">Studying Year</span>
+                <span class="meta-value text-white">{{$item->std_current_year}}</span>
+              </div>
+              <div class="meta-item">
+                <span class="meta-label text-white">Quarter</span>
+                <span class="meta-value text-white">{{$item->quarter_title}}</span>
+              </div>
+              <div class="meta-item">
+                <span class="meta-label text-white">Payment Order</span>
+                <span class="meta-value text-white">{{$item->yearly_pay_order}}</span>
+              </div>
+            </div>
+            <p> {{$item->quarter_title}}</p>
 
         </div>
         <hr>
@@ -311,6 +335,15 @@ $latefee = LateFee::find(1);
 
                     </div>
 
+                    <div class="col-lg-6">
+                      <label for="">Activation Date</label>
+                      <input type="date" name="reminder_date" class="form-control mb-3" value="{{$item->reminder_date}}">
+                    </div>
+                    <div class="col-lg-6">
+                      <label for="">Due Date</label>
+                      <input type="date" name="due_date" class="form-control mb-3" value="{{$item->due_date}}">
+                    </div>
+
                     <div class="col-lg-12">
                       <label for="">Course Name *</label>
                       <input type="text" class="form-control mb-3" value="{{$item->feecoursemaster->name}}" readonly>
@@ -356,7 +389,7 @@ $latefee = LateFee::find(1);
         </div>
 
         <a data-bs-toggle="modal" data-bs-target="#viewProgs{{$item->id}}" class="btn-sm btn-dark mx-1">
-          Link Programs *
+          Linked Programs
         </a>
         <div class="modal fade " id="viewProgs{{$item->id}}" tabindex="-1" aria-labelledby="exampleModalLabel" aria-hidden="true">
           <div class="modal-dialog modal-lg">
