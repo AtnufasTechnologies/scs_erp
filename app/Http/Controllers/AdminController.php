@@ -750,15 +750,21 @@ class AdminController extends Controller
         FeesStructure::where('id', $id)->update([
             'program_id' => $request->program,
             'batch_id' => $request->batch,
-
+            'reminder_date' => $request->reminder_date,
+            'due_date' => $request->due_date,
         ]);
-        $feeStructureId = $id;
-        $heads = $request->heads;
-        $amount = $request->amounts;
 
-        //saviing heads
-        if (count($heads)) {
+        $amount = $request->amounts;
+        $heads = $request->heads;
+        $feeStructureId = $id;
+        //saviing heads if added
+        if (!empty($heads) && is_array($heads) && !empty($amount) && is_array($amount)) {
             for ($i = 0; $i < count($heads); $i++) {
+                // Skip if head_id is null or amount is not set
+                if (empty($heads[$i]) || !isset($amount[$i])) {
+                    continue;
+                }
+
                 $check = FeeStructureHasHead::where('fee_structure_id', $feeStructureId)->where('fee_head_id', $heads[$i])->count();
                 if ($check == 0) {
                     $pvt = new FeeStructureHasHead();
@@ -769,6 +775,7 @@ class AdminController extends Controller
                 }
             }
         }
+
 
 
         return redirect()->back()->with('success', 'Fee Structure Updated');
