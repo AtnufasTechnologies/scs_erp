@@ -141,6 +141,12 @@ Route::group(['prefix' => '/erp'], function () {
             Route::get('all-payments', [FeePaymentController::class, 'allPayments'])->name('all.payments');
             Route::get('transaction-info/{id}', [FeePaymentController::class, 'showSuccessPage'])->name('transaction.info');
             Route::get('verify-transaction/{id}', [FeePaymentController::class, 'verifyTransaction']);
+            Route::get('defaulters-list', [FeePaymentController::class, 'defaultersList'])->name('defaulters-list');
+
+            // Late Fee Exemption Management
+            Route::get('late-fee-exemptions', [FeePaymentController::class, 'lateFeeExemptionIndex'])->name('late.fee.exemptions');
+            Route::post('late-fee-exemption/grant', [FeePaymentController::class, 'grantLateFeeExemption'])->name('grant.late.fee.exemption');
+            Route::post('late-fee-exemption/{id}/revoke', [FeePaymentController::class, 'revokeLateFeeExemption'])->name('revoke.late.fee.exemption');
 
             Route::get('defaulters-list', [FeePaymentController::class, 'defaultersList'])->name('defaulters-list');
             Route::get('delete-user-permission/{id}', [AdminController::class, 'deleteUserPermission'])->name('admin.user-access.delete-permission');
@@ -220,21 +226,19 @@ Route::group(['prefix' => '/erp'], function () {
         Route::get('transaction-success/{id}/download-pdf', [FeePaymentController::class, 'downloadInvoice']);
     });
 
-    Route::get('logout', function () {
-        Auth::logout();
-        return redirect('/');
+    //admission
+    Route::group(['prefix' => 'admission'], function () {
+        Route::get('registration', [AdmissionController::class, 'index']);
+        Route::post('registration', [AdmissionController::class, 'admissionRegistration'])->name('admission.registration.submit');
+        Route::post('applicant-login', [AdmissionController::class, 'applicantLogin'])->name('applicant.login');
+        Route::get('getmainprograms', [AdmissionController::class, 'getMainPrograms']);
     });
 
-    Route::get('sms-data/{id}', [AdminController::class, 'smsData']);
-});
-
-
-Route::get('testpage', function () {
-    $types = UserType::get();
-    for ($i = 0; $i < count($types); $i++) {
-        $user = UserType::find($types[$i]->id);
-        $slug = Str::slug($user->name);
-        UserType::where('id', $user->id)->update(['slug' => $slug]);
-    }
+    // API routes for late fee exemptions
+    Route::group(['prefix' => '/api'], function () {
+        Route::get('students/search', [FeePaymentController::class, 'searchStudents']);
+        Route::get('students/{id}/fee-structures', [FeePaymentController::class, 'getStudentFeeStructures']);
+        Route::get('students/{rollno}/unpaid-fees', [FeePaymentController::class, 'getStudentUnpaidFees']);
+    });
 });
 //ajax routes

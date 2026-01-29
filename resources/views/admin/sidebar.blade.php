@@ -499,7 +499,18 @@ use App\Http\Controllers\StaticController;
         <div class="menu-title">Accounts Office</div>
       </a>
       <ul>
+        <li>
+          <a href="{{url('erp/admin/accounts/late-fee-exemptions')}}">
+            <div class="parent-icon">
+              <i class="fas fa-arrow-alt-circle-right"></i>
+            </div>
+            <div class="menu-title">Late Fee Exemptions</div>
+          </a>
+        </li>
         @if (StaticController::subMenuRights('bank-master') )
+
+
+
         <li>
           <a href="{{url('erp/admin/accounts/bankinfo')}}">
             <div class="parent-icon">
@@ -572,8 +583,9 @@ use App\Http\Controllers\StaticController;
             </div>
             <div class="menu-title">Admission Application Fee</div>
           </a>
-        </li> -->
+    </li> -->
         @endif
+
 
         @if (StaticController::subMenuRights('faculty-pay-roll') )
         <!-- <li>
@@ -807,30 +819,38 @@ use App\Http\Controllers\StaticController;
             </div>
             <div class="menu-title">During Examination </div>
           </a>
-          <ul>
-            @if (StaticController::subMenuRights('exam-attendance-capture') )
-            <li>
-              <a href="#">
-                <div class="parent-icon">
-                  <i class="fas fa-arrow-alt-circle-right"></i>
-                </div>
-                <div class="menu-title">Attendance Capture</div>
-              </a>
-            </li>
-            @endif
+        </li>
 
-            @if (StaticController::subMenuRights('packet-management') )
-            <li>
-              <a href="#">
-                <div class="parent-icon">
-                  <i class="fas fa-arrow-alt-circle-right"></i>
-                </div>
-                <div class="menu-title">Packet Management </div>
-              </a>
-            </li>
-            @endif
-          </ul>
-        </li> -->
+        <li>
+          <a href="{{url('erp/admin/accounts/std-fee-payments')}}">
+            <div class="parent-icon">
+              <i class="fas fa-arrow-alt-circle-right"></i>
+            </div>
+            <div class="menu-title">Fee Collection</div>
+          </a>
+        </li>
+        <li>
+          <a href="{{url('erp/admin/accounts/all-payments')}}">
+            <div class="parent-icon">
+              <i class="fas fa-arrow-alt-circle-right"></i>
+            </div>
+            <div class="menu-title">All Payments</div>
+          </a>
+        </li>
+
+        <li>
+          <a href="{{url('erp/admin/accounts/late-fee-exemptions')}}">
+            <div class="parent-icon">
+              <i class="fas fa-arrow-alt-circle-right"></i>
+            </div>
+            <div class="menu-title">Late Fee Exemptions</div>
+          </a>
+        </li>
+
+
+
+      </ul>
+    </li>
     @endif
 
     <!-- post examination -->

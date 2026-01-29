@@ -11,6 +11,7 @@ use App\Models\LateFee;
 use App\Models\PaymentGatewayType;
 use App\Models\StudentMaster;
 use App\Models\StudentPayment;
+use App\Models\StudentLateFeeExemption;
 use Barryvdh\DomPDF\Facade\Pdf;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
@@ -398,6 +399,17 @@ class FeePaymentController extends Controller
             ->where('roll_no', $roll)
             ->firstOrFail();
 
+        // ---- FETCH EXEMPTIONS FOR THIS STUDENT ----
+        $exemptions = StudentLateFeeExemption::where('student_id', $student->id)
+            ->where('is_active', true)
+            ->get()
+            ->keyBy('fee_structure_id');
+
+        // Check if student has blanket exemption (fee_structure_id = null)
+        $hasBlanketExemption = $exemptions->contains(function ($exemption) {
+            return is_null($exemption->fee_structure_id);
+        });
+
         // ---- FETCH APPLICABLE FEE STRUCTURES ----
         $applicableFS = FeesStructure::with('feeHeads')
             ->where('batch_id', $student->batch)
@@ -408,7 +420,7 @@ class FeePaymentController extends Controller
             ->orderBy('std_current_year')
             ->get();
         // ---- PREPARE FEE STATUS ----
-        $feeStatus = $applicableFS->map(function ($fs) use ($student, $lateFeePerDay) {
+        $feeStatus = $applicableFS->map(function ($fs) use ($student, $lateFeePerDay, $exemptions, $hasBlanketExemption) {
 
             // Success payment
             $successPayment = $student->feepayment
@@ -426,9 +438,10 @@ class FeePaymentController extends Controller
 
             $baseAmount = $fs->feeHeads->sum('amount');
 
-            // ---- LATE FEE LOGIC ----
+            // ---- LATE FEE LOGIC WITH EXEMPTION CHECK ----
             $lateDays = 0;
             $lateFee = 0;
+            $isExempted = false;
 
             if (!$successPayment && $fs->due_date) {
                 $dueDate = Carbon::parse($fs->due_date);
@@ -436,7 +449,13 @@ class FeePaymentController extends Controller
 
                 if ($today->gt($dueDate)) {
                     $lateDays = $dueDate->diffInDays($today);
-                    $lateFee  = $lateDays * $lateFeePerDay;
+
+                    // ---- CHECK EXEMPTION ----
+                    $isExempted = $hasBlanketExemption || $exemptions->has($fs->id);
+
+                    if (!$isExempted) {
+                        $lateFee  = $lateDays * $lateFeePerDay;
+                    }
                 }
             }
 
@@ -449,6 +468,7 @@ class FeePaymentController extends Controller
                 'base_amount'        => $baseAmount,
                 'late_days'          => $lateDays,
                 'late_fee'           => $lateFee,
+                'is_late_fee_exempted' => $isExempted,
                 'total_payable'      => $baseAmount + $lateFee,
 
                 // CORE PAYMENT INFO
@@ -456,7 +476,7 @@ class FeePaymentController extends Controller
                 'paid_amount'        => $successPayment->amount ?? 0,
                 'status'             => $successPayment
                     ? 'PAID'
-                    : ($lateFee > 0 ? 'LATE' : 'DUE'),
+                    : ($isExempted && $lateDays > 0 ? 'DUE (Late Fee Exempted)' : ($lateFee > 0 ? 'LATE' : 'DUE')),
 
                 // UI / Debug
                 'last_attempt_status' => $latestPayment->status ?? null,
@@ -606,6 +626,16 @@ class FeePaymentController extends Controller
         // ---- FETCH LATE FEE (ONCE) ----
         $lateFeePerDay = LateFee::value('late_fee_amount') ?? 0;
 
+        // ---- FETCH EXEMPTIONS ----
+        $exemptions = StudentLateFeeExemption::where('student_id', $studentId)
+            ->where('is_active', true)
+            ->get()
+            ->keyBy('fee_structure_id');
+
+        $hasBlanketExemption = $exemptions->contains(function ($exemption) {
+            return is_null($exemption->fee_structure_id);
+        });
+
         // ---- STUDENT ----
         $student = StudentMaster::find($studentId);
 
@@ -628,11 +658,12 @@ class FeePaymentController extends Controller
 
             $baseAmount = $feeStructure->feeHeads->sum('amount');
 
-            // ---- LATE FEE CALCULATION ----
+            // ---- LATE FEE CALCULATION WITH EXEMPTION ----
             $lateDays = 0;
             $lateFee  = 0;
+            $isExempted = $hasBlanketExemption || $exemptions->has($feeId);
 
-            if ($feeStructure->due_date) {
+            if ($feeStructure->due_date && !$isExempted) {
                 $dueDate = Carbon::parse($feeStructure->due_date);
                 $today   = Carbon::today();
 
@@ -717,8 +748,6 @@ class FeePaymentController extends Controller
 
         return back()->withErrors('Payment initiation failed');
     }
-
-
 
     public function paymentSuccess(Request $request)
     {
@@ -905,6 +934,277 @@ class FeePaymentController extends Controller
         $response = StaticController::easebuzz_verifyPaymentWithHash($txnid);
         $data =  $response['msg']['0'];
         return view('admin.accounts.ez-payment-verification', ['data' => $data]);
+    }
+
+    // ---- LATE FEE EXEMPTION MANAGEMENT ----
+
+    public function lateFeeExemptionIndex(Request $request)
+    {
+        $exemptions = StudentLateFeeExemption::with([
+            'student:id,first_name,last_name,roll_no',
+            'feeStructure:id,quarter_title',
+            'approver:id,name'
+        ])->orderBy('created_at', 'desc')->paginate(50);
+
+        // Fetch students with their exemption status
+        $studentsQuery = StudentMaster::select('id', 'roll_no', 'first_name', 'last_name', 'batch', 'programme', 'current_year')
+            ->with(['batchmaster:id,batch_name', 'programgroup:id,program_code']);
+
+        // Apply search filter
+        if ($request->has('search') && $request->search) {
+            $search = $request->search;
+            $studentsQuery->where(function ($q) use ($search) {
+                $q->where('roll_no', 'LIKE', "%{$search}%")
+                    ->orWhere('first_name', 'LIKE', "%{$search}%")
+                    ->orWhere('last_name', 'LIKE', "%{$search}%");
+            });
+        }
+
+        // Apply batch filter
+        if ($request->has('batch_filter') && $request->batch_filter) {
+            $studentsQuery->where('batch', $request->batch_filter);
+        }
+
+        $students = $studentsQuery->paginate(50);
+
+        // Get exemption counts for each student
+        $studentIds = $students->pluck('id');
+        $exemptionCounts = StudentLateFeeExemption::whereIn('student_id', $studentIds)
+            ->where('is_active', true)
+            ->selectRaw('student_id, COUNT(*) as count, MAX(CASE WHEN fee_structure_id IS NULL THEN 1 ELSE 0 END) as has_blanket')
+            ->groupBy('student_id')
+            ->get()
+            ->keyBy('student_id');
+
+        return view('admin.accounts.late-fee-exemptions', compact('exemptions', 'students', 'exemptionCounts'));
+    }
+
+    public function grantLateFeeExemption(Request $request)
+    {
+        $request->validate([
+            'roll_no' => 'required|exists:student_masters,roll_no',
+            'fee_structure_id' => 'required|exists:fees_structures,id',
+            'reason' => 'required|string|max:500'
+        ]);
+
+        // Get student ID from roll number
+        $student = StudentMaster::where('roll_no', $request->roll_no)->firstOrFail();
+        $studentId = $student->id;
+
+        // If no fee structures selected, it's a blanket exemption
+        $feeStructureId = $request->fee_structure_id;
+
+        if (empty($feeStructureIds)) {
+            // Blanket exemption - applies to all fees
+            $feeStructureIds = null;
+        }
+
+        $createdCount = 0;
+
+
+        $createdCount =   StudentLateFeeExemption::updateOrCreate(
+            [
+                'student_id' => $studentId,
+                'fee_structure_id' => $feeStructureId,
+            ],
+            [
+                'reason' => $request->reason,
+                'approved_by' => Auth::id(),
+                'approved_at' => now(),
+                'is_active' => true
+            ]
+        );
+
+        $message = 'Late fee exemption updated successfully!';
+        return redirect()->back()->with('success', $message);
+    }
+
+    public function revokeLateFeeExemption($id)
+    {
+        $exemption = StudentLateFeeExemption::findOrFail($id);
+        $exemption->delete();
+
+        return redirect()->back()->with('success', 'Late fee exemption revoked successfully!');
+    }
+
+    // ---- API ENDPOINTS FOR EXEMPTION PAGE ----
+
+    public function searchStudents(Request $request)
+    {
+        $query = $request->get('q');
+        $page = $request->get('page', 1);
+        $perPage = 20;
+
+        $students = StudentMaster::where(function ($q) use ($query) {
+            $q->where('roll_no', 'LIKE', "%{$query}%")
+                ->orWhere('first_name', 'LIKE', "%{$query}%")
+                ->orWhere('last_name', 'LIKE', "%{$query}%");
+        })
+            ->select('id', 'roll_no', 'first_name', 'last_name')
+            ->paginate($perPage, ['*'], 'page', $page);
+
+        return response()->json([
+            'results' => $students->map(function ($student) {
+                return [
+                    'id' => $student->id,
+                    'roll_no' => $student->roll_no,
+                    'fullname' => $student->first_name . ' ' . $student->last_name
+                ];
+            }),
+            'pagination' => [
+                'more' => $students->hasMorePages()
+            ]
+        ]);
+    }
+
+    public function getStudentFeeStructures($studentId)
+    {
+        $student = StudentMaster::findOrFail($studentId);
+
+        $feeStructures = FeesStructure::where('batch_id', $student->batch)
+            ->whereHas('programspivot', function ($q) use ($student) {
+                $q->where('std_program_id', $student->programme);
+            })
+            ->whereIn('std_current_year', range(1, $student->current_year))
+            ->select('id', 'quarter_title', 'std_current_year', 'quarter_no')
+            ->orderBy('std_current_year')
+            ->orderBy('quarter_no')
+            ->get();
+
+        return response()->json($feeStructures);
+    }
+
+
+
+    public function getStudentUnpaidFees($rollno)
+    {
+        $roll = trim($rollno);
+
+        // ---- FETCH LATE FEE (ONCE) ----
+        $lateFeePerDay = LateFee::where('status', 1)->value('late_fee_amount'); // 100
+
+        // ---- FETCH STUDENT ----
+        $student = StudentMaster::with([
+            'batchmaster',
+            'programgroup.programInfo',
+            'stdfeestructure',
+            'stdfeestructure.programspivot',
+            'feepayment',
+            'feepayment.feestructuremaster.feeHeads',
+        ])
+            ->where('roll_no', $roll)
+            ->firstOrFail();
+
+        // ---- FETCH EXEMPTIONS FOR THIS STUDENT ----
+        $exemptions = StudentLateFeeExemption::where('student_id', $student->id)
+            ->where('is_active', true)
+            ->get()
+            ->keyBy('fee_structure_id');
+
+        // Check if student has blanket exemption (fee_structure_id = null)
+        $hasBlanketExemption = $exemptions->contains(function ($exemption) {
+            return is_null($exemption->fee_structure_id);
+        });
+
+        // ---- FETCH APPLICABLE FEE STRUCTURES ----
+        $applicableFS = FeesStructure::with('feeHeads')
+            ->where('batch_id', $student->batch)
+            ->whereHas('programspivot', function ($q) use ($student) {
+                $q->where('std_program_id', $student->programme);
+            })
+            ->whereIn('std_current_year', range(1, $student->current_year))
+            ->orderBy('std_current_year')
+            ->get();
+
+        // ---- PREPARE FEE STATUS ----
+        $feeStatus = $applicableFS->map(function ($fs) use ($student, $lateFeePerDay, $exemptions, $hasBlanketExemption) {
+
+            // Success payment
+            $successPayment = $student->feepayment
+                ->where('fee_structure_id', $fs->id)
+                ->where('student_id', $student->id)
+                ->where('status', 'success')
+                ->first();
+
+            // Latest attempt
+            $latestPayment = $student->feepayment
+                ->where('fee_structure_id', $fs->id)
+                ->where('student_id', $student->id)
+                ->sortByDesc('created_at')
+                ->first();
+
+            $baseAmount = $fs->feeHeads->sum('amount');
+
+            // ---- LATE FEE LOGIC WITH EXEMPTION CHECK ----
+            $lateDays = 0;
+            $lateFee = 0;
+            $isExempted = false;
+
+            if (!$successPayment && $fs->due_date) {
+                $dueDate = Carbon::parse($fs->due_date);
+                $today   = Carbon::today();
+
+                if ($today->gt($dueDate)) {
+                    $lateDays = $dueDate->diffInDays($today);
+
+                    // ---- CHECK EXEMPTION ----
+                    $isExempted = $hasBlanketExemption || $exemptions->has($fs->id);
+
+                    if (!$isExempted) {
+                        $lateFee  = $lateDays * $lateFeePerDay;
+                    }
+                }
+            }
+
+            return [
+                'fee_structure_id'   => $fs->id,
+                'fee_structure_name' => $fs->quarter_title,
+                'year'               => $fs->std_current_year,
+                'quarter'            => $fs->quarter_no,
+                'is_payable'         => $fs->is_payable,
+                'base_amount'        => $baseAmount,
+                'late_days'          => $lateDays,
+                'late_fee'           => $lateFee,
+                'is_late_fee_exempted' => $isExempted,
+                'total_payable'      => $baseAmount + $lateFee,
+
+                // CORE PAYMENT INFO
+                'paid'               => $successPayment ? true : false,
+                'paid_amount'        => $successPayment->amount ?? 0,
+                'status'             => $successPayment
+                    ? 'PAID'
+                    : ($isExempted && $lateDays > 0 ? 'DUE (Late Fee Exempted)' : ($lateFee > 0 ? 'LATE' : 'DUE')),
+
+                // UI / Debug
+                'last_attempt_status' => $latestPayment->status ?? null,
+                'paymentinfo'         => $latestPayment
+            ];
+        });
+
+        // ---- FILTER OUT: PAID FEES & FEES WITH ACTIVE EXEMPTIONS ----
+        $feeStatus = $feeStatus
+            ->filter(function ($item) use ($hasBlanketExemption) {
+                // Exclude if already paid
+                if ($item['paid'] === true) {
+                    return false;
+                }
+
+                // Exclude if already has blanket exemption
+                if ($hasBlanketExemption) {
+                    return false;
+                }
+
+                // Exclude if this specific fee already has an exemption
+                if ($item['is_late_fee_exempted'] === true) {
+                    return false;
+                }
+
+                return true;
+            })
+            ->values();
+
+        // ---- RETURN JSON RESPONSE ----
+        return response()->json($feeStatus);
     }
 
     function defaultersList(Request $request)
