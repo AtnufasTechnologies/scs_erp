@@ -1011,7 +1011,7 @@ use App\Http\Controllers\StaticController;
 
       <!-- logout -->
     <li>
-      <a href="{{url('erp/logout')}}">
+      <a href="{{url('logout')}}">
         <div class="parent-icon">
           <i class="fas fa-sign-out-alt"></i>
         </div>
