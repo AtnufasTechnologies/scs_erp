@@ -187,9 +187,13 @@ Route::group(['prefix' => '/erp'], function () {
         Route::get('logout', [AdmissionController::class, 'logout'])->name('admission.apply.logout');
         Route::get('application', [AdmissionController::class, 'showApplicationPage'])->name('admission.apply.application');
         Route::post('submit-ug-application-form', [AdmissionController::class, 'ugApplicationSubmit'])->name('submit.ug.application.form');
-
+        Route::get('getcombinations-bydepartment', [AdmissionController::class, 'getCombinationsByDepartment']);
         Route::get('payment-checkout', [AdmissionController::class, 'paymentCheckout'])->name('admission.payment.checkout');
-        Route::post('payment-process', [AdmissionController::class, 'paymentProcess'])->name('admission.payment.process');
+        Route::post('payment-process', [AdmissionController::class, 'initateEaseBuzzPayment'])->name('admission.payment.process');
+
+        Route::post('payment-success', [AdmissionController::class, 'paymentSuccess'])->name('admission.payment.success');
+        Route::post('payment-failure', [AdmissionController::class, 'paymentFailure'])->name('admission.payment.failure');
+        Route::get('application-success-page', [AdmissionController::class, 'showSuccessPage'])->name('admission.application.success');
     });
 
 
@@ -223,4 +227,6 @@ Route::group(['prefix' => '/erp'], function () {
 Route::get('testpage', function () {
     return view('admission.otp-verification');
 });
+
+Route::get('test-function/{id}', [AdmissionController::class, 'testFunction']);
 //ajax routes

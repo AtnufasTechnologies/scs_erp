@@ -21,74 +21,65 @@
   </div>
 </header>
 
-<div class="container">
-  <div class="col-lg-12">
-    <div class="card shadow p-5 application-card radius-30">
-      <div class="text-center">
-        <div class="mb-4">
-          <i class="fas fa-check-circle text-success" style="font-size: 80px;"></i>
-        </div>
-
-        <h2 class="text-success mb-3">Application Submitted Successfully!</h2>
-
-        <p class="lead mb-4">
-          Thank you for submitting your application for UG admission.
-        </p>
-
-        <div class="alert alert-info" role="alert">
-          <h5 class="alert-heading">Application Reference Number</h5>
-          <h3 class="mb-0"><strong>{{$application_id ?? 'N/A'}}</strong></h3>
-          <small>Please save this reference number for future correspondence.</small>
-        </div>
-
-        <div class="card mt-4 mb-4">
-          <div class="card-body text-start">
-            <h5 class="card-title mb-3">Application Details</h5>
-            <div class="row">
-              <div class="col-md-6">
-                <p><strong>Name:</strong> {{$data->first_name ?? ''}}</p>
-                <p><strong>Email:</strong> {{$data->mail_id ?? ''}}</p>
-                <p><strong>Mobile:</strong> {{$data->mobile_no ?? ''}}</p>
-              </div>
-              <div class="col-md-6">
-                <p><strong>Program:</strong> {{$data->programInfo->name ?? ''}}</p>
-                <p><strong>Campus:</strong> {{$data->programInfo->campus->name ?? ''}}</p>
-                <p><strong>Batch:</strong> {{$data->batch_name ?? ''}}</p>
-              </div>
-            </div>
+<div class="container mt-5 mb-5">
+  <div class="row justify-content-center">
+    <div class="col-md-12">
+      <div class="card shadow p-4">
+        <div class="card-body text-center">
+          <h2 class="mb-4">Application Successful</h2>
+          <p class="mb-4">Welcome! Your application has been received successfully. We will contact you shortly with details about your interview.</p>
+          <p class="text-capitalize"> <b>{{$data->academicDeptMaster->title}}</b> <br>{{$data->stdCourseMaster->name}}</p>
+          <h4>Your Application Number is</h4>
+          <div class="d-inline-block mt-3 mb-4 p-3 bg-success text-white rounded" style="font-size: 24px; font-weight: 700; letter-spacing: 1px; box-shadow: 0 4px 10px rgba(0,0,0,0.1);">
+            # {{ $data->application_code }}
           </div>
+          <p>You can also login and Download the application form from your account.</p>
+
+          <a href="" class="btn btn-primary">Download Invoice</a>
+          <a href="{{route('admission.apply.logout')}}" class="btn btn-secondary">Logout</a>
         </div>
-
-        <div class="alert alert-warning" role="alert">
-          <h6><i class="fas fa-info-circle"></i> Next Steps</h6>
-          <ul class="text-start mb-0">
-            <li>You will receive a confirmation email shortly.</li>
-            <li>The admission committee will review your application.</li>
-            <li>Further instructions will be sent to your registered email.</li>
-            <li>Please check your email regularly for updates.</li>
-          </ul>
-        </div>
-
-        <div class="mt-4">
-
-          <a href="{{route('admission.download-pdf', ['id' => $application_id])}}" class="btn btn-success radius-20 me-2">
-            <i class="fas fa-file-pdf"></i> Download PDF
-          </a>
-          <a href="{{route('admission.apply.logout')}}" class="btn btn-secondary radius-20">
-            <i class="fas fa-sign-out-alt"></i> Logout
-        </div>
-
-        <hr class="my-4">
-
-        <p class="text-muted">
-          <small>
-            For any queries, please contact the admission office at
-            <a href="mailto:admissions@salesiancollege.net">admissions@salesiancollege.net</a>
-          </small>
-        </p>
       </div>
     </div>
   </div>
 </div>
+
+
+
+<div class="container mb-5">
+  <div class="row ">
+    @if ($data->phaseoneinfo != null)
+    <div class="col-md-6">
+      <div class="card shadow p-4">
+        <div class="card-body text-center">
+          <h3 class="mb-4">Interview Details</h3>
+          <p>Your interview is scheduled on <strong>{{$data->phaseoneinfo->interview_datetime}}</strong> at
+            <strong>Salesian College {{ $data->registrationmaster->campusmaster->name }}</strong>.
+          </p>
+          <p>Please be prepared and bring all necessary documents.</p>
+          <a href="" class="btn btn-primary">Instructions for Interview</a><br>
+        </div>
+      </div>
+    </div>
+    @endif
+    @if($data->phasetwoinfo != null)
+    <div class="col-md-6">
+      <div class="card shadow p-4">
+        <div class="card-body text-center">
+          <h3 class="mb-4">Admission Details</h3>
+          <p><strong class="text-success">Congratulations! </strong> you have been <strong class="text-success">selected</strong> for admission.</p>
+          <p>Visit College Office within 5 Days to Make Payment and Reserve Your Slot.
+            <strong>Salesian College {{ $data->registrationmaster->campusmaster->name }}</strong>.
+          </p>
+          <a href="" class="btn btn-primary">Instructions for Admission</a><br>
+        </div>
+      </div>
+    </div>
+    @endif
+  </div>
+</div>
+
+
+
+
 
 @include('includes.footer')

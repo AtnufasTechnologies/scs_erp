@@ -8,6 +8,7 @@ use App\Models\CognitiveLevelMaster;
 use App\Models\Department;
 use App\Models\Faculty;
 use App\Models\LectureHallMaster;
+use App\Models\StudentProgram;
 use App\Models\Subject;
 use App\Models\SubjectHasCombination;
 use App\Models\SubjectHasRoutine;
@@ -24,6 +25,8 @@ class SubjectController extends Controller
 {
     function index()
     {
+
+
         $data = Subject::with([
             'campusmaster'
         ])->latest()->get();
@@ -79,6 +82,7 @@ class SubjectController extends Controller
     {
 
         $id = $request->id;
+
         if (!empty($request->batch)) {
             $batchmaster = BatchMaster::where('id', $request->batch)->first();
             $batchId = $batchmaster->id;
@@ -86,23 +90,20 @@ class SubjectController extends Controller
             $batchmaster = BatchMaster::where('admission_active_batch', 1)->first();
             $batchId = $batchmaster->id;
         }
+        $query = Subject::find($id);
 
-        $data = Subject::with([
-            'syllabus.sessionmaster',
-            'syllabus.semestermaster:id,title',
-            'syllabus.subtypemaster:id,title',
-            'syllabus.timetable.weekdaymaster:id,title',
-            'syllabus.timetable.hourmaster:id,title',
-            'syllabus.timetable.lecturehallmaster.acblockmaster:id,title',
-            'program_master:id,title',
-            'programs',
-            'semesters.semestermaster:id,title',
-
-        ])->with('syllabus', function ($q) use ($batchId) {
+        $query->with(['combinations', 'semesters.syllabus'])->with('syllabus', function ($q) use ($batchId) {
             $q->where('session_id', $batchId);
         })->where('id', $id)
-            ->firstOrFail();
-        return view('admin.subject.subject-single', ['data' => $data, 'batchmaster' => $batchmaster]);
+            ->first();
+
+        $data = $query;
+        $programs = StudentProgram::where('campus_id', $query->campus_id)->latest()->get();
+        return view('admin.subject.subject-single', [
+            'data' => $data,
+            'batchmaster' => $batchmaster,
+            'programs' => $programs
+        ]);
     }
 
 
@@ -217,22 +218,23 @@ class SubjectController extends Controller
     {
         $validator  =  $request->validate([
             'subject_id' => 'required',
+            'batch_id' => 'required',
             'programs' => 'required|array|min:1',
-
         ]);
 
         $programs = $request->programs;
         $subject_id = $request->subject_id;
+        $data = Subject::find($subject_id);
 
         for ($i = 0; $i < count($programs); $i++) {
             $subject = new SubjectHasStudentProgam();
             $subject->subject_id = $subject_id;
+            $subject->batch_id = $request->batch_id;
             $subject->student_program_id = $programs[$i];
+            $subject->campus_id = $data->campus_id;
             $subject->save();
         }
 
-
-
-        return redirect()->back()->with('success', 'Programs linked successfully');
+        return redirect()->back()->with('success', 'Combinations linked successfully');
     }
 }

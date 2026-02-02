@@ -26,7 +26,7 @@ class Subject extends Model
     }
 
 
-    function programs()
+    function combinations()
     {
         return $this->hasMany(SubjectHasStudentProgam::class, 'subject_id', 'id');
     }

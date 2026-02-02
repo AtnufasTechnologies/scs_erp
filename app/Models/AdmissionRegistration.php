@@ -4,6 +4,7 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Foundation\Auth\User as Authenticatable;
+use Illuminate\Database\Eloquent\Casts\Attribute;
 
 class AdmissionRegistration extends Authenticatable
 {
@@ -25,11 +26,23 @@ class AdmissionRegistration extends Authenticatable
     }
     function applicationmaster()
     {
-        return  $this->hasOne(AdmissionApplication::class, 'reg_id', 'id');
+        return  $this->hasOne(AdmissionApplication::class, 'registration_id', 'id');
     }
 
     function programmaster()
     {
         return  $this->hasOne(ProgramMaster::class, 'id', 'application_type');
+    }
+    function campusmaster()
+    {
+        return  $this->hasOne(Campus::class, 'id', 'campus_id');
+    }
+
+    // Total amount for this fee structure
+    protected function fullName(): Attribute
+    {
+        return Attribute::make(
+            get: fn($value, $attributes) => $attributes['first_name'] . ' ' . $attributes['last_name'],
+        );
     }
 }

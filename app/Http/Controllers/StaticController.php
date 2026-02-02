@@ -92,14 +92,29 @@ class StaticController extends Controller
   //   $rec->save();
   // }
 
-  //S3 
-  static function s3_resize_image_uploader($img, $path, $resizeto)
+
+  //S3 Storage Functions
+
+  static function s3_image_uploader($img, $path)
   {
 
     $newImageName = $img->getClientOriginalName();
     //add timestamp to stop duplication
-    $filename =  Carbon::now()->timestamp . '_' . $newImageName;
-    $filename = preg_replace('/\s+/', '', $filename);
+    $imgName =  Carbon::now()->timestamp . '_' . $newImageName;
+    $imgName = preg_replace('/\s+/', '', $imgName);
+    $image_resize =  Image::make($img->getRealPath());
+    $image_resize = $image_resize->stream();
+    $filename = $path . '/' . $imgName;
+    Storage::disk('s3')->put($filename, $image_resize->__toString());
+    return $filename;
+  }
+
+  static function s3_resize_image_uploader($img, $path, $resizeto)
+  {
+    $newImageName = $img->getClientOriginalName();
+    //add timestamp to stop duplication
+    $imgName =  Carbon::now()->timestamp . '_' . $newImageName;
+    $imgName = preg_replace('/\s+/', '', $imgName);
     $image_resize =  Image::make($img->getRealPath());
 
     $image_resize->widen($resizeto, function ($constraint) {
@@ -107,8 +122,8 @@ class StaticController extends Controller
     });
 
     $image_resize = $image_resize->stream();
-    $path = $path . '/' . $filename;
-    Storage::disk('s3')->put($path, $image_resize->__toString());
+    $filename = $path . '/' . $imgName;
+    Storage::disk('s3')->put($filename, $image_resize->__toString());
 
     return $filename;
   }
@@ -118,14 +133,37 @@ class StaticController extends Controller
 
     $newImageName = $file->getClientOriginalName();
     //add timestamp to stop duplication
-    $filename =  Carbon::now()->timestamp . '_' . $newImageName;
-    $filename = preg_replace('/\s+/', '', $filename);
+    $renamed =  Carbon::now()->timestamp . '_' . $newImageName;
+    $docName = preg_replace('/\s+/', '', $renamed);
 
-    $path = $path . '/' . $filename;
-    Storage::disk('s3')->put($path, file_get_contents($file));
+    $filename = $path . '/' . $docName;
+    Storage::disk('s3')->put($filename, file_get_contents($file));
 
     return $filename;
   }
+
+
+  static function s3_file_unlink($img, $path)
+  {
+    if (Storage::disk('s3')->exists($path . '/' . $img)) {
+      Storage::disk('s3')->delete($path . '/' . $img);
+    }
+  }
+
+
+
+  static function delete_with_s3_image($model, $id, $path)
+  {
+
+    $data = $model::where('id', $id)->first();
+    if (Storage::disk('s3')->exists($path . $data->pic)) {
+      Storage::disk('s3')->delete($path . $data->pic);
+    }
+    $model::where('id', $data->id)->delete();
+  }
+
+
+  //S3 Ends
 
   static function easebuzz_verifyPaymentWithHash($txnid)
   {
