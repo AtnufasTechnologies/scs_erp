@@ -11,13 +11,16 @@ return new class extends Migration
      */
     public function up(): void
     {
-        Schema::create('subject_has_dept_admins', function (Blueprint $table) {
+        Schema::create('admission_application_payment_logs', function (Blueprint $table) {
             $table->id();
-            $table->integer('subject_id'); //understanding it as dept
+            $table->string('txnid');
+            $table->string('easepayid')->nullable();
             $table->integer('user_id');
-            $table->integer('campus_id');
+            $table->float('amount');
+            $table->text('hash');
+            $table->text('msg');
+            $table->string('status');
             $table->timestamps();
-            $table->softDeletes();
         });
     }
 
@@ -26,6 +29,6 @@ return new class extends Migration
      */
     public function down(): void
     {
-        Schema::dropIfExists('subject_has_dept_admins');
+        Schema::dropIfExists('admission_application_payment_logs');
     }
 };

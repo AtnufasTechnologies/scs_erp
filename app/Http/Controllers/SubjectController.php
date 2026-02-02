@@ -3,11 +3,11 @@
 namespace App\Http\Controllers;
 
 use App\Models\BatchMaster;
+use App\Models\Campus;
 use App\Models\CognitiveLevelMaster;
 use App\Models\Department;
 use App\Models\Faculty;
 use App\Models\LectureHallMaster;
-use App\Models\ProgramCourseMaster;
 use App\Models\StudentProgram;
 use App\Models\Subject;
 use App\Models\SubjectHasCombination;
@@ -25,8 +25,10 @@ class SubjectController extends Controller
 {
     function index()
     {
+
+
         $data = Subject::with([
-            'program_master'
+            'campusmaster'
         ])->latest()->get();
         return view('admin.master.subject', ['data' => $data]);
     }
@@ -45,18 +47,36 @@ class SubjectController extends Controller
         $request->validate([
             'code' => 'required|string|max:100',
             'title' => 'required|string|max:255',
+            'campus' => 'required',
         ]);
         $slug = Str::slug($request->title);
         $check = Subject::where('slug', $slug)->count();
         if ($check > 0) {
             return response()->json(['msg' => 'Subject already exists', 'status' => 'error']);
         } else {
-            $rec = new Subject();
-            $rec->program_id = $request->program_id;
-            $rec->slug =   $slug;
-            $rec->code = Str::upper($request->code);
-            $rec->title = Str::lower($request->title);
-            $rec->save();
+
+            if ($request->campus == 3) {
+                $campuses = Campus::all();
+                foreach ($campuses as $campus) {
+                    $rec = new Subject();
+                    $rec->campus_id = $campus->id;
+                    $rec->main_program_type = 'PG';
+                    $rec->slug =   $slug;
+                    $rec->code = Str::upper($request->code);
+                    $rec->title = Str::lower($request->title);
+                    $rec->save();
+                }
+            } else {
+                $rec = new Subject();
+                $rec->campus_id = $request->campus;
+                $rec->main_program_type = 'UG';
+                $rec->slug =   $slug;
+                $rec->code = Str::upper($request->code);
+                $rec->title = Str::lower($request->title);
+                $rec->save();
+            }
+
+
             return redirect()->back()->with('success', 'Created');
         }
     }
@@ -65,6 +85,7 @@ class SubjectController extends Controller
     {
 
         $id = $request->id;
+
         if (!empty($request->batch)) {
             $batchmaster = BatchMaster::where('id', $request->batch)->first();
             $batchId = $batchmaster->id;
@@ -72,23 +93,20 @@ class SubjectController extends Controller
             $batchmaster = BatchMaster::where('admission_active_batch', 1)->first();
             $batchId = $batchmaster->id;
         }
+        $query = Subject::find($id);
 
-        $data = Subject::with([
-            'syllabus.sessionmaster',
-            'syllabus.semestermaster:id,title',
-            'syllabus.subtypemaster:id,title',
-            'syllabus.timetable.weekdaymaster:id,title',
-            'syllabus.timetable.hourmaster:id,title',
-            'syllabus.timetable.lecturehallmaster.acblockmaster:id,title',
-            'program_master:id,title',
-            'programs',
-            'semesters.semestermaster:id,title',
-
-        ])->with('syllabus', function ($q) use ($batchId) {
+        $query->with(['combinations', 'semesters.syllabus'])->with('syllabus', function ($q) use ($batchId) {
             $q->where('session_id', $batchId);
         })->where('id', $id)
-            ->firstOrFail();
-        return view('admin.subject.subject-single', ['data' => $data, 'batchmaster' => $batchmaster]);
+            ->first();
+
+        $data = $query;
+        $programs = StudentProgram::where('campus_id', $query->campus_id)->latest()->get();
+        return view('admin.subject.subject-single', [
+            'data' => $data,
+            'batchmaster' => $batchmaster,
+            'programs' => $programs
+        ]);
     }
 
 
@@ -199,72 +217,27 @@ class SubjectController extends Controller
         return redirect()->back()->with('success', 'Subject Deleted');
     }
 
-    // function linkStdPrograms(Request $request)
-    // {
-
-    //     $validator  =  $request->validate([
-    //         'subject_id' => 'required',
-    //         'programs' => 'required|array|min:1',
-
-    //     ]);
-
-    //     $programs = $request->programs;
-    //     $subject_id = $request->subject_id;
-    //     $department = [];
-    //     for ($i = 0; $i < count($programs); $i++) {
-    //         $program = Department::find($programs[$i]);
-    //         $subject = new SubjectHasStudentProgam();
-    //         $subject->subject_id = $subject_id;
-    //         $subject->student_program_id = $programs[$i];
-    //         $subject->save();
-    //     }
-
-    //     return redirect()->back()->with('success', 'Old Departments Connected successfully');
-    // }
-
-    function callCourseCombinations()
+    function linkStdPrograms(Request $request)
     {
-        $data = StudentProgram::with('departmentmaster.campusmaster')->get();
-        return view('admin.academics.course-combinations', ['data' => $data]);
-    }
-
-    function programCourseMaster(Request $request)
-    {
-
-        $query = ProgramCourseMaster::with([
-            'semestermaster',
-            'coursetypemaster',
-            'departmentmaster.campusmaster',
+        $validator  =  $request->validate([
+            'subject_id' => 'required',
+            'batch_id' => 'required',
+            'programs' => 'required|array|min:1',
         ]);
 
-        if (!empty($request->department)) {
-            $query->where('DEPARTMENT', $request->department);
+        $programs = $request->programs;
+        $subject_id = $request->subject_id;
+        $data = Subject::find($subject_id);
+
+        for ($i = 0; $i < count($programs); $i++) {
+            $subject = new SubjectHasStudentProgam();
+            $subject->subject_id = $subject_id;
+            $subject->batch_id = $request->batch_id;
+            $subject->student_program_id = $programs[$i];
+            $subject->campus_id = $data->campus_id;
+            $subject->save();
         }
 
-        if (!empty($request->course_type)) {
-            $query->where('COURSE_TYPE', $request->course_type);
-        }
-
-        if (!empty($request->semester)) {
-            $query->where('SEMESTER_ID', $request->semester);
-        }
-
-        if (!empty($request->academic_year)) {
-            $query->where('ACADEMIC_YEAR', $request->academic_year);
-        }
-
-        if (empty($request)) {
-            $data = ProgramCourseMaster::with([
-                'semestermaster',
-                'coursetypemaster',
-                'departmentmaster.campusmaster',
-            ])->orderby('COURSE_ROOT_ID', 'DESC')->get();
-        }
-
-        $data = $query->orderby('COURSE_ROOT_ID', 'DESC')->get();
-
-
-
-        return view('admin.academics.program-course-master', ['data' => $data]);
+        return redirect()->back()->with('success', 'Combinations linked successfully');
     }
 }

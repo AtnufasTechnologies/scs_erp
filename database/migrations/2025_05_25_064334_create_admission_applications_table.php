@@ -13,56 +13,130 @@ return new class extends Migration
     {
         Schema::create('admission_applications', function (Blueprint $table) {
             $table->id();
-            $table->string('application_id');
             $table->integer('user_id');
-            $table->integer('reg_id'); //gives you program UG or PG / and Campus
-            $table->integer('dept_id');
-            $table->integer('programme_id');
-            $table->string('name');
-            $table->date('dob');
-            $table->integer('bloodgroup');
-            $table->string('gender');
-            $table->integer('religion_id');
+            $table->integer('registration_id');
+            $table->integer('application_code')->nullable();
+            $table->string('photo')->nullable();
+            $table->string('department')->nullable();
+            $table->string('course')->nullable();
+            $table->date('dob')->nullable();
+            $table->string('bloodgroup')->nullable();
+            $table->string('gender')->nullable();
+            $table->string('religion')->nullable();
+            $table->string('mothertongue')->nullable();
+            $table->string('phychallenged')->nullable();
+            $table->string('caste')->nullable();
+            $table->string('laptop', 20)->nullable();
+            $table->string('teaestate', 20)->nullable();
             $table->string('baptism')->nullable();
-            $table->string('mothertongue');
-            $table->enum('physically_challanged', ['No', 'Yes'])->default('No');
-            $table->string('pic');
-            $table->string('fname')->nullable();
-            $table->string('foccupation')->nullable();
-            $table->string('fcontact')->nullable();
-            $table->string('mname')->nullable();
-            $table->string('moccupation')->nullable();
-            $table->string('mcontact')->nullable();
-            $table->string('gname')->nullable();
-            $table->string('gcontact')->nullable();
-            $table->integer('monthly_income');
-            $table->text('permanent_address');
-            $table->integer('per_pin');
-            $table->text('local_address');
-            $table->integer('loc_pin');
-            $table->text('institution10');
-            $table->text('institution12');
-            $table->string('sub1');
-            $table->string('sub2');
-            $table->string('sub3');
-            $table->string('sub4');
-            $table->string('sub5');
-            $table->string('score1');
-            $table->string('score2');
-            $table->string('score3');
-            $table->string('score4');
-            $table->string('score5');
-            $table->string('certificate_10');
-            $table->string('certificate_12');
-            $table->string('payment_gateway_id')->nullable(); //gateway
-            $table->integer('captured_amount')->nullable(); //gateway
-            $table->string('payment_gateway_status')->nullable(); //gateway status check    
-            $table->integer('amount_refunded')->nullable(); //gateway
-            $table->string('captured_currency')->nullable(); //gateway
-            $table->text('hash')->nullable(); //gateway
-            $table->string('msg')->nullable(); //gateway
-            $table->enum('gateway_type', ['easebuzz', 'billdesk'])->nullable(); //gateway
-            $table->enum('application_status', ['saved', 'applied'])->default('saved'); //0-saved,1-applied
+
+            $table->string('father_name', 255)->nullable();
+            $table->string('father_contact', 15)->nullable();
+            $table->string('father_occupation', 255)->nullable();
+            $table->string('mother_name', 255)->nullable();
+            $table->string('mother_contact', 15)->nullable();
+            $table->string('mother_occupation', 255)->nullable();
+            $table->integer('income')->nullable();
+            $table->text('permanent_address')->nullable();
+            $table->string('district', 255)->nullable();
+            $table->string('city', 255)->nullable();
+            $table->string('pincode', 20)->nullable();
+            $table->text('local_address')->nullable();
+            $table->string('local_district', 255)->nullable();
+            $table->string('local_city', 255)->nullable();
+            $table->string('local_pincode', 20)->nullable();
+
+            // Class 10 Details
+            $table->string('institution10')->nullable();
+            $table->string('rollno10', 255)->nullable();
+            $table->string('board10', 255)->nullable();
+            $table->integer('passingyear10')->nullable();
+            $table->string('certificate10')->nullable(); // stored path/filename
+            $table->integer('percentage10')->nullable();
+            $table->integer('fullmark10')->nullable();
+            $table->integer('passmark10')->nullable();
+
+            // Class 10 Subjects
+            $table->string('subject10_1', 255)->nullable();
+            $table->integer('score10_1')->nullable();
+
+            $table->string('subject10_2', 255)->nullable();
+            $table->integer('score10_2')->nullable();
+
+            $table->string('subject10_3', 255)->nullable();
+            $table->integer('score10_3')->nullable();
+
+            $table->string('subject10_4', 255)->nullable();
+            $table->integer('score10_4')->nullable();
+
+            $table->string('subject10_5', 255)->nullable();
+            $table->integer('score10_5')->nullable();
+
+
+            // Class 12 Details
+            $table->string('institution12')->nullable();
+            $table->string('rollno12', 255)->nullable();
+            $table->string('board12', 255)->nullable();
+            $table->integer('passingyear12')->nullable();
+            $table->string('certificate12')->nullable(); // stored path/filename
+            $table->integer('percentage12')->nullable();
+            $table->integer('fullmark12')->nullable();
+            $table->integer('passmark12')->nullable();
+            // Class 12 Subjects
+            $table->string('subject12_1', 255)->nullable();
+            $table->integer('score12_1')->nullable();
+
+            $table->string('subject12_2', 255)->nullable();
+            $table->integer('score12_2')->nullable();
+
+            $table->string('subject12_3', 255)->nullable();
+            $table->integer('score12_3')->nullable();
+
+            $table->string('subject12_4', 255)->nullable();
+            $table->integer('score12_4')->nullable();
+
+            $table->string('subject12_5', 255)->nullable();
+            $table->integer('score12_5')->nullable();
+
+
+            //SGPA Details
+            $table->string('sem1')->nullable();
+            $table->string('sgpa1')->nullable();
+            $table->integer('percentage1')->nullable();
+            $table->string('grade1', 10)->nullable();
+
+            $table->string('sem2')->nullable();
+            $table->string('sgpa2')->nullable();
+            $table->integer('percentage2')->nullable();
+            $table->string('grade2', 10)->nullable();
+
+            $table->string('sem3')->nullable();
+            $table->string('sgpa3')->nullable();
+            $table->integer('percentage3')->nullable();
+            $table->string('grade3', 10)->nullable();
+
+            $table->string('sem4')->nullable();
+            $table->string('sgpa4')->nullable();
+            $table->integer('percentage4')->nullable();
+            $table->string('grade4', 10)->nullable();
+
+            $table->string('sem5')->nullable();
+            $table->string('sgpa5')->nullable();
+            $table->integer('percentage5')->nullable();
+            $table->string('grade5', 10)->nullable();
+
+            $table->string('sem6')->nullable();
+            $table->string('sgpa6')->nullable();
+            $table->integer('percentage6')->nullable();
+            $table->string('grade6', 10)->nullable();
+
+            //Gateway Details
+            $table->string('gateway_type')->nullable();
+            $table->string('payment_gateway_ref')->nullable();
+            $table->string('captured_amount')->nullable();
+            $table->string('hash')->nullable();
+            $table->string('payment_gateway_status')->nullable();
+
             $table->timestamps();
             $table->softDeletes();
         });

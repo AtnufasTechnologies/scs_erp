@@ -1,3 +1,11 @@
+<?php
+
+use App\Models\BatchMaster;
+
+$batch = BatchMaster::where('admission_active_batch', 1)->value('batch_name');
+
+
+?>
 <!DOCTYPE html>
 <html lang="en">
 
@@ -9,30 +17,31 @@
   <link rel="stylesheet" href="{{ asset('admin/fontawesomepro/all.min.css') }}" />
   <link rel="shortcut icon" href="{{asset('admin/images/logo.png')}}" type="image/x-icon">
   <link rel="stylesheet" href="https://unpkg.com/@jarstone/dselect/dist/css/dselect.css">
+  <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+  <style>
 
+  </style>
 </head>
 
 <body>
-  <div id="container" class="container">
-    <!-- FORM SECTION -->
-    <div class="row">
-      <!-- SIGN UP -->
-      <div class="col align-items-center flex-col sign-up">
-        <div class="form-wrapper align-items-center scroll-container">
+  <div class="parallax-container">
 
-          <div class="form sign-up ">
+    <div class="main-container">
+      <div class="auth-wrapper" id="authWrapper">
+
+        <!-- Sign Up Form -->
+        <div class="form-section" id="signUpSection">
+          <div class="scroll-container">
+            <div class="form-header">
+              <img src="{{asset('admin/images/scslogo.png')}}" alt="logo">
+              <h3>Admission Portal - {{$batch}}</h3>
+            </div>
+
             <form action="{{route('admission.registration.submit')}}" method="post">
               @csrf
-              <img src="{{asset('admin/images/logo.png')}}" alt="logo" width="80">
-              <h3>Salesain College Autonomous</h3>
-              <h5>Sonada and Siliguri</h5>
-              <br>
-              <h3>Admission Portal</h3>
-
-
               <div class="input-group">
                 <i class="fa fa-home"></i>
-                <select name="campus" class="form-control mb-3 " id="regcampusId">
+                <select name="campus" class="form-control" id="regcampusId">
                   <option value="">Select Campus *</option>
                   @foreach ($campuses as $campus)
                   <option value="{{$campus->id}}">{{$campus->name}}</option>
@@ -45,8 +54,7 @@
 
               <div class="input-group" id="dynamicProg">
                 <i class="fa fa-bookmark"></i>
-                <select class="form-control mb-3" id="mainPrograms" name="applicationType">
-
+                <select class="form-control" id="mainPrograms" name="applicationType">
                 </select>
                 @error('applicationType')
                 <span class="text-danger">{{$message}}</span>
@@ -60,6 +68,7 @@
                 <span class="text-danger">{{$message}}</span>
                 @enderror
               </div>
+
               <div class="input-group">
                 <i class="fas fa-user-circle"></i>
                 <input type="text" placeholder="Last Name *" name="lastname" value="{{old('lastname')}}">
@@ -90,9 +99,10 @@
               </div>
 
               <div class="input-group">
+                <i class="fa fa-eye toggle-password" data-target="password"></i>
                 <input type="password" placeholder="Password (min 6 character) *" name="password" id="password">
                 <span class="input-group-text" onclick="togglePassword()" style="cursor:pointer">
-                  <i class="fa fa-eye toggle-password" data-target="password"></i>
+
                 </span>
                 @error('password')
                 <span class="text-danger">{{$message}}</span>
@@ -107,138 +117,109 @@
                 @enderror
               </div>
 
-
-
               <span class="captcha-image">{!! captcha_img('flat') !!}</span>
               <div class="input-group">
-
-                <i class="fas fa-redo-alt " id="refresh-captcha"></i>
-                <input id="captcha_input" type="text" name="captcha_input">
+                <i class="fas fa-redo-alt" id="refresh-captcha" style="cursor:pointer"></i>
+                <input id="captcha_input" type="text" name="captcha_input" placeholder="Enter Captcha">
                 @error('captcha_input')
                 <span class="text-danger">{{ $message }}</span>
                 @enderror
               </div>
 
-              <button type="submit">
-                Sign up
-              </button>
+              <button type="submit">Sign up</button>
 
-              <p>
-                <span>
-                  Already have an account?
-                </span>
-                <b onclick="toggle()" class="pointer">
-                  Log in here
-                </b>
-              </p>
-            </form>
-          </div>
-
-        </div>
-
-      </div>
-      <!-- END SIGN UP -->
-      <!-- SIGN IN -->
-      <div class="col align-items-center flex-col sign-in">
-        <div class="form-wrapper align-items-center">
-          <div class="form sign-in">
-            <form action="{{route('applicant.login')}}" method="post">
-              @csrf
-              <img src="{{asset('admin/images/logo.png')}}" alt="logo">
-              <h3>Salesain College Autonomous</h3>
-              <h5>Sonada and Siliguri</h5><br>
-              <h3>Applicant Login</h3>
-              <div class="input-group">
-                <i class='fa fa-mobile-alt'></i>
-                <input type="text" placeholder="Registered Number" name="registered_no">
-                @error('registered_no')
-                <span class="text-danger">{{$message}}</span>
-                @enderror
-
-              </div>
-              <div class="input-group">
-                <i class='fa fa-lock-alt'></i>
-                <input type="password" placeholder="Password" name="registered_password">
-                @error('registered_password')
-                <span class="text-danger">{{$message}}</span>
-                @enderror
-              </div>
-              <button type="submit">
-                Sign in
-              </button>
-              <p>
-                <b>
-                  Forgot password?
-                </b>
-              </p>
-              <p>
-                <span>
-                  Don't have an account?
-                </span>
-                <b onclick="toggle()" class="pointer">
-                  Sign up here
-                </b>
+              <p style="text-align: center; margin-top: 20px;">
+                <span>Already have an account? </span>
+                <a href="{{route('new.admission.login')}}"><b>Log in here</b></a>
               </p>
             </form>
           </div>
         </div>
-        <div class="form-wrapper">
 
+
+        <!-- Content Section -->
+        <div class="content-section" id="contentSection">
+          <h2 id="contentTitle">New Applicant<br>Instructions</h2>
+          <div style="max-height: 400px; overflow-y: auto; padding-right: 15px; scrollbar-width: thin; scrollbar-color: rgba(255, 255, 255, 0.5) transparent;">
+
+            <p>Lorem ipsum dolor sit amet, consectetur adipiscing elit. Sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat.</p>
+            <p>Duis aute irure dolor in reprehenderit in voluptate velit esse cillum dolore eu fugiat nulla pariatur. Excepteur sint occaecat cupidatat non proident, sunt in culpa qui officia deserunt mollit anim id est laborum.</p>
+            <p>Sed ut perspiciatis unde omnis iste natus error sit voluptatem accusantium doloremque laudantium, totam rem aperiam, eaque ipsa quae ab illo inventore veritatis et quasi architecto beatae vitae dicta sunt explicabo.</p>
+            <p>Nemo enim ipsam voluptatem quia voluptas sit aspernatur aut odit aut fugit, sed quia consequuntur magni dolores eos qui ratione voluptatem sequi nesciunt. Neque porro quisquam est, qui dolorem ipsum quia dolor sit amet.</p>
+            <p>At vero eos et accusamus et iusto odio dignissimos ducimus qui blanditiis praesentium voluptatum deleniti atque corrupti quos dolores et quas molestias excepturi sint occaecati cupiditate non provident.</p>
+            <p>Lorem ipsum dolor sit amet, consectetur adipiscing elit. Sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat.</p>
+            <p>Duis aute irure dolor in reprehenderit in voluptate velit esse cillum dolore eu fugiat nulla pariatur. Excepteur sint occaecat cupidatat non proident, sunt in culpa qui officia deserunt mollit anim id est laborum.</p>
+            <p>Sed ut perspiciatis unde omnis iste natus error sit voluptatem accusantium doloremque laudantium, totam rem aperiam, eaque ipsa quae ab illo inventore veritatis et quasi architecto beatae vitae dicta sunt explicabo.</p>
+            <p>Nemo enim ipsam voluptatem quia voluptas sit aspernatur aut odit aut fugit, sed quia consequuntur magni dolores eos qui ratione voluptatem sequi nesciunt. Neque porro quisquam est, qui dolorem ipsum quia dolor sit amet.</p>
+            <p>At vero eos et accusamus et iusto odio dignissimos ducimus qui blanditiis praesentium voluptatum deleniti atque corrupti quos dolores et quas molestias excepturi sint occaecati cupiditate non provident.</p>
+            <p>Lorem ipsum dolor sit amet, consectetur adipiscing elit. Sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat.</p>
+            <p>Duis aute irure dolor in reprehenderit in voluptate velit esse cillum dolore eu fugiat nulla pariatur. Excepteur sint occaecat cupidatat non proident, sunt in culpa qui officia deserunt mollit anim id est laborum.</p>
+            <p>Sed ut perspiciatis unde omnis iste natus error sit voluptatem accusantium doloremque laudantium, totam rem aperiam, eaque ipsa quae ab illo inventore veritatis et quasi architecto beatae vitae dicta sunt explicabo.</p>
+            <p>Nemo enim ipsam voluptatem quia voluptas sit aspernatur aut odit aut fugit, sed quia consequuntur magni dolores eos qui ratione voluptatem sequi nesciunt. Neque porro quisquam est, qui dolorem ipsum quia dolor sit amet.</p>
+            <p>At vero eos et accusamus et iusto odio dignissimos ducimus qui blanditiis praesentium voluptatum deleniti atque corrupti quos dolores et quas molestias excepturi sint occaecati cupiditate non provident.</p>
+            <p>Lorem ipsum dolor sit amet, consectetur adipiscing elit. Sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat.</p>
+            <p>Duis aute irure dolor in reprehenderit in voluptate velit esse cillum dolore eu fugiat nulla pariatur. Excepteur sint occaecat cupidatat non proident, sunt in culpa qui officia deserunt mollit anim id est laborum.</p>
+            <p>Sed ut perspiciatis unde omnis iste natus error sit voluptatem accusantium doloremque laudantium, totam rem aperiam, eaque ipsa quae ab illo inventore veritatis et quasi architecto beatae vitae dicta sunt explicabo.</p>
+            <p>Nemo enim ipsam voluptatem quia voluptas sit aspernatur aut odit aut fugit, sed quia consequuntur magni dolores eos qui ratione voluptatem sequi nesciunt. Neque porro quisquam est, qui dolorem ipsum quia dolor sit amet.</p>
+            <p>At vero eos et accusamus et iusto odio dignissimos ducimus qui blanditiis praesentium voluptatum deleniti atque corrupti quos dolores et quas molestias excepturi sint occaecati cupiditate non provident.</p>
+            <p>Lorem ipsum dolor sit amet, consectetur adipiscing elit. Sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat.</p>
+            <p>Duis aute irure dolor in reprehenderit in voluptate velit esse cillum dolore eu fugiat nulla pariatur. Excepteur sint occaecat cupidatat non proident, sunt in culpa qui officia deserunt mollit anim id est laborum.</p>
+            <p>Sed ut perspiciatis unde omnis iste natus error sit voluptatem accusantium doloremque laudantium, totam rem aperiam, eaque ipsa quae ab illo inventore veritatis et quasi architecto beatae vitae dicta sunt explicabo.</p>
+            <p>Nemo enim ipsam voluptatem quia voluptas sit aspernatur aut odit aut fugit, sed quia consequuntur magni dolores eos qui ratione voluptatem sequi nesciunt. Neque porro quisquam est, qui dolorem ipsum quia dolor sit amet.</p>
+            <p>At vero eos et accusamus et iusto odio dignissimos ducimus qui blanditiis praesentium voluptatum deleniti atque corrupti quos dolores et quas molestias excepturi sint occaecati cupiditate non provident.</p>
+            <p>Lorem ipsum dolor sit amet, consectetur adipiscing elit. Sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat.</p>
+            <p>Duis aute irure dolor in reprehenderit in voluptate velit esse cillum dolore eu fugiat nulla pariatur. Excepteur sint occaecat cupidatat non proident, sunt in culpa qui officia deserunt mollit anim id est laborum.</p>
+            <p>Sed ut perspiciatis unde omnis iste natus error sit voluptatem accusantium doloremque laudantium, totam rem aperiam, eaque ipsa quae ab illo inventore veritatis et quasi architecto beatae vitae dicta sunt explicabo.</p>
+            <p>Nemo enim ipsam voluptatem quia voluptas sit aspernatur aut odit aut fugit, sed quia consequuntur magni dolores eos qui ratione voluptatem sequi nesciunt. Neque porro quisquam est, qui dolorem ipsum quia dolor sit amet.</p>
+            <p>At vero eos et accusamus et iusto odio dignissimos ducimus qui blanditiis praesentium voluptatum deleniti atque corrupti quos dolores et quas molestias excepturi sint occaecati cupiditate non provident.</p>
+          </div>
         </div>
+
       </div>
-      <!-- END SIGN IN -->
     </div>
-    <!-- END FORM SECTION -->
-    <!-- CONTENT SECTION -->
-    <div class="row content-row">
-      <!-- SIGN IN CONTENT -->
-      <div class="col align-items-center flex-col">
-        <div class="text sign-in">
-
-          <h2>
-            Admission Portal
-          </h2>
-
-        </div>
-        <div class="img sign-in">
-
-        </div>
-      </div>
-      <!-- END SIGN IN CONTENT -->
-      <!-- SIGN UP CONTENT -->
-      <div class="col align-items-center flex-col">
-        <div class="img sign-up">
-
-        </div>
-        <div class="text sign-up">
-
-          <h2>
-            New Applicant <br> Registration
-          </h2>
-
-
-        </div>
-      </div>
-      <!-- END SIGN UP CONTENT -->
-    </div>
-    <!-- END CONTENT SECTION -->
   </div>
+
+
+  <div class="parallax-bg">
+    <div class="parallax-shape shape-1"></div>
+    <div class="parallax-shape shape-2"></div>
+    <div class="parallax-shape shape-3"></div>
+  </div>
+
   <script src="{{asset('admin/js/jquery.min.js')}}"></script>
   <script src="https://unpkg.com/@jarstone/dselect/dist/js/dselect.js"></script>
-
+  <script src="{{asset('admin/js/admission.js')}}"></script>
   <script>
-    let container = document.getElementById('container')
+    function toggle() {
+      const signUpSection = document.getElementById('signUpSection');
+      const signInSection = document.getElementById('signInSection');
+      const contentTitle = document.getElementById('contentTitle');
 
-    toggle = () => {
-      container.classList.toggle('sign-in')
-      container.classList.toggle('sign-up')
+      signUpSection.classList.toggle('hidden');
+      signInSection.classList.toggle('hidden');
+
+      if (signUpSection.classList.contains('hidden')) {
+        contentTitle.innerHTML = 'Admission Portal';
+      } else {
+        contentTitle.innerHTML = 'New Applicant<br>Registration';
+      }
     }
 
-    setTimeout(() => {
-      container.classList.add('sign-up')
-    }, 200)
+    function togglePassword() {
+      const passwordField = document.getElementById('password');
+      const icon = document.querySelector('.toggle-password');
+
+      if (passwordField.type === 'password') {
+        passwordField.type = 'text';
+        icon.classList.remove('fa-eye');
+        icon.classList.add('fa-eye-slash');
+      } else {
+        passwordField.type = 'password';
+        icon.classList.remove('fa-eye-slash');
+        icon.classList.add('fa-eye');
+      }
+    }
   </script>
-  <script src="{{asset('admin/js/admission.js')}}"></script>
 </body>
 
 </html>

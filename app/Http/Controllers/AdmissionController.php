@@ -3,7 +3,9 @@
 namespace App\Http\Controllers;
 
 use App\Helpers\Qs;
+use App\Mail\ApplicationSuccessMail;
 use App\Models\AdmissionApplication;
+use App\Models\AdmissionApplicationPaymentLog;
 use App\Models\AdmissionFinalPhase;
 use App\Models\AdmissionFirstPhase;
 use App\Models\AdmissionRegistration;
@@ -24,11 +26,13 @@ use App\Models\User;
 use App\Models\UserCampusSetting;
 use App\Models\UserHasPermission;
 use App\Models\UserHasRole;
+use Carbon\Carbon;
 use GuzzleHttp\Client;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\View;
 use Mews\Captcha\Captcha;
 
@@ -74,6 +78,7 @@ class AdmissionController extends Controller
         $rec->last_name = $request->lastname;
         $rec->mobile_no = $request->mobile_no;
         $rec->mail_id = $request->mail_id;
+        $rec->campus_id = $request->campus;
         $rec->application_type = $request->applicationType;
         $rec->country = $request->country;
         $rec->password = Hash::make($request->password);
@@ -159,7 +164,6 @@ class AdmissionController extends Controller
     function applicantLogin(Request $request)
     {
         $request->validate([
-
             'registered_no' => 'required',
             'registered_password' => 'required',
         ]);
@@ -167,14 +171,23 @@ class AdmissionController extends Controller
         $user = AdmissionRegistration::where('mobile_no', $request->registered_no)
             ->orWhere('mail_id', $request->registered_no)
             ->where('otp_verification', 1)
-            ->firstOrFail();
-
-        if ($user && Hash::check($request->registered_password, $user->password)) {
-            Auth::login($user, true);
-            return redirect()->route('admission.apply.application');
+            ->first();
+        if ($user != null) {
+            if ($user && Hash::check($request->registered_password, $user->password)) {
+                Auth::login($user, true);
+                return redirect()->route('admission.apply.application');
+            } else {
+                return back()->withErrors(['registered_no' => 'Invalid credentials.']);
+            }
         } else {
-            return back()->withErrors(['registered_no' => 'Invalid credentials.']);
+            return back()->withErrors(['registered_no' => 'No verified account found with the provided details.']);
         }
+    }
+
+
+    function login()
+    {
+        return view('admission.login');
     }
 
     function verify(Request $request)
@@ -204,30 +217,49 @@ class AdmissionController extends Controller
     }
 
 
-
-
-
     function showApplicationPage()
     {
         Auth::check();
         $userId = Auth::id();
         //find the application
         $registrationInfo = AdmissionRegistration::with([
-            'programinfo.campus',
+            'campusmaster',
+            'countrymaster',
         ])->where('id', $userId)->firstOrFail();
-        if ($registrationInfo->programinfo->name == 'UG') {
+
+        if ($registrationInfo->application_type == 'UG') {
+            //UG Application Page
             $batch = BatchMaster::where('admission_active_batch', 1)->value('batch_name');
-            $campusId = $registrationInfo->programinfo->campus->id;
+            $campusId = $registrationInfo->campus_id;
+            $courses = ProgramGroup::whereHas('programInfo', function ($q) use ($campusId) {
+                $q->where('campus_id', $campusId);
+            })->where('campus_id', $campusId)->get();
 
-            return view('admission.ug-application', [
-                'data' => $registrationInfo,
-                'departments' => DepartmentMaster::where('campus_id', $campusId)
-                    ->where('status', 1)->get(),
-                'bloodgroups' => BloodGroupMaster::all(),
-                'religions' => ReligionMaster::all(),
+            $academic_departments = Subject::where('campus_id', $campusId)
+                ->where('main_program_type', 'UG')
+                ->get();
 
-            ]);
+            $application = AdmissionApplication::where('registration_id', $registrationInfo->id)->first();
+            if ($application == null) {
+                view('admission.ug-application', [
+                    'data' => $registrationInfo,
+                    'courses' => $courses,
+                    'bloodgroups' => BloodGroupMaster::all(),
+                    'religions' => ReligionMaster::all(),
+                    'batch' => $batch,
+                    'academic_departments' => $academic_departments,
+
+                ]);
+            } else {
+                if ($application->payment_gateway_ref != null && $application->payment_gateway_status == 'success') {
+                    return   $this->showSuccessPage();
+                } else {
+                    return redirect()->route('admission.payment.page');
+                }
+            }
         } else {
+
+            //PG Application Page
             return view('admission.pg-application', ['data' => $registrationInfo]);
         }
     }
@@ -734,9 +766,390 @@ class AdmissionController extends Controller
         }
     }
 
+
+    function ugApplicationSubmit(Request $request)
+    {
+
+        $request->validate([
+            'photo' => 'required',
+            'department' => 'required',
+            'course' => 'required',
+            'dob' => 'required|date',
+            'bloodgroup' => 'required',
+            'gender' => 'required',
+            'religion' => 'required',
+            'mothertongue' => 'required',
+            'phychallenged' => 'required',
+            'caste' =>  'required',
+            'father_name' => 'required|string|max:255',
+            'mother_name' => 'required|string|max:255',
+            'father_contact' => 'required',
+            'mother_contact' => 'required',
+            'father_occupation' => 'string|max:255',
+            'mother_occupation' => 'string|max:255',
+            'income' => 'required',
+            'permanent_address' => 'required',
+            'district' => 'required|string|max:255',
+            'city' => 'required|string|max:255',
+            'pincode' => 'required',
+            'local_address' => 'required',
+            'local_district' => 'required|string|max:255',
+            'local_city' => 'required|string|max:255',
+            'local_pincode' => 'required',
+            //Class 10 Details
+            // 'institution10' => 'required',
+            // 'rollno10' => 'required|string|max:255',
+            // 'board10' => 'required|string|max:255',
+            // 'passingyear10' => 'required',
+            // 'certificate10' => 'required',
+            // 'percentage10' => 'required',
+            // 'passmark10' => 'required',
+            //Class 10th Subjects
+            // 'subject10_1' => 'required|string|max:255',
+            // 'score10_1' => 'required',
+
+            // 'subject10_2' => 'required|string|max:255',
+            // 'score10_2' => 'required',
+
+            // 'subject10_3' => 'required|string|max:255',
+            // 'score10_3' => 'required',
+
+            // 'subject10_4' => 'required|string|max:255',
+            // 'score10_4' => 'required',
+
+            // 'subject10_5' => 'required|string|max:255',
+            // 'score10_5' => 'required',
+
+
+            //Class 12 Details
+            // 'institution12' => 'required',
+            // 'rollno12' => 'required|string|max:255',
+            // 'board12' => 'required|string|max:255',
+            // 'passingyear12' => 'required',
+            // 'certificate12' => 'required',
+            // 'percentage12' => 'required',
+            // 'passmark12' => 'required',
+            //Class 12th Subjects
+            // 'subject12_1' => 'required|string|max:255',
+            // 'score12_1' => 'required',
+
+            // 'subject12_2' => 'required|string|max:255',
+            // 'score12_2' => 'required',
+
+            // 'subject12_3' => 'required|string|max:255',
+            // 'score12_3' => 'required',
+
+            // 'subject12_4' => 'required|string|max:255',
+            // 'score12_4' => 'required',
+
+            // 'subject12_5' => 'required|string|max:255',
+            // 'score12_5' => 'required',
+
+            //Baptism Certificate
+        ]);
+
+        $laptop = !empty($request->laptop_checkbox) ? 1 : 0;
+        $teaestate = !empty($request->teaestate_checkbox) ? 1 : 0;
+
+
+        if ($request->religion == 10) {
+            $request->validate([
+                'baptism' => 'required',
+            ]);
+            $baptism =  $request->baptism;
+            $baptismFilename = StaticController::s3_file_uploader($baptism, 'admission_baptisms');
+        }
+
+        // Save application
+        $userId = Auth::user()->id;
+        $registrationId = AdmissionRegistration::where('id', $userId)->value('id');
+
+        $application = new AdmissionApplication();
+        $application->user_id = $userId;
+        $application->registration_id = $registrationId;
+        $application->department = $request->department;
+        $application->course = $request->course;
+        $application->dob = $request->dob;
+        $application->bloodgroup = $request->bloodgroup;
+        $application->gender = $request->gender;
+        $application->religion = $request->religion;
+        $application->mothertongue = $request->mothertongue;
+        $application->phychallenged = $request->phychallenged;
+        $application->caste = $request->caste;
+        $application->father_name = $request->father_name;
+        $application->mother_name = $request->mother_name;
+        $application->father_contact = $request->father_contact;
+        $application->mother_contact = $request->mother_contact;
+        $application->father_occupation = $request->father_occupation;
+        $application->mother_occupation = $request->mother_occupation;
+        $application->income = $request->income;
+        $application->permanent_address = $request->permanent_address;
+        $application->district = $request->district;
+        $application->city = $request->city;
+        $application->pincode = $request->pincode;
+        $application->local_address = $request->local_address;
+        $application->local_district = $request->local_district;
+        $application->local_city = $request->local_city;
+        $application->local_pincode = $request->local_pincode;
+        $application->laptop = $laptop;
+        $application->teaestate = $teaestate;
+
+        // Handle file uploads
+
+        $photo =  $request->photo;
+        $photoFilename = StaticController::s3_resize_image_uploader($photo, 'admission_photos', 300, 300);
+
+        $certificate10 =  $request->certificate10;
+        $certificate10Filename = StaticController::s3_file_uploader($certificate10, 'admission_cerificates10');
+
+        $certificate12 =  $request->certificate12;
+        $certificate12Filename = StaticController::s3_file_uploader($certificate12, 'admission_cerificates12');
+
+        $application->photo = $photoFilename;
+        $application->certificate10 = $certificate10Filename;
+        $application->certificate12 = $certificate12Filename;
+
+        if (isset($baptismFilename)) {
+            $application->baptism = $baptismFilename;
+        } else {
+            $application->baptism = null;
+        }
+        // Academic details
+        $application->institution10 = $request->institution10;
+        $application->rollno10 = $request->rollno10;
+        $application->board10 = $request->board10;
+        $application->passingyear10 = $request->passingyear10;
+        $application->percentage10 = $request->percentage10;
+        $application->passmark10 = $request->passmark10;
+        $application->fullmark10 = $request->fullmark10;
+
+        $application->subject10_1 = $request->subject10_1;
+        $application->score10_1 = $request->score10_1;
+
+
+        $application->subject10_2 = $request->subject10_2;
+        $application->score10_2 = $request->score10_2;
+
+
+        $application->subject10_3 = $request->subject10_3;
+        $application->score10_3 = $request->score10_3;
+
+        $application->subject10_4 = $request->subject10_4;
+        $application->score10_4 = $request->score10_4;
+
+        $application->subject10_5 = $request->subject10_5;
+        $application->score10_5 = $request->score10_5;
+
+
+        $application->institution12 = $request->institution12;
+        $application->rollno12 = $request->rollno12;
+        $application->board12 = $request->board12;
+        $application->passingyear12 = $request->passingyear12;
+        $application->percentage12 = $request->percentage12;
+        $application->passmark12 = $request->passmark12;
+        $application->fullmark12 = $request->fullmark12;
+
+        $application->subject12_1 = $request->subject12_1;
+        $application->score12_1 = $request->score12_1;
+
+        $application->subject12_2 = $request->subject12_2;
+        $application->score12_2 = $request->score12_2;
+
+        $application->subject12_3 = $request->subject12_3;
+        $application->score12_3 = $request->score12_3;
+
+        $application->subject12_4 = $request->subject12_4;
+        $application->score12_4 = $request->score12_4;
+
+        $application->subject12_5 = $request->subject12_5;
+        $application->score12_5 = $request->score12_5;
+
+        // Payment fields (to be filled after payment)
+        $application->gateway_type = 'easebuzz';
+        $application->payment_gateway_ref = null;
+        $application->captured_amount = null;
+        $application->hash = null;
+        $application->payment_gateway_status = null;
+
+        $application->save();
+
+        return redirect()->route('admission.payment.checkout')->with('success', 'Application Saved successfully. Please proceed to payment.');
+    }
+
+    function paymentCheckout()
+    {
+
+        $userId = Auth::user()->id;
+        $applicationRecord = AdmissionApplication::where('user_id', $userId)->first();
+        if ($applicationRecord != null) {
+
+            if ($applicationRecord->payment_gateway_status == 'success' && $applicationRecord->payment_gateway_ref != null) {
+
+                return redirect()->route('admission.application.success')->with('success', 'Payment already completed for your application.');
+            } else {
+                $generatedNo = $userId . $applicationRecord->id . rand(1000, 9999);
+                $appl_no = encrypt($generatedNo);
+                AdmissionApplication::where('id', $userId)->update([
+                    'application_code' => $generatedNo,
+                ]);
+                $data = AdmissionRegistration::with([
+                    'applicationmaster.academicDeptMaster',
+                    'applicationmaster.stdCourseMaster'
+                ])->where('id', $userId)->first();
+                $amount =  BatchMaster::where('admission_active_batch', 1)->value('adm_application_amount');
+                return view('admission.payment-checkout', ['data' => $data, 'amount' => $amount]);
+            }
+        } else {
+            return redirect()->route('admission.apply.application');
+        }
+    }
+
+    function getCombinationsByDepartment(Request $request)
+    {
+        $deptId = $request->departmentId;
+        $campusId = $request->campusId;
+        $batchId =  BatchMaster::where('admission_active_batch', 1)->value('id');
+        return SubjectHasStudentProgam::where('subject_id', $deptId)->where('campus_id', $campusId)
+            ->where('batch_id', $batchId)
+            ->with('student_program')
+            ->get();
+    }
+
+    function initateEaseBuzzPayment(Request $request)
+    {
+        $request->validate([
+            'application_code' => 'required',
+            'amount' => 'required|numeric',
+        ]);
+
+        $userId = Auth::user()->id;
+        $applicationRegRecord = AdmissionRegistration::where('user_id', $userId)->first();
+        $fullname = $applicationRegRecord->first_name . ' ' . $applicationRegRecord->last_name;
+        $email = $applicationRegRecord->email;
+        $phone = $applicationRegRecord->mobile_no;
+        $payableAmount = $request->amount;
+
+        //Payment Split Logic
+        if ($applicationRegRecord->campus == 1) {
+            $split =  'SAL_SONADA' + (float) $payableAmount;
+        } else {
+            $split =  'SAL_CAMPUS' + (float) $payableAmount;
+        }
+        /** Easebuzz Params */
+        $key = env('EASEBUZZ_KEY');
+        $salt = env('EASEBUZZ_SALT');
+        $txnid = $request->application_code;
+        $productinfo = 'Salesian College Autonomous - Admission Form Payment';
+
+        $hashString = "$key|$txnid|$payableAmount|$productinfo|$fullname|$email|$userId||||||||||$salt";
+        $hash = strtolower(hash('sha512', $hashString));
+
+        /** Initiate Payment */
+        $client = new \GuzzleHttp\Client();
+        $response = $client->post(env('EASEBUZZ_INITIATE_URL'), [
+            'form_params' => [
+                'key' => $key,
+                'txnid' => $txnid,
+                'amount' => $payableAmount,
+                'productinfo' => $productinfo,
+                'firstname' => $fullname,
+                'phone' => $phone,
+                'email' => $email,
+                'surl' => route('admission.payment.success'),
+                'furl' => route('admission.payment.failure'),
+                'hash' => $hash,
+                'udf1' => $userId,
+                'split_payments' => $split
+            ],
+        ]);
+
+        $apiResponse = json_decode($response->getBody(), true);
+
+        if ($apiResponse['status'] == 1) {
+            return redirect(env('EASEBUZZ_PAYMENT_URL') . $apiResponse['data']);
+        }
+
+        return back()->withErrors('Payment initiation failed');
+    }
+
+    function paymentSuccess(Request $request)
+    {
+        $hash  =  $request->hash;
+        $amount = $request->amount;
+        $msg = $request->error_Message;
+        $easepayid = $request->easepayid;
+        $status = $request->status;
+        $txnid = $request->txnid;
+        $userId = $request->udf1;
+        //Online Transaction - Update Payment Record
+        AdmissionApplication::where('application_code', $txnid)
+            ->update(
+                [
+                    'payment_gateway_ref' => $easepayid,
+                    'captured_amount' => $amount,
+                    'payment_gateway_status' => $status,
+                    'message' => $msg,
+                    'hash' => $hash,
+                ]
+            );
+        //Send Email to the Applicant
+        $applicantPhone = AdmissionRegistration::where('user_id', $userId)->value('mobile_no');
+        $applicantEmail = AdmissionRegistration::where('user_id', $userId)->value('mail_id');
+        $applicationId = AdmissionApplication::where('application_code', $txnid)->value('application_code');
+        $html = View::make('emails.admission.success', ['application_code' => $txnid])->render();
+        // $applicant_email = trim((string) $email);
+        $applicant_email = 'prof.johngaurav@gmail.com';
+        $response = Http::withToken(env('RESEND_API_KEY'))
+            ->post('https://api.resend.com/emails', [
+                'from' => 'salesian college autonomous <onboarding@resend.dev>', // Use verified sender
+                'to' =>  $applicant_email,
+                'subject' => 'Salesian College Autonomous - Application Successful',
+                'html' => $html,
+            ]);
+
+        //Send SMS to the Applicant
+
+        return redirect()->route('admission.apply.application')->with('success', 'Payment successful. Your application is now complete.');
+    }
+
+
+
+    function paymentFailure(Request $request)
+    {
+        $rec = new AdmissionApplicationPaymentLog();
+        $rec->txnid = $request->txnid;
+        $rec->user_id = $request->udf1;
+        $rec->easepayid = $request->easepayid;
+        $rec->amount = $request->amount;
+        $rec->hash = $request->hash;
+        $rec->status = $request->status;
+        $rec->msg = $request->error_Message;
+        $rec->save();
+        // Handle payment failure logic here
+        return redirect()->route('admission.apply.application')->with('info', 'Payment failed. Please try again.');
+    }
+
+
+    function showSuccessPage()
+    {
+        $userId = Auth::user()->id;
+        $applicationRecord = AdmissionApplication::with(
+            [
+                'registrationmaster.campusmaster',
+                'academicDeptMaster',
+                'stdCourseMaster',
+                'phaseoneinfo',
+                'phasetwoinfo'
+            ]
+        )->where('user_id', $userId)->first();
+
+        return view('admission.success-confirmation', ['data' => $applicationRecord]);
+    }
+
+
     function logout()
     {
         Auth::logout();
-        return redirect()->route('new.admission.registration');
+        return redirect()->route('new.admission.login')->with('success', 'Logged out successfully.');
     }
 }

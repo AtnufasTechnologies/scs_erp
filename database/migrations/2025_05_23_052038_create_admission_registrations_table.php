@@ -19,7 +19,8 @@ return new class extends Migration
             $table->string('mail_id');
             $table->string('mobile_no');
             $table->string('password');
-            $table->smallInteger('application_type'); //program - UG/PG
+            $table->smallInteger('campus_id');
+            $table->string('application_type'); //program - UG/PG
             $table->smallInteger('country');
             $table->smallInteger('application_status')->default(0);
             $table->smallInteger('otp_verification')->default(0);

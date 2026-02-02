@@ -6,14 +6,14 @@ use App\Models\StudentProgram;
 
 $batches = BatchMaster::get();
 $semesters = Semester::get();
-$programs = StudentProgram::latest()->get();
+
 ?>
 @include('includes.header')
 @include('admin.sidebar')
 
 <div class="p-5 mb-4 profile-header-sub text-white rounded-3 shadow">
   <div class="container-fluid py-3">
-    <h1 class="display-5 fw-bold text-light text-capitalize"><span class="fw-semibold"> {{ $data->program_master->title }} -</span> {{ $data->title }} ({{ $data->code }}) </h1>
+    <h1 class="display-5 fw-bold text-light text-capitalize"><span class="fw-semibold"> {{ $data->main_program_type }} -</span> {{ $data->title }} ({{ $data->code }}) </h1>
     Academic Batch: <span class="fw-semibold text-warning">{{ $batchmaster->batch_name }}</span>
 
     <div class="row mb-3">
@@ -102,7 +102,7 @@ $programs = StudentProgram::latest()->get();
           </div>
         </button>
         <div class="modal fade" id="programConnect" tabindex="-1" aria-labelledby="exampleModalLabel" aria-hidden="true">
-          <div class="modal-dialog">
+          <div class="modal-dialog modal-lg">
             <div class="modal-content">
               <div class="modal-header">
                 <h5 class="modal-title text-dark" id="exampleModalLabel">Connect Programs for {{$data->title}} </h5>
@@ -111,8 +111,18 @@ $programs = StudentProgram::latest()->get();
               <form action="{{route('add.programs.to.subject')}}" method="post" enctype="multipart/form-data">
                 @csrf
                 <div class="modal-body">
-                  <input type="hidden" name="batch_id" value=" {{$batchmaster->id}}">
+                  <label for="" class="text-dark">Select Academic Batch</label>
+                  <div class="input-group">
+
+                    <select name="batch_id" class="form-select">
+                      @foreach ($batches as $batch)
+                      <option value="{{$batch->id}}">{{$batch->batch_name}}</option>
+                      @endforeach
+                    </select>
+
+                  </div>
                   <label for="" class="text-dark">Select Program</label>
+
                   <select name="programs[]" class="form-select mb-3 select-multiple" multiple>
                     @foreach ($programs as $prg)
                     <option value="{{$prg->id}}">{{$prg->code}} - {{$prg->name}}</option>
@@ -218,10 +228,10 @@ $programs = StudentProgram::latest()->get();
 
   <div class="col-lg-4">
     <div class="container my-5">
-      <h2 class="h3 text-dark border-bottom pb-2 mb-4">Connected Programs - {{ $data->programs->count() }}</h2>
+      <h2 class="h3 text-dark border-bottom pb-2 mb-4">Connected Programs - {{ $data->combinations->count() }}</h2>
       <div class="card">
         <div class="card-body  global-scroll-card">
-          @foreach ($data->programs as $program)
+          @foreach ($data->combinations as $program)
           <div class="radius-10  alert alert-info d-flex justify-content-between align-items-center shadow" role="alert">
             <div>
               <strong>{{ $program->student_program->code }} - {{ $program->student_program->name }}</strong>

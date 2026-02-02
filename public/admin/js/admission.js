@@ -25,7 +25,7 @@ $(document).ready(function () {
                     $.each(response, function (key, value) {
                         $("#mainPrograms").append(
                             '<option value="' +
-                                value["id"] +
+                                value["name"] +
                                 '">' +
                                 value["name"] +
                                 "</option>",

@@ -13,8 +13,10 @@ return new class extends Migration
     {
         Schema::create('subject_has_student_progams', function (Blueprint $table) {
             $table->id();
-            $table->unsignedBigInteger('subject_id');
-            $table->unsignedBigInteger('student_program_id');
+            $table->integer('subject_id');
+            $table->integer('student_program_id');
+            $table->integer('batch_id');
+            $table->integer('campus_id');
             $table->timestamps();
             $table->softDeletes();
         });

@@ -73,7 +73,7 @@ Route::group(['prefix' => '/erp'], function () {
             Route::post('update-room', [AdminController::class, 'updateRoomTypeMaster']);
 
 
-            //Subject
+            //Subject (Also known as Academic Departments)
             Route::get('subjects', [SubjectController::class, 'index']);
             Route::get('subject-type', [SubjectController::class, 'subjectType']);
 
@@ -198,17 +198,25 @@ Route::group(['prefix' => '/erp'], function () {
 
     //admission student routes
     Route::group(['prefix' => '/new-admission'], function () {
+        Route::get('login', [AdmissionController::class, 'login'])->name('new.admission.login');
         Route::get('registration', [AdmissionController::class, 'index'])->name('new.admission.registration');
         Route::post('registration', [AdmissionController::class, 'admissionRegistration'])->name('admission.registration.submit');
         Route::post('applicant-login', [AdmissionController::class, 'applicantLogin'])->name('applicant.login');
         Route::get('getmainprograms', [AdmissionController::class, 'getMainPrograms']);
-        Route::get('captcha-refresh', [AdmissionController::class, 'refreshCaptcha']);
+        Route::get('captcha-refresh', [AdmissionController::class, 'refreshCaptcha'])->name('captcha.refresh');
         Route::get('otp-verification', [AdmissionController::class, 'showOtpVerificationPage'])->name('otp.verification.page');
         Route::post('/otp/verify', [AdmissionController::class, 'verify'])->name('otp.verify');
         Route::post('/otp/resend', [AdmissionController::class, 'otpResend'])->name('otp.resend');
         Route::get('logout', [AdmissionController::class, 'logout'])->name('admission.apply.logout');
         Route::get('application', [AdmissionController::class, 'showApplicationPage'])->name('admission.apply.application');
-        Route::post('submit-application-form', [AdmissionController::class, 'applicantSubmit'])->name('submit.application.form');
+        Route::post('submit-ug-application-form', [AdmissionController::class, 'ugApplicationSubmit'])->name('submit.ug.application.form');
+        Route::get('getcombinations-bydepartment', [AdmissionController::class, 'getCombinationsByDepartment']);
+        Route::get('payment-checkout', [AdmissionController::class, 'paymentCheckout'])->name('admission.payment.checkout');
+        Route::post('payment-process', [AdmissionController::class, 'initateEaseBuzzPayment'])->name('admission.payment.process');
+
+        Route::post('payment-success', [AdmissionController::class, 'paymentSuccess'])->name('admission.payment.success');
+        Route::post('payment-failure', [AdmissionController::class, 'paymentFailure'])->name('admission.payment.failure');
+        Route::get('application-success-page', [AdmissionController::class, 'showSuccessPage'])->name('admission.application.success');
     });
 
 
@@ -241,4 +249,6 @@ Route::group(['prefix' => '/erp'], function () {
         Route::get('students/{rollno}/unpaid-fees', [FeePaymentController::class, 'getStudentUnpaidFees']);
     });
 });
+
+Route::get('test-function/{id}', [AdmissionController::class, 'testFunction']);
 //ajax routes

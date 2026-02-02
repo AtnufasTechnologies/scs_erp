@@ -19,7 +19,7 @@ class AdmissionApplication extends Model
     }
     public function registrationmaster()
     {
-        return $this->hasOne(AdmissionRegistration::class, 'id', 'reg_id');
+        return $this->hasOne(AdmissionRegistration::class, 'id', 'registration_id');
     }
     // public function dept()
     // {
@@ -93,5 +93,24 @@ class AdmissionApplication extends Model
         return Attribute::make(
             get: fn($value, $attributes) => $attributes['first_name'] . ' ' . $attributes['last_name'],
         );
+    }
+
+    function academicDeptMaster()
+    {
+        return $this->hasOne(Subject::class, 'id', 'department');
+    }
+
+    function stdCourseMaster()
+    {
+        return $this->hasOne(StudentProgram::class, 'id', 'course');
+    }
+
+    function phaseoneinfo()
+    {
+        return $this->hasOne(AdmissionFirstPhase::class, 'application_id', 'id');
+    }
+    function phasetwoinfo()
+    {
+        return $this->hasOne(AdmissionFinalPhase::class, 'application_id', 'id');
     }
 }
