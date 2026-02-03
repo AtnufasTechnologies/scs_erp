@@ -15,7 +15,6 @@ return new class extends Migration
             $table->id();
             $table->integer('subject_id'); //understanding it as dept
             $table->integer('user_id');
-            $table->integer('campus_id');
             $table->timestamps();
             $table->softDeletes();
         });

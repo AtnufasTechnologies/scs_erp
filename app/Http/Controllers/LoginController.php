@@ -31,7 +31,25 @@ class LoginController extends Controller
 
             if (Hash::check($request->password, $user->password)) {
                 Auth::login($user, true);
-                return redirect('erp/admin/dashboard')->with('success', 'Login Success');
+                $roleType = UserHasRole::where('user_id', $user->id)->value('role_name');
+                if ($roleType == 'dept-admin-erp') {
+                    //dept Dashboard
+                    //check if dept admin has assigned department
+                    $deptAdminDept = User::with('subjectdeptadmin.subject')->where('id', $user->id)->first();
+                    if ($deptAdminDept->subjectdeptadmin) {
+                        return redirect()->route('department.dashboard')->with('success', 'Login Success');
+                    } else {
+                        Auth::logout();
+                        return redirect('/')->with('error', 'No Department Assigned. Please contact Admin');
+                    }
+                } else if ($roleType == 'faculty') {
+                    //Faculty Dashboard
+                } else if ($roleType == 'student') {
+                    //Student Dashboard
+                } else {
+                    //for all Super Admin| Office assistane| Admin
+                    return redirect('erp/admin/dashboard')->with('success', 'Login Success');
+                }
             } else {
                 return redirect('/')->with('error', 'Password Incorrect');
             }

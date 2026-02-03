@@ -6,6 +6,7 @@ use App\Http\Controllers\AdmissionController;
 use App\Http\Controllers\FeePaymentController;
 use App\Http\Controllers\LoginController;
 use App\Http\Controllers\SubjectController;
+use App\Models\Department;
 use App\Models\User;
 use App\Models\UserType;
 use Illuminate\Support\Facades\Auth;
@@ -248,6 +249,11 @@ Route::group(['prefix' => '/erp'], function () {
         Route::get('students/search', [FeePaymentController::class, 'searchStudents']);
         Route::get('students/{id}/fee-structures', [FeePaymentController::class, 'getStudentFeeStructures']);
         Route::get('students/{rollno}/unpaid-fees', [FeePaymentController::class, 'getStudentUnpaidFees']);
+    });
+
+    Route::group(['prefix' => '/deptartment'], function () {
+        Route::get('dashboard', [SubjectController::class, 'departmentDashboard'])->name('department.dashboard');
+        Route::delete('combination/{id}/delete', [SubjectController::class, 'deleteCombination'])->name('department.combination.delete');
     });
 });
 

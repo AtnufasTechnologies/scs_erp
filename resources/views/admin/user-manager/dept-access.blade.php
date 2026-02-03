@@ -39,12 +39,6 @@ $campusMaster = App\Models\Campus::all();
 
             <label for="password" class="form-label">Your Login Password </label>
             <input type="password" name="password" class="form-control mb-3" placeholder="Login Password" required>
-
-
-
-
-
-
           </div>
           <div class="modal-footer">
             <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
@@ -65,9 +59,7 @@ $campusMaster = App\Models\Campus::all();
 <div class="row mt-4">
   <div class="col-12">
     <div class="card shadow-sm">
-      <div class="card-header bg-primary text-white">
-        <h5 class="mb-0">Departmental Access List</h5>
-      </div>
+
       <div class="card-body">
         <div class="table-responsive">
           <table class="table table-bordered table-hover align-middle" id="exportTable">
@@ -76,6 +68,7 @@ $campusMaster = App\Models\Campus::all();
                 <th scope="col">#</th>
                 <th scope="col">Name</th>
                 <th scope="col">Email</th>
+                <th>Department</th>
                 <th>Status</th>
                 <th>Action</th>
                 <th scope="col">Created At</th>
@@ -88,11 +81,18 @@ $campusMaster = App\Models\Campus::all();
                 <td>{{ $index + 1 }}</td>
                 <td>{{ $item->name }}</td>
                 <td>{{ $item->email }}</td>
-                <td>{{ $item->status }}</td>
+                <td class="text-capitalize">{{ $item->subjectdeptadmin->subject->title ?? '' }}</td>
+                <td>
+                  @if($item->status == 'ACTIVE')
+                  <span class="badge bg-success">{{ $item->status }}</span>
+                  @else
+                  <span class="badge bg-danger">{{ $item->status }}</span>
+                  @endif
+                </td>
                 <td>
 
                   <a href="{{ route('dept.erp.revoke-access', $item->id) }}">
-                    <button type="submit" class="btn {{ $item->status == 'ACTIVE' ? 'btn-success' : 'btn-danger' }} btn-sm">{{ $item->status == 'ACTIVE' ? 'Block Access' : 'Allow Access' }}</button></a>
+                    <button type="submit" class="btn {{ $item->status == 'ACTIVE' ? 'btn-dark' : 'btn-success' }} btn-sm">{{ $item->status == 'ACTIVE' ? 'Block Access' : 'Allow Access' }}</button></a>
 
                 </td>
                 <td>{{ $item->created_at->format('Y-m-d') }}</td>

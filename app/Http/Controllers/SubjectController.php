@@ -11,6 +11,7 @@ use App\Models\LectureHallMaster;
 use App\Models\StudentProgram;
 use App\Models\Subject;
 use App\Models\SubjectHasCombination;
+use App\Models\SubjectHasDeptAdmin;
 use App\Models\SubjectHasRoutine;
 use App\Models\SubjectHasSemester;
 use App\Models\SubjectHasStudentProgam;
@@ -19,14 +20,13 @@ use App\Models\SubjectTypeMaster;
 use App\Models\SyllabusHasFaculty;
 use Illuminate\Support\Str;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Validator;
 
 class SubjectController extends Controller
 {
     function index()
     {
-
-
         $data = Subject::with([
             'campusmaster'
         ])->latest()->get();
@@ -41,9 +41,6 @@ class SubjectController extends Controller
 
     function addSubject(Request $request)
     {
-
-
-
         $request->validate([
             'code' => 'required|string|max:100',
             'title' => 'required|string|max:255',
@@ -230,14 +227,85 @@ class SubjectController extends Controller
         $data = Subject::find($subject_id);
 
         for ($i = 0; $i < count($programs); $i++) {
-            $subject = new SubjectHasStudentProgam();
-            $subject->subject_id = $subject_id;
-            $subject->batch_id = $request->batch_id;
-            $subject->student_program_id = $programs[$i];
-            $subject->campus_id = $data->campus_id;
-            $subject->save();
+
+            $recordCheck = SubjectHasStudentProgam::where('subject_id', $subject_id)
+                ->where('batch_id', $request->batch_id)
+                ->where('student_program_id', $programs[$i])
+                ->where('campus_id', $data->campus_id)
+                ->first();
+            if ($recordCheck == null) {
+                $subject = new SubjectHasStudentProgam();
+                $subject->subject_id = $subject_id;
+                $subject->batch_id = $request->batch_id;
+                $subject->student_program_id = $programs[$i];
+                $subject->campus_id = $data->campus_id;
+                $subject->save();
+            } else {
+                return redirect()->back()->with('success', 'Combinations Already Linked');
+            }
         }
 
         return redirect()->back()->with('success', 'Combinations linked successfully');
+    }
+
+    //department dashboard
+    function departmentDashboard(Request $request)
+    {
+
+        $userId = Auth::user()->id;
+        $subjectId = SubjectHasDeptAdmin::where('user_id', $userId)->value('subject_id');
+        $subject = Subject::with(['semesters'])->find($subjectId);
+
+        // Course Master
+        $courseMaster = $subject;
+
+        // Number of Students (total students in all batches for this subject/department)
+        $studentsCount = 0;
+        $batchWiseStudents = [];
+        $semestersCount = $subject->semesters->count();
+
+        // Get all batches
+        $batches = BatchMaster::all();
+        foreach ($batches as $batch) {
+            $studentCount = \App\Models\StudentMaster::where('department', $subjectId)
+                ->where('batch', $batch->id)
+                ->count();
+            $batchWiseStudents[] = [
+                'batch_name' => $batch->batch_name,
+                'student_count' => $studentCount
+            ];
+            $studentsCount += $studentCount;
+        }
+
+
+        // For combinations modal
+        if (!empty($request->batch)) {
+            $activeBatch = $request->batch;
+        } else {
+            $activeBatch = BatchMaster::where('admission_active_batch', 1)->value('id');
+        }
+
+        $combinations = SubjectHasStudentProgam::where('subject_id', $subjectId)
+            ->with(['studentprograminfo', 'batchmaster'])
+            ->where('batch_id', $activeBatch)
+            ->get();
+
+
+        $programs = StudentProgram::where('campus_id', $subject->campus_id)->get();
+        return view('admin.subject.department-dashboard', [
+            'data' => $courseMaster,
+            'students_count' => $studentsCount,
+            'semesters_count' => $semestersCount,
+            'batchWiseStudents' => $batchWiseStudents,
+            'combinations' => $combinations,
+            'programs' => $programs
+        ]);
+    }
+
+    function deleteCombination($id)
+    {
+        $combination = SubjectHasStudentProgam::findOrFail($id);
+        $combination->delete();
+        return redirect()->back()->with('success', 'Combination Deleted');
     }
 }

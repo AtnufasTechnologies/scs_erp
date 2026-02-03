@@ -14,4 +14,9 @@ class SubjectHasSemester extends Model
     {
         return $this->hasOne(Semester::class, 'id', 'semester_id');
     }
+
+    function syllabus()
+    {
+        return $this->hasMany(SubjectHasSyllabus::class, 'semester_id', 'id');
+    }
 }

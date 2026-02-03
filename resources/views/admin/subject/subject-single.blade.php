@@ -32,10 +32,6 @@ $semesters = Semester::get();
           </div>
         </form>
       </div>
-
-
-
-
     </div>
 
     <div class="row">

@@ -63,4 +63,9 @@ class User extends Authenticatable
         return $this->hasOne(UserCampusSetting::class, 'user_id')
             ->with('campus');
     }
+
+    function subjectdeptadmin()
+    {
+        return $this->hasOne(SubjectHasDeptAdmin::class, 'user_id', 'id');
+    }
 }

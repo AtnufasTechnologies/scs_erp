@@ -1,8 +1,11 @@
 <?php
 
 use App\Http\Controllers\StaticController;
+use App\Models\UserHasRole;
+use Illuminate\Support\Facades\Auth;
 
-
+$userId = Auth::user()->id;
+$roleType = UserHasRole::where('user_id', $userId)->value('role_name');
 ?>
 <!--start sidebar -->
 <aside class="sidebar-wrapper" data-simplebar="true">
@@ -17,7 +20,19 @@ use App\Http\Controllers\StaticController;
   </div>
   <!--navigation ADMIN -->
   <ul class="metismenu" id="menu">
+    @if($roleType == 'dept-admin-erp')
+    <li>
+      <a href="{{route('department.dashboard')}}">
+        <div class="parent-icon">
+          <i class="fal fa-chart-pie"></i>
+        </div>
+        <div class="menu-title">Dashboard</div>
+      </a>
+    </li>
+    @elseif($roleType == 'faculty')
 
+    @elseif($roleType == 'student')
+    @else
     <li>
       <a href="{{url('erp/admin/dashboard')}}">
         <div class="parent-icon">
@@ -26,7 +41,7 @@ use App\Http\Controllers\StaticController;
         <div class="menu-title">Dashboard</div>
       </a>
     </li>
-
+    @endif
     <!-- Master -->
     @if (StaticController::mainMenuRights('master') )
     <li>
@@ -965,9 +980,9 @@ use App\Http\Controllers\StaticController;
         <li>
           <a href="{{route('admin.user.management')}}">
             <div class="parent-icon">
-              <i class="fas fa-arrow-alt-circle-right"></i>
+              <i class="fas fa-user"></i>
             </div>
-            <div class="menu-title">Access Control </div>
+            <div class="menu-title">User Control </div>
           </a>
         </li>
         @endif
@@ -976,9 +991,9 @@ use App\Http\Controllers\StaticController;
         <li>
           <a href="{{route('dept.erp.access-list')}}">
             <div class="parent-icon">
-              <i class="fas fa-arrow-alt-circle-right"></i>
+              <i class="fas fa-users"></i>
             </div>
-            <div class="menu-title">Dept Admission Access </div>
+            <div class="menu-title">Dept Access </div>
           </a>
         </li>
         @endif
@@ -994,7 +1009,7 @@ use App\Http\Controllers\StaticController;
         </li>
         @endif
 
-
+        @if (StaticController::subMenuRights('dev-auth') )
         <li>
           <a href="{{route('admin.menu-access-types')}}">
             <div class="parent-icon">
@@ -1003,7 +1018,7 @@ use App\Http\Controllers\StaticController;
             <div class="menu-title">Menu Access Types </div>
           </a>
         </li>
-
+        @endif
 
       </ul>
 

@@ -14,13 +14,11 @@ class AccessController extends Controller
     function deptAccess()
     {
 
-
-
         $departments = Subject::with('campusmaster:id,name')->get();
         $data = User::whereHas('userroletype', function ($q) {
             //Head of Department Admin Role
-            $q->where('role_name', 'DEPT_ADMIN_ERP');
-        })->get();
+            $q->where('role_name', 'dept-admin-erp');
+        })->with('subjectdeptadmin.subject')->get();
         return view('admin.user-manager.dept-access', ['departments' => $departments, 'data' => $data]);
     }
 
@@ -50,7 +48,13 @@ class AccessController extends Controller
         //assign campus access permission
         UserHasRole::create([
             'user_id' => $rec->id,
-            'role_name' =>  'DEPT_ADMIN_ERP', //Department Admin
+            'role_name' =>  'dept-admin-erp', //Department Admin
+        ]);
+
+        //assign department to user
+        SubjectHasDeptAdmin::create([
+            'subject_id' => $departmentId,
+            'user_id' => $rec->id,
         ]);
 
 

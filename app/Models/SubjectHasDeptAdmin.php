@@ -8,5 +8,10 @@ use Illuminate\Database\Eloquent\Model;
 class SubjectHasDeptAdmin extends Model
 {
     use HasFactory;
-    protected $fillable = ['subject_id', 'user_id', 'campus_id'];
+    protected $fillable = ['subject_id', 'user_id'];
+
+    function subject()
+    {
+        return $this->belongsTo(Subject::class, 'subject_id', 'id');
+    }
 }
