@@ -166,8 +166,8 @@ Route::group(['prefix' => '/erp'], function () {
             Route::post('newuser', [AdminController::class, 'createNewUser'])->name('add.newuser');
             Route::post('update-permission', [AdminController::class, 'updatePermission'])->name('update.user.permission');
             Route::get('remove-user-permission/{id}', [AdminController::class, 'removeUserPermission']);
-            Route::get('dept-access', [AccessController::class, 'deptAccess'])->name('admission.dept-access');
-            Route::post('assign-dept-access', [AccessController::class, 'assignDeptAccess'])->name('admin.admission.grant-access');
+            Route::get('dept-access', [AccessController::class, 'deptAccess'])->name('dept.erp.access-list');
+            Route::post('assign-dept-access', [AccessController::class, 'assignDeptAccess'])->name('dept.erp.grant-access');
             Route::get('getprogramsbydepartment', [AdmissionController::class, 'getProgramsByDepartment']);
             Route::get('delete-user-access/{id}', [AdminController::class, 'deleteUserAccess'])->name('admin.user-access.delete');
             Route::get('user-types', [AdminController::class, 'userTypes'])->name('admin.user-types');
@@ -175,6 +175,7 @@ Route::group(['prefix' => '/erp'], function () {
 
             Route::get('menu-access-types', [AdminController::class, 'menuAccessTypes'])->name('admin.menu-access-types');
             Route::post('add-menu-access-type', [AdminController::class, 'addMenuAccessType'])->name('admin.add.menu-access-type');
+            Route::get('revoke-access/{id}', [AccessController::class, 'revokeDeptAccess'])->name('dept.erp.revoke-access');
         });
 
         //admission routes Admin

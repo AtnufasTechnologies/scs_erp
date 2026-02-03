@@ -13,7 +13,7 @@ $campusMaster = App\Models\Campus::all();
 <!-- Department Access Modal -->
 <div class="modal fade" id="deptAccessModal" tabindex="-1" aria-labelledby="deptAccessModalLabel" aria-hidden="true">
   <div class="modal-dialog">
-    <form method="POST" action="{{ route('admin.admission.grant-access') }}">
+    <form method="POST" action="{{ route('dept.erp.grant-access') }}">
       @csrf
       <div class="modal-content">
         <div class="modal-header">
@@ -22,29 +22,26 @@ $campusMaster = App\Models\Campus::all();
         </div>
         <div class="modal-body">
           <div class="mb-3">
-            <label for="">Authorized For Campus * </label>
-            <select name="campus" class="form-control mb-3" id="campus" required>
-              <option value="">Select Campus</option>
-              @foreach ($campusMaster as $cm)
-              <option value="{{ $cm->id }}">{{ $cm->name }}</option>
-              @endforeach
-            </select>
 
-            <label for="program_group" class="form-label">Select Department </label>
-            <select class="form-select dselect-example departmentId mb-3" name="department">
+            <label for="program_group" class="form-label">Select Academic Department </label>
+            <select class="form-select dselect-example   mb-3" name="department">
               <option value="">Choose...</option>
               @foreach($departments as $dept)
-              <option value="{{ $dept->id }}">{{ $dept->code }} - {{ $dept->title }}</option>
+              <option value="{{ $dept->id }}">{{ $dept->code }} ({{ $dept->campusmaster->name ?? '' }}) - <?php echo ucfirst($dept->title); ?></option>
               @endforeach
             </select>
-            <div id="listedPrograms" style="margin-top:15px; display:none;">
-              <strong> Combo Offered by Department:</strong>
-              <ul>
-              </ul>
-            </div>
 
-            <label for="">Auto Generated Email</label>
+            <label for="name" class="form-label">Full Name </label>
+            <input type="text" name="name" class="form-control mb-3" placeholder="Full Name" required>
+
+            <label for="email" class="form-label">Login Email address </label>
+            <input type="email" name="email" class="form-control mb-3" placeholder="  Email" required>
+
+            <label for="password" class="form-label">Your Login Password </label>
             <input type="password" name="password" class="form-control mb-3" placeholder="Login Password" required>
+
+
+
 
 
 
@@ -61,6 +58,10 @@ $campusMaster = App\Models\Campus::all();
   </div>
 </div>
 
+
+@if (count($data))
+
+
 <div class="row mt-4">
   <div class="col-12">
     <div class="card shadow-sm">
@@ -75,7 +76,10 @@ $campusMaster = App\Models\Campus::all();
                 <th scope="col">#</th>
                 <th scope="col">Name</th>
                 <th scope="col">Email</th>
+                <th>Status</th>
+                <th>Action</th>
                 <th scope="col">Created At</th>
+                <th>Updated At</th>
               </tr>
             </thead>
             <tbody>
@@ -84,13 +88,17 @@ $campusMaster = App\Models\Campus::all();
                 <td>{{ $index + 1 }}</td>
                 <td>{{ $item->name }}</td>
                 <td>{{ $item->email }}</td>
+                <td>{{ $item->status }}</td>
+                <td>
+
+                  <a href="{{ route('dept.erp.revoke-access', $item->id) }}">
+                    <button type="submit" class="btn {{ $item->status == 'ACTIVE' ? 'btn-success' : 'btn-danger' }} btn-sm">{{ $item->status == 'ACTIVE' ? 'Block Access' : 'Allow Access' }}</button></a>
+
+                </td>
                 <td>{{ $item->created_at->format('Y-m-d') }}</td>
+                <td>{{ $item->updated_at->format('Y-m-d') }}</td>
               </tr>
-              @empty
-              <tr>
-                <td colspan="4" class="text-center text-muted">No departmental access records found.</td>
-              </tr>
-              @endforelse
+              @endforeach
             </tbody>
           </table>
         </div>
@@ -98,7 +106,9 @@ $campusMaster = App\Models\Campus::all();
     </div>
   </div>
 </div>
-
+@else
+<p class="display-4 text-center">No departmental access records found.</p>
+@endif
 
 <!-- Make sure jQuery is loaded before this script -->
 <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>

@@ -971,14 +971,14 @@ use App\Http\Controllers\StaticController;
           </a>
         </li>
         @endif
-        <!--Departmental Access Control -->
+        <!--Departmental Admission Access Control -->
         @if (StaticController::subMenuRights('admission-dept-access') )
         <li>
-          <a href="{{route('admission.dept-access')}}">
+          <a href="{{route('dept.erp.access-list')}}">
             <div class="parent-icon">
               <i class="fas fa-arrow-alt-circle-right"></i>
             </div>
-            <div class="menu-title">Departmental Auth </div>
+            <div class="menu-title">Dept Admission Access </div>
           </a>
         </li>
         @endif
@@ -993,6 +993,7 @@ use App\Http\Controllers\StaticController;
           </a>
         </li>
         @endif
+
 
         <li>
           <a href="{{route('admin.menu-access-types')}}">
