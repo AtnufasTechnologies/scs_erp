@@ -94,6 +94,9 @@ return [
                 'postmark',
             ],
         ],
+        'resend' => [
+            'key' => env('RESEND_API_KEY'),
+        ],
     ],
 
     /*

@@ -165,6 +165,8 @@ class LoginController extends Controller
             $details = [
                 'token' =>  $code,
             ];
+
+
             Mail::to($email)->send(new PasswordResetOtpMail($details));
 
             return redirect()->back()->with('success', 'Reset Link Sent on Email');
