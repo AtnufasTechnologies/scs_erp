@@ -24,7 +24,7 @@ class Qs
       $programs = StudentProgram::with('applicationCount')
 
         ->whereHas('applicationmaster', function ($query) {
-          $query->where('application_status', 1); //approved applications only
+          $query->where('payment_gateway_status', 'success'); //approved applications only
           $query->whereHas('registrationmaster.programinfo', function ($query) {
             $query->where('name', 'UG');
           });
@@ -36,7 +36,7 @@ class Qs
           $query->where('id', $campusId);
         })
         ->whereHas('applicationmaster', function ($query) {
-          $query->where('application_status', 1); //approved applications only
+          $query->where('payment_gateway_status', 'success'); //approved applications only
           $query->whereHas('registrationmaster.programinfo', function ($query) {
             $query->where('name', 'UG');
           });

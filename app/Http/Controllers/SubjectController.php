@@ -80,28 +80,55 @@ class SubjectController extends Controller
 
     function subjectSingle(Request $request)
     {
+        $request->validate([
+            'id' => 'required',
+        ]);
 
-        $id = $request->id;
+        $subjectId = $request->id;
+        $subject = Subject::with(['semesters'])->find($subjectId);
 
-        if (!empty($request->batch)) {
-            $batchmaster = BatchMaster::where('id', $request->batch)->first();
-            $batchId = $batchmaster->id;
-        } else {
-            $batchmaster = BatchMaster::where('admission_active_batch', 1)->first();
-            $batchId = $batchmaster->id;
+        // Course Master
+        $courseMaster = $subject;
+
+        // Number of Students (total students in all batches for this subject/department)
+        $studentsCount = 0;
+        $batchWiseStudents = [];
+        $semestersCount = $subject->semesters->count();
+
+        // Get all batches
+        $batches = BatchMaster::all();
+        foreach ($batches as $batch) {
+            $studentCount = \App\Models\StudentMaster::where('department', $subjectId)
+                ->where('batch', $batch->id)
+                ->count();
+            $batchWiseStudents[] = [
+                'batch_name' => $batch->batch_name,
+                'student_count' => $studentCount
+            ];
+            $studentsCount += $studentCount;
         }
-        $query = Subject::find($id);
 
-        $query->with(['combinations', 'semesters.syllabus'])->with('syllabus', function ($q) use ($batchId) {
-            $q->where('session_id', $batchId);
-        })->where('id', $id)
-            ->first();
 
-        $data = $query;
-        $programs = StudentProgram::where('campus_id', $query->campus_id)->latest()->get();
-        return view('admin.subject.subject-single', [
-            'data' => $data,
-            'batchmaster' => $batchmaster,
+        // For combinations modal
+        if (!empty($request->batch)) {
+            $activeBatch = $request->batch;
+        } else {
+            $activeBatch = BatchMaster::where('admission_active_batch', 1)->value('id');
+        }
+
+        $combinations = SubjectHasStudentProgam::where('subject_id', $subjectId)
+            ->with(['studentprograminfo', 'batchmaster'])
+            ->where('batch_id', $activeBatch)
+            ->get();
+
+
+        $programs = StudentProgram::where('campus_id', $subject->campus_id)->get();
+        return view('admin.subject.department-dashboard', [
+            'data' => $courseMaster,
+            'students_count' => $studentsCount,
+            'semesters_count' => $semestersCount,
+            'batchWiseStudents' => $batchWiseStudents,
+            'combinations' => $combinations,
             'programs' => $programs
         ]);
     }
