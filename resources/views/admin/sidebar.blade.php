@@ -323,6 +323,15 @@ $roleType = UserHasRole::where('user_id', $userId)->value('role_name');
           </a>
         </li>
 
+        <li>
+          <a href="{{route('admission.settings')}}">
+            <div class=" parent-icon">
+              <i class="fas fa-cog"></i>
+            </div>
+            <div class="menu-title "> Admission Settings</div>
+          </a>
+        </li>
+
       </ul>
     </li>
     @endif

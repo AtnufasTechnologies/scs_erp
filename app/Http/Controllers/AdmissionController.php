@@ -9,6 +9,7 @@ use App\Models\AdmissionApplicationPaymentLog;
 use App\Models\AdmissionFinalPhase;
 use App\Models\AdmissionFirstPhase;
 use App\Models\AdmissionRegistration;
+use App\Models\AdmissionSetting;
 use App\Models\BatchMaster;
 use App\Models\BloodGroupMaster;
 use App\Models\Campus;
@@ -1145,6 +1146,49 @@ class AdmissionController extends Controller
 
         return view('admission.success-confirmation', ['data' => $applicationRecord]);
     }
+
+    function admissionSettings()
+    {
+        $data = AdmissionSetting::first();
+        return view('admin.admission.settings', ['data' => $data]);
+    }
+
+    function updateAdmissionSettingsUg(Request $request)
+    {
+
+
+        AdmissionSetting::updateOrCreate(
+            ['id' => 1],
+            [
+                'open_date_ug' => $request->open_date_ug,
+                'close_date_ug' => $request->close_date_ug,
+                'instructions_ug' => $request->instructions_ug,
+                'application_fee_ug' => $request->application_fee_ug,
+
+            ]
+        );
+
+        return back()->with('success', 'Admission settings updated successfully.');
+    }
+
+    function updateAdmissionSettingsPg(Request $request)
+    {
+
+
+        AdmissionSetting::updateOrCreate(
+            ['id' => 1],
+            [
+                'open_date_pg' => $request->open_date_pg,
+                'close_date_pg' => $request->close_date_pg,
+                'instructions_pg' => $request->instructions_pg,
+                'application_fee_pg' => $request->application_fee_pg,
+            ]
+        );
+
+        return back()->with('success', 'Admission settings updated successfully.');
+    }
+
+
 
 
     function logout()

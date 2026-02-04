@@ -15,7 +15,7 @@ return new class extends Migration
             $table->id();
             $table->string('batch_name');
             $table->smallInteger('admission_active_batch')->default(0);
-            $table->float('admn_fee_amount')->nullable();
+            $table->float('adm_application_amount')->nullable();
             $table->timestamps();
         });
     }

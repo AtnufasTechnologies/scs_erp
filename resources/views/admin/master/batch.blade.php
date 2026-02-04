@@ -66,7 +66,7 @@
           </a>
 
         </td>
-        <td>{{$item->admn_fee_amount}}</td>
+        <td>{{$item->adm_application_amount}}</td>
         <td></td>
 
       </tr>

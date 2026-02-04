@@ -128,6 +128,46 @@
       }
     });
   });
+
+  ClassicEditor.create(document.querySelector(".editor"), {
+      removePlugins: [
+        "CKFinderUploadAdapter",
+        "CKFinder",
+        "EasyImage",
+        "Image",
+        "ImageCaption",
+        "ImageStyle",
+        "ImageToolbar",
+        "ImageUpload",
+        "MediaEmbed",
+      ],
+    })
+    .then((editor) => {
+      console.log(editor);
+    })
+    .catch((error) => {
+      console.error(error);
+    });
+
+  ClassicEditor.create(document.querySelector(".editor2"), {
+      removePlugins: [
+        "CKFinderUploadAdapter",
+        "CKFinder",
+        "EasyImage",
+        "Image",
+        "ImageCaption",
+        "ImageStyle",
+        "ImageToolbar",
+        "ImageUpload",
+        "MediaEmbed",
+      ],
+    })
+    .then((editor) => {
+      console.log(editor);
+    })
+    .catch((error) => {
+      console.error(error);
+    });
 </script>
 </body>
 
