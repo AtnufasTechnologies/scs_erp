@@ -17,11 +17,11 @@ class StudentProgram extends Model
 
     function applicationmaster()
     {
-        return $this->hasMany(AdmissionApplication::class, 'programme_id', 'id')->with('registrationmaster.programinfo.campus');
+        return $this->hasMany(AdmissionApplication::class, 'course', 'id')->with('registrationmaster.programinfo.campus');
     }
     function applicationCount()
     {
-        return $this->hasMany(AdmissionApplication::class, 'programme_id', 'id');
+        return $this->hasMany(AdmissionApplication::class, 'course', 'id');
     }
 
     function departmentmaster()
