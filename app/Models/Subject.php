@@ -10,6 +10,10 @@ class Subject extends Model
 {
     use HasFactory, SoftDeletes;
 
+    protected $fillable = [
+        'main_dept_id',
+    ];
+
     function campusmaster()
     {
         return $this->hasOne(Campus::class, 'id', 'campus_id');
@@ -29,5 +33,10 @@ class Subject extends Model
     function combinations()
     {
         return $this->hasMany(SubjectHasStudentProgam::class, 'subject_id', 'id');
+    }
+
+    function courseMasterPivot()
+    {
+        return $this->hasMany(SubjectCourseMaster::class, 'subject_id', 'id');
     }
 }

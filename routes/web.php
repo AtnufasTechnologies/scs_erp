@@ -260,6 +260,9 @@ Route::group(['prefix' => '/erp'], function () {
     Route::group(['prefix' => '/deptartment'], function () {
         Route::get('dashboard', [SubjectController::class, 'departmentDashboard'])->name('department.dashboard');
         Route::delete('combination/{id}/delete', [SubjectController::class, 'deleteCombination'])->name('department.combination.delete');
+        Route::get('course-master/{id}/{slug}', [SubjectController::class, 'courseMaster'])->name('department.course.master');
+        Route::post('my-course-master', [SubjectController::class, 'addCourseMaster'])->name('department.add.course.master');
+        Route::delete('course-master/{id}/delete', [SubjectController::class, 'deleteCourseMaster'])->name('department.course.delete');
     });
 });
 

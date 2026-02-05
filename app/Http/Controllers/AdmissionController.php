@@ -997,7 +997,14 @@ class AdmissionController extends Controller
                     'applicationmaster.academicDeptMaster',
                     'applicationmaster.stdCourseMaster'
                 ])->where('id', $userId)->first();
-                $amount =  BatchMaster::where('admission_active_batch', 1)->value('adm_application_amount');
+
+                if ($data->programinfo->name == 'PG') {
+                    $amount =  AdmissionSetting::where('application_fee_pg')
+                        ->value('application_fee_pg');
+                } else {
+                    $amount =  AdmissionSetting::where('application_fee_ug')
+                        ->value('application_fee_ug');
+                }
                 return view('admission.payment-checkout', ['data' => $data, 'amount' => $amount]);
             }
         } else {

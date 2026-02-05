@@ -8,8 +8,10 @@ use App\Models\CognitiveLevelMaster;
 use App\Models\Department;
 use App\Models\Faculty;
 use App\Models\LectureHallMaster;
+use App\Models\ProgramCourseMaster;
 use App\Models\StudentProgram;
 use App\Models\Subject;
+use App\Models\SubjectCourseMaster;
 use App\Models\SubjectHasCombination;
 use App\Models\SubjectHasDeptAdmin;
 use App\Models\SubjectHasRoutine;
@@ -123,13 +125,15 @@ class SubjectController extends Controller
 
 
         $programs = StudentProgram::where('campus_id', $subject->campus_id)->get();
+        $course_master_count = SubjectCourseMaster::where('subject_id', $subjectId)->count();
         return view('admin.subject.department-dashboard', [
             'data' => $courseMaster,
             'students_count' => $studentsCount,
             'semesters_count' => $semestersCount,
             'batchWiseStudents' => $batchWiseStudents,
             'combinations' => $combinations,
-            'programs' => $programs
+            'programs' => $programs,
+            'course_master_count' => $course_master_count
         ]);
     }
 
@@ -253,6 +257,7 @@ class SubjectController extends Controller
         $subject_id = $request->subject_id;
         $data = Subject::find($subject_id);
 
+
         for ($i = 0; $i < count($programs); $i++) {
 
             $recordCheck = SubjectHasStudentProgam::where('subject_id', $subject_id)
@@ -260,7 +265,12 @@ class SubjectController extends Controller
                 ->where('student_program_id', $programs[$i])
                 ->where('campus_id', $data->campus_id)
                 ->first();
+
+
+
             if ($recordCheck == null) {
+
+                $departmentId =  StudentProgram::where('id', $programs[$i])->value('department');
                 $subject = new SubjectHasStudentProgam();
                 $subject->subject_id = $subject_id;
                 $subject->batch_id = $request->batch_id;
@@ -281,7 +291,7 @@ class SubjectController extends Controller
 
         $userId = Auth::user()->id;
         $subjectId = SubjectHasDeptAdmin::where('user_id', $userId)->value('subject_id');
-        $subject = Subject::with(['semesters'])->find($subjectId);
+        $subject = Subject::with(['semesters', 'courseMasterPivot'])->find($subjectId);
 
         // Course Master
         $courseMaster = $subject;
@@ -319,13 +329,15 @@ class SubjectController extends Controller
 
 
         $programs = StudentProgram::where('campus_id', $subject->campus_id)->get();
+
         return view('admin.subject.department-dashboard', [
             'data' => $courseMaster,
             'students_count' => $studentsCount,
             'semesters_count' => $semestersCount,
             'batchWiseStudents' => $batchWiseStudents,
             'combinations' => $combinations,
-            'programs' => $programs
+            'programs' => $programs,
+
         ]);
     }
 
@@ -334,5 +346,55 @@ class SubjectController extends Controller
         $combination = SubjectHasStudentProgam::findOrFail($id);
         $combination->delete();
         return redirect()->back()->with('success', 'Combination Deleted');
+    }
+
+    function courseMaster($academicDeptId, $slug)
+    {
+        $data = Subject::find($academicDeptId);
+
+        $courses =  SubjectCourseMaster::with([
+            'courseMaster',
+        ])->where('subject_id', $academicDeptId)->get();
+
+        $programCourseMaster =  ProgramCourseMaster::all();
+        $assignedCourseIds = SubjectCourseMaster::where('subject_id', $academicDeptId)
+            ->pluck('course_master_id')
+            ->toArray();
+
+        $unassignedCourses = ProgramCourseMaster::whereNotIn('id', $assignedCourseIds)->get();
+
+        return view('admin.subject.course-master', [
+            'data' => $data,
+            'course_master' => $unassignedCourses,
+            'mycourses' => $courses,
+        ]);
+    }
+
+
+    function addCourseMaster(Request $request)
+    {
+        $request->validate([
+            'subject_id' => 'required',
+            'courses' => 'required|array|min:1',
+        ]);
+
+        $courseMasterId =   $request->courses;
+
+        for ($i = 0; $i < count($courseMasterId); $i++) {
+            $courseId = $courseMasterId[$i];
+            $existingRecord = SubjectCourseMaster::where('subject_id', $request->subject_id)
+                ->where('course_master_id', $courseId)
+                ->first();
+
+            if (!$existingRecord) {
+                $rec = new SubjectCourseMaster();
+                $rec->subject_id = $request->subject_id;
+                $rec->course_master_id = $courseId;
+                $rec->save();
+            }
+        }
+
+
+        return redirect()->back()->with('success', 'Course Master Added');
     }
 }

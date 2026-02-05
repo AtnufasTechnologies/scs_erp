@@ -53,11 +53,15 @@ $semesters = Semester::get();
     <!-- Course Master Card -->
     <div class="col-md-4">
       <div class="card shadow-lg border-0" style="background: linear-gradient(135deg, #43cea2 0%, #0efab3 100%); color: #fff;">
-        <div class="card-body">
-          <h5 class="card-title"> Subjects</h5>
-          <p class="display-6 fw-bold">{{ $data->students_count ?? 0 }}</p>
-        </div>
+        <a href="{{route('department.course.master',[$data->id,$data->slug])}}" class="text-decoration-none text-white">
+          <div class="card-body">
+            <h5 class="card-title"> Course Master</h5>
+            <p class="display-6 fw-bold">{{ $data->courseMasterPivot->count() ?? 0 }}</p>
+          </div>
+
+        </a>
       </div>
+
     </div>
     <!-- Number of Students Card -->
     <div class="col-md-4">
@@ -190,6 +194,8 @@ $semesters = Semester::get();
       </div>
     </div>
   </div>
+  @else
+  <p class="text-center text-light">No combinations found.</p>
   @endif
 
   @include('includes.footer')
