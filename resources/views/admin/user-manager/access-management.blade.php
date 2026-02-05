@@ -12,7 +12,8 @@ $campusMaster = Campus::all()
 
 @include('includes.header')
 @include('admin.sidebar')
-<h3>User Access Management</h3>
+<h3>User Access Management </h3>
+
 
 
 <button class="cst-button mb-3" style="--clr: #21d9c7ff;" data-bs-toggle="modal" data-bs-target="#add">
@@ -88,6 +89,7 @@ $campusMaster = Campus::all()
     <div class="card mb-4 fixed-card">
       <div class="card-body scrollable-card">
         <h5 class="card-title">{{ $itm->name }}</h5>
+        <a href="{{ route('impersonate.user', ['id' => $itm->id]) }}" target="_blank"><i class="fa fa-lock-open"></i></a>
         <p class="card-text"><strong>Email:</strong> {{ $itm->email }}</p>
         <p class="card-text"> <span class="badge campus-badge"><strong> {{$itm->userroletype != null ? $itm->userroletype->role_name : ''}}</strong></span>
         <p class="card-text"><strong>Access</strong>

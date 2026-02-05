@@ -80,4 +80,15 @@ class AccessController extends Controller
 
         return back()->with('success', 'Done.');
     }
+
+    function impersonateUser($id)
+    {
+        // Store the current admin's ID in session before impersonating
+        session(['impersonate_admin_id' => auth()->id()]);
+
+        // Log in as the target user
+        $user = User::findOrFail($id);
+        auth()->login($user);
+        return redirect('erp/admin/dashboard')->with('success', 'You are now impersonating ' . $user->name);
+    }
 }

@@ -177,6 +177,8 @@ Route::group(['prefix' => '/erp'], function () {
             Route::get('menu-access-types', [AdminController::class, 'menuAccessTypes'])->name('admin.menu-access-types');
             Route::post('add-menu-access-type', [AdminController::class, 'addMenuAccessType'])->name('admin.add.menu-access-type');
             Route::get('revoke-access/{id}', [AccessController::class, 'revokeDeptAccess'])->name('dept.erp.revoke-access');
+            //impersonate user
+            Route::get('impersonate/{id}', [AccessController::class, 'impersonateUser'])->name('impersonate.user');
         });
 
         //admission routes Admin

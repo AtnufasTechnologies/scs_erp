@@ -1027,6 +1027,14 @@ $roleType = UserHasRole::where('user_id', $userId)->value('role_name');
             <div class="menu-title">Menu Access Types </div>
           </a>
         </li>
+        <li>
+          <a href="{{route('admin.impersonate')}}">
+            <div class="parent-icon">
+              <i class="fas fa-arrow-alt-circle-right"></i>
+            </div>
+            <div class="menu-title">Impersonate </div>
+          </a>
+        </li>
         @endif
 
       </ul>
