@@ -62,7 +62,7 @@
 
 
         <div class="table-responsive">
-          <table class="table table-bordered table-striped bg-white rounded shadow-sm" id="exportTable">
+          <table class="table table-bordered table-striped bg-white rounded shadow-sm">
             <thead class="table-dark">
               <tr>
                 <th>#</th>

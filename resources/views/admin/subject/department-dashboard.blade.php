@@ -129,8 +129,9 @@ $semesters = Semester::get();
     </div>
   </div>
 
-  @if(count($combinations))
+
   <div class="row">
+    @if(count($combinations))
     <div class="col-12">
       <div class="card shadow-lg border-0">
         <div class="card-header bg-white border-0 pb-0">
@@ -193,9 +194,12 @@ $semesters = Semester::get();
 
       </div>
     </div>
+    @else
+    <p class="text-center text-light">No combinations found.</p>
+    @endif
   </div>
-  @else
-  <p class="text-center text-light">No combinations found.</p>
-  @endif
+
+
+
 
   @include('includes.footer')
