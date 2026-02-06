@@ -157,8 +157,9 @@ Route::group(['prefix' => '/erp'], function () {
         Route::group(['prefix' => '/academics'], function () {
             Route::post('add/subject-semester', [SubjectController::class, 'addSemesterToSubject'])->name('add.semester.to.subject');
             Route::post('add/subject-syllabus', [SubjectController::class, 'addSyllabus'])->name('add.syllabus.to.semester');
-            Route::get('all-course-combinations', [SubjectController::class, 'callCourseCombinations'])->name('course-combination.master');
+            Route::get('all-course-combinations', [SubjectController::class, 'deptAllCourseCombinations'])->name('dept.all.course-combination');
             Route::get('program-course-master', [SubjectController::class, 'programCourseMaster'])->name('program-course.master');
+            Route::get('admin/course-master', [SubjectController::class, 'adminCourseMaster'])->name('admin.course-master');
         });
 
         //user access management

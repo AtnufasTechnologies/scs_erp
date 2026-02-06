@@ -17,4 +17,14 @@ class SubjectHasStudentProgam extends Model
     {
         return $this->hasOne(BatchMaster::class, 'id', 'batch_id');
     }
+
+    function subjectmaster()
+    {
+        return $this->hasOne(Subject::class, 'id', 'subject_id');
+    }
+
+    function campusmaster()
+    {
+        return $this->hasOne(Campus::class, 'id', 'campus_id');
+    }
 }

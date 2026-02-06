@@ -35,7 +35,7 @@
             <label for="">Select Master Course</label>
             <select name="courses[]" class="select-multiple" multiple>
               @foreach ($course_master as $course)
-              <option value="{{ $course->id }}">{{ $course->course_code }} - {{ $course->course_title }}</option>
+              <option value="{{ $course->id }}">{{ $course->course_code }} - {{ $course->course_title }} ({{$course->coursetypemaster->title ?? '-'   }})</option>
               @endforeach
             </select>
 
@@ -66,10 +66,11 @@
             <thead class="table-dark">
               <tr>
                 <th>#</th>
+                <th>Course Type</th>
                 <th>Course Code</th>
                 <th>Course Title</th>
                 <th>Credits</th>
-                <th>Semester</th>
+
                 <th>Actions</th>
               </tr>
             </thead>
@@ -77,10 +78,11 @@
               @forelse($mycourses as $course)
               <tr>
                 <td>{{ $loop->iteration}}</td>
+                <td>{{ $course->courseMaster->coursetypemaster->code ?? '-' }} {{ $course->courseMaster->coursetypemaster->title ?? '-' }}</td>
                 <td>{{ $course->courseMaster->course_code ?? '-' }}</td>
                 <td>{{ $course->courseMaster->course_title ?? '-' }}</td>
                 <td>{{ $course->courseMaster->credits ?? '-' }}</td>
-                <td>{{ $course->courseMaster->semester ?? '-' }}</td>
+
                 <td>
                   <!-- Example action buttons -->
 

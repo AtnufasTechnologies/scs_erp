@@ -359,9 +359,11 @@ class SubjectController extends Controller
         $programCourseMaster =  ProgramCourseMaster::all();
         $assignedCourseIds = SubjectCourseMaster::where('subject_id', $academicDeptId)
             ->pluck('course_master_id')
+            ->where('is_deleted', 0)
             ->toArray();
 
-        $unassignedCourses = ProgramCourseMaster::whereNotIn('id', $assignedCourseIds)->get();
+        $unassignedCourses = ProgramCourseMaster::whereNotIn('id', $assignedCourseIds)
+            ->with('coursetypemaster')->get();
 
         return view('admin.subject.course-master', [
             'data' => $data,
@@ -396,5 +398,47 @@ class SubjectController extends Controller
 
 
         return redirect()->back()->with('success', 'Course Master Added');
+    }
+
+
+    function adminCourseMaster(Request $request)
+    {
+        $courseTypeFilter = $request->input('course_type');
+
+        if ($courseTypeFilter) {
+            $data = ProgramCourseMaster::with([
+                'coursetypemaster',
+                'semestermaster',
+            ])->whereHas('coursetypemaster', function ($query) use ($courseTypeFilter) {
+                $query->where('id', $courseTypeFilter);
+            })->withCount(['stucourseinfo' => function ($query) {
+                $query->where('is_deleted', 0);
+                $query->where('campus_id', 2);
+            }])->get();
+        } else {
+
+            $data = ProgramCourseMaster::with([
+                'coursetypemaster',
+                'semestermaster',
+            ])->withCount(['stucourseinfo' => function ($query) {
+                $query->where('is_deleted', 0);
+                $query->where('campus_id', 2);
+            }])->get();
+        }
+        return view('admin.master.course-master', ['data' => $data]);
+    }
+
+
+    function deptAllCourseCombinations(Request $request)
+    {
+        $courseId = $request->course_id;
+
+        $combinations = SubjectHasStudentProgam::with([
+            'batchmaster',
+            'campusmaster',
+            'studentprograminfo.departmentmaster',
+        ])->get();
+
+        return view('admin.subject.all-combination', ['combinations' => $combinations]);
     }
 }

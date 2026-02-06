@@ -11,16 +11,21 @@ class ProgramCourseMaster extends Model
 
     function semestermaster()
     {
-        return  $this->hasOne(Semester::class, 'id', 'SEMESTER_ID');
+        return  $this->hasOne(Semester::class, 'id', 'semester_id');
     }
 
     function departmentmaster()
     {
-        return  $this->hasOne(DepartmentMaster::class, 'id', 'DEPARTMENT');
+        return  $this->hasOne(DepartmentMaster::class, 'id', 'department');
     }
 
     function coursetypemaster()
     {
-        return  $this->hasOne(SubjectTypeMaster::class, 'id', 'COURSE_TYPE');
+        return  $this->hasOne(SubjectTypeMaster::class, 'id', 'course_type');
+    }
+
+    function stucourseinfo()
+    {
+        return  $this->hasMany(StudentCourseInfo::class, 'course_id', 'id');
     }
 }

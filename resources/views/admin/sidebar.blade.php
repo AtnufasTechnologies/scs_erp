@@ -419,20 +419,9 @@ $roleType = UserHasRole::where('user_id', $userId)->value('role_name');
           </a>
         </li>
         @endif
-
-        @if (StaticController::subMenuRights('course-combination-master') )
-        <li>
-          <a href="{{route('course-combination.master')}}">
-            <div class="parent-icon">
-              <i class="fas fa-arrow-alt-circle-right"></i>
-            </div>
-            <div class="menu-title">Course Combination Master </div>
-          </a>
-        </li>
-        @endif
         @if (StaticController::subMenuRights('program-course-master') )
         <li>
-          <a href="{{route('program-course.master')}}">
+          <a href="{{route('admin.course-master')}}">
             <div class="parent-icon">
               <i class="fas fa-arrow-alt-circle-right"></i>
             </div>
@@ -440,6 +429,18 @@ $roleType = UserHasRole::where('user_id', $userId)->value('role_name');
           </a>
         </li>
         @endif
+
+        @if (StaticController::subMenuRights('course-combination-master') )
+        <li>
+          <a href="{{route('dept.all.course-combination')}}">
+            <div class="parent-icon">
+              <i class="fas fa-arrow-alt-circle-right"></i>
+            </div>
+            <div class="menu-title">Course Combination Master </div>
+          </a>
+        </li>
+        @endif
+
         @if (StaticController::subMenuRights('program-objective-master') )
         <!-- <li>
           <a href="">
@@ -481,6 +482,7 @@ $roleType = UserHasRole::where('user_id', $userId)->value('role_name');
           </a>
         </li> -->
         @endif
+
         @if (StaticController::subMenuRights('attendance-master') )
         <!-- <li>
           <a href="#">
