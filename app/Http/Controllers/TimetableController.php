@@ -130,10 +130,10 @@ class TimetableController extends Controller
                     $facultyId = $routine->faculty_id; // Now using proper faculty_id column
                     $subjectCourseId = $routine->subject_course_id; // New subject_course_id column
 
-// Get course name from subject_course_id or course_master_id
+                    // Get course name from subject_course_id or course_master_id
                     $courseName = '';
                     $courseRelation = null;
-                    
+
                     // Try to get course info from subject_course_id first (most specific)
                     if ($subjectCourseId && $courseRelationsBySubjectCourseId->has($subjectCourseId)) {
                         $courseRelation = $courseRelationsBySubjectCourseId->get($subjectCourseId);
@@ -141,7 +141,7 @@ class TimetableController extends Controller
                         // Fall back to course_master_id lookup
                         $courseRelation = $courseRelationsByMasterId->get($courseMasterId);
                     }
-                    
+
                     if ($courseRelation) {
                         $courseName = ($courseRelation->courseMaster->coursetypemaster->title ?? '') . ' - ' .
                             ($courseRelation->courseMaster->course_code ?? '') . ' - ' .
