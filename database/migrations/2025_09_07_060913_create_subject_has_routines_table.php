@@ -12,13 +12,18 @@ return new class extends Migration
     public function up(): void
     {
         Schema::create('subject_has_routines', function (Blueprint $table) {
-            $table->id(); 
-            $table->foreignId('syllabus_id')->constrained('subject_has_syllabi')->onDelete('cascade');
+            $table->bigIncrements('id');
+            $table->unsignedBigInteger('batch_id')->nullable();
+            $table->unsignedBigInteger('syllabus_id');
             $table->integer('weekday_id');
             $table->integer('hour_id');
             $table->integer('lecturehall_id')->nullable();
-            $table->timestamps();
-            $table->softDeletes();
+            $table->integer('faculty_id')->nullable();
+            $table->integer('subject_course_id')->nullable();
+            $table->integer('substitution_faculty_id')->nullable();
+            $table->timestamp('created_at')->nullable();
+            $table->timestamp('updated_at')->nullable();
+            $table->timestamp('deleted_at')->nullable();
         });
     }
 
