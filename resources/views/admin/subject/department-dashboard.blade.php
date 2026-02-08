@@ -30,6 +30,10 @@ $faculty = Faculty::where('IS_LEFT', 0)->get();
         <a href="{{ url('logout') }}" class="btn btn-light btn-sm fw-bold ms-auto" style="box-shadow:0 2px 8px #0002;">
           <i class="fa fa-sign-out-alt me-1"></i> Logout
         </a>
+        @else
+        <a href="{{route('admin.dashboard')}}" class="btn btn-light btn-sm fw-bold ms-auto" style="box-shadow:0 2px 8px #0002;">
+          <i class="fa fa-sign-out-alt me-1"></i>Admin Console
+        </a>
         @endif
 
       </div>

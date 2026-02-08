@@ -440,7 +440,14 @@ $roleType = UserHasRole::where('user_id', $userId)->value('role_name');
           </a>
         </li>
         @endif
-
+        <li>
+          <a href="{{route('department.substitution.history.page')}}">
+            <div class="parent-icon">
+              <i class="fas fa-arrow-alt-circle-right"></i>
+            </div>
+            <div class="menu-title">Substitution History </div>
+          </a>
+        </li>
         @if (StaticController::subMenuRights('program-objective-master') )
         <!-- <li>
           <a href="">

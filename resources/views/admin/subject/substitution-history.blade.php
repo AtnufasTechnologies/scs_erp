@@ -1,4 +1,7 @@
 @include('includes.header')
+@if(Auth::user()->userroletype != 'dept-admin-erp')
+@include('admin.sidebar')
+@endif
 <style>
   .custom-navbar {
     background: linear-gradient(135deg, #1e5742 0%, #8931f6 100%);
@@ -148,10 +151,6 @@
         <div class="d-flex">
           @if(Auth::user()->userroletype == 'dept-admin-erp')
           <a href="{{ route('department.dashboard') }}" class="btn btn-light btn-sm fw-bold ms-auto" style="box-shadow:0 2px 8px #5740b433;">
-            <i class="fa fa-step-backward me-1"></i> back
-          </a>
-          @else
-          <a href="{{ url()->previous() }}" class="btn btn-light btn-sm fw-bold ms-auto" style="box-shadow:0 2px 8px #5740b433;">
             <i class="fa fa-step-backward me-1"></i> back
           </a>
           @endif
