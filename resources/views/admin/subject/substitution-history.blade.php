@@ -1,3 +1,9 @@
+<?php
+
+use App\Http\Controllers\StaticController;
+
+
+?>
 @include('includes.header')
 @if(Auth::user()->userroletype != 'dept-admin-erp')
 @include('admin.sidebar')

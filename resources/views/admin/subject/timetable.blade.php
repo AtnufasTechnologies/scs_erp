@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\StaticController;
 use App\Models\SubjectCourseMaster;
 use App\Models\SubjectFacultyMaster;
 
