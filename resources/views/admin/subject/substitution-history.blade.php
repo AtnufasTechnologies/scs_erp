@@ -149,7 +149,7 @@
       </a>
       <div class="d-flex">
         <div class="d-flex">
-          @if(Auth::user()->userroletype == 'dept-admin-erp')
+          @if(StaticController::fetchUserRole() == 'dept-admin-erp')
           <a href="{{ route('department.dashboard') }}" class="btn btn-light btn-sm fw-bold ms-auto" style="box-shadow:0 2px 8px #5740b433;">
             <i class="fa fa-step-backward me-1"></i> back
           </a>

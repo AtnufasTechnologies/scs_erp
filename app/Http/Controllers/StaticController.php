@@ -18,6 +18,7 @@ use App\Models\StudentPayment;
 use App\Models\User;
 use App\Models\UserCampusSetting;
 use App\Models\UserHasPermission;
+use App\Models\UserHasRole;
 use App\Models\UserMenuPermission;
 use Carbon\Carbon;
 use GuzzleHttp\Client;
@@ -383,5 +384,11 @@ class StaticController extends Controller
         $query->where('module_type', $type);
       })
       ->exists();
+  }
+
+  static function fetchUserRole()
+  {
+    $role_name = UserHasRole::where('user_id', Auth::id())->value('role_name');
+    return $role_name;
   }
 }

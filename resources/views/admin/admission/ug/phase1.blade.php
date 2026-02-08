@@ -1,6 +1,7 @@
 <?php
 
 use App\Helpers\Qs;
+use App\Http\Controllers\StaticController;
 use App\Models\StudentProgram;
 
 $programs = Qs::getProgramGroups();
@@ -8,7 +9,28 @@ $programs = Qs::getProgramGroups();
 ?>
 
 @include('includes.header')
+@if(StaticController::fetchUserRole() == 'dept-admin-erp')
+
+<div class="container-fluid">
+  <nav class="navbar navbar-expand-lg navbar-dark mb-4 custom-navbar"
+    style="background: linear-gradient(135deg, #17472f 0%, #8931f6 100%); border-radius: 0.75rem;">
+    <div class=" container-fluid">
+      <img src="{{ asset('admin/images/logo.png') }}" alt="Logo" style="max-height: 50px;" class="me-2">
+      <h3><span class="text-light">Interview List</span></h3>
+      <div class="d-flex">
+        @if(StaticController::fetchUserRole() == 'dept-admin-erp')
+
+        <a href="{{ route('department.dashboard') }}" class="btn btn-light">
+          << Back
+            </a>
+            @endif
+      </div>
+    </div>
+  </nav>
+</div>
+@else
 @include('admin.sidebar')
+@endif
 
 <div class="container-fluid">
   <div class="row">
@@ -17,7 +39,7 @@ $programs = Qs::getProgramGroups();
       Records Found - {{ $data->count() }}
     </div>
 
-    <div class="col-lg-3 ">
+    <div class="col-lg-3 offset-lg-5">
       <label for="">Filter</label>
       <form action="{{ route('admission.ug.phase2') }}" method="GET" class="search-form">
         <div class="input-group">

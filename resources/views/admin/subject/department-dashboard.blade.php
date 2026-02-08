@@ -1,15 +1,19 @@
 <?php
 
+use App\Http\Controllers\StaticController;
 use App\Models\BatchMaster;
 use App\Models\Faculty;
 use App\Models\Semester;
 use App\Models\StudentProgram;
 use App\Models\SubjectCourseMaster;
+use App\Models\SubjectHasDeptAdmin;
+use Illuminate\Support\Facades\Auth;
 
 $batches = BatchMaster::latest()->get();
 $semesters = Semester::get();
 $course_master = SubjectCourseMaster::with('courseMaster')->where('subject_id', $data->id)->get();
 $faculty = Faculty::where('IS_LEFT', 0)->get();
+
 ?>
 @include('includes.header')
 
@@ -26,7 +30,7 @@ $faculty = Faculty::where('IS_LEFT', 0)->get();
         <span class="fw-bold text-white text-capitalize">{{ $data->code ?? '-' }} - {{ $data->title ?? '-' }}</span>
       </a>
       <div class="d-flex">
-        @if(Auth::user()->userroletype == 'dept-admin-erp')
+        @if(StaticController::fetchUserRole() == 'dept-admin-erp')
         <a href="{{ url('logout') }}" class="btn btn-light btn-sm fw-bold ms-auto" style="box-shadow:0 2px 8px #0002;">
           <i class="fa fa-sign-out-alt me-1"></i> Logout
         </a>
@@ -46,7 +50,7 @@ $faculty = Faculty::where('IS_LEFT', 0)->get();
 
   <div class="row g-4">
     <!-- User Info Card (Single Row) -->
-    <div class="col-6">
+    <div class="col-4">
       <div class="card shadow-lg border-0 mb-4" style="background: linear-gradient(135deg, #cc5be5 0%, #5b86e5 100%); color: #fff;">
         <div class="card-body d-flex align-items-center justify-content-between flex-wrap">
           <div class="d-flex align-items-center">
@@ -61,7 +65,7 @@ $faculty = Faculty::where('IS_LEFT', 0)->get();
       </div>
     </div>
 
-    <div class="col-6">
+    <div class="col-4">
       <div class="card shadow-lg border-0 mb-4" style="background: linear-gradient(135deg, #5b86e5 0%, #cc5be5 100%); color: #fff;">
 
         <div class="card-body d-flex align-items-center justify-content-left flex-wrap">
@@ -80,6 +84,23 @@ $faculty = Faculty::where('IS_LEFT', 0)->get();
           </div>
         </div>
 
+      </div>
+    </div>
+
+    <div class="col-4">
+      <div class="card shadow-lg border-0 mb-4" style="background: linear-gradient(135deg, #cc5be5 0%, #5b86e5 100%); color: #fff;">
+        <div class="card-body d-flex align-items-center justify-content-between flex-wrap">
+          <div class="d-flex align-items-center">
+            <i class="fa fa-certificate fa-3x me-3"></i>
+            <div>
+              <a href="{{route('department.admission.list')}}" class="text-light" style="text-decoration: none;">
+                <h3 class="text-light fw-bold"> Admission - </h3>
+              </a>
+              <span class="fw-bold">Applications</span>
+
+            </div>
+          </div>
+        </div>
       </div>
     </div>
     <!-- Course Master Card -->

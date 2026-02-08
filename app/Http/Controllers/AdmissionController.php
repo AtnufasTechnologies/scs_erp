@@ -22,6 +22,7 @@ use App\Models\ReligionMaster;
 use App\Models\SmsLog;
 use App\Models\StudentProgram;
 use App\Models\Subject;
+use App\Models\SubjectHasDeptAdmin;
 use App\Models\SubjectHasStudentProgam;
 use App\Models\User;
 use App\Models\UserCampusSetting;
@@ -1202,5 +1203,75 @@ class AdmissionController extends Controller
     {
         Auth::logout();
         return redirect()->route('new.admission.login')->with('success', 'Logged out successfully.');
+    }
+
+
+    //Adding Dept Console Functions
+    function deptApplicationList()
+    {
+
+        $userId = Auth::user()->id;
+        if (StaticController::fetchUserRole() == 'dept-admin-erp') {
+            $campusId =  UserCampusSetting::where('user_id', $userId)->value('campus_id');
+            $departId =  SubjectHasDeptAdmin::where('user_id', $userId)->value('subject_id');
+            if ($campusId == null) {
+                return back()->with('error', 'No campus assigned to your account. Please contact ITCELL.');
+            } else {
+                $data =  AdmissionApplication::with([
+                    'registrationmaster.countrymaster',
+                ])->whereHas('registrationmaster.programinfo', function ($query) {
+                    $query->where('name', 'UG');
+                })->whereHas('registrationmaster.programinfo.campus', function ($query) use ($campusId) {
+                    $query->where('id', $campusId);
+                })->where('department', $departId)
+                    ->latest()->get();
+            }
+            return view('admin.subject.admission.application-list', ['data' => $data]);
+        } else {
+            return back()->with('info', 'Unauthorized access.');
+        }
+    }
+
+    function deptInterviewList(Request $request)
+    {
+        $userId = Auth::user()->id;
+        if (StaticController::fetchUserRole() == 'dept-admin-erp') {
+            //fetch Dept 
+            $departId =  SubjectHasDeptAdmin::where('user_id', $userId)->value('subject_id');
+            $campusId =  UserCampusSetting::where('user_id', $userId)->value('campus_id');
+
+            if ($campusId == null) {
+                return back()->with('error', 'No campus assigned to your account. Please contact ITCELL.');
+            } else {
+
+                if (!empty($request->search)) {
+                    $search = $request->search;
+                    $data =   AdmissionFirstPhase::with([
+                        'registrationmaster',
+                        'applicationinfo',
+                    ])->whereHas('applicationinfo', function ($query) use ($search, $departId) {
+                        $query->where('application_id', 'like', '%' . $search . '%');
+                        $query->where('department', $departId);
+                    })
+                        ->whereHas('registrationmaster.programinfo.campus', function ($query) use ($campusId) {
+                            $query->where('id', $campusId);
+                        })->latest()->get();
+                } else {
+                    $data =  AdmissionFirstPhase::with([
+                        'registrationmaster',
+                        'applicationinfo',
+                    ])->whereHas('applicationinfo', function ($query) use ($departId) {
+
+                        $query->where('department', $departId);
+                    })
+                        ->whereHas('registrationmaster.programinfo.campus', function ($query) use ($campusId) {
+                            $query->where('id', $campusId);
+                        })->latest()->get();
+                }
+            }
+            return view('admin.admission.ug.phase1', ['data' => $data]);
+        } else {
+            return back()->with('info', 'Unauthorized access.');
+        }
     }
 }

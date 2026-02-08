@@ -286,6 +286,10 @@ Route::group(['prefix' => '/erp'], function () {
         Route::get('substitution-history', [TimetableController::class, 'getSubstitutionHistory'])->name('department.substitution.history');
         Route::get('substitution-history-page', [TimetableController::class, 'substitutionHistoryPage'])->name('department.substitution.history.page');
         Route::get('substitution-history-export', [TimetableController::class, 'exportSubstitutionHistory'])->name('department.substitution.history.export');
+
+        //dept-admission-console
+        Route::get('application-list', [AdmissionController::class, 'deptApplicationList'])->name('department.admission.list');
+        Route::get('interview-list', [AdmissionController::class, 'deptInterviewList'])->name('department.admission.interview-list');
     });
 });
 
