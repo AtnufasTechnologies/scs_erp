@@ -12,6 +12,7 @@ class SubjectHasRoutine extends Model
 
     protected $fillable = [
         'syllabus_id',
+        'batch_id',
         'weekday_id',
         'hour_id',
         'lecturehall_id',
@@ -48,5 +49,10 @@ class SubjectHasRoutine extends Model
     function subjectCourse()
     {
         return $this->belongsTo(SubjectCourseMaster::class, 'subject_course_id', 'id');
+    }
+
+    function batch()
+    {
+        return $this->belongsTo(BatchMaster::class, 'batch_id', 'id');
     }
 }

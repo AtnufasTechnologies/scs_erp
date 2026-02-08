@@ -422,7 +422,8 @@ $faculties = SubjectFacultyMaster::where('subject_id', $data->id)->with('faculty
         subject_id: subjectId,
         teacher_id: teacherId || null,
         subject_name: subjectText,
-        teacher_name: teacherText
+        teacher_name: teacherText,
+        course_title: subjectText // Add course_title for consistency
       });
 
       renderTimetable();
@@ -507,6 +508,10 @@ $faculties = SubjectFacultyMaster::where('subject_id', $data->id)->with('faculty
 
       console.log('Saving timetable data:', data);
 
+      // Debug: Check if URL is constructed correctly
+      const saveUrl = '{{ route("department.timetable.store", [$data->id, "BATCH_ID", "SEMESTER_ID"]) }}'.replace('BATCH_ID', batchId).replace('SEMESTER_ID', semesterId);
+      console.log('Save URL:', saveUrl);
+
       // Get CSRF token
       const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content');
       if (!csrfToken) {
@@ -520,7 +525,7 @@ $faculties = SubjectFacultyMaster::where('subject_id', $data->id)->with('faculty
         saveButton.innerHTML = '<i class="fa fa-spinner fa-spin"></i> Saving...';
       }
 
-      fetch('{{ route("department.timetable.store", [$data->id, "BATCH_ID", "SEMESTER_ID"]) }}'.replace('BATCH_ID', batchId).replace('SEMESTER_ID', semesterId), {
+      fetch(saveUrl, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
@@ -530,14 +535,19 @@ $faculties = SubjectFacultyMaster::where('subject_id', $data->id)->with('faculty
           body: JSON.stringify(data)
         })
         .then(async response => {
+          console.log('Raw response:', response);
+          console.log('Response status:', response.status);
+
           const contentType = response.headers.get('content-type');
+          console.log('Content type:', contentType);
+
           if (contentType && contentType.indexOf('application/json') !== -1) {
             return response.json();
           } else {
             // Handle non-JSON response
             const text = await response.text();
             console.error('Non-JSON response:', text);
-            throw new Error('Server returned non-JSON response');
+            throw new Error('Server returned non-JSON response: ' + text);
           }
         })
         .then(response => {

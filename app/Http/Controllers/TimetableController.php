@@ -104,8 +104,11 @@ class TimetableController extends Controller
             // Get all courses and faculties for lookup
             $courseRelations = SubjectCourseMaster::where('subject_id', $subjectId)
                 ->with('courseMaster.coursetypemaster')
-                ->get()
-                ->keyBy('course_master_id');
+                ->get();
+
+            // Create lookup collections - one by course_master_id and one by subject_course_master id
+            $courseRelationsByMasterId = $courseRelations->keyBy('course_master_id');
+            $courseRelationsBySubjectCourseId = $courseRelations->keyBy('id');
 
             // Get faculty relations, but also prepare for direct faculty lookup
             $facultyRelations = SubjectFacultyMaster::where('subject_id', $subjectId)
@@ -127,14 +130,25 @@ class TimetableController extends Controller
                     $facultyId = $routine->faculty_id; // Now using proper faculty_id column
                     $subjectCourseId = $routine->subject_course_id; // New subject_course_id column
 
-                    // Get course name from course_master_id or subject_course_id
+// Get course name from subject_course_id or course_master_id
                     $courseName = '';
-                    $lookupCourseId = $subjectCourseId ?: $courseMasterId;
-                    if ($lookupCourseId && $courseRelations->has($lookupCourseId)) {
-                        $courseRelation = $courseRelations->get($lookupCourseId);
+                    $courseRelation = null;
+                    
+                    // Try to get course info from subject_course_id first (most specific)
+                    if ($subjectCourseId && $courseRelationsBySubjectCourseId->has($subjectCourseId)) {
+                        $courseRelation = $courseRelationsBySubjectCourseId->get($subjectCourseId);
+                    } elseif ($courseMasterId && $courseRelationsByMasterId->has($courseMasterId)) {
+                        // Fall back to course_master_id lookup
+                        $courseRelation = $courseRelationsByMasterId->get($courseMasterId);
+                    }
+                    
+                    if ($courseRelation) {
                         $courseName = ($courseRelation->courseMaster->coursetypemaster->title ?? '') . ' - ' .
                             ($courseRelation->courseMaster->course_code ?? '') . ' - ' .
                             ($courseRelation->courseMaster->course_title ?? '');
+                        $lookupCourseId = $courseRelation->course_master_id; // Use the actual course_master_id
+                    } else {
+                        $lookupCourseId = $courseMasterId ?: $subjectCourseId;
                     }
 
                     // Get faculty name from the faculty_id (try direct lookup first, then relation)
@@ -294,6 +308,7 @@ class TimetableController extends Controller
             // Prepare data for creation
             $routineData = [
                 'syllabus_id' => $validated['syllabus_id'],
+                'batch_id' => $batchId, // Add batch_id for substitution
                 'weekday_id' => $validated['weekday_id'],
                 'hour_id' => $validated['hour_id'],
             ];
@@ -372,6 +387,7 @@ class TimetableController extends Controller
                 // Create routine entry with proper column assignments
                 SubjectHasRoutine::create([
                     'syllabus_id' => $syllabus->id,
+                    'batch_id' => $batchId, // Add batch_id for substitution
                     'weekday_id' => $weekdayId,
                     'hour_id' => $hourNumber,
                     'faculty_id' => $facultyId, // Use proper faculty_id column
@@ -434,6 +450,7 @@ class TimetableController extends Controller
                 if (!$exists) {
                     SubjectHasRoutine::create([
                         'syllabus_id' => $syllabus->id,
+                        'batch_id' => $batchId, // Add batch_id for substitution
                         'weekday_id' => $weekdayId,
                         'hour_id' => $hourId,
                         'lecturehall_id' => null, // Can be added later
@@ -456,6 +473,113 @@ class TimetableController extends Controller
                 ->back()
                 ->with('error', 'Failed to save timetable: ' . $e->getMessage())
                 ->withInput();
+        }
+    }
+
+    function substitution($subjectId)
+    {
+        $data = Subject::findOrFail($subjectId);
+        $batches = BatchMaster::latest()->get();
+
+        return view('admin.subject.substitution', [
+            'data' => $data,
+            'batches' => $batches,
+        ]);
+    }
+
+    function getSubstitutionSchedule($batchId, $day)
+    {
+        try {
+            // Get weekday ID from day name
+            $weekdays = [
+                'Monday' => 1,
+                'Tuesday' => 2,
+                'Wednesday' => 3,
+                'Thursday' => 4,
+                'Friday' => 5,
+                'Saturday' => 6
+            ];
+
+            if (!isset($weekdays[$day])) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Invalid day provided'
+                ], 400);
+            }
+
+            $weekdayId = $weekdays[$day];
+
+            // Get all routines for the specific batch and day
+            $routines = SubjectHasRoutine::where('batch_id', $batchId)
+                ->where('weekday_id', $weekdayId)
+                ->with([
+                    'faculty:id,FIRST_NAME,LAST_NAME,USER_CODE',
+                    'substitutionFaculty:id,FIRST_NAME,LAST_NAME,USER_CODE',
+                    'subjectCourse.courseMaster:id,course_title,course_code',
+                    'subjectCourse.subject:id,title,code'
+                ])
+                ->orderBy('hour_id')
+                ->get();
+
+            $scheduleData = [];
+
+            foreach ($routines as $routine) {
+                $originalFaculty = $routine->faculty;
+                $substituteFaculty = $routine->substitutionFaculty;
+
+                $scheduleData[] = [
+                    'routine_id' => $routine->id,
+                    'hour_number' => $routine->hour_id,
+                    'subject_title' => $routine->subjectCourse->subject->title ?? 'N/A',
+                    'subject_code' => $routine->subjectCourse->subject->code ?? 'N/A',
+                    'course_title' => $routine->subjectCourse->courseMaster->course_title ?? 'N/A',
+                    'course_code' => $routine->subjectCourse->courseMaster->course_code ?? 'N/A',
+                    'original_faculty_id' => $routine->faculty_id,
+                    'original_faculty_name' => $originalFaculty ? trim(($originalFaculty->FIRST_NAME ?? '') . ' ' . ($originalFaculty->LAST_NAME ?? '')) : 'No Teacher',
+                    'original_faculty_code' => $originalFaculty->USER_CODE ?? '',
+                    'substitute_faculty_id' => $routine->substitution_faculty_id,
+                    'substitute_faculty_name' => $substituteFaculty ? trim(($substituteFaculty->FIRST_NAME ?? '') . ' ' . ($substituteFaculty->LAST_NAME ?? '')) : null,
+                    'substitute_faculty_code' => $substituteFaculty->USER_CODE ?? '',
+                    'has_substitution' => !is_null($routine->substitution_faculty_id)
+                ];
+            }
+
+            return response()->json([
+                'success' => true,
+                'data' => $scheduleData
+            ]);
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Failed to fetch substitution schedule: ' . $e->getMessage()
+            ], 500);
+        }
+    }
+
+    function updateSubstitution(Request $request, $routineId)
+    {
+        try {
+            $validated = $request->validate([
+                'substitute_faculty_id' => 'nullable|exists:faculties,id',
+                'reason' => 'nullable|string|max:255'
+            ]);
+
+            $routine = SubjectHasRoutine::findOrFail($routineId);
+
+            $routine->update([
+                'substitution_faculty_id' => $validated['substitute_faculty_id'],
+                // You might want to add a reason column to store the substitution reason
+            ]);
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Substitution updated successfully'
+            ]);
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Failed to update substitution: ' . $e->getMessage()
+            ], 500);
         }
     }
 }
