@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\BatchMaster;
 use App\Models\Faculty;
+use App\Models\FacultySubstitution;
 use App\Models\HourMaster;
 use App\Models\LectureHallMaster;
 use App\Models\ProgramCourseMaster;
@@ -516,7 +517,8 @@ class TimetableController extends Controller
                     'faculty:id,FIRST_NAME,LAST_NAME,USER_CODE',
                     'substitutionFaculty:id,FIRST_NAME,LAST_NAME,USER_CODE',
                     'subjectCourse.courseMaster:id,course_title,course_code',
-                    'subjectCourse.subject:id,title,code'
+                    'subjectCourse.subject:id,title,code',
+                    'syllabus.semestermaster:id,title'
                 ])
                 ->orderBy('hour_id')
                 ->get();
@@ -534,6 +536,7 @@ class TimetableController extends Controller
                     'subject_code' => $routine->subjectCourse->subject->code ?? 'N/A',
                     'course_title' => $routine->subjectCourse->courseMaster->course_title ?? 'N/A',
                     'course_code' => $routine->subjectCourse->courseMaster->course_code ?? 'N/A',
+                    'semester_title' => $routine->syllabus->semestermaster->title ?? 'N/A',
                     'original_faculty_id' => $routine->faculty_id,
                     'original_faculty_name' => $originalFaculty ? trim(($originalFaculty->FIRST_NAME ?? '') . ' ' . ($originalFaculty->LAST_NAME ?? '')) : 'No Teacher',
                     'original_faculty_code' => $originalFaculty->USER_CODE ?? '',
@@ -581,5 +584,255 @@ class TimetableController extends Controller
                 'message' => 'Failed to update substitution: ' . $e->getMessage()
             ], 500);
         }
+    }
+
+    function getTeacherConflicts($hourNumber, $day)
+    {
+        try {
+            // Get weekday ID from day name
+            $weekdays = [
+                'Monday' => 1,
+                'Tuesday' => 2,
+                'Wednesday' => 3,
+                'Thursday' => 4,
+                'Friday' => 5,
+                'Saturday' => 6
+            ];
+
+            if (!isset($weekdays[$day])) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Invalid day provided'
+                ], 400);
+            }
+
+            $weekdayId = $weekdays[$day];
+
+            // Get all faculty IDs that are already booked at this specific hour and day
+            $bookedFaculties = SubjectHasRoutine::where('weekday_id', $weekdayId)
+                ->where('hour_id', $hourNumber)
+                ->whereNotNull('faculty_id')
+                ->pluck('faculty_id')
+                ->toArray();
+
+            return response()->json([
+                'success' => true,
+                'booked_faculties' => $bookedFaculties
+            ]);
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Failed to check teacher conflicts: ' . $e->getMessage()
+            ], 500);
+        }
+    }
+
+    function saveSubstitutions(Request $request)
+    {
+        try {
+            $validated = $request->validate([
+                'substitutions' => 'required|array|min:1',
+                'substitutions.*.routine_id' => 'required|exists:subject_has_routines,id',
+                'substitutions.*.original_teacher_id' => 'required|exists:faculties,id',
+                'substitutions.*.substitute_teacher_id' => 'required|exists:faculties,id',
+                'substitutions.*.hour_number' => 'required|integer|min:1|max:24',
+                'substitutions.*.day_of_week' => 'required|in:Monday,Tuesday,Wednesday,Thursday,Friday,Saturday,Sunday',
+                'substitutions.*.reason' => 'nullable|string|max:255',
+                'substitution_date' => 'required|date|after_or_equal:today',
+                'batch_id' => 'nullable|exists:batch_masters,id'
+            ]);
+
+            // Additional validation: Check for duplicate substitute teachers
+            $substituteTeachers = collect($validated['substitutions'])
+                ->groupBy(function ($sub) {
+                    return $sub['hour_number'] . '-' . $sub['day_of_week'];
+                });
+
+            $duplicateWarnings = [];
+            foreach ($substituteTeachers as $timeSlot => $subs) {
+                $duplicates = collect($subs)->pluck('substitute_teacher_id')->duplicates();
+                if ($duplicates->isNotEmpty()) {
+                    $duplicateWarnings[] = "Same substitute teacher assigned multiple times at hour " . explode('-', $timeSlot)[0];
+                }
+            }
+
+            $savedCount = 0;
+            $updatedCount = 0;
+            $errors = [];
+
+            foreach ($validated['substitutions'] as $substitution) {
+                try {
+                    // Check if substitution already exists for this date/routine
+                    $existing = FacultySubstitution::where('routine_id', $substitution['routine_id'])
+                        ->where('substitution_date', $validated['substitution_date'])
+                        ->first();
+
+                    if ($existing) {
+                        // Update existing record
+                        $existing->update([
+                            'original_faculty_id' => $substitution['original_teacher_id'],
+                            'substitute_faculty_id' => $substitution['substitute_teacher_id'],
+                            'hour_number' => $substitution['hour_number'],
+                            'day_of_week' => $substitution['day_of_week'],
+                            'reason' => $substitution['reason'],
+                            'created_by' => Auth::id(),
+                            'is_active' => true
+                        ]);
+                        $updatedCount++;
+                    } else {
+                        // Create new record
+                        FacultySubstitution::create([
+                            'routine_id' => $substitution['routine_id'],
+                            'original_faculty_id' => $substitution['original_teacher_id'],
+                            'substitute_faculty_id' => $substitution['substitute_teacher_id'],
+                            'substitution_date' => $validated['substitution_date'],
+                            'hour_number' => $substitution['hour_number'],
+                            'day_of_week' => $substitution['day_of_week'],
+                            'reason' => $substitution['reason'],
+                            'created_by' => Auth::id(),
+                            'is_active' => true
+                        ]);
+                        $savedCount++;
+                    }
+
+                    // Update the actual routine with substitution
+                    $routine = SubjectHasRoutine::find($substitution['routine_id']);
+                    if ($routine) {
+                        $routine->update([
+                            'substitution_faculty_id' => $substitution['substitute_teacher_id']
+                        ]);
+                    }
+                } catch (\Exception $e) {
+                    $errors[] = "Failed to save substitution for routine {$substitution['routine_id']}: " . $e->getMessage();
+                }
+            }
+
+            $response = [
+                'success' => true,
+                'message' => "Substitutions processed successfully",
+                'saved_count' => $savedCount + $updatedCount,
+                'new_count' => $savedCount,
+                'updated_count' => $updatedCount,
+                'substitution_date' => $validated['substitution_date'],
+                'total_processed' => count($validated['substitutions'])
+            ];
+
+            // Combine all warnings and errors
+            $allErrors = array_merge($errors, $duplicateWarnings);
+            if (!empty($allErrors)) {
+                $response['errors'] = $allErrors;
+                $response['message'] .= '. Some issues were encountered.';
+            }
+
+            return response()->json($response);
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Failed to save substitutions: ' . $e->getMessage()
+            ], 500);
+        }
+    }
+
+    function getSubstitutionHistory(Request $request)
+    {
+        try {
+            $validated = $request->validate([
+                'batch_id' => 'nullable|exists:batch_masters,id',
+                'start_date' => 'nullable|date',
+                'end_date' => 'nullable|date|after_or_equal:start_date',
+                'faculty_id' => 'nullable|exists:faculties,id',
+                'limit' => 'nullable|integer|min:1|max:100'
+            ]);
+
+            $query = FacultySubstitution::with([
+                'routine.syllabus.semestermaster',
+                'routine.subjectCourse.subject',
+                'routine.subjectCourse.courseMaster',
+                'originalFaculty',
+                'substituteFaculty',
+                'createdBy'
+            ])
+                ->where('is_active', true)
+                ->orderBy('substitution_date', 'desc')
+                ->orderBy('hour_number');
+
+            // Apply filters
+            if (!empty($validated['batch_id'])) {
+                $query->whereHas('routine', function ($q) use ($validated) {
+                    $q->where('batch_id', $validated['batch_id']);
+                });
+            }
+
+            if (!empty($validated['start_date'])) {
+                $query->where('substitution_date', '>=', $validated['start_date']);
+            }
+
+            if (!empty($validated['end_date'])) {
+                $query->where('substitution_date', '<=', $validated['end_date']);
+            }
+
+            if (!empty($validated['faculty_id'])) {
+                $query->where(function ($q) use ($validated) {
+                    $q->where('original_faculty_id', $validated['faculty_id'])
+                        ->orWhere('substitute_faculty_id', $validated['faculty_id']);
+                });
+            }
+
+            $limit = $validated['limit'] ?? 50;
+            $substitutions = $query->paginate($limit);
+
+            $historyData = $substitutions->getCollection()->map(function ($substitution) {
+                return [
+                    'id' => $substitution->id,
+                    'substitution_date' => $substitution->substitution_date->format('Y-m-d'),
+                    'formatted_date' => $substitution->substitution_date->format('l, F j, Y'),
+                    'day_of_week' => $substitution->day_of_week,
+                    'hour_number' => $substitution->hour_number,
+                    'subject_title' => $substitution->routine->subjectCourse->subject->title ?? 'N/A',
+                    'course_title' => $substitution->routine->subjectCourse->courseMaster->course_title ?? 'N/A',
+                    'semester_title' => $substitution->routine->syllabus->semestermaster->title ?? 'N/A',
+                    'original_faculty' => [
+                        'id' => $substitution->original_faculty_id,
+                        'name' => trim(($substitution->originalFaculty->FIRST_NAME ?? '') . ' ' . ($substitution->originalFaculty->LAST_NAME ?? '')),
+                        'code' => $substitution->originalFaculty->USER_CODE ?? 'N/A'
+                    ],
+                    'substitute_faculty' => [
+                        'id' => $substitution->substitute_faculty_id,
+                        'name' => trim(($substitution->substituteFaculty->FIRST_NAME ?? '') . ' ' . ($substitution->substituteFaculty->LAST_NAME ?? '')),
+                        'code' => $substitution->substituteFaculty->USER_CODE ?? 'N/A'
+                    ],
+                    'reason' => $substitution->reason,
+                    'created_by' => $substitution->createdBy->name ?? 'System',
+                    'created_at' => $substitution->created_at->format('Y-m-d H:i:s')
+                ];
+            });
+
+            return response()->json([
+                'success' => true,
+                'data' => $historyData,
+                'pagination' => [
+                    'current_page' => $substitutions->currentPage(),
+                    'last_page' => $substitutions->lastPage(),
+                    'per_page' => $substitutions->perPage(),
+                    'total' => $substitutions->total()
+                ]
+            ]);
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Failed to fetch substitution history: ' . $e->getMessage()
+            ], 500);
+        }
+    }
+
+    function substitutionHistoryPage()
+    {
+        $batches = BatchMaster::latest()->get();
+        $faculties = Faculty::orderBy('FIRST_NAME')->get();
+
+        return view('admin.subject.substitution-history', [
+            'batches' => $batches,
+            'faculties' => $faculties,
+        ]);
     }
 }

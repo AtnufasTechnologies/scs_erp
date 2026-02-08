@@ -55,4 +55,9 @@ class SubjectHasRoutine extends Model
     {
         return $this->belongsTo(BatchMaster::class, 'batch_id', 'id');
     }
+
+    function syllabus()
+    {
+        return $this->belongsTo(SubjectHasSyllabus::class, 'syllabus_id', 'id');
+    }
 }

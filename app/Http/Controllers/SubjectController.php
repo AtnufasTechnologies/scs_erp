@@ -92,13 +92,18 @@ class SubjectController extends Controller
         $subjectId = $request->id;
         $subject = Subject::with(['semesters'])->find($subjectId);
 
+        // Check if subject exists
+        if (!$subject) {
+            return redirect()->back()->with('error', 'Subject not found');
+        }
+
         // Course Master
         $courseMaster = $subject;
 
         // Number of Students (total students in all batches for this subject/department)
         $studentsCount = 0;
         $batchWiseStudents = [];
-        $semestersCount = $subject->semesters->count();
+        $semestersCount = $subject->semesters?->count() ?? 0;
 
         // Get all batches
         $batches = BatchMaster::all();
@@ -324,13 +329,18 @@ class SubjectController extends Controller
 
         $subject = Subject::with(['semesters', 'courseMasterPivot'])->find($subjectId);
 
+        // Check if subject exists
+        if (!$subject) {
+            return redirect()->back()->with('info', 'Subject not found or user not assigned to any department');
+        }
+
         // Course Master
         $courseMaster = $subject;
 
         // Number of Students (total students in all batches for this subject/department)
         $studentsCount = 0;
         $batchWiseStudents = [];
-        $semestersCount = $subject->semesters->count();
+        $semestersCount = $subject->semesters?->count() ?? 0;
 
         // Get all batches
         $batches = BatchMaster::all();

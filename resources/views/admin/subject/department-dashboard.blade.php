@@ -26,9 +26,12 @@ $faculty = Faculty::where('IS_LEFT', 0)->get();
         <span class="fw-bold text-white text-capitalize">{{ $data->code ?? '-' }} - {{ $data->title ?? '-' }}</span>
       </a>
       <div class="d-flex">
+        @if(Auth::user()->userroletype == 'dept-admin-erp')
         <a href="{{ url('logout') }}" class="btn btn-light btn-sm fw-bold ms-auto" style="box-shadow:0 2px 8px #0002;">
           <i class="fa fa-sign-out-alt me-1"></i> Logout
         </a>
+        @endif
+
       </div>
     </div>
   </nav>
@@ -39,18 +42,40 @@ $faculty = Faculty::where('IS_LEFT', 0)->get();
 
   <div class="row g-4">
     <!-- User Info Card (Single Row) -->
-    <div class="col-12">
-      <div class="card shadow-lg border-0 mb-4" style="background: linear-gradient(135deg, #36d1c4 0%, #5b86e5 100%); color: #fff;">
+    <div class="col-6">
+      <div class="card shadow-lg border-0 mb-4" style="background: linear-gradient(135deg, #cc5be5 0%, #5b86e5 100%); color: #fff;">
         <div class="card-body d-flex align-items-center justify-content-between flex-wrap">
           <div class="d-flex align-items-center">
             <i class="fa fa-user-circle fa-3x me-3"></i>
             <div>
-              <h5 class="card-title mb-1">Welcome</h5>
+              <p class="display-6 fw-bold"> Welcome</p>
               <span class="fw-bold">{{ Auth::user()->name ?? '-' }}</span>
               <span class="ms-3">{{ Auth::user()->email ?? '-' }}</span>
             </div>
           </div>
         </div>
+      </div>
+    </div>
+
+    <div class="col-6">
+      <div class="card shadow-lg border-0 mb-4" style="background: linear-gradient(135deg, #5b86e5 0%, #cc5be5 100%); color: #fff;">
+
+        <div class="card-body d-flex align-items-center justify-content-left flex-wrap">
+          <div class="d-flex align-items-center">
+            <i class="fa fa-user-chart fa-3x me-3"></i>
+            <div>
+              <a href="{{ route('department.substitution', [$data->id]) }}" class="text-light" style="text-decoration: none;">
+                <h5 class="card-title mb-1">Manage Substitution | </h5>
+
+              </a>
+              <a href="{{ route('department.substitution.history.page') }}" class="text-light" style="text-decoration: none;">
+                <p class="display-6 fw-bold">View History</p>
+              </a>
+
+            </div>
+          </div>
+        </div>
+
       </div>
     </div>
     <!-- Course Master Card -->

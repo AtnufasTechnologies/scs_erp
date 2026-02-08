@@ -392,8 +392,60 @@ $faculties = SubjectFacultyMaster::where('subject_id', $data->id)->with('faculty
         document.getElementById('modalTeacher').value = '';
       }
 
+      // Check for teacher conflicts at this hour and day
+      checkTeacherConflicts(hourNumber, day);
+
       const modal = new bootstrap.Modal(document.getElementById('slotModal'));
       modal.show();
+    }
+
+    function checkTeacherConflicts(hourNumber, day) {
+      // Show loading state for teacher dropdown
+      const teacherSelect = document.getElementById('modalTeacher');
+      const originalContent = teacherSelect.innerHTML;
+
+      fetch(`{{ route('department.timetable.conflicts', ['HOUR', 'DAY']) }}`
+          .replace('HOUR', hourNumber)
+          .replace('DAY', day), {
+            method: 'GET',
+            headers: {
+              'Accept': 'application/json',
+              'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content')
+            }
+          })
+        .then(response => response.json())
+        .then(data => {
+          if (data.success) {
+            const bookedFaculties = data.booked_faculties || [];
+
+            // Reset all options to visible
+            Array.from(teacherSelect.options).forEach(option => {
+              option.style.display = '';
+            });
+
+            // Hide options for booked faculties
+            bookedFaculties.forEach(facultyId => {
+              const option = teacherSelect.querySelector(`option[value="${facultyId}"]`);
+              if (option) {
+                option.style.display = 'none';
+
+                // If the hidden option was selected, clear the selection
+                if (teacherSelect.value === facultyId.toString()) {
+                  teacherSelect.value = '';
+                }
+              }
+            });
+          } else {
+            console.error('Failed to check conflicts:', data.message);
+          }
+        })
+        .catch(error => {
+          console.error('Error checking conflicts:', error);
+          // On error, show all teachers
+          Array.from(teacherSelect.options).forEach(option => {
+            option.style.display = '';
+          });
+        });
     }
 
     function saveSlot() {
@@ -703,6 +755,20 @@ $faculties = SubjectFacultyMaster::where('subject_id', $data->id)->with('faculty
       const saveSlotBtn = document.getElementById('saveSlotBtn');
       if (saveSlotBtn) {
         saveSlotBtn.addEventListener('click', saveSlot);
+      }
+
+      // Add event listener to reset teacher options when modal is closed
+      const slotModal = document.getElementById('slotModal');
+      if (slotModal) {
+        slotModal.addEventListener('hidden.bs.modal', function() {
+          // Reset all teacher options to be visible
+          const teacherSelect = document.getElementById('modalTeacher');
+          if (teacherSelect) {
+            Array.from(teacherSelect.options).forEach(option => {
+              option.style.display = '';
+            });
+          }
+        });
       }
     });
   </script>
