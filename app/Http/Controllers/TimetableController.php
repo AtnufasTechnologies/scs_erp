@@ -18,6 +18,8 @@ use App\Models\SubjectHasSyllabus;
 use App\Models\Weekday;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use Maatwebsite\Excel\Facades\Excel;
+use App\Exports\SubstitutionHistoryExport;
 
 class TimetableController extends Controller
 {
@@ -834,5 +836,93 @@ class TimetableController extends Controller
             'batches' => $batches,
             'faculties' => $faculties,
         ]);
+    }
+
+    function exportSubstitutionHistory(Request $request)
+    {
+        try {
+            $validated = $request->validate([
+                'batch_id' => 'nullable|exists:batch_masters,id',
+                'start_date' => 'nullable|date',
+                'end_date' => 'nullable|date|after_or_equal:start_date',
+                'faculty_id' => 'nullable|exists:faculties,id'
+            ]);
+
+            $query = FacultySubstitution::with([
+                'routine.syllabus.semestermaster',
+                'routine.subjectCourse.subject',
+                'routine.subjectCourse.courseMaster',
+                'originalFaculty',
+                'substituteFaculty',
+                'createdBy'
+            ])
+                ->where('is_active', true)
+                ->orderBy('substitution_date', 'desc')
+                ->orderBy('hour_number');
+
+            // Apply filters (same logic as getSubstitutionHistory)
+            if (!empty($validated['batch_id'])) {
+                $query->whereHas('routine', function ($q) use ($validated) {
+                    $q->where('batch_id', $validated['batch_id']);
+                });
+            }
+
+            if (!empty($validated['start_date'])) {
+                $query->where('substitution_date', '>=', $validated['start_date']);
+            }
+
+            if (!empty($validated['end_date'])) {
+                $query->where('substitution_date', '<=', $validated['end_date']);
+            }
+
+            if (!empty($validated['faculty_id'])) {
+                $query->where(function ($q) use ($validated) {
+                    $q->where('original_faculty_id', $validated['faculty_id'])
+                        ->orWhere('substitute_faculty_id', $validated['faculty_id']);
+                });
+            }
+
+            $substitutions = $query->get();
+
+            // Format data for Excel export
+            $exportData = $substitutions->map(function ($substitution) {
+                return [
+                    'date' => $substitution->substitution_date->format('Y-m-d'),
+                    'day' => $substitution->day_of_week,
+                    'hour' => $substitution->hour_number,
+                    'subject' => $substitution->routine?->subjectCourse?->subject?->title ?? 'N/A',
+                    'course' => $substitution->routine?->subjectCourse?->courseMaster?->course_title ?? 'N/A',
+                    'semester' => $substitution->routine?->syllabus?->semestermaster?->title ?? 'N/A',
+                    'original_teacher' => trim(($substitution->originalFaculty?->FIRST_NAME ?? '') . ' ' . ($substitution->originalFaculty?->LAST_NAME ?? '')),
+                    'original_teacher_code' => $substitution->originalFaculty?->USER_CODE ?? 'N/A',
+                    'substitute_teacher' => trim(($substitution->substituteFaculty?->FIRST_NAME ?? '') . ' ' . ($substitution->substituteFaculty?->LAST_NAME ?? '')),
+                    'substitute_teacher_code' => $substitution->substituteFaculty?->USER_CODE ?? 'N/A',
+                    'reason' => $substitution->reason ?? '',
+                    'created_by' => $substitution->createdBy?->name ?? 'System',
+                    'created_at' => $substitution->created_at->format('Y-m-d H:i:s')
+                ];
+            });
+
+            // Generate filename with filters applied
+            $filename = 'substitution_history_' . now()->format('Y-m-d_H-i-s');
+            if (!empty($validated['batch_id'])) {
+                $batch = BatchMaster::find($validated['batch_id']);
+                $filename .= '_batch_' . ($batch?->batch_name ?? $validated['batch_id']);
+            }
+            if (!empty($validated['start_date'])) {
+                $filename .= '_from_' . $validated['start_date'];
+            }
+            if (!empty($validated['end_date'])) {
+                $filename .= '_to_' . $validated['end_date'];
+            }
+            $filename .= '.xlsx';
+
+            return Excel::download(new SubstitutionHistoryExport($exportData), $filename);
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Failed to export substitution history: ' . $e->getMessage()
+            ], 500);
+        }
     }
 }
