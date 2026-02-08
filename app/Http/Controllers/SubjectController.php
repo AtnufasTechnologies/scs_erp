@@ -12,6 +12,7 @@ use App\Models\ProgramCourseMaster;
 use App\Models\StudentProgram;
 use App\Models\Subject;
 use App\Models\SubjectCourseMaster;
+use App\Models\SubjectFacultyMaster;
 use App\Models\SubjectHasCombination;
 use App\Models\SubjectHasDeptAdmin;
 use App\Models\SubjectHasRoutine;
@@ -20,6 +21,8 @@ use App\Models\SubjectHasStudentProgam;
 use App\Models\SubjectHasSyllabus;
 use App\Models\SubjectTypeMaster;
 use App\Models\SyllabusHasFaculty;
+use App\Models\User;
+use App\Models\UserHasRole;
 use Illuminate\Support\Str;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -126,6 +129,7 @@ class SubjectController extends Controller
 
         $programs = StudentProgram::where('campus_id', $subject->campus_id)->get();
         $course_master_count = SubjectCourseMaster::where('subject_id', $subjectId)->count();
+        $faculties = SubjectFacultyMaster::with('faculty')->where('subject_id', $subjectId)->get();
         return view('admin.subject.department-dashboard', [
             'data' => $courseMaster,
             'students_count' => $studentsCount,
@@ -133,7 +137,8 @@ class SubjectController extends Controller
             'batchWiseStudents' => $batchWiseStudents,
             'combinations' => $combinations,
             'programs' => $programs,
-            'course_master_count' => $course_master_count
+            'course_master_count' => $course_master_count,
+            'deptfaculties' => $faculties,
         ]);
     }
 
@@ -225,17 +230,35 @@ class SubjectController extends Controller
 
     function addSemesterToSubject(Request $request)
     {
-        $semester = $request->semester;
+
+        $request->validate([
+            'semesters' => 'required|array|min:1',
+            'subject_id' => 'required',
+            'batch' => 'required',
+        ]);
+
+
+        $semesters = $request->semesters;
         $subject_id = $request->subject_id;
         $batch = $request->batch;
 
-        SubjectHasSemester::create([
-            'subject_id' => $subject_id,
-            'semester_id' => $semester,
-            'session_id' => $batch,
-        ]);
 
-        return redirect()->back()->with('success', 'Semester Added');
+        for ($i = 0; $i < count($semesters); $i++) {
+
+            $check = SubjectHasSemester::where('subject_id', $subject_id)
+                ->where('semester_id', $semesters[$i])
+                ->where('batch_id', $batch)
+                ->doesntExist();
+
+            if ($check) {
+                SubjectHasSemester::create([
+                    'subject_id' => $subject_id,
+                    'semester_id' => $semesters[$i],
+                    'batch_id' => $batch,
+                ]);
+            }
+        }
+        return redirect()->back()->with('success', 'Semester(s) Added');
     }
 
     function deleteSubject($id)
@@ -252,6 +275,11 @@ class SubjectController extends Controller
             'batch_id' => 'required',
             'programs' => 'required|array|min:1',
         ]);
+
+        $userId  = Auth::user()->id;
+        if (!UserHasRole::where('user_id', $userId)->where('role_name', 'dept-admin-erp')->exists()) {
+            return redirect()->back()->with('info', 'Unauthorized to Access this Tool');
+        }
 
         $programs = $request->programs;
         $subject_id = $request->subject_id;
@@ -288,9 +316,12 @@ class SubjectController extends Controller
     //department dashboard
     function departmentDashboard(Request $request)
     {
-
         $userId = Auth::user()->id;
+
+
         $subjectId = SubjectHasDeptAdmin::where('user_id', $userId)->value('subject_id');
+
+
         $subject = Subject::with(['semesters', 'courseMasterPivot'])->find($subjectId);
 
         // Course Master
@@ -329,6 +360,7 @@ class SubjectController extends Controller
 
 
         $programs = StudentProgram::where('campus_id', $subject->campus_id)->get();
+        $faculties = SubjectFacultyMaster::with('faculty')->where('subject_id', $subjectId)->get();
 
         return view('admin.subject.department-dashboard', [
             'data' => $courseMaster,
@@ -337,7 +369,7 @@ class SubjectController extends Controller
             'batchWiseStudents' => $batchWiseStudents,
             'combinations' => $combinations,
             'programs' => $programs,
-
+            'deptfaculties' => $faculties,
         ]);
     }
 
@@ -440,5 +472,47 @@ class SubjectController extends Controller
         ])->get();
 
         return view('admin.subject.all-combination', ['combinations' => $combinations]);
+    }
+
+
+    function deleteSemesterFromSubject($id)
+    {
+        $record = SubjectHasSemester::findOrFail($id);
+        $record->delete();
+        return redirect()->back()->with('success', 'Semester Removed from Subject');
+    }
+
+    function addFacultyMasterToSubject(Request $request)
+    {
+        $request->validate([
+            'subject_id' => 'required',
+            'faculty' => 'required|array|min:1',
+        ]);
+
+        $facultyIds =   $request->faculty;
+
+        for ($i = 0; $i < count($facultyIds); $i++) {
+            $facultyId = $facultyIds[$i];
+
+            $existingRecord = SubjectFacultyMaster::where('subject_id', $request->subject_id)
+                ->where('faculty_id', $facultyId)
+                ->first();
+
+            if (!$existingRecord) {
+                $rec = new SubjectFacultyMaster();
+                $rec->subject_id = $request->subject_id;
+                $rec->faculty_id = $facultyId;
+                $rec->save();
+            }
+        }
+
+        return redirect()->back()->with('success', 'Faculty Added ');
+    }
+
+    function deleteFacultyMasterFromSubject($id)
+    {
+        $record = SubjectFacultyMaster::findOrFail($id);
+        $record->delete();
+        return redirect()->back()->with('success', 'Faculty Removed from Subject');
     }
 }

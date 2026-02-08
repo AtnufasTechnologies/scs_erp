@@ -10,7 +10,15 @@ class SubjectHasRoutine extends Model
 {
     use HasFactory, SoftDeletes;
 
-
+    protected $fillable = [
+        'syllabus_id',
+        'weekday_id',
+        'hour_id',
+        'lecturehall_id',
+        'faculty_id',
+        'subject_course_id',
+        'substitution_faculty_id'
+    ];
 
     function weekdaymaster()
     {
@@ -25,5 +33,20 @@ class SubjectHasRoutine extends Model
     function lecturehallmaster()
     {
         return $this->hasOne(LectureHallMaster::class, 'id', 'lecturehall_id');
+    }
+
+    function faculty()
+    {
+        return $this->belongsTo(Faculty::class, 'faculty_id', 'id');
+    }
+
+    function substitutionFaculty()
+    {
+        return $this->belongsTo(Faculty::class, 'substitution_faculty_id', 'id');
+    }
+
+    function subjectCourse()
+    {
+        return $this->belongsTo(SubjectCourseMaster::class, 'subject_course_id', 'id');
     }
 }

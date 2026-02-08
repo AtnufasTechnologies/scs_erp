@@ -6,6 +6,7 @@ use App\Http\Controllers\AdmissionController;
 use App\Http\Controllers\FeePaymentController;
 use App\Http\Controllers\LoginController;
 use App\Http\Controllers\SubjectController;
+use App\Http\Controllers\TimetableController;
 use App\Models\Department;
 use App\Models\User;
 use App\Models\UserType;
@@ -79,7 +80,7 @@ Route::group(['prefix' => '/erp'], function () {
             Route::get('subject-type', [SubjectController::class, 'subjectType']);
 
             Route::post('subject', [SubjectController::class, 'addSubject']);
-            Route::get('view-subject', [SubjectController::class, 'subjectSingle']);
+            Route::get('view-subject', [SubjectController::class, 'subjectSingle'])->name('admin.dept-view');
             Route::get('delete-subject/{id}', [SubjectController::class, 'deleteSubject']);
             Route::post('link-student-programs', [SubjectController::class, 'linkStdPrograms'])->name('add.programs.to.subject');
             Route::post('add-subject-semester', [SubjectController::class, 'addSemesterToSubject'])->name('add.semester.to.subject');
@@ -264,6 +265,16 @@ Route::group(['prefix' => '/erp'], function () {
         Route::get('course-master/{id}/{slug}', [SubjectController::class, 'courseMaster'])->name('department.course.master');
         Route::post('my-course-master', [SubjectController::class, 'addCourseMaster'])->name('department.add.course.master');
         Route::delete('course-master/{id}/delete', [SubjectController::class, 'deleteCourseMaster'])->name('department.course.delete');
+        Route::get('delete-semester/{id}', [SubjectController::class, 'deleteSemesterFromSubject'])->name('department.delete.subject.semester');
+        Route::post('add-faculty-master', [SubjectController::class, 'addFacultyMasterToSubject'])->name('dept.add.faculty.master');
+        Route::delete('delete-faculty-master/{id}', [SubjectController::class, 'deleteFacultyMasterFromSubject'])->name('department.faculty.delete');
+        //timetable
+        Route::get('timetable/{id}', [TimetableController::class, 'index'])->name('department.timetable');
+        Route::get('timetable/{subjectId}/{batchId}/{semesterId}', [TimetableController::class, 'editSemesterTimetable'])->name('department.timetable.edit');
+        Route::get('timetable-data/{subjectId}/{batchId}/{semesterId}', [TimetableController::class, 'getTimetableData'])->name('department.timetable.data');
+        Route::delete('timetable-routine/{routineId}', [TimetableController::class, 'deleteRoutineSlot'])->name('department.timetable.delete');
+        Route::delete('timetable-clear/{subjectId}/{batchId}/{semesterId}', [TimetableController::class, 'clearAllRoutines'])->name('department.timetable.clear');
+        Route::post('timetable/{subjectId}/{batchId}/{semesterId}', [TimetableController::class, 'storeSemesterTimetable'])->name('department.timetable.store');
     });
 });
 

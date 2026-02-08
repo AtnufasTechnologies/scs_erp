@@ -9,6 +9,13 @@ class SubjectHasSyllabus extends Model
 {
     use HasFactory;
 
+    protected $fillable = [
+        'subject_id',
+        'batch_id',
+        'semester_id',
+        'course_id'
+    ];
+
     function sessionmaster()
     {
         return $this->hasOne(BatchMaster::class, 'id', 'session_id');
@@ -26,5 +33,15 @@ class SubjectHasSyllabus extends Model
     function timetable()
     {
         return $this->hasOne(SubjectHasRoutine::class, 'syllabus_id', 'id');
+    }
+
+    function subject()
+    {
+        return $this->belongsTo(Subject::class, 'subject_id', 'id');
+    }
+
+    function courseLink()
+    {
+        return $this->belongsTo(SubjectCourseMaster::class, 'course_id', 'course_master_id');
     }
 }

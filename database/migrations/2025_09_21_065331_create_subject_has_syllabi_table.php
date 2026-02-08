@@ -13,15 +13,12 @@ return new class extends Migration
     {
         Schema::create('subject_has_syllabi', function (Blueprint $table) {
             $table->id();
-            $table->foreignId('dept_id');
-            $table->foreignId('subject_id');
-            $table->integer('session_id');
+            $table->integer('subject_id');
+            $table->integer('batch_id');
             $table->integer('semester_id');
-            $table->text('title');
-            $table->text('content');
-            $table->integer('subject_type_id');
-            $table->integer('sort_order')->nullable();
+            $table->integer('course_id');
             $table->timestamps();
+            $table->softDeletes();
         });
     }
 

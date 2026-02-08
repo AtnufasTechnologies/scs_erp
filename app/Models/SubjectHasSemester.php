@@ -8,7 +8,12 @@ use Illuminate\Database\Eloquent\Model;
 class SubjectHasSemester extends Model
 {
     use HasFactory;
-    protected $fillable = ['subject_id', 'semester_id', 'session_id'];
+    protected $fillable = ['subject_id', 'semester_id', 'batch_id'];
+
+    function batchmaster()
+    {
+        return $this->hasOne(BatchMaster::class, 'id', 'batch_id');
+    }
 
     function semestermaster()
     {

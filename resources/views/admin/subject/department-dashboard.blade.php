@@ -1,22 +1,25 @@
 <?php
 
 use App\Models\BatchMaster;
+use App\Models\Faculty;
 use App\Models\Semester;
 use App\Models\StudentProgram;
+use App\Models\SubjectCourseMaster;
 
 $batches = BatchMaster::latest()->get();
 $semesters = Semester::get();
-
+$course_master = SubjectCourseMaster::with('courseMaster')->where('subject_id', $data->id)->get();
+$faculty = Faculty::where('IS_LEFT', 0)->get();
 ?>
 @include('includes.header')
 
-<style>
+<!-- <style>
   body {
     background: linear-gradient(135deg, #5740b4 0%, #8931f6 100%);
   }
-</style>
+</style> -->
 <div class="container-fluid py-4">
-  <nav class="navbar navbar-expand-lg navbar-dark mb-4" style="background: linear-gradient(135deg, #5740b4 0%, #8931f6 100%); border-radius: 0.75rem;">
+  <nav class="navbar navbar-expand-lg navbar-dark mb-4" style="background: linear-gradient(135deg, #17472f 0%, #8931f6 100%); border-radius: 0.75rem;">
     <div class="container-fluid">
       <a class="navbar-brand d-flex align-items-center" href="#">
         <img src="{{ asset('admin/images/logo.png') }}" alt="Logo" style="max-height: 50px;" class="me-2">
@@ -29,7 +32,7 @@ $semesters = Semester::get();
       </div>
     </div>
   </nav>
-  <div class="alert alert-info shadow-sm rounded-3 mb-4 fw-semibold fs-5" style="background:rgba(255,255,255,0.15); color:#fff; border:0;">
+  <div class="alert alert-info shadow-sm rounded-3 mb-4 fw-semibold fs-5" style="background:#5b86e5; color:#fff; border:0;">
     <i class="fa fa-smile-beam me-2"></i>
     Welcome to the Department Dashboard! Here you can view and manage subjects, students, timetable, faculty and semesters with ease.
   </div>
@@ -51,7 +54,7 @@ $semesters = Semester::get();
       </div>
     </div>
     <!-- Course Master Card -->
-    <div class="col-md-4">
+    <div class="col-md-3">
       <div class="card shadow-lg border-0" style="background: linear-gradient(135deg, #43cea2 0%, #0efab3 100%); color: #fff;">
         <a href="{{route('department.course.master',[$data->id,$data->slug])}}" class="text-decoration-none text-white">
           <div class="card-body">
@@ -64,7 +67,7 @@ $semesters = Semester::get();
 
     </div>
     <!-- Number of Students Card -->
-    <div class="col-md-4">
+    <div class="col-md-3">
       <div class="card shadow-lg border-0" style="background: linear-gradient(135deg, #ff9966 0%, #ff5e62 100%); color: #fff;">
         <div class="card-body">
           <h5 class="card-title"> Students</h5>
@@ -73,19 +76,29 @@ $semesters = Semester::get();
       </div>
     </div>
     <!-- Semesters Card -->
-    <div class="col-md-4">
+    <div class="col-md-3">
       <div class="card shadow-lg border-0" style="background: linear-gradient(135deg, #f7971e 0%, #ffd200 100%); color: #fff;">
         <div class="card-body">
           <h5 class="card-title">Faculty</h5>
-          <p class="display-6 fw-bold">{{ $data->faculty_count ?? 0 }}</p>
+          <p class="display-6 fw-bold">{{ count($deptfaculties) ?? 0 }}</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- Semesters Card -->
+    <div class="col-md-3">
+      <div class="card shadow-lg border-0" style="background: linear-gradient(135deg, #f48cce 0%, #6cf5f7 100%); color: #fff;">
+        <div class="card-body">
+          <h5 class="card-title">Time Table</h5>
+          <p class="display-6 fw-bold"><a href="{{ route('department.timetable', [$data->id]) }}" class="text-white text-decoration-none">View</a></p>
         </div>
       </div>
     </div>
   </div>
 
   <div class="row">
-    <div class="col-lg-2">
-      <button class="btn btn-light mb-3" data-bs-toggle="modal" data-bs-target="#programConnect">
+    <div class="col-lg-3">
+      <button class="btn btn-dark mb-3" data-bs-toggle="modal" data-bs-target="#programConnect">
         <i class="fa fa-plus-circle"></i> Combinations
       </button>
 
@@ -127,7 +140,9 @@ $semesters = Semester::get();
         </div>
       </div>
     </div>
+
   </div>
+
 
 
   <div class="row">
@@ -200,6 +215,91 @@ $semesters = Semester::get();
   </div>
 
 
+  <div class="row">
+    <div class="col-lg-2">
+      <button class="btn btn-dark mb-3" data-bs-toggle="modal" data-bs-target="#addFaculty">
+        <i class="fa fa-plus-circle"></i> Faculty
+      </button>
+      <div class="modal fade" id="addFaculty" tabindex="-1" aria-labelledby="exampleModalLabel" aria-hidden="true">
+        <div class="modal-dialog modal-lg">
+          <div class="modal-content">
+            <div class="modal-header">
+              <h5 class="modal-title text-dark" id="exampleModalLabel">Add Faculty for {{$data->title}} </h5>
+              <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <form action="{{route('dept.add.faculty.master')}}" method="post" enctype="multipart/form-data">
+              @csrf
+              <div class="modal-body">
 
+                <label for="" class="text-dark">Add Faculty</label>
+
+                <select name="faculty[]" class="form-select mb-3 select-multiple" multiple>
+                  @foreach ($faculty as $fac)
+                  <option value="{{$fac->id}}">{{$fac->USER_CODE}} - {{$fac->FIRST_NAME}} {{$fac->LAST_NAME}}</option>
+                  @endforeach
+                </select>
+                <input type="hidden" name="subject_id" value="{{$data->id}}">
+
+              </div>
+              <div class="modal-footer">
+                <button type="submit" class="btn btn-success">Submit</button>
+              </div>
+            </form>
+          </div>
+        </div>
+      </div>
+
+    </div>
+    <div class="row">
+      @if(count($deptfaculties))
+      <div class="col-12">
+        <div class="card shadow-lg border-0">
+          <div class="card-header bg-white border-0 pb-0">
+            <h5 class="card-title">Departmental Faculties</h5>
+          </div>
+          <div class="card-body">
+            <table class="table table-bordered">
+              <thead>
+                <tr>
+                  <th>#</th>
+                  <th>Faculty Code</th>
+                  <th>Faculty</th>
+                  <th>Joining Date</th>
+                  <th>Mobile</th>
+                  <th>Mail</th>
+                  <th>Action</th>
+                </tr>
+              </thead>
+              <tbody>
+                @foreach($deptfaculties as $faculty)
+                <tr>
+                  <td>{{ $loop->iteration }}</td>
+                  <td>{{ $faculty->faculty->USER_CODE ?? '-' }}</td>
+                  <td>{{ $faculty->faculty->FIRST_NAME ?? '-' }} {{ $faculty->faculty->LAST_NAME ?? '-' }}</td>
+                  <td>{{ $faculty->faculty->DOJ ?? '-' }}</td>
+                  <td>{{$faculty->faculty->MOBILE_NO ?? '-'}}</td>
+                  <td>{{$faculty->faculty->MAIL_ID ?? '-'}}</td>
+                  <td>
+                    <form action="{{ route('department.faculty.delete', $faculty->id) }}" method="POST" onsubmit="return confirm('Are you sure you want to delete this faculty?');" style="display:inline;">
+                      @csrf
+                      @method('DELETE')
+                      <button type="submit" class="btn btn-danger btn-sm">
+                        <i class="fa fa-trash"></i>
+                      </button>
+                    </form>
+                  </td>
+                </tr>
+                @endforeach
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+      </div>
+      @else
+      <p class="text-center text-light">No faculties assigned yet.</p>
+      @endif
+    </div>
+  </div>
 
   @include('includes.footer')
