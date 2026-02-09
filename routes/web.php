@@ -295,5 +295,6 @@ Route::group(['prefix' => '/erp'], function () {
 });
 
 //Testing route
-Route::get('dept-campus-mapping', [TestController::class, 'DeptCampusMapping']);
+// Route::get('dept-campus-mapping', [TestController::class, 'DeptCampusMapping']);
+
 //ajax routes
