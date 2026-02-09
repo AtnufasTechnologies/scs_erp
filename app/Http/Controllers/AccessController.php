@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\Subject;
 use App\Models\SubjectHasDeptAdmin;
 use App\Models\User;
+use App\Models\UserCampusSetting;
 use App\Models\UserHasRole;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
@@ -55,6 +56,12 @@ class AccessController extends Controller
         SubjectHasDeptAdmin::create([
             'subject_id' => $departmentId,
             'user_id' => $rec->id,
+        ]);
+
+        //add Campus Seetings permission
+        UserCampusSetting::create([
+            'user_id' => $rec->id,
+            'campus_id' =>  $data->campus_id ?? 0, //Campus Settings Access
         ]);
 
 

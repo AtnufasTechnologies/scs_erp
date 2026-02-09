@@ -6,6 +6,7 @@ use App\Http\Controllers\AdmissionController;
 use App\Http\Controllers\FeePaymentController;
 use App\Http\Controllers\LoginController;
 use App\Http\Controllers\SubjectController;
+use App\Http\Controllers\TestController;
 use App\Http\Controllers\TimetableController;
 use App\Models\Department;
 use App\Models\User;
@@ -293,5 +294,6 @@ Route::group(['prefix' => '/erp'], function () {
     });
 });
 
-Route::get('test-function/{id}', [AdmissionController::class, 'testFunction']);
+//Testing route
+Route::get('dept-campus-mapping', [TestController::class, 'DeptCampusMapping']);
 //ajax routes

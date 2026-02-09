@@ -23,7 +23,7 @@
 <!-- error question -->
 @if(Session::has('error'))
 <script>
-    const Error = Swal.mixin({
+    const Errors = Swal.mixin({
         toast: true,
         position: "top-end",
         showConfirmButton: false,
@@ -34,7 +34,7 @@
             toast.onmouseleave = Swal.resumeTimer;
         }
     });
-    Error.fire({
+    Errors.fire({
         icon: "error",
         title: "{{Session::get('error')}}"
     });

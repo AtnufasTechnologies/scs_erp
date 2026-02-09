@@ -2,10 +2,11 @@
 
 use App\Http\Controllers\StaticController;
 
+$userRoleType = StaticController::fetchUserRole();
 
 ?>
 @include('includes.header')
-@if(Auth::user()->userroletype != 'dept-admin-erp')
+@if($userRoleType != 'dept-admin-erp')
 @include('admin.sidebar')
 @endif
 <style>

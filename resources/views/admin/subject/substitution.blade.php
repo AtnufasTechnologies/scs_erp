@@ -1,7 +1,10 @@
 <?php
 
+use App\Http\Controllers\StaticController;
 use App\Models\SubjectCourseMaster;
 use App\Models\SubjectFacultyMaster;
+
+$userRoleType = StaticController::fetchUserRole();
 
 $courses = SubjectCourseMaster::where('subject_id', $data->id)->with('courseMaster.coursetypemaster')->get()->map(function ($item) {
   $item->course_title = $item->courseMaster->course_title ?? 'N/A';
@@ -154,7 +157,7 @@ $faculties = SubjectFacultyMaster::where('subject_id', $data->id)->with('faculty
         <span class="fw-bold text-white text-capitalize">{{ $data->code ?? '-' }} - {{ $data->title ?? '-' }} / Substitution Management</span>
       </a>
       <div class="d-flex">
-        @if(StaticController::fetchUserRole() == 'dept-admin-erp')
+        @if($userRoleType == 'dept-admin-erp')
         <a href="{{ route('department.dashboard') }}" class="btn btn-light btn-sm fw-bold ms-auto" style="box-shadow:0 2px 8px #5740b433;">
           <i class="fa fa-step-backward me-1"></i> back
         </a>

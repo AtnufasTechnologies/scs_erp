@@ -4,12 +4,13 @@ use App\Helpers\Qs;
 use App\Http\Controllers\StaticController;
 use App\Models\StudentProgram;
 
+$userRoleType = StaticController::fetchUserRole();
 $programs = Qs::getProgramGroups();
 
 ?>
 
 @include('includes.header')
-@if(StaticController::fetchUserRole() == 'dept-admin-erp')
+@if($userRoleType == 'dept-admin-erp')
 
 <div class="container-fluid">
   <nav class="navbar navbar-expand-lg navbar-dark mb-4 custom-navbar"
@@ -18,12 +19,11 @@ $programs = Qs::getProgramGroups();
       <img src="{{ asset('admin/images/logo.png') }}" alt="Logo" style="max-height: 50px;" class="me-2">
       <h3><span class="text-light">Interview List</span></h3>
       <div class="d-flex">
-        @if(StaticController::fetchUserRole() == 'dept-admin-erp')
+
 
         <a href="{{ route('department.dashboard') }}" class="btn btn-light">
           << Back
             </a>
-            @endif
       </div>
     </div>
   </nav>

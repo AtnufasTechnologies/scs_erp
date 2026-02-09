@@ -2,6 +2,7 @@
 
 use App\Http\Controllers\StaticController;
 
+$userRoleType = StaticController::fetchUserRole();
 ?>
 @include('includes.header')
 
@@ -15,7 +16,7 @@ use App\Http\Controllers\StaticController;
         <img src="{{ asset('admin/images/logo.png') }}" alt="Logo" style="max-height: 50px;" class="me-2">
         <h3><span class="text-light">Admission Application List</span></h3>
         <div class="d-flex">
-          @if(StaticController::fetchUserRole() == 'dept-admin-erp')
+          @if($userRoleType == 'dept-admin-erp')
 
           <a href="{{ route('department.dashboard') }}" class="btn btn-light">
             << Back
