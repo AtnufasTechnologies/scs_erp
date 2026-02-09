@@ -46,10 +46,29 @@ class AdmissionController extends Controller
 
         $campus = Campus::all();
         $countries = Country::all();
-        return view('admission.registration', [
-            'campuses' => $campus,
-            'countries' => $countries
-        ]);
+        $admissionSetting = AdmissionSetting::find(1);
+        //check if admission close date UG and PG is set and compare with current date to show admission closed page if current date is out of range
+
+        if ($admissionSetting->open_date_ug != null && $admissionSetting->open_date_pg != null) {
+            $currentDate = Carbon::now()->format('Y-m-d');
+            if ($currentDate >= $admissionSetting->open_date_ug || $currentDate >= $admissionSetting->open_date_pg) {
+                //Admission is open
+                return view('admission.registration', [
+                    'admissionSetting' => $admissionSetting,
+                    'campuses' => $campus,
+                    'countries' => $countries
+                ]);
+            } else {
+                //Admission is closed
+                return view('admission.closed');
+            }
+        } else {
+            return view('admission.registration', [
+                'campuses' => $campus,
+                'countries' => $countries,
+                'admissionSetting' => $admissionSetting,
+            ]);
+        }
     }
 
     public function refreshCaptcha()
@@ -269,7 +288,34 @@ class AdmissionController extends Controller
 
     function getMainPrograms(Request $request)
     {
-        return MainProgram::where('campus_id', $request->campusId)->get();
+        $admissionSettings = AdmissionSetting::find(1);
+        $ug = false;
+        $pg = false;
+        if ($admissionSettings->open_date_ug != null && $admissionSettings->close_date_ug != null) {
+
+            $currentDate = Carbon::now()->format('Y-m-d');
+            if ($currentDate >= $admissionSettings->open_date_ug && $currentDate <= $admissionSettings->close_date_ug) {
+                //Admission is open
+                $ug = true;
+            }
+        }
+
+        if ($admissionSettings->open_date_pg != null && $admissionSettings->close_date_pg != null) {
+            $currentDate = Carbon::now()->format('Y-m-d');
+            if ($currentDate >= $admissionSettings->open_date_pg && $currentDate <= $admissionSettings->close_date_pg) {
+                //Admission is open
+                $pg = true;
+            }
+        }
+        if ($pg && !$ug) {
+            return MainProgram::where('campus_id', $request->campusId)->where('name', 'PG')->get();
+        } else if (!$pg && $ug) {
+            return MainProgram::where('campus_id', $request->campusId)->where('name', 'UG')->get();
+        } else if (!$pg && !$ug) {
+            return response()->json(['message' => 'Admission is closed for both UG and PG'], 403);
+        } else {
+            return MainProgram::where('campus_id', $request->campusId)->get();
+        }
     }
 
     /**
@@ -1164,9 +1210,7 @@ class AdmissionController extends Controller
     function updateAdmissionSettingsUg(Request $request)
     {
 
-
-        AdmissionSetting::updateOrCreate(
-            ['id' => 1],
+        AdmissionSetting::where('id', 1)->update(
             [
                 'open_date_ug' => $request->open_date_ug,
                 'close_date_ug' => $request->close_date_ug,
@@ -1183,8 +1227,7 @@ class AdmissionController extends Controller
     {
 
 
-        AdmissionSetting::updateOrCreate(
-            ['id' => 1],
+        AdmissionSetting::where('id', 1)->update(
             [
                 'open_date_pg' => $request->open_date_pg,
                 'close_date_pg' => $request->close_date_pg,
