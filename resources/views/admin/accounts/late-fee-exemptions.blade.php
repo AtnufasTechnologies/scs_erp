@@ -142,6 +142,7 @@
               <th>Student Name</th>
               <th>Exemption Type</th>
               <th>Fee Structure</th>
+              <th>Fixed Late Fee (₹)</th>
               <th>Reason</th>
               <th>Approved By</th>
               <th>Approved Date</th>
@@ -163,6 +164,13 @@
                 @endif
               </td>
               <td>{{ $exemption->feeStructure->quarter_title ?? 'All Fees' }}</td>
+              <td>
+                @if(!is_null($exemption->fixed_late_fee))
+                ₹{{ number_format($exemption->fixed_late_fee, 2) }}
+                @else
+                <span class="text-muted">N/A</span>
+                @endif
+              </td>
               <td>{{ $exemption->reason }}</td>
               <td>{{ $exemption->approver->name ?? 'N/A' }}</td>
               <td>{{ $exemption->approved_at ? $exemption->approved_at->format('d-M-Y') : 'N/A' }}</td>
@@ -237,6 +245,11 @@
             <label for="reason" class="form-label">Reason <span class="text-danger">*</span></label>
             <textarea name="reason" id="reason" class="form-control" rows="4" required maxlength="500" placeholder="Enter the reason for granting this exemption..."></textarea>
             <small class="form-text text-muted">Max 500 characters</small>
+          </div>
+          <div class="mb-3">
+            <label for="fixed_late_fee" class="form-label">Fixed Late Fee Amount (₹)</label>
+            <input type="number" name="fixed_late_fee" id="fixed_late_fee" class="form-control" min="0" step="0.01" placeholder="Enter fixed late fee amount (optional)">
+            <small class="form-text text-muted">Leave blank if not applicable.</small>
           </div>
         </div>
         <div class="modal-footer">

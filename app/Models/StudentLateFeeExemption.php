@@ -10,6 +10,7 @@ class StudentLateFeeExemption extends Model
     'student_id',
     'fee_structure_id',
     'reason',
+    'fixed_late_fee',
     'approved_by',
     'approved_at',
     'is_active'

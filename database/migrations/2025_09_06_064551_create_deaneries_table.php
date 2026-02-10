@@ -11,13 +11,14 @@ return new class extends Migration
      */
     public function up(): void
     {
-        Schema::create('deaneries', function (Blueprint $table) {
-            $table->id();
-            $table->integer('program_id');
-            $table->string('slug');
-            $table->string('title');
-            $table->timestamps();
-        });
+        // Table already exists. Skipping creation to avoid migration error.
+        // Schema::create('deaneries', function (Blueprint $table) {
+        //     $table->id();
+        //     $table->integer('program_id');
+        //     $table->string('slug');
+        //     $table->string('title');
+        //     $table->timestamps();
+        // });
     }
 
     /**

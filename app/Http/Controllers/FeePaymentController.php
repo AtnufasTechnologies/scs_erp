@@ -421,7 +421,6 @@ class FeePaymentController extends Controller
             ->get();
         // ---- PREPARE FEE STATUS ----
         $feeStatus = $applicableFS->map(function ($fs) use ($student, $lateFeePerDay, $exemptions, $hasBlanketExemption) {
-
             // Success payment
             $successPayment = $student->feepayment
                 ->where('fee_structure_id', $fs->id)
@@ -453,7 +452,19 @@ class FeePaymentController extends Controller
                     // ---- CHECK EXEMPTION ----
                     $isExempted = $hasBlanketExemption || $exemptions->has($fs->id);
 
-                    if (!$isExempted) {
+                    // If exemption exists and has a fixed late fee, use it
+                    if ($isExempted) {
+                        $exemption = $hasBlanketExemption
+                            ? $exemptions->first(function ($e) {
+                                return is_null($e->fee_structure_id);
+                            })
+                            : $exemptions->get($fs->id);
+                        if ($exemption && !is_null($exemption->fixed_late_fee)) {
+                            $lateFee = (float)$exemption->fixed_late_fee;
+                        } else {
+                            $lateFee = 0;
+                        }
+                    } else {
                         $lateFee  = $lateDays * $lateFeePerDay;
                     }
                 }
@@ -984,7 +995,8 @@ class FeePaymentController extends Controller
         $request->validate([
             'roll_no' => 'required|exists:student_masters,roll_no',
             'fee_structure_id' => 'required|exists:fees_structures,id',
-            'reason' => 'required|string|max:500'
+            'reason' => 'required|string|max:500',
+            'fixed_late_fee' => 'nullable|numeric|min:0',
         ]);
 
         // Get student ID from roll number
@@ -1002,13 +1014,14 @@ class FeePaymentController extends Controller
         $createdCount = 0;
 
 
-        $createdCount =   StudentLateFeeExemption::updateOrCreate(
+        $createdCount = StudentLateFeeExemption::updateOrCreate(
             [
                 'student_id' => $studentId,
                 'fee_structure_id' => $feeStructureId,
             ],
             [
                 'reason' => $request->reason,
+                'fixed_late_fee' => $request->input('fixed_late_fee'),
                 'approved_by' => Auth::id(),
                 'approved_at' => now(),
                 'is_active' => true
