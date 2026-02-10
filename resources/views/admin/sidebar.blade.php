@@ -540,6 +540,15 @@ $roleType = UserHasRole::where('user_id', $userId)->value('role_name');
             <div class="menu-title">Late Fee Exemptions</div>
           </a>
         </li>
+
+        <li>
+          <a href="{{route('late-fee-revenue-report')}}">
+            <div class="parent-icon">
+              <i class="fas fa-arrow-alt-circle-right"></i>
+            </div>
+            <div class="menu-title">Late Fee Revenue Report</div>
+          </a>
+        </li>
         @if (StaticController::subMenuRights('bank-master') )
 
 

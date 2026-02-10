@@ -105,7 +105,7 @@ class FeePaymentController extends Controller
                     'payable_amount' => $totalAmount + $lateFee,
                     'paid' => $payment ? true : false,
                     'paid_amount' => $payment->amount ?? 0,
-                    'status' => $payment ? 'success' : ($lateFee > 0 ? 'LATE' : 'DUE'),
+                    'status' => $payment ? 'success' : ($lateFee > 0 ? 'late' : 'due'),
                 ];
             });
 
@@ -275,7 +275,24 @@ class FeePaymentController extends Controller
             abort(404, "No successful payment found for this fee");
         }
 
-        return $this->showSuccessPage($payment->invoice_id);
+        // Fetch late fee if present
+        $lateFee = $payment->late_fee_amount ?? 0;
+        $lateDays = $payment->late_days ?? 0;
+
+        // Check if a fixed late fee exemption was applied
+        $fixedLateFee = null;
+        $exemption = StudentLateFeeExemption::where('student_id', $studentId)
+            ->where('fee_structure_id', $feeId)
+            ->where('is_active', true)
+            ->first();
+        if ($exemption && !is_null($exemption->fixed_late_fee)) {
+            $fixedLateFee = (float)$exemption->fixed_late_fee;
+        }
+
+        // Pass fixedLateFee to the receipt view if you want to display it
+        // Example: return view('includes.success-page', [..., 'fixedLateFee' => $fixedLateFee]);
+        // For now, just pass to showSuccessPage as a second argument (if you update that method/view)
+        return $this->showSuccessPage($payment->invoice_id, $fixedLateFee);
     }
 
     function studentValidation()
@@ -452,19 +469,7 @@ class FeePaymentController extends Controller
                     // ---- CHECK EXEMPTION ----
                     $isExempted = $hasBlanketExemption || $exemptions->has($fs->id);
 
-                    // If exemption exists and has a fixed late fee, use it
-                    if ($isExempted) {
-                        $exemption = $hasBlanketExemption
-                            ? $exemptions->first(function ($e) {
-                                return is_null($e->fee_structure_id);
-                            })
-                            : $exemptions->get($fs->id);
-                        if ($exemption && !is_null($exemption->fixed_late_fee)) {
-                            $lateFee = (float)$exemption->fixed_late_fee;
-                        } else {
-                            $lateFee = 0;
-                        }
-                    } else {
+                    if (!$isExempted) {
                         $lateFee  = $lateDays * $lateFeePerDay;
                     }
                 }
@@ -495,29 +500,30 @@ class FeePaymentController extends Controller
             ];
         });
 
-        // ---- SHOW ONLY UNPAID FEES ----
+        // ---- FILTER OUT: PAID FEES & FEES WITH ACTIVE EXEMPTIONS ----
         $feeStatus = $feeStatus
-            ->filter(fn($item) => $item['paid'] === false)
+            ->filter(function ($item) use ($hasBlanketExemption) {
+                // Exclude if already paid
+                if ($item['paid'] === true) {
+                    return false;
+                }
+
+                // Exclude if already has blanket exemption
+                if ($hasBlanketExemption) {
+                    return false;
+                }
+
+                // Exclude if this specific fee already has an exemption
+                if ($item['is_late_fee_exempted'] === true) {
+                    return false;
+                }
+
+                return true;
+            })
             ->values();
 
-        // ---- FINAL RESPONSE ----
-        $studentData = [
-            'studentinfo' => [
-                'id'       => $student->id,
-                'fullname' => $student->fullname,
-                'rollno'   => $student->roll_no,
-                'mobile'   => $student->mobile_no,
-                'email'    => $student->mail_id,
-            ],
-            'programinfo'  => $student->programgroup->programInfo->name ?? '',
-            'batch'        => $student->batchmaster->batch_name ?? '',
-            'current_year' => $student->current_year,
-            'feesinfo'     => $feeStatus
-        ];
-
-        return view('student.gateway-selection', [
-            'data' => $studentData
-        ]);
+        // ---- RETURN JSON RESPONSE ----
+        return response()->json($feeStatus);
     }
 
 
@@ -785,7 +791,7 @@ class FeePaymentController extends Controller
         return redirect('erp/student/transaction-success/' . $txnid);
     }
 
-    function showSuccessPage($txnId)
+    function showSuccessPage($txnId, $fixedLateFee = null)
     {
         $txnrecs =  StudentPayment::where('invoice_id', $txnId)->with([
             'studentmaster:id,first_name,last_name,roll_no,mobile_no,mail_id',
@@ -802,7 +808,7 @@ class FeePaymentController extends Controller
             'transactions' => $data,
             'status' => $data[0]['status'],
             'gatewayType' => $data[0]['gateway_type_id'],
-
+            'fixedLateFee' => $fixedLateFee,
         ]);
     }
 
@@ -1129,6 +1135,15 @@ class FeePaymentController extends Controller
             ->orderBy('std_current_year')
             ->get();
 
+        // Only show fee structures for which late fee has been paid
+        $paidFeeStructureIds = \App\Models\StudentPayment::where('late_fee_amount', '>', 0)
+            ->where('status', 'success')
+            ->distinct()
+            ->pluck('fee_structure_id');
+        $feeStructures = \App\Models\FeesStructure::whereIn('id', $paidFeeStructureIds)
+            ->orderBy('quarter_title')
+            ->get();
+
         // ---- PREPARE FEE STATUS ----
         $feeStatus = $applicableFS->map(function ($fs) use ($student, $lateFeePerDay, $exemptions, $hasBlanketExemption) {
 
@@ -1218,6 +1233,45 @@ class FeePaymentController extends Controller
 
         // ---- RETURN JSON RESPONSE ----
         return response()->json($feeStatus);
+    }
+
+    /**
+     * Show a report of all late fee payments by students.
+     */
+    public function lateFeeRevenueReport(Request $request)
+    {
+        // Fetch all batches and fee structures for filters
+        $batches = \App\Models\BatchMaster::orderBy('batch_name')->get();
+        $feeStructures = \App\Models\FeesStructure::whereIn('id', \App\Models\StudentPayment::where('late_fee_amount', '>', 0)->distinct()->pluck('fee_structure_id'))->orderBy('quarter_title')->get();
+
+        $query = \App\Models\StudentPayment::with([
+            'studentmaster.batchmaster',
+            'feepaymentinfo.batch',
+        ])
+            ->where('late_fee_amount', '>', 0)
+            ->where('status', 'success');
+
+        // Apply filters
+        if ($request->filled('batch')) {
+            $query->whereHas('studentmaster', function ($q) use ($request) {
+                $q->where('batch', $request->batch);
+            });
+        }
+        if ($request->filled('fee_structure')) {
+            $query->where('fee_structure_id', $request->fee_structure);
+        }
+
+        $lateFeePayments = $query->orderByDesc('transaction_date')->get();
+        $totalRevenue = $lateFeePayments->sum('late_fee_amount');
+
+        return view('admin.accounts.late-fee-revenue-report', [
+            'lateFeePayments' => $lateFeePayments,
+            'batches' => $batches,
+            'feeStructures' => $feeStructures,
+            'totalRevenue' => $totalRevenue,
+            'selectedBatch' => $request->batch,
+            'selectedFeeStructure' => $request->fee_structure,
+        ]);
     }
 
     function defaultersList(Request $request)

@@ -71,6 +71,7 @@ $userInfo = User::select('name')->find($userId);
     {{-- FEE STRUCTURES --}}
     @php $grandTotal = 0; @endphp
 
+
     @foreach($transactions as $txn)
     @php
     $structure = $txn['feepaymentinfo'];
@@ -113,6 +114,12 @@ $userInfo = User::select('name')->find($userId);
             ₹{{ number_format($courseFee + $otherFees, 2) }}
           </td>
         </tr>
+        @if(isset($fixedLateFee) && $fixedLateFee !== null)
+        <tr>
+          <td><strong>Fixed Late Fee (Exemption)</strong></td>
+          <td class="amount">₹{{ number_format($fixedLateFee, 2) }}</td>
+        </tr>
+        @endif
       </table>
     </div>
 

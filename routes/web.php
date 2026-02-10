@@ -106,6 +106,8 @@ Route::group(['prefix' => '/erp'], function () {
 
         //account
         Route::group(['prefix' => '/accounts'], function () {
+            // Late Fee Revenue Report
+            Route::get('late-fee-revenue-report', [FeePaymentController::class, 'lateFeeRevenueReport'])->name('late-fee-revenue-report');
             Route::get('bankinfo', [AdminController::class, 'bankAccounts']);
             Route::post('bankinfo', [AdminController::class, 'addBankInfo']);
             Route::post('update-bankinfo', [AdminController::class, 'updateBankInfo']);
