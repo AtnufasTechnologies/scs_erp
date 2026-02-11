@@ -468,9 +468,21 @@ class FeePaymentController extends Controller
 
                     // ---- CHECK EXEMPTION ----
                     $isExempted = $hasBlanketExemption || $exemptions->has($fs->id);
-
-                    if (!$isExempted) {
-                        $lateFee  = $lateDays * $lateFeePerDay;
+                    if ($isExempted) {
+                        $exemption = $hasBlanketExemption
+                            ? $exemptions->first(function ($e) {
+                                return is_null($e->fee_structure_id);
+                            })
+                            : $exemptions->get($fs->id);
+                        if ($exemption && !is_null($exemption->fixed_late_fee)) {
+                            $lateFee = (float)$exemption->fixed_late_fee;
+                        } else {
+                            $lateFee = 0;
+                        }
+                    } else {
+                        if (!$isExempted) {
+                            $lateFee  = $lateDays * $lateFeePerDay;
+                        }
                     }
                 }
             }
@@ -502,28 +514,28 @@ class FeePaymentController extends Controller
 
         // ---- FILTER OUT: PAID FEES & FEES WITH ACTIVE EXEMPTIONS ----
         $feeStatus = $feeStatus
-            ->filter(function ($item) use ($hasBlanketExemption) {
-                // Exclude if already paid
-                if ($item['paid'] === true) {
-                    return false;
-                }
-
-                // Exclude if already has blanket exemption
-                if ($hasBlanketExemption) {
-                    return false;
-                }
-
-                // Exclude if this specific fee already has an exemption
-                if ($item['is_late_fee_exempted'] === true) {
-                    return false;
-                }
-
-                return true;
-            })
+            ->filter(fn($item) => $item['paid'] === false)
             ->values();
 
         // ---- RETURN JSON RESPONSE ----
-        return response()->json($feeStatus);
+        // return response()->json($feeStatus);
+        // ---- FINAL RESPONSE FOR VIEW (IF NEEDED) ----
+        $studentData = [
+            'studentinfo' => [
+                'id'       => $student->id,
+                'fullname' => $student->fullname,
+                'rollno'   => $student->roll_no,
+                'mobile'   => $student->mobile_no,
+                'email'    => $student->mail_id,
+            ],
+            'programinfo'  => $student->programgroup->programInfo->name ?? '',
+            'batch'        => $student->batchmaster->batch_name ?? '',
+            'current_year' => $student->current_year,
+            'feesinfo'     => $feeStatus
+        ];
+        return view('student.gateway-selection', [
+            'data' => $studentData
+        ]);
     }
 
 
