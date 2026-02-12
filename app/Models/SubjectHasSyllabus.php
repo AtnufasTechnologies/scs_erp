@@ -16,6 +16,12 @@ class SubjectHasSyllabus extends Model
         'course_id'
     ];
 
+
+    function batchmaster()
+    {
+        return $this->hasOne(BatchMaster::class, 'id', 'batch_id');
+    }
+
     function sessionmaster()
     {
         return $this->hasOne(BatchMaster::class, 'id', 'session_id');

@@ -60,4 +60,9 @@ class SubjectHasRoutine extends Model
     {
         return $this->belongsTo(SubjectHasSyllabus::class, 'syllabus_id', 'id');
     }
+
+    function coursemaster()
+    {
+        return $this->hasOne(ProgramCourseMaster::class, 'id', 'subject_course_id');
+    }
 }

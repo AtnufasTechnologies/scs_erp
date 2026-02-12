@@ -925,4 +925,38 @@ class TimetableController extends Controller
             ], 500);
         }
     }
+
+    public function facultyTimetable($facultyId)
+    {
+        $faculty = Faculty::findOrFail($facultyId);
+        // Example: You may need to adjust this query to match your timetable structure
+        $timetable = SubjectHasRoutine::where('faculty_id', $facultyId)
+            ->with([
+                'weekdaymaster:id,title',
+                'hourmaster:id,title',
+                'syllabus.subject:id,title',
+                'syllabus.batchmaster:id,batch_name',
+                'syllabus.semestermaster:id,title',
+                'lecturehallmaster:id,title',
+                'subjectCourse.courseMaster:id,course_title,course_code,course_type',
+                'subjectCourse.courseMaster.coursetypemaster:id,title',
+
+            ])->get()->map(function ($routine) {
+                return [
+                    'weekday' => $routine->weekdaymaster->title ?? '-',
+                    'hour' => $routine->hourmaster->title ?? '-',
+                    'subject' => $routine->syllabus->subject->title ?? '-',
+                    'batch' => $routine->syllabus->batchmaster->batch_name ?? '-',
+                    'semester' => $routine->syllabus->semestermaster->title ?? '-',
+                    'lecture_hall' => $routine->lecturehallmaster->title ?? '-',
+                    'course' => $routine->subjectCourse->courseMaster->course_code . '-' . $routine->subjectCourse->courseMaster->course_title,
+                    'course_type' => $routine->subjectCourse->courseMaster->coursetypemaster->title ?? '-',
+                ];
+            });
+
+        return view('admin.subject.timetable.faculty-timetable', [
+            'faculty' => $faculty,
+            'timetable' => $timetable
+        ]);
+    }
 }

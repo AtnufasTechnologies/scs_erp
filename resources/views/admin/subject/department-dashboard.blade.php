@@ -317,6 +317,7 @@ $faculty = Faculty::where('IS_LEFT', 0)->get();
                   <th>Joining Date</th>
                   <th>Mobile</th>
                   <th>Mail</th>
+                  <th>Timetable</th>
                   <th>Action</th>
                 </tr>
               </thead>
@@ -329,6 +330,11 @@ $faculty = Faculty::where('IS_LEFT', 0)->get();
                   <td>{{ $faculty->faculty->DOJ ?? '-' }}</td>
                   <td>{{$faculty->faculty->MOBILE_NO ?? '-'}}</td>
                   <td>{{$faculty->faculty->MAIL_ID ?? '-'}}</td>
+                  <td>
+                    <a href="{{ route('department.faculty.timetable', $faculty->faculty->id) }}" class="btn btn-primary btn-sm">
+                      <i class="fa fa-calendar"></i> View Timetable
+                    </a>
+                  </td>
                   <td>
                     <form action="{{ route('department.faculty.delete', $faculty->id) }}" method="POST" onsubmit="return confirm('Are you sure you want to delete this faculty?');" style="display:inline;">
                       @csrf
