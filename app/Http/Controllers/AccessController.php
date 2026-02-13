@@ -19,7 +19,7 @@ class AccessController extends Controller
         $data = User::whereHas('userroletype', function ($q) {
             //Head of Department Admin Role
             $q->where('role_name', 'dept-admin-erp');
-        })->with('subjectdeptadmin.subject')->get();
+        })->with('subjectdeptadmin.subject')->latest()->get();
         return view('admin.user-manager.dept-access', ['departments' => $departments, 'data' => $data]);
     }
 

@@ -1004,6 +1004,13 @@ class AdminController extends Controller
     function deleteUserAccess($id)
     {
         User::findOrFail($id)->delete();
+        //delete user campus setting
+        UserCampusSetting::where('user_id', $id)->delete();
+        //delete user menu permission
+        UserMenuPermission::where('user_id', $id)->delete();
+        //delete user role
+        UserHasRole::where('user_id', $id)->delete();
+        //delete user
         return redirect()->back()->with('success', 'User Deleted');
     }
 

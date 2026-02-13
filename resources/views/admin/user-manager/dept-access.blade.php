@@ -71,8 +71,9 @@ $campusMaster = App\Models\Campus::all();
                 <th>Department</th>
                 <th>Status</th>
                 <th>Action</th>
-                <th scope="col">Created At</th>
-                <th>Updated At</th>
+                <th scope="col">Created </th>
+                <th>Updated </th>
+                <th>Delete</th>
               </tr>
             </thead>
             <tbody>
@@ -97,6 +98,7 @@ $campusMaster = App\Models\Campus::all();
                 </td>
                 <td>{{ $item->created_at->format('Y-m-d') }}</td>
                 <td>{{ $item->updated_at->format('Y-m-d') }}</td>
+                <td><a href="{{route('admin.user-access.delete', $item->id)}}" id="citadel"><button class="btn btn-danger"><i class="fa fa-trash"></i></button></a></td>
               </tr>
               @endforeach
             </tbody>
