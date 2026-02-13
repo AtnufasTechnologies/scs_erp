@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Helpers\Qs;
+use App\Mail\AdmissionRegistrationForgotMail;
 use App\Mail\ApplicationSuccessMail;
 use App\Models\AdmissionApplication;
 use App\Models\AdmissionApplicationPaymentLog;
@@ -17,6 +18,7 @@ use App\Models\Country;
 use App\Models\DepartmentMaster;
 use App\Models\MainProgram;
 use App\Models\Otp;
+use App\Models\PasswordReset;
 use App\Models\ProgramGroup;
 use App\Models\ReligionMaster;
 use App\Models\SmsLog;
@@ -184,17 +186,18 @@ class AdmissionController extends Controller
 
     function applicantLogin(Request $request)
     {
+
         $request->validate([
             'registered_no' => 'required',
-            'registered_password' => 'required',
+            'password' => 'required',
         ]);
+        $mobileNo = trim($request->registered_no);
 
-        $user = AdmissionRegistration::where('mobile_no', $request->registered_no)
-            ->orWhere('mail_id', $request->registered_no)
-            ->where('otp_verification', 1)
+        $user = AdmissionRegistration::where('mobile_no', $mobileNo)
+            ->orWhere('mail_id', $mobileNo)
             ->first();
-        if ($user != null) {
-            if ($user && Hash::check($request->registered_password, $user->password)) {
+        if ($user) {
+            if (Hash::check($request->password, $user->password)) {
                 Auth::login($user, true);
                 return redirect()->route('admission.apply.application');
             } else {
@@ -240,17 +243,17 @@ class AdmissionController extends Controller
 
     function showApplicationPage()
     {
-        Auth::check();
-        $userId = Auth::id();
+
+        $userId = Auth::user()->id;
         //find the application
         $registrationInfo = AdmissionRegistration::with([
             'campusmaster',
             'countrymaster',
-        ])->where('id', $userId)->firstOrFail();
+        ])->where('id', $userId)->first();
 
         if ($registrationInfo->application_type == 'UG') {
             //UG Application Page
-            $batch = BatchMaster::where('admission_active_batch', 1)->value('batch_name');
+            $batch = $registrationInfo->batch;
             $campusId = $registrationInfo->campus_id;
             $courses = ProgramGroup::whereHas('programInfo', function ($q) use ($campusId) {
                 $q->where('campus_id', $campusId);
@@ -262,7 +265,7 @@ class AdmissionController extends Controller
 
             $application = AdmissionApplication::where('registration_id', $registrationInfo->id)->first();
             if ($application == null) {
-                view('admission.ug-application', [
+                return  view('admission.ug-application', [
                     'data' => $registrationInfo,
                     'courses' => $courses,
                     'bloodgroups' => BloodGroupMaster::all(),
@@ -333,10 +336,8 @@ class AdmissionController extends Controller
                 'countrymaster',
                 'programinfo',
                 'applicationmaster',
-            ])
-                ->whereHas('programinfo', function ($query) use ($type) {
-                    $query->where('name', $type);
-                })
+                'campusmaster',
+            ])->where('application_type', $type)
                 ->latest()
                 ->get();
         } else {
@@ -345,11 +346,8 @@ class AdmissionController extends Controller
                 'countrymaster',
                 'programinfo',
                 'applicationmaster',
-            ])->whereHas('programinfo.campus', function ($query) use ($campusId) {
-                $query->where('id', $campusId);
-            })->whereHas('programinfo', function ($query) use ($type) {
-                $query->where('name', $type);
-            })->latest()
+            ])->where('campus_id', $campusId)->where('application_type', $type)
+                ->latest()
                 ->get();
         }
 
@@ -1315,6 +1313,84 @@ class AdmissionController extends Controller
             return view('admin.admission.ug.phase1', ['data' => $data]);
         } else {
             return back()->with('info', 'Unauthorized access.');
+        }
+    }
+
+
+    //Forgot Password
+    function showForgotPasswordForm()
+    {
+        return view('admission.forgot-password');
+    }
+
+    function handleForgotPassword(Request $request)
+    {
+        // Validate the email input
+        $request->validate([
+            'email' => 'required|email',
+        ]);
+
+        $applicantmail = AdmissionRegistration::where('mail_id', $request->email)->value('mail_id');
+
+        if ($applicantmail) {
+
+            $code = sha1(uniqid());
+            $rec = new PasswordReset();
+            $rec->email = $applicantmail;
+            $rec->token = $code;
+            $rec->status = 1;
+            $rec->save();
+
+            $details = [
+                'token' =>  $code,
+            ];
+
+            Mail::to($applicantmail)->send(new AdmissionRegistrationForgotMail($details));
+
+            return back()->with('success', 'Password reset link has been sent to your email.');
+        } else {
+            return back()->with('error', 'Email not found. Please check and try again.');
+        }
+    }
+
+
+    function showResetPasswordPage($token)
+    {
+        $data =  PasswordReset::where('token', $token)->where('status', 1)->first();
+        if ($data) {
+            return view('admission.update-password', ['data' => $data]);
+        } else {
+            return redirect()->route('admission.forgot.password')->with('error', 'Link Expired... Please Reset Again');
+        }
+    }
+
+    function handleResetPassword(Request $request)
+    {
+        // Validate the reset password input
+        $request->validate([
+            'token' => 'required',
+            'password' => 'required|confirmed|min:6',
+            'password_confirmation' => 'required|min:6',
+        ]);
+
+        // Reset password logic here
+
+        $data = PasswordReset::where('token', $request->token)->where('status', 1)->first();
+        if ($data) {
+            $applicant = AdmissionRegistration::where('mail_id', $data->email)->first();
+            if ($applicant) {
+                $applicant->password = Hash::make($request->password);
+                $applicant->save();
+
+                // Invalidate the token after successful password reset
+                $data->status = 0;
+                $data->save();
+                return redirect()->route('new.admission.login')->with('success', 'Password has been reset successfully. You can now log in with your new password.');
+            } else {
+                return back()->with('error', 'Applicant not found. Please check and try again.');
+            }
+        } else {
+            return redirect()->route('admission.forgot.password')->with('error', 'Invalid or expired token. Please try resetting your password again.');
         }
     }
 }

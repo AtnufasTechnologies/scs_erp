@@ -230,6 +230,12 @@ Route::group(['prefix' => '/erp'], function () {
         Route::post('payment-success', [AdmissionController::class, 'paymentSuccess'])->name('admission.payment.success');
         Route::post('payment-failure', [AdmissionController::class, 'paymentFailure'])->name('admission.payment.failure');
         Route::get('application-success-page', [AdmissionController::class, 'showSuccessPage'])->name('admission.application.success');
+
+        //forgot password
+        Route::get('forgot-password', [AdmissionController::class, 'showForgotPasswordForm'])->name('admission.forgot.password');
+        Route::post('forgot-password', [AdmissionController::class, 'handleForgotPassword'])->name('admission.handle.forgot.password');
+        Route::get('reset-password/{token}', [AdmissionController::class, 'showResetPasswordPage'])->name('admission.reset.password');
+        Route::post('reset-password', [AdmissionController::class, 'handleResetPassword'])->name('admission.handle.reset.password');
     });
 
 

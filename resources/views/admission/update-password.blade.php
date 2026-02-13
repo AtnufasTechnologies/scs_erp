@@ -24,78 +24,52 @@
       <div class="col align-items-center flex-col ">
         <div class="form-wrapper align-items-center">
           <div class="form sign-in">
-            <form action="{{route('applicant.login')}}" method="post">
+            <form action="{{route('admission.handle.reset.password')}}" method="post">
               @csrf
               <img src="{{asset('admin/images/logo.png')}}" alt="logo">
               <h3>Salesian College Autonomous</h3>
               <h5>Sonada and Siliguri</h5><br>
-              <h3>Applicant Login</h3>
+              <h3>Update Password</h3>
               <div class="input-group">
-                <i class='fa fa-mobile-alt'></i>
-                <input type="text" placeholder="Registered Email | Mobile No" name="registered_no">
-                @error('registered_no')
-                <span class="text-danger">{{$message}}</span>
-                @enderror
-
-              </div>
-              <div class="input-group">
-                <i class='fa fa-lock-alt'></i>
-                <input type="password" placeholder="Password" name="password" id="password">
-                <i class='fa fa-eye toggle-password' style="right: 15px; left: auto; cursor: pointer;"></i>
+                <i class='fa fa-lock'></i>
+                <input type="password" placeholder="New Password (min 6 characters) " name="password">
                 @error('password')
                 <span class="text-danger">{{$message}}</span>
                 @enderror
+
               </div>
+              <div class="input-group">
+                <i class='fa fa-lock'></i>
+                <input type="password" placeholder="Confirm New Password " name="password_confirmation" id="password_confirmation">
+                <i class='fa fa-eye toggle-password' style="right: 15px; left: auto; cursor: pointer;" onclick="togglePassword('password_confirmation')"></i>
+                @error('password_confirmation')
+                <span class="text-danger">{{$message}}</span>
+                @enderror
 
-              <style>
-                .input-group {
-                  position: relative;
-                }
-
-                .toggle-password {
-                  position: absolute;
-                  right: 15px;
-                  top: 50%;
-                  transform: translateY(-50%);
-                  color: #667eea;
-                  font-size: 18px;
-                  cursor: pointer;
-                }
-              </style>
-
+              </div>
+              <input type="hidden" name="token" value="{{$data->token}}">
               <script>
-                document.querySelector('.toggle-password').addEventListener('click', function() {
-                  const passwordInput = document.getElementById('password');
-                  if (passwordInput.type === 'password') {
-                    passwordInput.type = 'text';
-                    this.classList.remove('fa-eye');
-                    this.classList.add('fa-eye-slash');
+                function togglePassword(fieldId) {
+                  const field = document.getElementById(fieldId);
+                  const icon = event.target;
+
+                  if (field.type === 'password') {
+                    field.type = 'text';
+                    icon.classList.remove('fa-eye');
+                    icon.classList.add('fa-eye-slash');
                   } else {
-                    passwordInput.type = 'password';
-                    this.classList.remove('fa-eye-slash');
-                    this.classList.add('fa-eye');
+                    field.type = 'password';
+                    icon.classList.remove('fa-eye-slash');
+                    icon.classList.add('fa-eye');
                   }
-                });
+                }
               </script>
               <button type="submit">
-                Sign in
+                Update Password
               </button>
-              <p>
-                <b>
-                  <a href="{{route('admission.forgot.password')}}">Forgot password?</a>
-                </b>
-              </p>
-              <p>
-                <span>
-                  Don't have an account?
-                </span>
-                <a href="{{route('new.admission.registration')}}" class="text-decoration-none">
-                  <b>
-                    Sign up
-                  </b>
-                </a>
-              </p>
             </form>
+
+
           </div>
         </div>
 

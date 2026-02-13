@@ -29,10 +29,10 @@
       <tr>
         <td>{{$loop->iteration}}</td>
         <td><span class="badge bg-primary">{{$item->batch}}</span></td>
-        <td><span class="badge bg-primary">{{$item->programinfo->campus->name}}</span></td>
+        <td><span class="badge bg-primary">{{$item->campusmaster->name}}</span></td>
         <td>
           <span class="badge bg-primary">
-            {{$item->programinfo != null ? $item->programinfo->name : '-'}}
+            {{$item->application_type }}
           </span>
         </td>
         <td class="text-capitalize fw-semibold">{{$item->first_name}}</td>
