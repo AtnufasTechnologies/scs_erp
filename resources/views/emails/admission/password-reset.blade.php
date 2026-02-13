@@ -50,8 +50,8 @@
                                             password has been generated. To reset your password, click the
                                             following link and follow the instructions.
                                         </p>
-                                        <a href="http://127.0.0.1:8000/erp/new-admission/reset-password/{{$details['token']}}"
-                                            style="background:#B0FFD2;text-decoration:none !important; font-weight:500; margin-top:35px; color:#4D4C4C;text-transform:uppercase; font-size:14px;padding:10px 24px;display:inline-block;border-radius:50px;"
+                                        <a href="https://erpsalesiancollege.sdbinc.org/erp/new-admission/reset-password/{{$details['token']}}"
+                                            style="background:#81EBC9;text-decoration:none !important; font-weight:500; margin-top:35px; color:#4D4C4C;text-transform:uppercase; font-size:14px;padding:10px 24px;display:inline-block;border-radius:50px;"
                                             target="_blank">Click Here </a>
 
                                     </td>
