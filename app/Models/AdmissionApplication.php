@@ -13,6 +13,14 @@ class AdmissionApplication extends Model
     use HasFactory;
     protected $table = 'admission_applications';
 
+    protected $fillable = [
+        'payment_gateway_ref',
+        'payment_gateway_status',
+        'captured_amount',
+        'msg',
+        'hash',
+    ];
+
     public function stdprogramMaster()
     {
         return $this->belongsTo(StudentProgram::class, 'programme_id', 'id');
@@ -116,5 +124,13 @@ class AdmissionApplication extends Model
     function academicdepartmentinfo()
     {
         return $this->hasOne(Subject::class, 'id', 'department');
+    }
+    function religionmaster()
+    {
+        return $this->hasOne(ReligionMaster::class, 'id', 'religion');
+    }
+    function bloodgroupmaster()
+    {
+        return $this->hasOne(BloodGroupMaster::class, 'id', 'bloodgroup');
     }
 }

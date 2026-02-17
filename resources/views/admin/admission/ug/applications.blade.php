@@ -59,7 +59,7 @@ $programs = Qs::getProgramGroups();
         <th>Mobile</th>
         <th>Academic Dept</th>
         <th>Selected Combination </th>
-        <th>Application Status</th>
+        <th> Status</th>
         <th>Applied On</th>
         <th>Actions</th>
       </tr>
@@ -76,10 +76,12 @@ $programs = Qs::getProgramGroups();
         <td>{{$item->academicdepartmentinfo->title}}</td>
         <td>{{ $item->stdCourseMaster->code }} -{{ $item->stdCourseMaster->name }}</td>
         <td>
-          @if($item->application_status == 1)
-          <span class="badge bg-success">Payment Success</span>
+          @if($item->payment_gateway_status == null)
+          <span class="badge bg-danger">Not Paid</span>
+          @elseif($item->payment_gateway_status == 'success')
+          <span class="badge bg-success">Paid</span>
           @else
-          <span class="badge bg-primary text-light">Form Saved</span>
+          <span class="badge bg-info">Form Saved</span>
           @endif
         </td>
         <td>{{ $item->created_at->format('d M Y') }}</td>

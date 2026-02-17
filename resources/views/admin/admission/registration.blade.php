@@ -56,18 +56,14 @@
           @if($item->applicationmaster == null)
           <span class="badge bg-warning text-dark">Pending</span>
           @else
-          @if($item->applicationmaster->application_status == 1)
           <span class="badge bg-success">Filled</span>
-          @else
-          <span class="badge bg-warning text-dark">Not Filled</span>
-          @endif
           @endif
         </td>
         <td>
           @if($item->applicationmaster == null)
           <span class="badge bg-danger">Not Paid</span>
           @else
-          @if($item->applicationmaster->application_status == 1)
+          @if($item->applicationmaster->payment_gateway_status == 'success')
           <span class="badge bg-success">Paid</span>
           @else
           <span class="badge bg-danger">Not Paid</span>

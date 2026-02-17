@@ -16,6 +16,7 @@ use App\Models\BloodGroupMaster;
 use App\Models\Campus;
 use App\Models\Country;
 use App\Models\DepartmentMaster;
+use App\Models\ErrorLog;
 use App\Models\MainProgram;
 use App\Models\Otp;
 use App\Models\PasswordReset;
@@ -30,12 +31,14 @@ use App\Models\User;
 use App\Models\UserCampusSetting;
 use App\Models\UserHasPermission;
 use App\Models\UserHasRole;
+use Barryvdh\DomPDF\Facade\Pdf as FacadePdf;
 use Carbon\Carbon;
 use GuzzleHttp\Client;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\View;
 use Mews\Captcha\Captcha;
@@ -278,7 +281,7 @@ class AdmissionController extends Controller
                 if ($application->payment_gateway_ref != null && $application->payment_gateway_status == 'success') {
                     return   $this->showSuccessPage();
                 } else {
-                    return redirect()->route('admission.payment.page');
+                    return redirect()->route('admission.payment.checkout');
                 }
             }
         } else {
@@ -1029,6 +1032,7 @@ class AdmissionController extends Controller
                     'application_code' => $generatedNo,
                 ]);
                 $data = AdmissionRegistration::with([
+                    'campusmaster',
                     'applicationmaster.academicDeptMaster',
                     'applicationmaster.stdCourseMaster'
                 ])->where('id', $userId)->first();
@@ -1062,10 +1066,8 @@ class AdmissionController extends Controller
     {
         $userId = Auth::user()->id;
         $applicationRegRecord = AdmissionRegistration::where('id', $userId)->first();
-        $fullname = $applicationRegRecord->first_name . ' ' . $applicationRegRecord->last_name;
-        $email = $applicationRegRecord->email;
-        $phone = $applicationRegRecord->mobile_no;
-
+        $invoice = AdmissionApplication::where('user_id', $userId)->value('application_code');
+        $applicationId = AdmissionApplication::where('user_id', $userId)->value('id');
         //program split logic for easebuzz
         if ($applicationRegRecord->application_type == 'UG') {
             $payableAmount =  AdmissionSetting::where('id', 1)
@@ -1078,49 +1080,58 @@ class AdmissionController extends Controller
         //banking Split
         if ($applicationRegRecord->campus_id == 1) {
             $split = json_encode([
-                'SAL_SONADA' => $payableAmount
+                'SC_2' => $payableAmount
             ]);
         } else {
             $split = json_encode([
-                'SAL_SILIGURI' => $payableAmount
+                'SC_1' => $payableAmount
             ]);
         }
 
 
-        /** Easebuzz Params */
-        $key = env('EASEBUZZ_KEY');
-        $salt = env('EASEBUZZ_SALT');
-        $txnid = $request->application_code;
-        $productinfo = 'Salesian College Autonomous - Admission Form Payment';
-        $hashString = "$key|$txnid|$payableAmount|$productinfo|$fullname|$email|$userId||||||||||$salt";
+        // ---- EASEBUZZ PARAMS ----
+        $key = env('EASEBUZZ_KEY_TEST');
+        $salt = env('EASEBUZZ_SALT_TEST');
+        $txnid = $invoice;
+        $phone = $applicationRegRecord->mobile_no;
+        $email = $applicationRegRecord->mail_id;
+        $firstname = $applicationRegRecord->first_name;
+        $productinfo = 'Salesian College Autonomous - Admission Application Fee';
+        //key|txnid|amount|productinfo|firstname|email|||||||||||salt
+        // Ensure exactly 16 pipes between udf1 and salt (udf1 to udf10)
+
+        // ---- INITIATE PAYMENT ----
+        $hashString = "$key|$txnid|$payableAmount|$productinfo|$firstname|$email|$userId|$applicationId|||||||||$salt";
+
         $hash = strtolower(hash('sha512', $hashString));
 
-        /** Initiate Payment */
+        // ---- INITIATE PAYMENT ----
         $client = new \GuzzleHttp\Client();
-        $response = $client->post(env('EASEBUZZ_INITIATE_URL'), [
+        $response = $client->post(env('EASEBUZZ_INITIATE_URL_TEST'), [
             'form_params' => [
                 'key' => $key,
                 'txnid' => $txnid,
                 'amount' => $payableAmount,
                 'productinfo' => $productinfo,
-                'firstname' => $fullname,
+                'firstname' => $firstname,
                 'phone' => $phone,
                 'email' => $email,
                 'surl' => route('admission.payment.success'),
                 'furl' => route('admission.payment.failure'),
                 'hash' => $hash,
                 'udf1' => $userId,
+                'udf2' => $applicationId,
                 'split_payments' => $split
+
             ],
         ]);
 
         $apiResponse = json_decode($response->getBody(), true);
 
-        if ($apiResponse['status'] == 1) {
-            return redirect(env('EASEBUZZ_PAYMENT_URL') . $apiResponse['data']);
-        }
 
-        return back()->withErrors('Payment initiation failed');
+        if ($apiResponse['status'] == 1) {
+            return redirect(env('EASEBUZZ_PAYMENT_URL_TEST') . $apiResponse['data']);
+        }
     }
 
     function paymentSuccess(Request $request)
@@ -1139,17 +1150,20 @@ class AdmissionController extends Controller
                     'payment_gateway_ref' => $easepayid,
                     'captured_amount' => $amount,
                     'payment_gateway_status' => $status,
-                    'message' => $msg,
+                    'msg' => $msg,
                     'hash' => $hash,
                 ]
             );
+
+
         //Send Email to the Applicant
-        $applicantPhone = AdmissionRegistration::where('user_id', $userId)->value('mobile_no');
-        $applicantEmail = AdmissionRegistration::where('user_id', $userId)->value('mail_id');
+        $firstname = AdmissionRegistration::where('id', $userId)->value('first_name');
+        $applicantPhone = AdmissionRegistration::where('id', $userId)->value('mobile_no');
+        $applicantEmail = AdmissionRegistration::where('id', $userId)->value('mail_id');
         $applicationId = AdmissionApplication::where('application_code', $txnid)->value('application_code');
         $html = View::make('emails.admission.success', ['application_code' => $txnid])->render();
-        // $applicant_email = trim((string) $email);
-        $applicant_email = 'prof.johngaurav@gmail.com';
+        $applicant_email = trim((string) $applicantEmail);
+        // $applicant_email = $applicantEmail;
         $response = Http::withToken(env('RESEND_API_KEY'))
             ->post('https://api.resend.com/emails', [
                 'from' => 'salesian college autonomous <onboarding@resend.dev>', // Use verified sender
@@ -1159,6 +1173,29 @@ class AdmissionController extends Controller
             ]);
 
         //Send SMS to the Applicant
+        $messageId = 186602;
+        //preset message id for payment success   
+        $var1 =   $firstname . ', App Id:' . $applicationId; //dynamic variable for applicant name and application id
+        $var3 = 'admissions@salesiancollege.net'; //admission office email for applicant reference  
+        $var2 = ' 99334 02478 / 0353 254 5622'; //college website for applicant reference
+        $fields = [
+            'body' => json_encode([
+                'route' => 'dlt',
+                'requests' => [
+                    [
+                        'sender_id' => 'ATNFAS',
+                        'numbers' => $applicantPhone,
+                        'message' => $messageId,
+                        'variables_values' => $var1 . '|' . $var2 . '|' . $var3,
+                    ]
+                ]
+            ])
+        ];
+
+        StaticController::bulkSmsSender($fields);
+        //log User 
+        $userData = AdmissionRegistration::where('id', $userId)->first();
+        Auth::login($userData, true);
 
         return redirect()->route('admission.apply.application')->with('success', 'Payment successful. Your application is now complete.');
     }
@@ -1168,6 +1205,7 @@ class AdmissionController extends Controller
     function paymentFailure(Request $request)
     {
         $rec = new AdmissionApplicationPaymentLog();
+        $rec->application_id = $request->udf2;
         $rec->txnid = $request->txnid;
         $rec->user_id = $request->udf1;
         $rec->easepayid = $request->easepayid;
@@ -1179,6 +1217,42 @@ class AdmissionController extends Controller
         // Handle payment failure logic here
         return redirect()->route('admission.apply.application')->with('info', 'Payment failed. Please try again.');
     }
+
+    /**
+     * Webhook: Easebuzz server->server notifications
+     */
+    public function webhook(Request $request)
+    {
+        // Validate signature if Easebuzz sends one (check docs)
+        // Example: $signature = $request->header('X-Easebuzz-Signature'); verify it
+        $payload = $request->all();
+        $application_id = $payload['udf2'] ?? null;
+
+        if (!$application_id) {
+            return response()->json(['status' => 'error', 'message' => 'application_id missing'], 400);
+        }
+
+        $payment = AdmissionApplication::where('id', $application_id)->first();
+
+        if (!$payment) {
+            // maybe log and create a record
+            ErrorLog::create([
+                'details' => json_encode($payload)
+            ]);
+            return response()->json(['status' => 'ok']);
+        }
+
+        // Update according to webhook payload status
+        $status = $payload['status'] ?? 'pending';
+        $payment->update([
+            'payment_gateway_status' => strtoupper($status),
+        ]);
+
+        // perform reconciliation, ledger updates etc.
+
+        return response()->json(['status' => 'ok']);
+    }
+
 
 
     function showSuccessPage()
@@ -1394,6 +1468,36 @@ class AdmissionController extends Controller
             }
         } else {
             return redirect()->route('admission.forgot.password')->with('error', 'Invalid or expired token. Please try resetting your password again.');
+        }
+    }
+
+    function downloadPaymentInvoice($applicationId)
+    {
+        $applicationRecord = AdmissionApplication::with('registrationmaster')->where('id', $applicationId)->first();
+        if ($applicationRecord && $applicationRecord->payment_gateway_status == 'success') {
+            $pdf = FacadePdf::loadView('pdf.admission.invoice', ['data' => $applicationRecord]);
+            return $pdf->download('invoice_' . $applicationRecord->application_code . '.pdf');
+        } else {
+            return back()->with('error', 'Invoice not available for this application.');
+        }
+    }
+
+    function downloadApplicationForm($application_code)
+    {
+        $applicationRecord = AdmissionApplication::with([
+            'registrationmaster.countrymaster',
+            'registrationmaster.campusmaster',
+            'academicDeptMaster',
+            'stdCourseMaster',
+            'religionmaster',
+            'bloodgroupmaster'
+        ])->where('application_code', $application_code)->first();
+        if ($applicationRecord) {
+            return view('pdf.admission.application-ug', ['data' => $applicationRecord]);
+            // $pdf = FacadePdf::loadView('pdf.admission.application', ['data' => $applicationRecord]);
+            // return $pdf->download('application_form_' . $applicationRecord->application_code . '.pdf');
+        } else {
+            return back()->with('error', 'Application form not available for this application.');
         }
     }
 }

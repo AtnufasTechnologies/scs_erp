@@ -35,7 +35,8 @@
       <h5 class="text-capitalize">{{ $data->full_name }}</h5>
       <p>{{$data->mail_id}}</p>
       <p>{{$data->mobile_no}}</p>
-      <p>Selected Course : {{$data->applicationmaster->stdCourseMaster->name}}</p>
+      <p><strong>Application For :</strong> {{$data->campusmaster->name}} - {{$data->application_type}}</p>
+      <p><strong>Selected Degree :</strong> {{$data->applicationmaster->stdCourseMaster->name}}</p>
       <hr>
       <form action="{{route('admission.payment.process')}}" method="post">
         @csrf
@@ -84,7 +85,7 @@
 
         </div>
       </form>
-      <a href="{{route('admission.apply.logout')}}" class="text-danger">Cancel and logout</a>
+      <a href="{{route('admission.apply.logout')}}" class="text-danger">Cancel and Logout</a>
     </div>
   </div>
 

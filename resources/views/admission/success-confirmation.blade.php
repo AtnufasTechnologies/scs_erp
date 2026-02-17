@@ -33,9 +33,10 @@
           <div class="d-inline-block mt-3 mb-4 p-3 bg-success text-white rounded" style="font-size: 24px; font-weight: 700; letter-spacing: 1px; box-shadow: 0 4px 10px rgba(0,0,0,0.1);">
             # {{ $data->application_code }}
           </div>
-          <p>You can also login and Download the application form from your account.</p>
+          <p>You Download the application form and invoice.</p>
 
-          <a href="" class="btn btn-primary">Download Invoice</a>
+          <a href="{{route('download.admission.application-form',$data->application_code)}}" class="btn btn-primary">Download Application Form</a>
+          <a href="{{route('download.admission.payment-invoice',$data->application_code)}}" class="btn btn-primary">Download Invoice</a>
           <a href="{{route('admission.apply.logout')}}" class="btn btn-secondary">Logout</a>
         </div>
       </div>

@@ -13,6 +13,7 @@ return new class extends Migration
     {
         Schema::create('admission_application_payment_logs', function (Blueprint $table) {
             $table->id();
+            $table->integer('application_id');
             $table->string('txnid');
             $table->string('easepayid')->nullable();
             $table->integer('user_id');

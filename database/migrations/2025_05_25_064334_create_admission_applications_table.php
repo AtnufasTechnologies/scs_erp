@@ -126,6 +126,7 @@ return new class extends Migration
             $table->string('captured_amount')->nullable();
             $table->string('hash')->nullable();
             $table->string('payment_gateway_status')->nullable();
+            $table->text('msg')->nullable();
 
             $table->timestamps();
             $table->softDeletes();
