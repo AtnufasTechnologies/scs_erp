@@ -39,7 +39,7 @@ $userRoleType = StaticController::fetchUserRole();
               <th>Applicant Name</th>
               <th>Email</th>
               <th>Mobile</th>
-              <th>Program</th>
+              <th>Selected Combination</th>
               <th>Application Status</th>
               <th>Applied On</th>
 
@@ -50,11 +50,11 @@ $userRoleType = StaticController::fetchUserRole();
             <tr>
               <td>{{ $loop->iteration  }}</td>
               <td>{{$item->registrationmaster->batch}}</td>
-              <td><a href="{{ route('admin.admission.ug.application-single', $item->id) }}" class="btn btn-main " title="View">{{ $item->application_id }}</a></td>
+              <td><a href="{{ route('admin.admission.ug.application-single', $item->id) }}" class="btn btn-main " title="View">{{ $item->application_code }}</a></td>
               <td><span class="text-capitalize">{{ $item->registrationmaster->first_name }} {{ $item->registrationmaster->last_name }}</span></td>
               <td>{{ $item->registrationmaster->mail_id }}</td>
               <td>{{ $item->registrationmaster->mobile_no }}</td>
-              <td>{{ $item->stdprogramMaster->code }} -{{ $item->stdprogramMaster->name }}</td>
+              <td>{{ $item->stdCourseMaster->code }} -{{ $item->stdCourseMaster->name }}</td>
               <td>
                 @if($item->application_status == 1)
                 <span class="badge bg-success">Payment Success</span>

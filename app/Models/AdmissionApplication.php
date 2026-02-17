@@ -113,4 +113,8 @@ class AdmissionApplication extends Model
     {
         return $this->hasOne(AdmissionFinalPhase::class, 'application_id', 'id');
     }
+    function academicdepartmentinfo()
+    {
+        return $this->hasOne(Subject::class, 'id', 'department');
+    }
 }

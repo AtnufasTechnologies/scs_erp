@@ -11,7 +11,7 @@
       <h2 class="text-capitalize">Sonada & Siliguri Campus</h2>
       <div class="contact-links">
         <a href="mailto:" aria-label="">
-          <i class="fas fa-envelope"></i> admissions@salesiancollege.net
+          <i class="fas fa-envelope"></i> admissionenquiry@salesiancollege.net
         </a>
         <a href="tel:" target="_blank">
           <i class="fas fa-phone"></i> +91 99334 02478 / 0353 254 5622
@@ -217,55 +217,98 @@
           </div>
           <div class="row mb-3">
             <div class="col-lg-6">
-              <input type="checkbox" name="laptop_checkbox" id=""> Do you have a Laptop/Computer at Home?
+              <label for="">Do you have a Laptop/Computer at Home? <span class="text-danger">*</span></label></label>
+              <select name="has_laptop" id="laptop_type" class="form-control mb-3 radius-20 dark">
+                <option value="">-- Select Answer --</option>
+                <option value="1" {{ old('has_laptop') == '1' ? 'selected' : '' }}>Yes</option>
+                <option value="0" {{ old('has_laptop') == '0' ? 'selected' : '' }}>No</option>
+              </select>
             </div>
             <div class="col-lg-6">
-              <input type="checkbox" name="teaestate_checkbox" id=""> Do you reside in a Tea Estate?
+
+              <label for="">Do you reside in a Tea Estate? <span class="text-danger">*</span></label></label>
+              <select name="from_teaestate" id="teaestate_type" class="form-control mb-3 radius-20 dark">
+                <option value="">-- Select Answer --</option>
+                <option value="1" {{ old('from_teaestate') == '1' ? 'selected' : '' }}>Yes</option>
+                <option value="0" {{ old('from_teaestate') == '0' ? 'selected' : '' }}>No</option>
+              </select>
             </div>
           </div>
+        </div>
 
-          <hr>
-          <h5>Parent/Guardian Details</h5>
-          <div class="col-lg-4 col-sm-12">
+        <hr>
+        <h5>Parent/Guardian Details</h5>
+        <div class="row">
+
+
+          <div class="col-lg-6 col-md-6 col-sm-12">
             <label for="">Father's Name <span class="text-danger">*</span></label><br>
             @error('father_name') <span class="text-danger">{{ $message }}</span> @enderror
             <input type="text" class="form-control mb-3 radius-20 dark" name="father_name" value="{{old('father_name')}}">
 
           </div>
 
-          <div class="col-lg-4 col-sm-12">
+          <div class="col-lg-6 col-md-6 col-sm-12">
             <label for="">Father's Occupation <span class="text-danger">*</span></label><br>
             @error('father_occupation') <span class="text-danger">{{ $message }}</span> @enderror
             <input type="text" class="form-control mb-3 radius-20 dark" name="father_occupation" value="{{old('father_occupation')}}">
 
           </div>
 
-          <div class="col-lg-4 col-sm-12">
+          <div class="col-lg-6 col-md-6 col-sm-12">
             <label for="">Father's Contact <span class="text-danger">*</span></label><br>
             @error('father_contact') <span class="text-danger">{{ $message }}</span> @enderror
             <input type="text" class="form-control mb-3 radius-20 dark" name="father_contact" value="{{old('father_contact')}}">
 
           </div>
 
-          <div class="col-lg-4 col-sm-12">
+          <div class="col-lg-6 col-md-6 col-sm-12">
+            <label for="">Father's Qualification <span class="text-danger">*</span></label><br>
+            @error('father_qualification') <span class="text-danger">{{ $message }}</span> @enderror
+            <input type="text" class="form-control mb-3 radius-20 dark" name="father_qualification" value="{{old('father_qualification')}}">
+
+          </div>
+        </div>
+
+        <div class="row">
+
+
+          <div class="col-lg-6 col-sm-12">
             <label for="">Mother's Name <span class="text-danger">*</span></label><br>
             @error('mother_name') <span class="text-danger">{{ $message }}</span> @enderror
             <input type="text" class="form-control mb-3 radius-20 dark" name="mother_name" value="{{old('mother_name')}}">
 
           </div>
 
-          <div class="col-lg-4 col-sm-12">
+          <div class="col-lg-6 col-sm-12">
             <label for="">Mother's Occupation <span class="text-danger">*</span></label><br>
             @error('mother_occupation') <span class="text-danger">{{ $message }}</span> @enderror
             <input type="text" class="form-control mb-3 radius-20 dark" name="mother_occupation" value="{{old('mother_occupation')}}">
 
           </div>
 
-          <div class="col-lg-4 col-sm-12">
+          <div class="col-lg-6 col-sm-12">
             <label for="">Mother's Contact <span class="text-danger">*</span></label><br>
             @error('mother_contact') <span class="text-danger">{{ $message }}</span> @enderror
             <input type="text" class="form-control mb-3 radius-20 dark" name="mother_contact" value="{{old('mother_contact')}}">
 
+          </div>
+
+          <div class="col-lg-6 col-sm-12">
+            <label for="">Mother's Qualification <span class="text-danger">*</span></label><br>
+            @error('mother_qualification') <span class="text-danger">{{ $message }}</span> @enderror
+            <input type="text" class="form-control mb-3 radius-20 dark" name="mother_qualification" value="{{old('mother_qualification')}}">
+
+          </div>
+
+
+        </div>
+
+        <div class="row">
+          <div class="col-lg-4 col-sm-12">
+            <label for="">Family Monthly Income <span class="text-danger">*</span></label>
+            @error('income') <span class="text-danger">{{ $message }}</span> @enderror
+            <input type="text" class="form-control mb-3 radius-20 dark" name="income" value="{{old('income')}}" placeholder="ex: 50000">
           </div>
 
           <div class="col-lg-4 col-sm-12">
@@ -281,110 +324,110 @@
             <input type="text" class="form-control mb-3 radius-20 dark" name="guardian_contact" value="{{old('guardian_contact')}}">
 
           </div>
+        </div>
 
-          <div class="col-lg-4 col-sm-12">
-            <label for="">Family Monthly Income <span class="text-danger">*</span></label>
-            @error('income') <span class="text-danger">{{ $message }}</span> @enderror
-            <input type="text" class="form-control mb-3 radius-20 dark" name="income" value="{{old('income')}}" placeholder="ex: 50000">
-          </div>
-          <hr>
-          <h5>Address</h5>
-          <div class="col-lg-12">
-            <div class="row">
-              <div class="col-lg-4">
-                <div class="col-lg-12 col-sm-12">
-                  <label for="">Permanent Address <span class="text-danger">*</span></label>
-                  @error('permanent_address') <span class="text-danger">{{ $message }}</span> @enderror
-                  <textarea name="permanent_address" cols="10" class="form-control mb-3" id="permanent_address">{{old('permanent_address')}}</textarea>
-                </div>
 
+        <hr>
+        <h5>Address</h5>
+        <div class="col-lg-12">
+          <div class="row">
+            <div class="col-lg-4">
+              <div class="col-lg-12 col-sm-12">
+                <label for="">Permanent Address <span class="text-danger">*</span></label>
+                @error('permanent_address') <span class="text-danger">{{ $message }}</span> @enderror
+                <textarea name="permanent_address" cols="10" class="form-control mb-3" id="permanent_address">{{old('permanent_address')}}</textarea>
               </div>
-              <div class="col-lg-8">
-                <div class="row">
-                  <div class="col-lg-4 col-sm-12">
-                    <label for="">District <span class="text-danger">*</span></label>
-                    @error('district') <span class="text-danger">{{ $message }}</span> @enderror
-                    <input type="text" class="form-control mb-3 radius-20 dark" name="district" id="district" value="{{old('district')}}">
-                  </div>
-
-                  <div class="col-lg-4 col-sm-12">
-                    <label for="">City <span class="text-danger">*</span></label>
-                    @error('city') <span class="text-danger">{{ $message }}</span> @enderror
-                    <input type="text" class="form-control mb-3 radius-20 dark" name="city" id="city" value="{{old('city')}}">
-                  </div>
-
-                  <div class="col-lg-4 col-sm-12">
-                    <label for="">Pincode <span class="text-danger ">*</span></label>
-                    @error('pincode') <span class="text-danger">{{ $message }}</span> @enderror
-                    <input type="text" class="form-control mb-3 radius-20 dark " name="pincode" id="pincode" value="{{old('pincode')}}">
-                  </div>
-                </div>
-
-              </div>
-
 
             </div>
-          </div>
-
-          <div class="col-lg-12">
-            <div class="form-check form-switch">
-              <input class="form-check-input" type="checkbox" id="isChecked" name="isChecked">
-              <label for="">Local Address Same as Permanent Address</label>
-            </div>
-            <div class="row">
-              <div class="col-lg-4">
-                <div class="col-lg-12 col-sm-12">
-                  <label for="">Local Address <span class="text-danger">*</span></label>
-                  @error('local_address') <span class="text-danger">{{ $message }}</span> @enderror
-                  <textarea name="local_address" cols="10" class="form-control mb-3" id="local_address">{{old('local_address')}}</textarea>
+            <div class="col-lg-8">
+              <div class="row">
+                <div class="col-lg-4 col-sm-12">
+                  <label for="">District <span class="text-danger">*</span></label>
+                  @error('district') <span class="text-danger">{{ $message }}</span> @enderror
+                  <input type="text" class="form-control mb-3 radius-20 dark" name="district" id="district" value="{{old('district')}}">
                 </div>
 
-              </div>
-              <div class="col-lg-8">
-                <div class="row">
-                  <div class="col-lg-4 col-sm-12">
-                    <label for="">District <span class="text-danger">*</span></label>
-                    @error('local_district') <span class="text-danger">{{ $message }}</span> @enderror
-                    <input type="text" class="form-control mb-3 radius-20 dark" name="local_district" id="local_district" value="{{old('local_district')}}">
-                  </div>
-
-                  <div class="col-lg-4 col-sm-12">
-                    <label for="">City <span class="text-danger">*</span></label>
-                    @error('local_city') <span class="text-danger">{{ $message }}</span> @enderror
-                    <input type="text" class="form-control mb-3 radius-20 dark" name="local_city" id="local_city" value="{{old('local_city')}}">
-                  </div>
-
-                  <div class="col-lg-4 col-sm-12">
-                    <label for="">Pincode <span class="text-danger ">*</span></label>
-                    @error('local_pincode') <span class="text-danger">{{ $message }}</span> @enderror
-                    <input type="text" class="form-control mb-3 radius-20 dark " name="local_pincode" id="local_pincode" value="{{old('local_pincode')}}">
-                  </div>
+                <div class="col-lg-4 col-sm-12">
+                  <label for="">City <span class="text-danger">*</span></label>
+                  @error('city') <span class="text-danger">{{ $message }}</span> @enderror
+                  <input type="text" class="form-control mb-3 radius-20 dark" name="city" id="city" value="{{old('city')}}">
                 </div>
 
+                <div class="col-lg-4 col-sm-12">
+                  <label for="">Pincode <span class="text-danger ">*</span></label>
+                  @error('pincode') <span class="text-danger">{{ $message }}</span> @enderror
+                  <input type="text" class="form-control mb-3 radius-20 dark " name="pincode" id="pincode" value="{{old('pincode')}}">
+                </div>
               </div>
 
+            </div>
+
+
+          </div>
+        </div>
+
+        <div class="col-lg-12">
+          <div class="form-check form-switch">
+            <input class="form-check-input" type="checkbox" id="isChecked" name="isChecked">
+            <label for="">Local Address Same as Permanent Address</label>
+          </div>
+          <div class="row">
+            <div class="col-lg-4">
+              <div class="col-lg-12 col-sm-12">
+                <label for="">Local Address <span class="text-danger">*</span></label>
+                @error('local_address') <span class="text-danger">{{ $message }}</span> @enderror
+                <textarea name="local_address" cols="10" class="form-control mb-3" id="local_address">{{old('local_address')}}</textarea>
+              </div>
 
             </div>
+            <div class="col-lg-8">
+              <div class="row">
+                <div class="col-lg-4 col-sm-12">
+                  <label for="">District <span class="text-danger">*</span></label>
+                  @error('local_district') <span class="text-danger">{{ $message }}</span> @enderror
+                  <input type="text" class="form-control mb-3 radius-20 dark" name="local_district" id="local_district" value="{{old('local_district')}}">
+                </div>
+
+                <div class="col-lg-4 col-sm-12">
+                  <label for="">City <span class="text-danger">*</span></label>
+                  @error('local_city') <span class="text-danger">{{ $message }}</span> @enderror
+                  <input type="text" class="form-control mb-3 radius-20 dark" name="local_city" id="local_city" value="{{old('local_city')}}">
+                </div>
+
+                <div class="col-lg-4 col-sm-12">
+                  <label for="">Pincode <span class="text-danger ">*</span></label>
+                  @error('local_pincode') <span class="text-danger">{{ $message }}</span> @enderror
+                  <input type="text" class="form-control mb-3 radius-20 dark " name="local_pincode" id="local_pincode" value="{{old('local_pincode')}}">
+                </div>
+              </div>
+
+            </div>
+
+
           </div>
+        </div>
 
-          <script>
-            document.getElementById('isChecked').addEventListener('change', function() {
-              if (this.checked) {
-                document.getElementById('local_address').value = document.getElementById('permanent_address').value;
-                document.getElementById('local_district').value = document.getElementById('district').value;
-                document.getElementById('local_city').value = document.getElementById('city').value;
-                document.getElementById('local_pincode').value = document.getElementById('pincode').value;
-              } else {
-                document.getElementById('local_address').value = '';
-                document.getElementById('local_district').value = '';
-                document.getElementById('local_city').value = '';
-                document.getElementById('local_pincode').value = '';
-              }
-            });
-          </script>
+        <script>
+          document.getElementById('isChecked').addEventListener('change', function() {
+            if (this.checked) {
+              document.getElementById('local_address').value = document.getElementById('permanent_address').value;
+              document.getElementById('local_district').value = document.getElementById('district').value;
+              document.getElementById('local_city').value = document.getElementById('city').value;
+              document.getElementById('local_pincode').value = document.getElementById('pincode').value;
+            } else {
+              document.getElementById('local_address').value = '';
+              document.getElementById('local_district').value = '';
+              document.getElementById('local_city').value = '';
+              document.getElementById('local_pincode').value = '';
+            }
+          });
+        </script>
 
-          <hr>
-          <h3>Class X</h3>
+        <hr>
+        <h3>Class X</h3>
+        <div class="row">
+
+
           <div class="col-lg-5 col-sm-12">
             <div class="row">
               <div class="col-lg-12 col-sm-12">
@@ -427,111 +470,93 @@
               <div class="col-lg-12 col-sm-12">
                 <label for=""> Year of Passing<span class="text-danger">*</span></label>
                 @error('passingyear') <span class="text-danger">{{ $message }}</span> @enderror
-                <input type="number" class="form-control mb-3 radius-20 dark" name="passingyear10" value="{{old('passingyear10')}}" min="1950" max="{{date('Y')}}" placeholder="YYYY">
+                <input type="number" class="form-control mb-3 radius-20 dark" name="passingyear10" value="{{old('passingyear10')}}" min="2020" max="{{date('Y')}}" placeholder="YYYY">
               </div>
             </div>
           </div>
+        </div>
 
 
 
-
-          <div class="col-lg-5 col-sm-12">
-            <label for="">Class 10 Certificate (PDF - Max 5MB) <span class="text-danger">*</span></label>
-            @error('certificate10') <span class="text-danger">{{ $message }}</span> @enderror
-            <input type="file" class="form-control mb-3 radius-20 dark" name="certificate10" value="{{old('certificate10')}}">
-          </div>
-
-          <div class="col-lg-3 col-sm-12">
-            <label for="">Percentage (Best of 5)</label>
-            @error('percentage10') <span class="text-danger">{{ $message }}</span> @enderror
-            <input type="text" class="form-control mb-3 radius-20 dark" name="percentage10" placeholder="60" value="{{old('percentage10')}}" id="percentage10">
-          </div>
+        <div class="col-lg-5 col-sm-12">
+          <label for="">Class 10 Certificate (PDF - Max 5MB) <span class="text-danger">*</span></label>
+          @error('certificate10') <span class="text-danger">{{ $message }}</span> @enderror
+          <input type="file" class="form-control mb-3 radius-20 dark" name="certificate10" value="{{old('certificate10')}}">
+        </div>
 
 
-          <div class="row mb-2">
-            <div class="col-lg-2">
-              <h5>Pass Mark <span class="text-danger">*</span></h5>
-            </div>
-            <div class="col-lg-2">
-              <input type="number" name="passmark10" class="form-control" placeholder=" Mark" min="0" max="100" value="{{old('passmark10')}}">
-            </div>
-            <div class="col-lg-2">
-              <h5>Full Marks </h5>
-            </div>
-            <div class="col-lg-2">
-              <input type="number" name="fullmark10" class="form-control" readonly value="100">
-            </div>
-          </div>
+        <div class="table-responsive">
+          <table class="table table-bordered">
+            <thead>
+              <tr>
+                <th>Subject</th>
 
-          <div class="table-responsive">
-            <table class="table table-bordered">
-              <thead>
-                <tr>
-                  <th>Subject</th>
-
-                  <th>Marks Obtained</th>
-                </tr>
-              </thead>
-              <tbody>
-                <tr>
-                  <td>
-                    <input type="text" class="form-control" name="subject10_1" placeholder="ex:English" value="{{old('subject10_1')}}">
-                    @error('subject10_1') <span class="text-danger">{{ $message }}</span> @enderror
-                  </td>
+                <th>Marks Obtained (100)</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td>
+                  <input type="text" class="form-control" name="subject10_1" placeholder="ex:English" value="{{old('subject10_1')}}">
+                  @error('subject10_1') <span class="text-danger">{{ $message }}</span> @enderror
+                </td>
 
 
-                  <td>
-                    <input type="number" class="form-control" name="score10_1" placeholder="Score" value="{{old('score10_1')}}" min="0" max="100">
-                    @error('score10_1') <span class="text-danger">{{ $message }}</span> @enderror
-                  </td>
-                </tr>
-                <tr>
-                  <td>
-                    <input type="text" class="form-control" name="subject10_2" placeholder="Major 1" value="{{old('subject10_2')}}">
-                  </td>
+                <td>
+                  <input type="number" class="form-control" name="score10_1" placeholder="Score" value="{{old('score10_1')}}" min="0" max="100">
+                  @error('score10_1') <span class="text-danger">{{ $message }}</span> @enderror
+                </td>
+              </tr>
+              <tr>
+                <td>
+                  <input type="text" class="form-control" name="subject10_2" placeholder="Major 1" value="{{old('subject10_2')}}">
+                </td>
 
 
-                  <td>
-                    <input type="number" class="form-control" name="score10_2" placeholder="Score" value="{{old('score10_2')}}" min="0" max="100">
-                  </td>
-                </tr>
-                <tr>
-                  <td>
-                    <input type="text" class="form-control" name="subject10_3" placeholder="Major 2" value="{{old('subject10_3')}}">
-                  </td>
+                <td>
+                  <input type="number" class="form-control" name="score10_2" placeholder="Score" value="{{old('score10_2')}}" min="0" max="100">
+                </td>
+              </tr>
+              <tr>
+                <td>
+                  <input type="text" class="form-control" name="subject10_3" placeholder="Major 2" value="{{old('subject10_3')}}">
+                </td>
 
 
-                  <td>
-                    <input type="number" class="form-control" name="score10_3" placeholder="Score" value="{{old('score10_3')}}" min="0" max="100">
-                  </td>
-                </tr>
-                <tr>
-                  <td>
-                    <input type="text" class="form-control" name="subject10_4" placeholder="Major 3" value="{{old('subject10_4')}}">
-                  </td>
+                <td>
+                  <input type="number" class="form-control" name="score10_3" placeholder="Score" value="{{old('score10_3')}}" min="0" max="100">
+                </td>
+              </tr>
+              <tr>
+                <td>
+                  <input type="text" class="form-control" name="subject10_4" placeholder="Major 3" value="{{old('subject10_4')}}">
+                </td>
 
 
-                  <td>
-                    <input type="number" class="form-control" name="score10_4" placeholder="Score" value="{{old('score10_4')}}" min="0" max="100">
-                  </td>
-                </tr>
-                <tr>
-                  <td>
-                    <input type="text" class="form-control" name="subject10_5" placeholder="Major 4" value="{{old('subject10_5')}}">
-                  </td>
+                <td>
+                  <input type="number" class="form-control" name="score10_4" placeholder="Score" value="{{old('score10_4')}}" min="0" max="100">
+                </td>
+              </tr>
+              <tr>
+                <td>
+                  <input type="text" class="form-control" name="subject10_5" placeholder="Major 4" value="{{old('subject10_5')}}">
+                </td>
 
 
-                  <td>
-                    <input type="number" class="form-control" name="score10_5" placeholder="Score" value="{{old('score10_5')}}" min="0" max="100">
-                  </td>
-                </tr>
-              </tbody>
-            </table>
-          </div>
+                <td>
+                  <input type="number" class="form-control" name="score10_5" placeholder="Score" value="{{old('score10_5')}}" min="0" max="100">
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
 
 
-          <hr>
-          <h3>Class XII </h3>
+        <hr>
+        <h3>Class XII </h3>
+
+        <div class="row">
+
           <div class="col-lg-5 col-sm-12">
             <div class="row">
               <div class="col-lg-12 col-sm-12">
@@ -574,7 +599,7 @@
               <div class="col-lg-12 col-sm-12">
                 <label for=""> Year of Passing<span class="text-danger">*</span></label>
                 @error('passingyear12') <span class="text-danger">{{ $message }}</span> @enderror
-                <input type="number" class="form-control mb-3 radius-20 dark" name="passingyear12" value="{{old('passingyear12')}}" min="1950" max="{{date('Y')}}" placeholder="YYYY">
+                <input type="number" class="form-control mb-3 radius-20 dark" name="passingyear12" value="{{old('passingyear12')}}" min="2020" max="{{date('Y')}}" placeholder="YYYY">
               </div>
             </div>
           </div>
@@ -585,33 +610,14 @@
             <input type="file" class="form-control mb-3 radius-20 dark" name="certificate12" value="{{old('certificate12')}}">
           </div>
 
-          <div class="col-lg-3 col-sm-12">
-            <label for="">Percentage (Best of 5)</label>
-            @error('percentage12') <span class="text-danger">{{ $message }}</span> @enderror
-            <input type="text" class="form-control mb-3 radius-20 dark" name="percentage12" placeholder="60" value="{{old('percentage12')}}" id="percentage12">
-          </div>
 
-          <div class="row mb-2">
-            <div class="col-lg-2">
-              <h5>Pass mark <span class="text-danger">*</span></h5>
-            </div>
-            <div class="col-lg-2">
-              <input type="number" name="passmark12" class="form-control" placeholder=" Mark" min="0" max="100" value="{{old('passmark12')}}">
-            </div>
-            <div class="col-lg-2">
-              <h5>Full Marks </h5>
-            </div>
-            <div class="col-lg-2">
-              <input type="number" name="fullmark12" class="form-control" readonly value="100">
-            </div>
-          </div>
           <div class="table-responsive">
             <table class="table table-bordered">
               <thead>
                 <tr>
                   <th>Subject</th>
 
-                  <th> Marks Obtained</th>
+                  <th> Marks Obtained (100)</th>
                 </tr>
               </thead>
               <tbody>
@@ -657,16 +663,7 @@
                     <input type="number" class="form-control" name="score12_4" placeholder="Score" value="{{old('score12_4')}}" min="0" max="100">
                   </td>
                 </tr>
-                <tr>
-                  <td>
-                    <input type="text" class="form-control" name="subject12_5" placeholder="Major 4" value="{{old('subject12_5')}}">
-                  </td>
 
-
-                  <td>
-                    <input type="number" class="form-control" name="score12_5" placeholder="Score" value="{{old('score12_5')}}" min="0" max="100">
-                  </td>
-                </tr>
               </tbody>
             </table>
           </div>
@@ -675,7 +672,7 @@
 
         </div>
         <center>
-          <button type="submit" class="btn btn-main radius-30 mt-3" id="admission-submitBtn">Continue To Payment >> </button>
+          <button type="submit" class="btn btn-main  mt-3" id="admission-submitBtn">Continue To Payment >> </button>
         </center>
 
       </form>

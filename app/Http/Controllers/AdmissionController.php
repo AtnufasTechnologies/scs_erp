@@ -356,32 +356,28 @@ class AdmissionController extends Controller
 
     function ugApplications()
     {
+
+
         //fetch user's campus
         $campusId =  StaticController::fetchCampusSettings();
         if ($campusId == null) {
-            $data = AdmissionApplication::with([
+            $data = AdmissionApplication::whereHas('registrationmaster', function ($query) {
+                $query->where('application_type', 'UG');
+            })->with([
                 'registrationmaster.countrymaster',
-                'stdprogramMaster',
-            ])
-                ->whereHas('registrationmaster.programinfo', function ($query) {
-                    $query->where('name', 'UG');
-                })
-                ->latest()
-                ->get();
+                'stdCourseMaster',
+                'academicdepartmentinfo',
+            ])->get();
         } else {
 
-            $data = AdmissionApplication::with([
+            $data = AdmissionApplication::whereHas('registrationmaster', function ($query) use ($campusId) {
+                $query->where('application_type', 'UG');
+                $query->where('campus_id', $campusId);
+            })->with([
                 'registrationmaster.countrymaster',
-                'stdprogramMaster'
-            ])
-                ->whereHas('registrationmaster.programinfo', function ($query) {
-                    $query->where('name', 'UG');
-                })
-                ->whereHas('registrationmaster.programinfo.campus', function ($query) use ($campusId) {
-                    $query->where('id', $campusId);
-                })
-                ->latest()
-                ->get();
+                'stdCourseMaster',
+                'academicdepartmentinfo',
+            ])->get();
         }
 
         return view('admin.admission.ug.applications', ['data' => $data]);
@@ -894,8 +890,6 @@ class AdmissionController extends Controller
             //Baptism Certificate
         ]);
 
-        $laptop = !empty($request->laptop_checkbox) ? 1 : 0;
-        $teaestate = !empty($request->teaestate_checkbox) ? 1 : 0;
 
 
         if ($request->religion == 10) {
@@ -928,6 +922,8 @@ class AdmissionController extends Controller
         $application->mother_contact = $request->mother_contact;
         $application->father_occupation = $request->father_occupation;
         $application->mother_occupation = $request->mother_occupation;
+        $application->father_qualification = $request->father_qualification;
+        $application->mother_qualification = $request->mother_qualification;
         $application->income = $request->income;
         $application->permanent_address = $request->permanent_address;
         $application->district = $request->district;
@@ -937,8 +933,8 @@ class AdmissionController extends Controller
         $application->local_district = $request->local_district;
         $application->local_city = $request->local_city;
         $application->local_pincode = $request->local_pincode;
-        $application->laptop = $laptop;
-        $application->teaestate = $teaestate;
+        $application->has_laptop = $request->has_laptop;
+        $application->from_teaestate = $request->from_teaestate;
 
         // Handle file uploads
 
@@ -965,9 +961,6 @@ class AdmissionController extends Controller
         $application->rollno10 = $request->rollno10;
         $application->board10 = $request->board10;
         $application->passingyear10 = $request->passingyear10;
-        $application->percentage10 = $request->percentage10;
-        $application->passmark10 = $request->passmark10;
-        $application->fullmark10 = $request->fullmark10;
 
         $application->subject10_1 = $request->subject10_1;
         $application->score10_1 = $request->score10_1;
@@ -991,9 +984,7 @@ class AdmissionController extends Controller
         $application->rollno12 = $request->rollno12;
         $application->board12 = $request->board12;
         $application->passingyear12 = $request->passingyear12;
-        $application->percentage12 = $request->percentage12;
-        $application->passmark12 = $request->passmark12;
-        $application->fullmark12 = $request->fullmark12;
+
 
         $application->subject12_1 = $request->subject12_1;
         $application->score12_1 = $request->score12_1;
@@ -1007,8 +998,7 @@ class AdmissionController extends Controller
         $application->subject12_4 = $request->subject12_4;
         $application->score12_4 = $request->score12_4;
 
-        $application->subject12_5 = $request->subject12_5;
-        $application->score12_5 = $request->score12_5;
+
 
         // Payment fields (to be filled after payment)
         $application->gateway_type = 'easebuzz';
@@ -1043,12 +1033,12 @@ class AdmissionController extends Controller
                     'applicationmaster.stdCourseMaster'
                 ])->where('id', $userId)->first();
 
-                if ($data->programinfo->name == 'PG') {
-                    $amount =  AdmissionSetting::where('application_fee_pg')
-                        ->value('application_fee_pg');
-                } else {
-                    $amount =  AdmissionSetting::where('application_fee_ug')
+                if ($data->application_type == 'UG') {
+                    $amount =  AdmissionSetting::where('id', 1)
                         ->value('application_fee_ug');
+                } else {
+                    $amount =  AdmissionSetting::where('id', 1)
+                        ->value('application_fee_pg');
                 }
                 return view('admission.payment-checkout', ['data' => $data, 'amount' => $amount]);
             }
@@ -1064,36 +1054,44 @@ class AdmissionController extends Controller
         $batchId =  BatchMaster::where('admission_active_batch', 1)->value('id');
         return SubjectHasStudentProgam::where('subject_id', $deptId)->where('campus_id', $campusId)
             ->where('batch_id', $batchId)
-            ->with('student_program')
+            ->with('studentprograminfo')
             ->get();
     }
 
     function initateEaseBuzzPayment(Request $request)
     {
-        $request->validate([
-            'application_code' => 'required',
-            'amount' => 'required|numeric',
-        ]);
-
         $userId = Auth::user()->id;
-        $applicationRegRecord = AdmissionRegistration::where('user_id', $userId)->first();
+        $applicationRegRecord = AdmissionRegistration::where('id', $userId)->first();
         $fullname = $applicationRegRecord->first_name . ' ' . $applicationRegRecord->last_name;
         $email = $applicationRegRecord->email;
         $phone = $applicationRegRecord->mobile_no;
-        $payableAmount = $request->amount;
 
-        //Payment Split Logic
-        if ($applicationRegRecord->campus == 1) {
-            $split =  'SAL_SONADA' + (float) $payableAmount;
+        //program split logic for easebuzz
+        if ($applicationRegRecord->application_type == 'UG') {
+            $payableAmount =  AdmissionSetting::where('id', 1)
+                ->value('application_fee_ug');
         } else {
-            $split =  'SAL_CAMPUS' + (float) $payableAmount;
+            $payableAmount =  AdmissionSetting::where('id', 1)
+                ->value('application_fee_pg');
         }
+
+        //banking Split
+        if ($applicationRegRecord->campus_id == 1) {
+            $split = json_encode([
+                'SAL_SONADA' => $payableAmount
+            ]);
+        } else {
+            $split = json_encode([
+                'SAL_SILIGURI' => $payableAmount
+            ]);
+        }
+
+
         /** Easebuzz Params */
         $key = env('EASEBUZZ_KEY');
         $salt = env('EASEBUZZ_SALT');
         $txnid = $request->application_code;
         $productinfo = 'Salesian College Autonomous - Admission Form Payment';
-
         $hashString = "$key|$txnid|$payableAmount|$productinfo|$fullname|$email|$userId||||||||||$salt";
         $hash = strtolower(hash('sha512', $hashString));
 
@@ -1258,14 +1256,19 @@ class AdmissionController extends Controller
             if ($campusId == null) {
                 return back()->with('error', 'No campus assigned to your account. Please contact ITCELL.');
             } else {
-                $data =  AdmissionApplication::with([
+
+                $data = AdmissionApplication::whereHas('registrationmaster', function ($query) use ($campusId) {
+                    $query->where('application_type', 'UG');
+                    $query->where('campus_id', $campusId);
+                })->with([
                     'registrationmaster.countrymaster',
-                ])->whereHas('registrationmaster.programinfo', function ($query) {
-                    $query->where('name', 'UG');
-                })->whereHas('registrationmaster.programinfo.campus', function ($query) use ($campusId) {
-                    $query->where('id', $campusId);
-                })->where('department', $departId)
-                    ->latest()->get();
+                    'stdCourseMaster',
+                    'academicdepartmentinfo',
+                ])
+                    ->where('department', $departId)
+                    ->where('payment_gateway_status', 'success') //paid approved applications
+                    ->latest()
+                    ->get();
             }
             return view('admin.subject.admission.application-list', ['data' => $data]);
         } else {

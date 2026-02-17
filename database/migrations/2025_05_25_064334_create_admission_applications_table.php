@@ -26,16 +26,18 @@ return new class extends Migration
             $table->string('mothertongue')->nullable();
             $table->string('phychallenged')->nullable();
             $table->string('caste')->nullable();
-            $table->string('laptop', 20)->nullable();
-            $table->string('teaestate', 20)->nullable();
+            $table->smallInteger('has_laptop')->nullable();
+            $table->smallInteger('from_teaestate')->nullable();
             $table->string('baptism')->nullable();
 
             $table->string('father_name', 255)->nullable();
             $table->string('father_contact', 15)->nullable();
             $table->string('father_occupation', 255)->nullable();
+            $table->string('father_qualification', 255)->nullable();
             $table->string('mother_name', 255)->nullable();
             $table->string('mother_contact', 15)->nullable();
             $table->string('mother_occupation', 255)->nullable();
+            $table->string('mother_qualification', 255)->nullable();
             $table->integer('income')->nullable();
             $table->text('permanent_address')->nullable();
             $table->string('district', 255)->nullable();
@@ -52,9 +54,6 @@ return new class extends Migration
             $table->string('board10', 255)->nullable();
             $table->integer('passingyear10')->nullable();
             $table->string('certificate10')->nullable(); // stored path/filename
-            $table->integer('percentage10')->nullable();
-            $table->integer('fullmark10')->nullable();
-            $table->integer('passmark10')->nullable();
 
             // Class 10 Subjects
             $table->string('subject10_1', 255)->nullable();
@@ -79,9 +78,7 @@ return new class extends Migration
             $table->string('board12', 255)->nullable();
             $table->integer('passingyear12')->nullable();
             $table->string('certificate12')->nullable(); // stored path/filename
-            $table->integer('percentage12')->nullable();
-            $table->integer('fullmark12')->nullable();
-            $table->integer('passmark12')->nullable();
+
             // Class 12 Subjects
             $table->string('subject12_1', 255)->nullable();
             $table->integer('score12_1')->nullable();
@@ -95,40 +92,33 @@ return new class extends Migration
             $table->string('subject12_4', 255)->nullable();
             $table->integer('score12_4')->nullable();
 
-            $table->string('subject12_5', 255)->nullable();
-            $table->integer('score12_5')->nullable();
+            //College and SGPA Details
+            $table->string('college_name')->nullable();
+            $table->string('university_name')->nullable();
+            $table->integer('graduating_year')->nullable();
+            $table->string('graduating_rollno')->nullable();
 
-
-            //SGPA Details
             $table->string('sem1')->nullable();
             $table->string('sgpa1')->nullable();
-            $table->integer('percentage1')->nullable();
-            $table->string('grade1', 10)->nullable();
 
             $table->string('sem2')->nullable();
             $table->string('sgpa2')->nullable();
-            $table->integer('percentage2')->nullable();
-            $table->string('grade2', 10)->nullable();
 
             $table->string('sem3')->nullable();
             $table->string('sgpa3')->nullable();
-            $table->integer('percentage3')->nullable();
-            $table->string('grade3', 10)->nullable();
+
 
             $table->string('sem4')->nullable();
             $table->string('sgpa4')->nullable();
-            $table->integer('percentage4')->nullable();
-            $table->string('grade4', 10)->nullable();
+
 
             $table->string('sem5')->nullable();
             $table->string('sgpa5')->nullable();
-            $table->integer('percentage5')->nullable();
-            $table->string('grade5', 10)->nullable();
+
 
             $table->string('sem6')->nullable();
             $table->string('sgpa6')->nullable();
-            $table->integer('percentage6')->nullable();
-            $table->string('grade6', 10)->nullable();
+
 
             //Gateway Details
             $table->string('gateway_type')->nullable();

@@ -180,9 +180,11 @@ $("#admissiondepartment").change(function () {
                     $.each(response, function (key, value) {
                         $("#coursecombinations").append(
                             '<option value="' +
-                                value["student_program"]["id"] +
+                                value["studentprograminfo"]["id"] +
                                 '">' +
-                                value["student_program"]["name"] +
+                                value["studentprograminfo"]["code"] +
+                                " - " +
+                                value["studentprograminfo"]["name"] +
                                 "</option>",
                         );
                     });
