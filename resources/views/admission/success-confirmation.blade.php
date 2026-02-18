@@ -3,7 +3,7 @@
 <header class="profile-header">
   <div class="header-content">
     <div class="profile-img-container">
-      <img src="{{asset('admin/images/logo.png')}}" alt="logo" class="profile-img">
+      <img src="{{asset('admin/images/logo.png')}}" alt="logo" class="profile-img" style="background-color: white;">
     </div>
     <div class="profile-info">
       <h6><span class="text-uppercase">Application Submitted Successfully</span></h6>
@@ -11,7 +11,7 @@
       <h2 class="text-capitalize">Sonada & Siliguri Campus</h2>
       <div class="contact-links">
         <a href="mailto:admissions@salesiancollege.net" aria-label="Email">
-          <i class="fas fa-envelope"></i> admissions@salesiancollege.net
+          <i class="fas fa-envelope"></i> admissionenquiry@salesiancollege.net
         </a>
         <a href="tel:+919933402478" target="_blank">
           <i class="fas fa-phone"></i> +91 99334 02478 / 0353 254 5622
@@ -26,7 +26,9 @@
     <div class="col-md-12">
       <div class="card shadow p-4">
         <div class="card-body text-center">
-          <h2 class="mb-4">Application Successful</h2>
+          <p class="display-4">Hi, <span class="text-capitalize">{{ $data->registrationmaster->first_name }} {{ $data->registrationmaster->last_name }}</span></p>
+          <p><i class="fa fa-envelope"></i> {{ $data->registrationmaster->mail_id }} | <i class="fa fa-phone"></i> {{ $data->registrationmaster->mobile_no }}</p>
+
           <p class="mb-4">Welcome! Your application has been received successfully. We will contact you shortly with details about your interview.</p>
           <p class="text-capitalize"> <b>{{$data->academicDeptMaster->title}}</b> <br>{{$data->stdCourseMaster->name}}</p>
           <h4>Your Application Number is</h4>
@@ -35,8 +37,8 @@
           </div>
           <p>You Download the application form and invoice.</p>
 
-          <a href="{{route('download.admission.application-form',$data->application_code)}}" class="btn btn-primary">Download Application Form</a>
-          <a href="{{route('download.admission.payment-invoice',$data->application_code)}}" class="btn btn-primary">Download Invoice</a>
+          <a href="{{route('download.admission.application-form',$data->application_code)}}" class="btn btn-primary">View Application Form</a>
+          <a href="{{route('download.admission.payment-invoice',$data->application_code)}}" class="btn btn-primary">View Invoice</a>
           <a href="{{route('admission.apply.logout')}}" class="btn btn-secondary">Logout</a>
         </div>
       </div>

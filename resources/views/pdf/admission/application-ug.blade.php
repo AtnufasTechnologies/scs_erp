@@ -154,13 +154,15 @@
                     <table style="width: 100%; border: none;">
                         <tr>
                             <td style="border: none; width: 15%;">
-                                <img src="{{ asset('admin/images/logo.png') }}" alt="logo" style="height: 50px;">
+                                <img src="{{ asset('admin/images/logo.png') }}" alt="logo" style="height: 90px;">
                             </td>
                             <td style="border: none; width: 70%;">
                                 <div class="college-title">Salesian College (Autonomous)</div>
                                 <div class="subtitle">Sonada and Siliguri</div>
-                                <div class="subtitle">UG - Online Application Form</div>
-                                <div class="subtitle ">{{$data->stdCourseMaster->name}} </div>
+                                Email: admissionenquiry@salesiancollege.net <br> Phone: +91 99334 02478 / 0353 254 5622
+                                <br><br>
+                                <div class="subtitle">UG - Online Application Form ({{$data->registrationmaster->campusmaster->name}})</div>
+
                             </td>
                             <td style="border: none; width: 15%; text-align: right; vertical-align: top;">
                                 @if(isset($data->photo))
@@ -172,11 +174,20 @@
                 </td>
             </tr>
             <tr>
+                <td></td>
+                <td style="border: none; text-align: right;">
+                    <button onclick="window.print()" style="padding: 6px 12px; background: #0d47a1; color: white; border: none; border-radius: 4px; cursor: pointer; font-size: 10px; font-weight: 600;">Print</button>
+                </td>
+            </tr>
+            <tr>
                 <td style="border: none; font-size: 9px;"><b>Form No:</b> {{$data->application_code}}</td>
                 <td style="border: none; font-size: 9px; text-align: right;"><b>Date:</b> {{date('d-m-Y', strtotime($data->created_at))}}</td>
             </tr>
             <tr>
                 <td style="border: none; font-size: 9px;" colspan="2"><b>Batch:</b> {{$data->registrationmaster->batch}} </td>
+            </tr>
+            <tr>
+                <td style="border: none; font-size: 9px;" colspan="2"><b>Applied For:</b> {{$data->stdCourseMaster->name}}</td>
             </tr>
         </table>
 
@@ -295,6 +306,12 @@
                 <td>{{$data->local_city}}</td>
                 <th>Local Pincode</th>
                 <td>{{$data->local_pincode}}</td>
+            </tr>
+            <tr>
+                <th>State </th>
+                <td>{{$data->state}}</td>
+                <th>Local State</th>
+                <td>{{$data->local_state}}</td>
             </tr>
         </table>
 

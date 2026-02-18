@@ -927,19 +927,29 @@ class AdmissionController extends Controller
         $application->mother_occupation = $request->mother_occupation;
         $application->father_qualification = $request->father_qualification;
         $application->mother_qualification = $request->mother_qualification;
+        $application->guardian_name = $request->guardian_name;
+        $application->guardian_contact = $request->guardian_contact;
         $application->income = $request->income;
         $application->permanent_address = $request->permanent_address;
         $application->district = $request->district;
         $application->city = $request->city;
         $application->pincode = $request->pincode;
+        $application->state = $request->state;
         $application->local_address = $request->local_address;
         $application->local_district = $request->local_district;
         $application->local_city = $request->local_city;
         $application->local_pincode = $request->local_pincode;
+        $application->local_state = $request->local_state;
         $application->has_laptop = $request->has_laptop;
         $application->from_teaestate = $request->from_teaestate;
-
+        $application->adhaar = $request->adhaar;
         // Handle file uploads
+        if (!empty($request->national_id_proof)) {
+            $national_id_proof = $request->national_id_proof;
+            $national_id_proofFilename = StaticController::s3_file_uploader($national_id_proof, 'admission_national_id_proofs');
+        } else {
+            $national_id_proofFilename = null;
+        }
 
         $photo =  $request->photo;
         $photoFilename = StaticController::s3_resize_image_uploader($photo, 'admission_photos', 300, 300);
@@ -959,6 +969,8 @@ class AdmissionController extends Controller
         } else {
             $application->baptism = null;
         }
+
+        $application->national_id_proof = $national_id_proofFilename; //other national applicant  id proof
         // Academic details
         $application->institution10 = $request->institution10;
         $application->rollno10 = $request->rollno10;
@@ -1471,12 +1483,19 @@ class AdmissionController extends Controller
         }
     }
 
-    function downloadPaymentInvoice($applicationId)
+    function downloadPaymentInvoice($application_code)
     {
-        $applicationRecord = AdmissionApplication::with('registrationmaster')->where('id', $applicationId)->first();
+        $applicationRecord = AdmissionApplication::with([
+            'registrationmaster.campusmaster',
+            'stdCourseMaster',
+            'academicDeptMaster',
+        ])->where('application_code', $application_code)->first();
+
+
         if ($applicationRecord && $applicationRecord->payment_gateway_status == 'success') {
-            $pdf = FacadePdf::loadView('pdf.admission.invoice', ['data' => $applicationRecord]);
-            return $pdf->download('invoice_' . $applicationRecord->application_code . '.pdf');
+            return view('pdf.admission.invoice', ['data' => $applicationRecord]);
+            // $pdf = FacadePdf::loadView('pdf.admission.invoice', ['data' => $applicationRecord]);
+            // return $pdf->download('invoice_' . $applicationRecord->application_code . '.pdf');
         } else {
             return back()->with('error', 'Invoice not available for this application.');
         }

@@ -29,6 +29,8 @@ return new class extends Migration
             $table->smallInteger('has_laptop')->nullable();
             $table->smallInteger('from_teaestate')->nullable();
             $table->string('baptism')->nullable();
+            $table->string('adhaar')->nullable();
+            $table->string('national_id_proof')->nullable();
 
             $table->string('father_name', 255)->nullable();
             $table->string('father_contact', 15)->nullable();
@@ -39,14 +41,18 @@ return new class extends Migration
             $table->string('mother_occupation', 255)->nullable();
             $table->string('mother_qualification', 255)->nullable();
             $table->integer('income')->nullable();
+            $table->string('guardian_name', 255)->nullable();
+            $table->string('guardian_contact', 15)->nullable();
             $table->text('permanent_address')->nullable();
             $table->string('district', 255)->nullable();
             $table->string('city', 255)->nullable();
+            $table->string('state', 255)->nullable();
             $table->string('pincode', 20)->nullable();
             $table->text('local_address')->nullable();
             $table->string('local_district', 255)->nullable();
             $table->string('local_city', 255)->nullable();
             $table->string('local_pincode', 20)->nullable();
+            $table->string('local_state', 255)->nullable();
 
             // Class 10 Details
             $table->string('institution10')->nullable();

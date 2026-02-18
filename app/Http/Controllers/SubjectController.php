@@ -52,7 +52,8 @@ class SubjectController extends Controller
             'campus' => 'required',
         ]);
         $slug = Str::slug($request->title);
-        $check = Subject::where('slug', $slug)->count();
+        $code = Str::upper($request->code);
+        $check = Subject::where('code', $code)->where('campus_id', $request->campus)->count();
         if ($check > 0) {
             return response()->json(['msg' => 'Subject already exists', 'status' => 'error']);
         } else {

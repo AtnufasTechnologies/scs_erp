@@ -10,10 +10,10 @@
       <h1 class="text-capitalize">Salesian College Autonomous</h1>
       <h2 class="text-capitalize">Sonada & Siliguri Campus</h2>
       <div class="contact-links">
-        <a href="mailto:" aria-label="">
+        <a href="mailto:admissionenquiry@salesiancollege.net" aria-label="">
           <i class="fas fa-envelope"></i> admissionenquiry@salesiancollege.net
         </a>
-        <a href="tel:" target="_blank">
+        <a href="tel:+919933402478" target="_blank">
           <i class="fas fa-phone"></i> +91 99334 02478 / 0353 254 5622
         </a>
 
@@ -72,7 +72,29 @@
               }
             });
           </script>
+          <script>
+            document.getElementById('photo').addEventListener('change', function(e) {
+              const file = e.target.files[0];
+              const allowedExtensions = ['jpg', 'jpeg', 'png'];
+              const maxSize = 5 * 1024 * 1024; // 5MB
 
+              if (file) {
+                const fileExtension = file.name.split('.').pop().toLowerCase();
+
+                if (!allowedExtensions.includes(fileExtension)) {
+                  alert('Invalid file type. Please upload PDF, JPG, or PNG only.');
+                  e.target.value = '';
+                  return;
+                }
+
+                if (file.size > maxSize) {
+                  alert('File size exceeds 5MB limit.');
+                  e.target.value = '';
+                  return;
+                }
+              }
+            });
+          </script>
 
 
         </div>
@@ -186,10 +208,35 @@
 
 
           @else
-          <div class="col-lg-4 col-sm-12">
-            <label for="">Upload Any {{$data->countrymaster->name}} Govt Identity Proof </label><br>
-            <input type="file" name="national_id_proof" class="form-control">
+          <div class="col-lg-6 col-sm-12">
+            <label for="">Upload Any {{$data->countrymaster->name}} Govt Identity Proof (allowed PDF,JPG: 5MB) <span class="text-danger">*</span></label><br>
+            @error('national_id_proof') <span class="text-danger">{{ $message }}</span> @enderror
+            <input type="file" name="national_id_proof" class="form-control mb-3 radius-20 dark" id="national_id_proof">
           </div>
+
+          <script>
+            document.getElementById('national_id_proof').addEventListener('change', function(e) {
+              const file = e.target.files[0];
+              const allowedExtensions = ['pdf', 'jpg', 'jpeg', 'png'];
+              const maxSize = 5 * 1024 * 1024; // 5MB
+
+              if (file) {
+                const fileExtension = file.name.split('.').pop().toLowerCase();
+
+                if (!allowedExtensions.includes(fileExtension)) {
+                  alert('Invalid file type. Please upload PDF, JPG, or PNG only.');
+                  e.target.value = '';
+                  return;
+                }
+
+                if (file.size > maxSize) {
+                  alert('File size exceeds 5MB limit.');
+                  e.target.value = '';
+                  return;
+                }
+              }
+            });
+          </script>
           @endif
 
 
@@ -329,83 +376,106 @@
 
         <hr>
         <h5>Address</h5>
-        <div class="col-lg-12">
-          <div class="row">
-            <div class="col-lg-4">
-              <div class="col-lg-12 col-sm-12">
-                <label for="">Permanent Address <span class="text-danger">*</span></label>
-                @error('permanent_address') <span class="text-danger">{{ $message }}</span> @enderror
-                <textarea name="permanent_address" cols="10" class="form-control mb-3" id="permanent_address">{{old('permanent_address')}}</textarea>
-              </div>
 
-            </div>
-            <div class="col-lg-8">
+        <div class="row">
+          <div class="col-lg-6">
+            <div class="col-lg-12">
               <div class="row">
-                <div class="col-lg-4 col-sm-12">
-                  <label for="">District <span class="text-danger">*</span></label>
-                  @error('district') <span class="text-danger">{{ $message }}</span> @enderror
-                  <input type="text" class="form-control mb-3 radius-20 dark" name="district" id="district" value="{{old('district')}}">
+                <div class="col-lg-12">
+                  <div class="col-lg-12 col-sm-12">
+                    <label for="">Permanent Address <span class="text-danger">*</span></label>
+                    @error('permanent_address') <span class="text-danger">{{ $message }}</span> @enderror
+                    <textarea name="permanent_address" cols="10" class="form-control mb-3" id="permanent_address">{{old('permanent_address')}}</textarea>
+                  </div>
+
+                </div>
+                <div class="col-lg-12">
+                  <div class="row">
+                    <div class="col-lg-6 col-sm-12">
+                      <label for="">District <span class="text-danger">*</span></label>
+                      @error('district') <span class="text-danger">{{ $message }}</span> @enderror
+                      <input type="text" class="form-control mb-3 radius-20 dark" name="district" id="district" value="{{old('district')}}">
+                    </div>
+
+                    <div class="col-lg-6 col-sm-12">
+                      <label for="">City <span class="text-danger">*</span></label>
+                      @error('city') <span class="text-danger">{{ $message }}</span> @enderror
+                      <input type="text" class="form-control mb-3 radius-20 dark" name="city" id="city" value="{{old('city')}}">
+                    </div>
+
+                    <div class="col-lg-6 col-sm-12">
+                      <label for="">Pincode <span class="text-danger ">*</span></label>
+                      @error('pincode') <span class="text-danger">{{ $message }}</span> @enderror
+                      <input type="text" class="form-control mb-3 radius-20 dark " name="pincode" id="pincode" value="{{old('pincode')}}">
+                    </div>
+                    <div class="col-lg-6 col-sm-12">
+                      <label for="">State <span class="text-danger ">*</span></label>
+                      @error('state') <span class="text-danger">{{ $message }}</span> @enderror
+                      <input type="text" class="form-control mb-3 radius-20 dark " name="state" id="state" value="{{old('state')}}">
+                    </div>
+                  </div>
+
                 </div>
 
-                <div class="col-lg-4 col-sm-12">
-                  <label for="">City <span class="text-danger">*</span></label>
-                  @error('city') <span class="text-danger">{{ $message }}</span> @enderror
-                  <input type="text" class="form-control mb-3 radius-20 dark" name="city" id="city" value="{{old('city')}}">
-                </div>
 
-                <div class="col-lg-4 col-sm-12">
-                  <label for="">Pincode <span class="text-danger ">*</span></label>
-                  @error('pincode') <span class="text-danger">{{ $message }}</span> @enderror
-                  <input type="text" class="form-control mb-3 radius-20 dark " name="pincode" id="pincode" value="{{old('pincode')}}">
-                </div>
               </div>
+            </div>
+          </div>
+          <div class="col-lg-6">
+            <div class="form-check form-switch">
+              <input class="form-check-input" type="checkbox" id="isChecked" name="isChecked">
+              <label for="">Local Address Same as Permanent Address</label>
+            </div>
+            <div class="col-lg-12">
 
+              <div class="row">
+                <div class="col-lg-12">
+                  <div class="col-lg-12 col-sm-12">
+
+                    @error('local_address') <span class="text-danger">{{ $message }}</span> @enderror
+                    <textarea name="local_address" cols="10" class="form-control mb-3" id="local_address">{{old('local_address')}}</textarea>
+                  </div>
+
+                </div>
+                <div class="col-lg-12">
+                  <div class="row">
+                    <div class="col-lg-6 col-sm-12">
+                      <label for="">District <span class="text-danger">*</span></label>
+                      @error('local_district') <span class="text-danger">{{ $message }}</span> @enderror
+                      <input type="text" class="form-control mb-3 radius-20 dark" name="local_district" id="local_district" value="{{old('local_district')}}">
+                    </div>
+
+                    <div class="col-lg-6 col-sm-12">
+                      <label for="">City <span class="text-danger">*</span></label>
+                      @error('local_city') <span class="text-danger">{{ $message }}</span> @enderror
+                      <input type="text" class="form-control mb-3 radius-20 dark" name="local_city" id="local_city" value="{{old('local_city')}}">
+                    </div>
+
+                    <div class="col-lg-6 col-sm-12">
+                      <label for="">Pincode <span class="text-danger ">*</span></label>
+                      @error('local_pincode') <span class="text-danger">{{ $message }}</span> @enderror
+                      <input type="text" class="form-control mb-3 radius-20 dark " name="local_pincode" id="local_pincode" value="{{old('local_pincode')}}">
+                    </div>
+
+                    <div class="col-lg-6 col-sm-12">
+                      <label for="">State <span class="text-danger ">*</span></label>
+                      @error('local_state') <span class="text-danger">{{ $message }}</span> @enderror
+                      <input type="text" class="form-control mb-3 radius-20 dark " name="local_state" id="local_state" value="{{old('local_state')}}">
+                    </div>
+                  </div>
+
+                </div>
+
+
+              </div>
             </div>
 
 
           </div>
         </div>
 
-        <div class="col-lg-12">
-          <div class="form-check form-switch">
-            <input class="form-check-input" type="checkbox" id="isChecked" name="isChecked">
-            <label for="">Local Address Same as Permanent Address</label>
-          </div>
-          <div class="row">
-            <div class="col-lg-4">
-              <div class="col-lg-12 col-sm-12">
-                <label for="">Local Address <span class="text-danger">*</span></label>
-                @error('local_address') <span class="text-danger">{{ $message }}</span> @enderror
-                <textarea name="local_address" cols="10" class="form-control mb-3" id="local_address">{{old('local_address')}}</textarea>
-              </div>
-
-            </div>
-            <div class="col-lg-8">
-              <div class="row">
-                <div class="col-lg-4 col-sm-12">
-                  <label for="">District <span class="text-danger">*</span></label>
-                  @error('local_district') <span class="text-danger">{{ $message }}</span> @enderror
-                  <input type="text" class="form-control mb-3 radius-20 dark" name="local_district" id="local_district" value="{{old('local_district')}}">
-                </div>
-
-                <div class="col-lg-4 col-sm-12">
-                  <label for="">City <span class="text-danger">*</span></label>
-                  @error('local_city') <span class="text-danger">{{ $message }}</span> @enderror
-                  <input type="text" class="form-control mb-3 radius-20 dark" name="local_city" id="local_city" value="{{old('local_city')}}">
-                </div>
-
-                <div class="col-lg-4 col-sm-12">
-                  <label for="">Pincode <span class="text-danger ">*</span></label>
-                  @error('local_pincode') <span class="text-danger">{{ $message }}</span> @enderror
-                  <input type="text" class="form-control mb-3 radius-20 dark " name="local_pincode" id="local_pincode" value="{{old('local_pincode')}}">
-                </div>
-              </div>
-
-            </div>
 
 
-          </div>
-        </div>
 
         <script>
           document.getElementById('isChecked').addEventListener('change', function() {
@@ -414,11 +484,13 @@
               document.getElementById('local_district').value = document.getElementById('district').value;
               document.getElementById('local_city').value = document.getElementById('city').value;
               document.getElementById('local_pincode').value = document.getElementById('pincode').value;
+              document.getElementById('local_state').value = document.getElementById('state').value;
             } else {
               document.getElementById('local_address').value = '';
               document.getElementById('local_district').value = '';
               document.getElementById('local_city').value = '';
               document.getElementById('local_pincode').value = '';
+              document.getElementById('local_state').value = '';
             }
           });
         </script>
@@ -481,7 +553,7 @@
         <div class="col-lg-5 col-sm-12">
           <label for="">Class 10 Certificate (PDF - Max 5MB) <span class="text-danger">*</span></label>
           @error('certificate10') <span class="text-danger">{{ $message }}</span> @enderror
-          <input type="file" class="form-control mb-3 radius-20 dark" name="certificate10" value="{{old('certificate10')}}">
+          <input type="file" class="form-control mb-3 radius-20 dark" name="certificate10" value="{{old('certificate10')}}" id="certificate10">
         </div>
 
 
@@ -673,6 +745,25 @@
         </div>
         <center>
           <button type="submit" class="btn btn-main  mt-3" id="admission-submitBtn">Continue To Payment >> </button>
+          <script>
+            document.getElementById('admission-application-form').addEventListener('submit', function(e) {
+              const submitBtn = document.getElementById('admission-submitBtn');
+              const loader = document.createElement('div');
+              loader.id = 'form-loader';
+              loader.innerHTML = `
+              <div style="position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); display: flex; align-items: center; justify-content: center; z-index: 9999;">
+                <div style="background: white; padding: 30px; border-radius: 10px; text-align: center;">
+                  <div class="spinner-border text-primary" role="status">
+                    <span class="visually-hidden">Loading...</span>
+                  </div>
+                  <p style="margin-top: 15px; font-weight: 600;">Processing your application...</p>
+                </div>
+              </div>
+            `;
+              document.body.appendChild(loader);
+              submitBtn.disabled = true;
+            });
+          </script>
         </center>
 
       </form>

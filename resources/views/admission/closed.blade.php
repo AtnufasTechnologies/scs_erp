@@ -48,7 +48,7 @@ $batch = BatchMaster::where('admission_active_batch', 1)->value('batch_name');
               <p>For any inquiries, please contact us at:
                 <a href="mailto:admissions@salesiancollege.net" class="contact-link" style="color:aliceblue;text-decoration:underline;">
                   <i class="fas fa-envelope"></i>
-                  admissions@salesiancollege.net
+                  admissionenquiry@salesiancollege.net
                 </a>
               </p>
               <br>
