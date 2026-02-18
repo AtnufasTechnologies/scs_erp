@@ -17,6 +17,7 @@ return new class extends Migration
             $table->integer('student_program_id');
             $table->integer('batch_id');
             $table->integer('campus_id');
+            $table->char('program_type', 10)->nullable()->comment('UG, PG');
             $table->timestamps();
             $table->softDeletes();
         });

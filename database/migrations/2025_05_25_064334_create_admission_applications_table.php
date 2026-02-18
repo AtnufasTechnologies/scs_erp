@@ -103,26 +103,13 @@ return new class extends Migration
             $table->string('university_name')->nullable();
             $table->integer('graduating_year')->nullable();
             $table->string('graduating_rollno')->nullable();
+            $table->string('college_marksheet')->nullable();
 
-            $table->string('sem1')->nullable();
             $table->string('sgpa1')->nullable();
-
-            $table->string('sem2')->nullable();
             $table->string('sgpa2')->nullable();
-
-            $table->string('sem3')->nullable();
             $table->string('sgpa3')->nullable();
-
-
-            $table->string('sem4')->nullable();
             $table->string('sgpa4')->nullable();
-
-
-            $table->string('sem5')->nullable();
             $table->string('sgpa5')->nullable();
-
-
-            $table->string('sem6')->nullable();
             $table->string('sgpa6')->nullable();
 
 

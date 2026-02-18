@@ -79,9 +79,7 @@ $timestamp = Carbon::now()
   <p><strong>Form No #:</strong> {{ $data->application_code }}</p>
   <p><strong>Payment Date:</strong> {{ $data->updated_at ?? 'N/A' }}</p>
 
-  <p>
-    <strong>Transaction#: </strong> {{ $data->payment_gateway_ref != null ? $data->payment_gateway_ref : 'N/A'}}
-  </p>
+
 
   {{-- Student Info --}}
   <div class="section-title">Applicant Information</div>
@@ -94,6 +92,10 @@ $timestamp = Carbon::now()
     <tr>
       <th>Email</th>
       <td>{{$data->registrationmaster->mail_id }}</span></td>
+    </tr>
+    <tr>
+      <th>Mobile No</th>
+      <td>{{$data->registrationmaster->mobile_no }}</td>
     </tr>
 
     <tr>
@@ -116,6 +118,10 @@ $timestamp = Carbon::now()
   <div class="section-title">Payment Details</div>
 
   <table>
+    <tr>
+      <th>Transaction#</th>
+      <td>{{ $data->payment_gateway_ref != null ? $data->payment_gateway_ref : 'N/A'}}</td>
+    </tr>
     <tr>
       <th>Transaction Detail</th>
       <td>Admission Application Fee - {{ $data->registrationmaster->batch }}</td>

@@ -162,16 +162,33 @@ $faculty = Faculty::where('IS_LEFT', 0)->get();
             <form action="{{route('add.programs.to.subject')}}" method="post" enctype="multipart/form-data">
               @csrf
               <div class="modal-body">
-                <label for="" class="text-dark">Select Academic Batch</label>
-                <div class="input-group">
+                <div class="row">
+                  <div class="col-6">
+                    <label for="" class="text-dark">Select Academic Batch</label>
+                    <div class="input-group">
 
-                  <select name="batch_id" class="form-select">
-                    @foreach ($batches as $batch)
-                    <option value="{{$batch->id}}">{{$batch->batch_name}}</option>
-                    @endforeach
-                  </select>
+                      <select name="batch_id" class="form-select">
+                        @foreach ($batches as $batch)
+                        <option value="{{$batch->id}}">{{$batch->batch_name}}</option>
+                        @endforeach
+                      </select>
 
+                    </div>
+                  </div>
+                  <div class="col-6">
+                    <label for="" class="text-dark">Select Program Type</label>
+                    <div class="input-group">
+
+                      <select name="program_type" class="form-select" required>
+                        <option value="">-- Select Program Type --</option>
+                        <option value="UG">UG</option>
+                        <option value="PG">PG</option>
+                      </select>
+
+                    </div>
+                  </div>
                 </div>
+
                 <label for="" class="text-dark">Select Program</label>
 
                 <select name="programs[]" class="form-select mb-3 select-multiple" multiple>
@@ -179,6 +196,8 @@ $faculty = Faculty::where('IS_LEFT', 0)->get();
                   <option value="{{$prg->id}}">{{$prg->code}} - {{$prg->name}}</option>
                   @endforeach
                 </select>
+
+
                 <input type="hidden" name="subject_id" value="{{$data->id}}">
 
               </div>
@@ -222,6 +241,7 @@ $faculty = Faculty::where('IS_LEFT', 0)->get();
                   <th>#</th>
                   <th>Batch</th>
                   <th>Program</th>
+                  <th>Program Type</th>
                   <th>Details</th>
                   <th>Action</th>
                 </tr>
@@ -232,6 +252,7 @@ $faculty = Faculty::where('IS_LEFT', 0)->get();
                   <td>{{ $loop->iteration }}</td>
                   <td>{{$combination->batchmaster->batch_name ?? '-'}}</td>
                   <td>{{ $combination->studentprograminfo->name ?? '-' }}</td>
+                  <td>{{$combination->program_type}}</td>
                   <td>
                     <!-- Add more details as needed -->
                     <span class="badge bg-success">ID: {{ $combination->studentprograminfo->id ?? '-' }}</span>

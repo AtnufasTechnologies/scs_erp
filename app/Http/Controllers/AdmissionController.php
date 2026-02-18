@@ -246,18 +246,36 @@ class AdmissionController extends Controller
 
     function showApplicationPage()
     {
-
         $userId = Auth::user()->id;
-        //find the application
         $registrationInfo = AdmissionRegistration::with([
             'campusmaster',
             'countrymaster',
         ])->where('id', $userId)->first();
 
-        if ($registrationInfo->application_type == 'UG') {
-            //UG Application Page
-            $batch = $registrationInfo->batch;
-            $campusId = $registrationInfo->campus_id;
+        $application = AdmissionApplication::where('registration_id', $registrationInfo->id)->first();
+
+        // If application already submitted and paid, show success page
+        if ($application && $application->payment_gateway_ref && $application->payment_gateway_status === 'success') {
+            return $this->showSuccessPage();
+        }
+
+        // If application exists but not paid, redirect to payment
+        if ($application) {
+            return redirect()->route('admission.payment.checkout');
+        }
+
+        // Prepare common data
+        $batch = $registrationInfo->batch;
+        $campusId = $registrationInfo->campus_id;
+        $commonData = [
+            'data' => $registrationInfo,
+            'bloodgroups' => BloodGroupMaster::all(),
+            'religions' => ReligionMaster::all(),
+            'batch' => $batch,
+        ];
+
+        // Return application form based on type
+        if ($registrationInfo->application_type === 'UG') {
             $courses = ProgramGroup::whereHas('programInfo', function ($q) use ($campusId) {
                 $q->where('campus_id', $campusId);
             })->where('campus_id', $campusId)->get();
@@ -266,29 +284,20 @@ class AdmissionController extends Controller
                 ->where('main_program_type', 'UG')
                 ->get();
 
-            $application = AdmissionApplication::where('registration_id', $registrationInfo->id)->first();
-            if ($application == null) {
-                return  view('admission.ug-application', [
-                    'data' => $registrationInfo,
-                    'courses' => $courses,
-                    'bloodgroups' => BloodGroupMaster::all(),
-                    'religions' => ReligionMaster::all(),
-                    'batch' => $batch,
-                    'academic_departments' => $academic_departments,
-
-                ]);
-            } else {
-                if ($application->payment_gateway_ref != null && $application->payment_gateway_status == 'success') {
-                    return   $this->showSuccessPage();
-                } else {
-                    return redirect()->route('admission.payment.checkout');
-                }
-            }
-        } else {
-
-            //PG Application Page
-            return view('admission.pg-application', ['data' => $registrationInfo]);
+            return view('admission.ug-application', array_merge($commonData, [
+                'courses' => $courses,
+                'academic_departments' => $academic_departments,
+            ]));
         }
+
+        // PG Application
+        $academic_departments = SubjectHasStudentProgam::with('studentprograminfo')->where('campus_id', $campusId)
+            ->where('program_type', 'PG')
+            ->get();
+
+        return view('admission.pg-application', array_merge($commonData, [
+            'academic_departments' => $academic_departments,
+        ]));
     }
 
 
@@ -1071,6 +1080,7 @@ class AdmissionController extends Controller
         return SubjectHasStudentProgam::where('subject_id', $deptId)->where('campus_id', $campusId)
             ->where('batch_id', $batchId)
             ->with('studentprograminfo')
+            ->where('program_type', 'UG')
             ->get();
     }
 
@@ -1512,11 +1522,159 @@ class AdmissionController extends Controller
             'bloodgroupmaster'
         ])->where('application_code', $application_code)->first();
         if ($applicationRecord) {
-            return view('pdf.admission.application-ug', ['data' => $applicationRecord]);
+
+            if ($applicationRecord->registrationmaster->application_type == 'UG') {
+                return view('pdf.admission.application-ug', ['data' => $applicationRecord]);
+            } else {
+                return view('pdf.admission.application-pg', ['data' => $applicationRecord]);
+            }
+
             // $pdf = FacadePdf::loadView('pdf.admission.application', ['data' => $applicationRecord]);
             // return $pdf->download('application_form_' . $applicationRecord->application_code . '.pdf');
         } else {
             return back()->with('error', 'Application form not available for this application.');
         }
+    }
+
+
+    function pgApplicationSubmit(Request $request)
+    {
+
+        $request->validate([
+            'photo' => 'required',
+            'course' => 'required',
+            'dob' => 'required|date',
+            'bloodgroup' => 'required',
+            'gender' => 'required',
+            'religion' => 'required',
+            'mothertongue' => 'required',
+            'phychallenged' => 'required',
+            'caste' =>  'required',
+            'father_name' => 'required|string|max:255',
+            'mother_name' => 'required|string|max:255',
+            'father_contact' => 'required',
+            'mother_contact' => 'required',
+            'father_occupation' => 'string|max:255',
+            'mother_occupation' => 'string|max:255',
+            'income' => 'required',
+            'permanent_address' => 'required',
+            'district' => 'required|string|max:255',
+            'city' => 'required|string|max:255',
+            'pincode' => 'required',
+            'local_address' => 'required',
+            'local_district' => 'required|string|max:255',
+            'local_city' => 'required|string|max:255',
+            'local_pincode' => 'required',
+            'collegename' => 'required|string|max:255',
+            'universityname' => 'required|string|max:255',
+            'graduatingyear' => 'required',
+            'graduatingrollno' => 'required|string|max:255',
+            'college_marksheet' => 'required',
+
+        ]);
+
+
+
+        if ($request->religion == 10) {
+            $request->validate([
+                'baptism' => 'required',
+            ]);
+            $baptism =  $request->baptism;
+            $baptismFilename = StaticController::s3_file_uploader($baptism, 'admission_baptisms');
+        }
+
+        // Save application
+        $userId = Auth::user()->id;
+        $registrationId = AdmissionRegistration::where('id', $userId)->value('id');
+
+        //Department  auto filled based on the registration data for PG applicants,
+        $subjectProgramData = SubjectHasStudentProgam::find($request->course);
+        $deptId = $subjectProgramData->subject_id;
+        $courseId = $subjectProgramData->student_program_id;
+
+        $application = new AdmissionApplication();
+        $application->user_id = $userId;
+        $application->registration_id = $registrationId;
+        $application->department = $deptId;
+        $application->course = $courseId;
+        $application->dob = $request->dob;
+        $application->bloodgroup = $request->bloodgroup;
+        $application->gender = $request->gender;
+        $application->religion = $request->religion;
+        $application->mothertongue = $request->mothertongue;
+        $application->phychallenged = $request->phychallenged;
+        $application->caste = $request->caste;
+        $application->father_name = $request->father_name;
+        $application->mother_name = $request->mother_name;
+        $application->father_contact = $request->father_contact;
+        $application->mother_contact = $request->mother_contact;
+        $application->father_occupation = $request->father_occupation;
+        $application->mother_occupation = $request->mother_occupation;
+        $application->father_qualification = $request->father_qualification;
+        $application->mother_qualification = $request->mother_qualification;
+        $application->guardian_name = $request->guardian_name;
+        $application->guardian_contact = $request->guardian_contact;
+        $application->income = $request->income;
+        $application->permanent_address = $request->permanent_address;
+        $application->district = $request->district;
+        $application->city = $request->city;
+        $application->pincode = $request->pincode;
+        $application->state = $request->state;
+        $application->local_address = $request->local_address;
+        $application->local_district = $request->local_district;
+        $application->local_city = $request->local_city;
+        $application->local_pincode = $request->local_pincode;
+        $application->local_state = $request->local_state;
+        $application->has_laptop = $request->has_laptop;
+        $application->from_teaestate = $request->from_teaestate;
+        $application->adhaar = $request->adhaar;
+        // Handle file uploads
+        if (!empty($request->national_id_proof)) {
+            $national_id_proof = $request->national_id_proof;
+            $national_id_proofFilename = StaticController::s3_file_uploader($national_id_proof, 'admission_national_id_proofs');
+        } else {
+            $national_id_proofFilename = null;
+        }
+
+        $photo =  $request->photo;
+        $photoFilename = StaticController::s3_resize_image_uploader($photo, 'admission_photos', 300, 300);
+
+        $college_marksheet =  $request->college_marksheet;
+        $college_marksheetFilename = StaticController::s3_file_uploader($college_marksheet, 'admission_college_marksheets');
+
+        $application->photo = $photoFilename;
+
+
+        if (isset($baptismFilename)) {
+            $application->baptism = $baptismFilename;
+        } else {
+            $application->baptism = null;
+        }
+
+        $application->national_id_proof = $national_id_proofFilename; //other national applicant  id proof
+        // Academic details
+        $application->college_name = $request->collegename;
+        $application->university_name = $request->universityname;
+        $application->graduating_year = $request->graduatingyear;
+        $application->graduating_rollno = $request->graduatingrollno;
+        $application->college_marksheet = $college_marksheetFilename;
+
+        $application->sgpa1 = $request->sgpa1;
+        $application->sgpa2 = $request->sgpa2;
+        $application->sgpa3 = $request->sgpa3;
+        $application->sgpa4 = $request->sgpa4;
+        $application->sgpa5 = $request->sgpa5;
+        $application->sgpa6 = $request->sgpa6;
+
+        // Payment fields (to be filled after payment)
+        $application->gateway_type = 'easebuzz';
+        $application->payment_gateway_ref = null;
+        $application->captured_amount = null;
+        $application->hash = null;
+        $application->payment_gateway_status = null;
+
+        $application->save();
+
+        return redirect()->route('admission.payment.checkout')->with('success', 'Application Saved successfully. Please proceed to payment.');
     }
 }

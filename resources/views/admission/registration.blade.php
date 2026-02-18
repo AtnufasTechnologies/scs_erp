@@ -37,7 +37,7 @@ $batch = BatchMaster::where('admission_active_batch', 1)->value('batch_name');
               <h3>Admission Portal - {{$batch}}</h3>
             </div>
 
-            <form action="{{route('admission.registration.submit')}}" method="post">
+            <form action="{{route('admission.registration.submit')}}" method="post" id="registrationForm">
               @csrf
               <div class="input-group">
                 <i class="fa fa-home"></i>
@@ -126,13 +126,20 @@ $batch = BatchMaster::where('admission_active_batch', 1)->value('batch_name');
                 @enderror
               </div>
 
-              <button type="submit">Sign up</button>
+              <button type="submit" id="submitBtn">Sign up</button>
 
               <p style="text-align: center; margin-top: 20px;">
                 <span>Already have an account? </span>
                 <a href="{{route('new.admission.login')}}"><b>Log in here</b></a>
               </p>
             </form>
+
+            <script>
+              document.getElementById('registrationForm').addEventListener('submit', function() {
+                document.getElementById('submitBtn').innerHTML = '<i class="fas fa-spinner fa-spin"></i> Processing...';
+                document.getElementById('submitBtn').disabled = true;
+              });
+            </script>
           </div>
         </div>
 

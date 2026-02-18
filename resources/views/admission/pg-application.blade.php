@@ -83,23 +83,17 @@
 
 
           <div class="col-lg-4 col-sm-12">
-            <label for="">Department Applying For<span class="text-danger">*</span></label><br>
-            @error('department') <span class="text-danger">{{ $message }}</span> @enderror
-            <select class="form-control mb-3 radius-20 dark text-capitalize" name="department" id="admissiondepartment">
-              <option value="">-- Select Department--</option>
+            <label for="">Course Applying For<span class="text-danger">*</span></label><br>
+            @error('course') <span class="text-danger">{{ $message }}</span> @enderror
+            <select class="form-control mb-3 radius-20 dark text-capitalize" name="course">
+              <option value="">-- Select --</option>
               @foreach ($academic_departments as $dept)
-              <option value="{{$dept->id}}">{{$dept->title}}</option>
+              <option value="{{$dept->id}}">{{$dept->studentprograminfo->name}}</option>
               @endforeach
             </select>
           </div>
 
-          <div class="col-lg-8 col-sm-12">
-            <label for="">Departmental Combinations<span class="text-danger">*</span></label><br>
-            @error('course') <span class="text-danger">{{ $message }}</span> @enderror
-            <select class="form-control mb-3 radius-20 dark " name="course" id="coursecombinations">
-              <option value="">-- Select Combination--</option>
-            </select>
-          </div>
+
 
 
 
@@ -424,25 +418,35 @@
         </script>
 
         <hr>
-        <h3>Class X</h3>
+        <h3>College Info</h3>
         <div class="row">
 
 
-          <div class="col-lg-5 col-sm-12">
+          <div class="col-lg-4 col-sm-12">
             <div class="row">
               <div class="col-lg-12 col-sm-12">
-                <label for="">Institution Name <span class="text-danger">*</span></label>
-                @error('institution10') <span class="text-danger">{{ $message }}</span> @enderror
-                <input type="text" class="form-control mb-3 radius-20 dark" name="institution10" value="{{old('institution10')}}">
+                <label for="">College Name <span class="text-danger">*</span></label>
+                @error('collegename') <span class="text-danger">{{ $message }}</span> @enderror
+                <input type="text" class="form-control mb-3 radius-20 dark" name="collegename" value="{{old('collegename')}}">
               </div>
             </div>
           </div>
           <div class="col-lg-3 col-sm-12">
             <div class="row">
               <div class="col-lg-12 col-sm-12">
-                <label for=""> RollNo / Unique Id<span class="text-danger">*</span></label>
-                @error('rollno10') <span class="text-danger">{{ $message }}</span> @enderror
-                <input type="text" class="form-control mb-3 radius-20 dark" name="rollno10" value="{{old('rollno10')}}">
+                <label for=""> University Name<span class="text-danger">*</span></label>
+                @error('universityname') <span class="text-danger">{{ $message }}</span> @enderror
+                <input type="text" class="form-control mb-3 radius-20 dark" name="universityname" value="{{old('universityname')}}">
+              </div>
+            </div>
+          </div>
+
+          <div class="col-lg-3 col-sm-12">
+            <div class="row">
+              <div class="col-lg-12 col-sm-12">
+                <label for=""> REG/RollNo<span class="text-danger">*</span></label>
+                @error('graduatingrollno') <span class="text-danger">{{ $message }}</span> @enderror
+                <input type="text" class="form-control mb-3 radius-20 dark" name="graduatingrollno" value="{{old('graduatingrollno')}}">
               </div>
             </div>
           </div>
@@ -450,27 +454,9 @@
           <div class="col-lg-2 col-sm-12">
             <div class="row">
               <div class="col-lg-12 col-sm-12">
-                <label for="">Board<span class="text-danger">*</span></label>
-                @error('board') <span class="text-danger">{{ $message }}</span> @enderror
-                <select name="board10" class="form-control ">
-                  <option value="">Select</option>
-                  <option value="icse">ICSE</option>
-                  <option value="madhyamik">Madhyamik</option>
-                  <option value="cbse">CBSE</option>
-                  <option value="nios">NIOS</option>
-                  <option value="open board">Open Board</option>
-                  <option value="others">Others</option>
-                </select>
-              </div>
-            </div>
-          </div>
-
-          <div class="col-lg-2 col-sm-12">
-            <div class="row">
-              <div class="col-lg-12 col-sm-12">
-                <label for=""> Year of Passing<span class="text-danger">*</span></label>
-                @error('passingyear') <span class="text-danger">{{ $message }}</span> @enderror
-                <input type="number" class="form-control mb-3 radius-20 dark" name="passingyear10" value="{{old('passingyear10')}}" min="2020" max="{{date('Y')}}" placeholder="YYYY">
+                <label for=""> Graduating Year<span class="text-danger">*</span></label>
+                @error('graduatingyear') <span class="text-danger">{{ $message }}</span> @enderror
+                <input type="number" class="form-control mb-3 radius-20 dark" name="graduatingyear" value="{{old('graduatingyear')}}" min="2020" max="{{date('Y')}}" placeholder="YYYY">
               </div>
             </div>
           </div>
@@ -479,202 +465,62 @@
 
 
         <div class="col-lg-5 col-sm-12">
-          <label for="">Class 10 Certificate (PDF - Max 5MB) <span class="text-danger">*</span></label>
-          @error('certificate10') <span class="text-danger">{{ $message }}</span> @enderror
-          <input type="file" class="form-control mb-3 radius-20 dark" name="certificate10" value="{{old('certificate10')}}">
+          <label for="">Final or Last Semester Marksheet (JPG,PDF - Max 5MB) <span class="text-danger">*</span></label>
+          @error('college_marksheet') <span class="text-danger">{{ $message }}</span> @enderror
+          <input type="file" class="form-control mb-3 radius-20 dark" name="college_marksheet" value="{{old('college_marksheet')}}">
         </div>
 
-
-        <div class="table-responsive">
-          <table class="table table-bordered">
-            <thead>
-              <tr>
-                <th>Subject</th>
-
-                <th>Marks Obtained (100)</th>
-              </tr>
-            </thead>
-            <tbody>
-              <tr>
-                <td>
-                  <input type="text" class="form-control" name="subject10_1" placeholder="ex:English" value="{{old('subject10_1')}}">
-                  @error('subject10_1') <span class="text-danger">{{ $message }}</span> @enderror
-                </td>
-
-
-                <td>
-                  <input type="number" class="form-control" name="score10_1" placeholder="Score" value="{{old('score10_1')}}" min="0" max="100">
-                  @error('score10_1') <span class="text-danger">{{ $message }}</span> @enderror
-                </td>
-              </tr>
-              <tr>
-                <td>
-                  <input type="text" class="form-control" name="subject10_2" placeholder="Major 1" value="{{old('subject10_2')}}">
-                </td>
-
-
-                <td>
-                  <input type="number" class="form-control" name="score10_2" placeholder="Score" value="{{old('score10_2')}}" min="0" max="100">
-                </td>
-              </tr>
-              <tr>
-                <td>
-                  <input type="text" class="form-control" name="subject10_3" placeholder="Major 2" value="{{old('subject10_3')}}">
-                </td>
-
-
-                <td>
-                  <input type="number" class="form-control" name="score10_3" placeholder="Score" value="{{old('score10_3')}}" min="0" max="100">
-                </td>
-              </tr>
-              <tr>
-                <td>
-                  <input type="text" class="form-control" name="subject10_4" placeholder="Major 3" value="{{old('subject10_4')}}">
-                </td>
-
-
-                <td>
-                  <input type="number" class="form-control" name="score10_4" placeholder="Score" value="{{old('score10_4')}}" min="0" max="100">
-                </td>
-              </tr>
-              <tr>
-                <td>
-                  <input type="text" class="form-control" name="subject10_5" placeholder="Major 4" value="{{old('subject10_5')}}">
-                </td>
-
-
-                <td>
-                  <input type="number" class="form-control" name="score10_5" placeholder="Score" value="{{old('score10_5')}}" min="0" max="100">
-                </td>
-              </tr>
-            </tbody>
-          </table>
+        <div class="row mb-3">
+          <h4>SGPA Score </h4><small class="text-primary">Optional for Pursuing Final Semester Student</small>
+          <div class="col-lg-2">
+            <label for="">Sem 1</label>
+            <input type="text" name="sgpa1" class="form-control" value="{{old('sgpa1')}}">
+          </div>
+          <div class="col-lg-2">
+            <label for="">Sem 2</label>
+            <input type="text" name="sgpa2" class="form-control" value="{{old('sgpa2')}}">
+          </div>
+          <div class="col-lg-2">
+            <label for="">Sem 3</label>
+            <input type="text" name="sgpa3" class="form-control" value="{{old('sgpa3')}}">
+          </div>
+          <div class="col-lg-2">
+            <label for="">Sem 4</label>
+            <input type="text" name="sgpa4" class="form-control" value="{{old('sgpa4')}}">
+          </div>
+          <div class="col-lg-2">
+            <label for="">Sem 5</label>
+            <input type="text" name="sgpa5" class="form-control" value="{{old('sgpa5')}}">
+          </div>
+          <div class="col-lg-2">
+            <label for="">Sem 6</label>
+            <input type="text" name="sgpa6" class="form-control" value="{{old('sgpa6')}}">
+          </div>
         </div>
-
 
         <hr>
-        <h3>Class XII </h3>
 
-        <div class="row">
-
-          <div class="col-lg-5 col-sm-12">
-            <div class="row">
-              <div class="col-lg-12 col-sm-12">
-                <label for="">Institution Name <span class="text-danger">*</span></label>
-                @error('institution12') <span class="text-danger">{{ $message }}</span> @enderror
-                <input type="text" class="form-control mb-3 radius-20 dark" name="institution12" value="{{old('institution12')}}">
-              </div>
-            </div>
-          </div>
-          <div class="col-lg-3 col-sm-12">
-            <div class="row">
-              <div class="col-lg-12 col-sm-12">
-                <label for=""> RollNo / Unique Id<span class="text-danger">*</span></label>
-                @error('rollno12') <span class="text-danger">{{ $message }}</span> @enderror
-                <input type="text" class="form-control mb-3 radius-20 dark" name="rollno12" value="{{old('rollno12')}}">
-              </div>
-            </div>
-          </div>
-
-          <div class="col-lg-2 col-sm-12">
-            <div class="row">
-              <div class="col-lg-12 col-sm-12">
-                <label for="">Board<span class="text-danger">*</span></label>
-                @error('board12') <span class="text-danger">{{ $message }}</span> @enderror
-                <select name="board12" class="form-control ">
-                  <option value="">Select</option>
-                  <option value="isc">ISC</option>
-                  <option value="hs">Higher Secondary</option>
-                  <option value="cbse">CBSE</option>
-                  <option value="nios">NIOS</option>
-                  <option value="open board">Open Board</option>
-                  <option value="others">Others</option>
-                </select>
-              </div>
-            </div>
-          </div>
-
-          <div class="col-lg-2 col-sm-12">
-            <div class="row">
-              <div class="col-lg-12 col-sm-12">
-                <label for=""> Year of Passing<span class="text-danger">*</span></label>
-                @error('passingyear12') <span class="text-danger">{{ $message }}</span> @enderror
-                <input type="number" class="form-control mb-3 radius-20 dark" name="passingyear12" value="{{old('passingyear12')}}" min="2020" max="{{date('Y')}}" placeholder="YYYY">
-              </div>
-            </div>
-          </div>
-
-          <div class="col-lg-5 col-sm-12">
-            <label for="">Class 12 Certificate <span class="text-danger">*</span></label>
-            @error('certificate12') <span class="text-danger">{{ $message }}</span> @enderror
-            <input type="file" class="form-control mb-3 radius-20 dark" name="certificate12" value="{{old('certificate12')}}">
-          </div>
-
-
-          <div class="table-responsive">
-            <table class="table table-bordered">
-              <thead>
-                <tr>
-                  <th>Subject</th>
-
-                  <th> Marks Obtained (100)</th>
-                </tr>
-              </thead>
-              <tbody>
-                <tr>
-                  <td>
-                    <input type="text" class="form-control" name="subject12_1" placeholder="English" value="{{old('subject12_1')}}">
-                    @error('subject12_1') <span class="text-danger">{{ $message }}</span> @enderror
-                  </td>
-
-
-                  <td>
-                    <input type="number" class="form-control" name="score12_1" placeholder="Score" value="{{old('score12_1')}}" min="0" max="100">
-                    @error('score12_1') <span class="text-danger">{{ $message }}</span> @enderror
-                  </td>
-                </tr>
-                <tr>
-                  <td>
-                    <input type="text" class="form-control" name="subject12_2" placeholder="Major 1" value="{{old('subject12_2')}}">
-                  </td>
-
-
-                  <td>
-                    <input type="number" class="form-control" name="score12_2" placeholder="Score" value="{{old('score12_2')}}" min="0" max="100">
-                  </td>
-                </tr>
-                <tr>
-                  <td>
-                    <input type="text" class="form-control" name="subject12_3" placeholder="Major 2" value="{{old('subject12_3')}}">
-                  </td>
-
-
-                  <td>
-                    <input type="number" class="form-control" name="score12_3" placeholder="Score" value="{{old('score12_3')}}" min="0" max="100">
-                  </td>
-                </tr>
-                <tr>
-                  <td>
-                    <input type="text" class="form-control" name="subject12_4" placeholder="Major 3" value="{{old('subject12_4')}}">
-                  </td>
-
-
-                  <td>
-                    <input type="number" class="form-control" name="score12_4" placeholder="Score" value="{{old('score12_4')}}" min="0" max="100">
-                  </td>
-                </tr>
-
-              </tbody>
-            </table>
-          </div>
-
-
-
-
-
-        </div>
         <center>
           <button type="submit" class="btn btn-main  mt-3" id="admission-submitBtn">Continue To Payment >> </button>
+          <script>
+            document.getElementById('admission-application-form').addEventListener('submit', function(e) {
+              const submitBtn = document.getElementById('admission-submitBtn');
+              const loader = document.createElement('div');
+              loader.id = 'form-loader';
+              loader.innerHTML = `
+              <div style="position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); display: flex; align-items: center; justify-content: center; z-index: 9999;">
+                <div style="background: white; padding: 30px; border-radius: 10px; text-align: center;">
+                  <div class="spinner-border text-primary" role="status">
+                    <span class="visually-hidden">Loading...</span>
+                  </div>
+                  <p style="margin-top: 15px; font-weight: 600;">Processing your application...</p>
+                </div>
+              </div>
+            `;
+              document.body.appendChild(loader);
+              submitBtn.disabled = true;
+            });
+          </script>
         </center>
 
       </form>

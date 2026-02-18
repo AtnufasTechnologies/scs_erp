@@ -3,7 +3,7 @@
 
 <head>
     <meta charset="utf-8" />
-    <title>UG Application - {{$data->application_code}}</title>
+    <title>PG Application - {{$data->application_code}}</title>
     <style>
         @page {
             size: A4;
@@ -73,7 +73,7 @@
         td {
             border: 1px solid #b0bec5;
             padding: 3px 6px;
-            font-size: 11px;
+            font-size: 12px;
         }
 
         th {
@@ -161,7 +161,7 @@
                                 <div class="subtitle">Sonada and Siliguri</div>
                                 Email: admissionenquiry@salesiancollege.net <br> Phone: +91 99334 02478 / 0353 254 5622
                                 <br><br>
-                                <div class="subtitle">UG - Online Application Form ({{$data->registrationmaster->campusmaster->name}})</div>
+                                <div class="subtitle">PG - Online Application Form ({{$data->registrationmaster->campusmaster->name}})</div>
 
                             </td>
                             <td style="border: none; width: 15%; text-align: right; vertical-align: top;">
@@ -241,6 +241,20 @@
                 <th>Course</th>
                 <td>{{$data->stdCourseMaster->name}}</td>
             </tr>
+
+            @if($data->registrationmaster->country == 101)
+            <tr>
+                <th>Adhaar</th>
+                <td>{{$data->adhaar }}</td>
+
+            </tr>
+            @else
+            <tr>
+                <th>National Id Proof</th>
+                <td>{{$data->national_id_proof != null ? 'Yes' : 'No' }}</td>
+
+            </tr>
+            @endif
         </table>
 
         <div class="section-title">Parent / Guardian Details</div>
@@ -315,86 +329,50 @@
             </tr>
         </table>
 
-        <div class="section-title">Academic Details - Class X</div>
-        <table>
-            <tr>
-                <th style="width: 20%;">Institution</th>
-                <td style="width: 30%;">{{$data->institution10}}</td>
-                <th style="width: 20%;">Roll No</th>
-                <td style="width: 30%;">{{$data->rollno10}}</td>
-            </tr>
-            <tr>
-                <th>Board</th>
-                <td>{{$data->board10}}</td>
-                <th>Year of Passing</th>
-                <td>{{$data->passingyear10}}</td>
-            </tr>
-            <tr>
-                <th>Certificate</th>
-                <td colspan="3">@if(isset($data->certificate10)) Yes @else No @endif</td>
-            </tr>
-            <tr style="background: #f9f9f9;">
-                <th style="text-align: center;">Subject</th>
-                <th style="text-align: center;">Score (100)</th>
-                <th style="text-align: center;">Subject</th>
-                <th style="text-align: center;">Score (100)</th>
-            </tr>
-            <tr>
-                <td>{{$data->subject10_1}}</td>
-                <td style="text-align: center;">{{$data->score10_1}}</td>
-                <td>{{$data->subject10_4}}</td>
-                <td style="text-align: center;">{{$data->score10_4}}</td>
-            </tr>
-            <tr>
-                <td>{{$data->subject10_2}}</td>
-                <td style="text-align: center;">{{$data->score10_2}}</td>
-                <td>{{$data->subject10_5}}</td>
-                <td style="text-align: center;">{{$data->score10_5}}</td>
-            </tr>
-            <tr>
-                <td>{{$data->subject10_3}}</td>
-                <td style="text-align: center;">{{$data->score10_3}}</td>
-                <td></td>
-                <td></td>
-            </tr>
-        </table>
 
-        <div class="section-title">Academic Details - Class XII</div>
+
+        <div class="section-title">College Details</div>
         <table>
             <tr>
-                <th style="width: 20%;">Institution</th>
-                <td style="width: 30%;">{{$data->institution12}}</td>
-                <th style="width: 20%;">Roll No</th>
-                <td style="width: 30%;">{{$data->rollno12}}</td>
+                <th style="width: 20%;">College</th>
+                <td style="width: 30%;">{{$data->college_name}}</td>
+                <th style="width: 20%;">University</th>
+                <td style="width: 30%;">{{$data->university_name}}</td>
             </tr>
             <tr>
-                <th>Board</th>
-                <td>{{$data->board12}}</td>
-                <th>Year of Passing</th>
-                <td>{{$data->passingyear12}}</td>
+                <th>Reg No</th>
+                <td>{{$data->graduating_rollno}}</td>
+                <th>Graduating Year</th>
+                <td>{{$data->graduating_year}}</td>
             </tr>
             <tr>
-                <th>Certificate</th>
-                <td colspan="3">@if(isset($data->certificate12)) Yes @else No @endif</td>
-            </tr>
-            <tr style="background: #f9f9f9;">
-                <th style="text-align: center;">Subject</th>
-                <th style="text-align: center;">Score (100)</th>
-                <th style="text-align: center;">Subject</th>
-                <th style="text-align: center;">Score (100)</th>
+                <th> Marksheet Uploaded</th>
+                <td colspan="3">@if(isset($data->college_marksheet)) Yes @else No @endif</td>
             </tr>
             <tr>
-                <td>{{$data->subject12_1}}</td>
-                <td style="text-align: center;">{{$data->score12_1}}</td>
-                <td>{{$data->subject12_3}}</td>
-                <td style="text-align: center;">{{$data->score12_3}}</td>
+                <th>Semester 1</th>
+                <td>{{$data->sgpa1}}</td>
+                <th>Semester 2</th>
+                <td>{{$data->sgpa2}}</td>
+
             </tr>
+
             <tr>
-                <td>{{$data->subject12_2}}</td>
-                <td style="text-align: center;">{{$data->score12_2}}</td>
-                <td>{{$data->subject12_4}}</td>
-                <td style="text-align: center;">{{$data->score12_4}}</td>
+                <th>Semester 3</th>
+                <td>{{$data->sgpa3}}</td>
+                <th>Semester 4</th>
+                <td>{{$data->sgpa4}}</td>
+
             </tr>
+
+            <tr>
+                <th>Semester 5</th>
+                <td>{{$data->sgpa5}}</td>
+                <th>Semester 6</th>
+                <td>{{$data->sgpa6}}</td>
+
+            </tr>
+
         </table>
 
         <div class="section-title">Payment Details</div>

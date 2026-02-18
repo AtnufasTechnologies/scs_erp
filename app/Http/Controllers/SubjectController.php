@@ -280,6 +280,7 @@ class SubjectController extends Controller
             'subject_id' => 'required',
             'batch_id' => 'required',
             'programs' => 'required|array|min:1',
+            'program_type' => 'required',
         ]);
 
         $userId  = Auth::user()->id;
@@ -298,6 +299,7 @@ class SubjectController extends Controller
                 ->where('batch_id', $request->batch_id)
                 ->where('student_program_id', $programs[$i])
                 ->where('campus_id', $data->campus_id)
+                ->where('program_type', $request->program_type)
                 ->first();
 
 
@@ -310,6 +312,7 @@ class SubjectController extends Controller
                 $subject->batch_id = $request->batch_id;
                 $subject->student_program_id = $programs[$i];
                 $subject->campus_id = $data->campus_id;
+                $subject->program_type = $request->program_type;
                 $subject->save();
             } else {
                 return redirect()->back()->with('success', 'Combinations Already Linked');
