@@ -28,4 +28,8 @@ class StudentProgram extends Model
     {
         return $this->hasOne(DepartmentMaster::class, 'id', 'department');
     }
+    function programgroup()
+    {
+        return $this->hasOne(ProgramGroup::class, 'id', 'programme');
+    }
 }

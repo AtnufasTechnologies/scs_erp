@@ -1,7 +1,7 @@
 @include('includes.header')
 @include('admin.sidebar')
 
-<h3><span class="text-uppercase">Program Master</span></h3>
+<h3><span class="text-uppercase">Main Stream</span></h3>
 
 <div class="container-fluid card shadow">
 
@@ -10,7 +10,7 @@
       <tr>
         <th>#</th>
         <th>Campus</th>
-        <th>Program Type</th>
+        <th>Stream Type</th>
       </tr>
     </thead>
     <tbody>

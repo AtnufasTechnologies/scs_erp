@@ -2,12 +2,12 @@
 
 use App\Helpers\Qs;
 
-$programs = Qs::getProgramGroups();
+$programs = Qs::getPgProgramGroups();
 
 ?>
 @include('includes.header')
 @include('admin.sidebar')
-<h3>UG - Applications </h3>
+<h3>PG - Applications </h3>
 <div class="row">
 
   @foreach($programs as $program)
@@ -21,7 +21,7 @@ $programs = Qs::getProgramGroups();
 </div>
 
 
-<div class="container-fluid">
+<!-- <div class="container-fluid">
   <div class="row">
     <div class="col-lg-8">
       <form method="POST" action="{{ route('send.phase1.notification') }}">
@@ -53,7 +53,7 @@ $programs = Qs::getProgramGroups();
       </form>
     </div>
   </div>
-</div>
+</div> -->
 
 
 

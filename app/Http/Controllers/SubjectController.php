@@ -9,6 +9,7 @@ use App\Models\Department;
 use App\Models\Faculty;
 use App\Models\LectureHallMaster;
 use App\Models\ProgramCourseMaster;
+use App\Models\StudentMaster;
 use App\Models\StudentProgram;
 use App\Models\Subject;
 use App\Models\SubjectCourseMaster;
@@ -477,12 +478,12 @@ class SubjectController extends Controller
 
     function deptAllCourseCombinations(Request $request)
     {
-        $courseId = $request->course_id;
 
         $combinations = SubjectHasStudentProgam::with([
+            'subjectmaster',
+            'studentprograminfo',
             'batchmaster',
             'campusmaster',
-            'studentprograminfo.departmentmaster',
         ])->get();
 
         return view('admin.subject.all-combination', ['combinations' => $combinations]);
@@ -528,5 +529,45 @@ class SubjectController extends Controller
         $record = SubjectFacultyMaster::findOrFail($id);
         $record->delete();
         return redirect()->back()->with('success', 'Faculty Removed from Subject');
+    }
+
+    function studentProgramMaster()
+    {
+        $data = StudentProgram::with('programgroup')
+            ->get()
+            ->map(function ($program) {
+                $studentCount = StudentMaster::where('programme', $program->id)->count();
+                return [
+                    'program_id' => $program->id,
+                    'campus' => $program->campus_id,
+                    'program_code' => $program->code,
+                    'program_name' => $program->name,
+                    'program_description' => $program->description,
+                    'student_count' => $studentCount,
+                ];
+            });
+
+        return view('admin.subject.student-program-master', ['data' => $data]);
+    }
+
+    function addNewStudentProgram(Request $request)
+    {
+        $request->validate([
+            'campus' => 'required',
+            'code' => 'required|string|max:100',
+            'name' => 'required|string|max:255',
+            'semester_count' => 'required|integer|min:1',
+            'description' => 'nullable|string',
+        ]);
+
+        $rec = new StudentProgram();
+        $rec->campus_id = $request->campus;
+        $rec->code = Str::upper($request->code);
+        $rec->name = Str::lower($request->name);
+        $rec->description = Str::lower($request->description);
+        $rec->semester_count = $request->semester_count;
+        $rec->save();
+
+        return redirect()->back()->with('success', 'New Program Added');
     }
 }

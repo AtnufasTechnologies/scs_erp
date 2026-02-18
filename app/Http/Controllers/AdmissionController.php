@@ -1677,4 +1677,33 @@ class AdmissionController extends Controller
 
         return redirect()->route('admission.payment.checkout')->with('success', 'Application Saved successfully. Please proceed to payment.');
     }
+
+    //PG application submit function starts here
+    function pgApplications()
+    {
+
+        //fetch user's campus
+        $campusId =  StaticController::fetchCampusSettings();
+        if ($campusId == null) {
+            $data = AdmissionApplication::whereHas('registrationmaster', function ($query) {
+                $query->where('application_type', 'PG');
+            })->with([
+                'registrationmaster.countrymaster',
+                'stdCourseMaster',
+                'academicdepartmentinfo',
+            ])->get();
+        } else {
+
+            $data = AdmissionApplication::whereHas('registrationmaster', function ($query) use ($campusId) {
+                $query->where('application_type', 'PG');
+                $query->where('campus_id', $campusId);
+            })->with([
+                'registrationmaster.countrymaster',
+                'stdCourseMaster',
+                'academicdepartmentinfo',
+            ])->get();
+        }
+
+        return view('admin.admission.pg.applications', ['data' => $data]);
+    }
 }

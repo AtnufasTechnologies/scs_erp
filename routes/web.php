@@ -164,6 +164,9 @@ Route::group(['prefix' => '/erp'], function () {
             Route::get('all-course-combinations', [SubjectController::class, 'deptAllCourseCombinations'])->name('dept.all.course-combination');
             Route::get('program-course-master', [SubjectController::class, 'programCourseMaster'])->name('program-course.master');
             Route::get('admin/course-master', [SubjectController::class, 'adminCourseMaster'])->name('admin.course-master');
+            Route::get('delete-combination/{id}', [SubjectController::class, 'deleteCombination'])->name('admin.delete.combination');
+            Route::get('student-program-master', [SubjectController::class, 'studentProgramMaster'])->name('admin.student-program-master');
+            Route::post('add/new/student-program', [SubjectController::class, 'addNewStudentProgram'])->name('admin.add.new.student-program');
         });
 
         //user access management
@@ -206,6 +209,9 @@ Route::group(['prefix' => '/erp'], function () {
             Route::get('settings', [AdmissionController::class, 'admissionSettings'])->name('admission.settings');
             Route::post('update-admission-settings-ug', [AdmissionController::class, 'updateAdmissionSettingsUg'])->name('update.admission.settings.ug');
             Route::post('update-admission-settings-pg', [AdmissionController::class, 'updateAdmissionSettingsPg'])->name('update.admission.settings.pg');
+
+            //PG
+            Route::get('pg-applications', [AdmissionController::class, 'pgApplications'])->name('admission.pg.applications');
         });
     });
 

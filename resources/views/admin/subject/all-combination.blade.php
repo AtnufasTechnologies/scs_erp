@@ -13,7 +13,7 @@
       </select>
     </div>
   </div>
-  <div class="col-lg-4">
+  <!-- <div class="col-lg-4">
     <div class="mb-3">
       <label for="departmentFilter" class="form-label">Filter by Department:</label>
       <select id="departmentFilter" class="form-control dselect-example">
@@ -25,7 +25,7 @@
         @endforeach
       </select>
     </div>
-  </div>
+  </div> -->
 </div>
 
 
@@ -67,26 +67,30 @@
       <th>ID</th>
       <th>Batch</th>
       <th>Campus</th>
-      <th>Program Code</th>
-      <th>Program Name</th>
+      <th> Code</th>
+      <th> Name</th>
       <th>Department</th>
+      <th>Program Type</th>
       <th>Degree</th>
       <th>Semester Count</th>
-      <th>Created At</th>
+      <th>Created </th>
+      <th>Action</th>
     </tr>
   </thead>
   <tbody>
     @foreach ($combinations as $combination)
     <tr>
-      <td>{{ $combination['id'] }}</td>
-      <td>{{ $combination['batchmaster']['batch_name'] ?? '' }}</td>
-      <td>{{ $combination['campusmaster']['name'] ?? '' }}</td>
-      <td>{{ $combination['studentprograminfo']['code'] ?? '' }}</td>
-      <td>{{ $combination['studentprograminfo']['name'] ?? '' }}</td>
-      <td>{{ $combination['studentprograminfo']['departmentmaster']['name'] ?? '' }}</td>
-      <td>{{ $combination['studentprograminfo']['degree'] ?? '' }}</td>
-      <td>{{ $combination['studentprograminfo']['semester_count'] ?? '' }}</td>
-      <td>{{ $combination['created_at'] }}</td>
+      <td>{{ $combination->id }}</td>
+      <td>{{ $combination->batchmaster->batch_name ?? '' }}</td>
+      <td>{{ $combination->campusmaster->name ?? '' }}</td>
+      <td>{{ $combination->studentprograminfo->code ?? '' }}</td>
+      <td>{{ $combination->studentprograminfo->name ?? '' }}</td>
+      <td>{{ $combination->subjectmaster->title ?? '' }}</td>
+      <td>{{$combination->program_type}}</td>
+      <td>{{ $combination->studentprograminfo->degree ?? '' }}</td>
+      <td>{{ $combination->studentprograminfo->semester_count ?? '' }}</td>
+      <td>{{ $combination->created_at }}</td>
+      <td><a href="{{route('admin.delete.combination',$combination->id)}}" id="citadel"><button class="btn btn-danger"><i class="fa fa-trash"></i></button></a></td>
     </tr>
     @endforeach
   </tbody>

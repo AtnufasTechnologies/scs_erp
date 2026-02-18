@@ -120,7 +120,7 @@ $roleType = UserHasRole::where('user_id', $userId)->value('role_name');
             <div class="parent-icon">
               <i class="fas fa-arrow-alt-circle-right"></i>
             </div>
-            <div class="menu-title">Programs </div>
+            <div class="menu-title">Main Stream </div>
           </a>
         </li>
         @endif
@@ -206,7 +206,7 @@ $roleType = UserHasRole::where('user_id', $userId)->value('role_name');
       <ul>
         <!--Admission PG Master -->
         @if (StaticController::mainMenuRights('admission-pg') )
-        <!-- <li>
+        <li>
           <a class="has-arrow" href="javascript:;">
             <div class="parent-icon">
               <i class="fas fa-badge"></i>
@@ -216,7 +216,7 @@ $roleType = UserHasRole::where('user_id', $userId)->value('role_name');
           <ul>
             @if (StaticController::subMenuRights('admission-registration-pg') )
             <li>
-              <a href="{{url('erp/admin/master/subjects')}}">
+              <a href="{{route('admission.registration', ['type' => 'PG'])}}">
                 <div class="parent-icon">
                   <i class="fas fa-arrow-alt-circle-right"></i>
                 </div>
@@ -226,7 +226,7 @@ $roleType = UserHasRole::where('user_id', $userId)->value('role_name');
             @endif
             @if (StaticController::subMenuRights('admission-application-pg') )
             <li>
-              <a href="{{url('erp/admin/master/subject-type')}}">
+              <a href="{{route('admission.pg.applications')}}">
                 <div class="parent-icon">
                   <i class="fas fa-arrow-alt-circle-right"></i>
                 </div>
@@ -234,7 +234,7 @@ $roleType = UserHasRole::where('user_id', $userId)->value('role_name');
               </a>
             </li>
             @endif
-            @if (StaticController::subMenuRights('admission-selection1-pg') )
+            <!-- @if (StaticController::subMenuRights('admission-selection1-pg') )
             <li>
               <a href="{{url('erp/admin/academics/program-objectives')}}">
                 <div class="parent-icon">
@@ -253,10 +253,10 @@ $roleType = UserHasRole::where('user_id', $userId)->value('role_name');
                 <div class="menu-title">Selection Phase 2</div>
               </a>
             </li>
-            @endif
+            @endif -->
 
           </ul>
-        </li> -->
+        </li>
         @endif
         <!--Admission UG Master -->
         @if (StaticController::mainMenuRights('admission-ug') )
@@ -420,6 +420,14 @@ $roleType = UserHasRole::where('user_id', $userId)->value('role_name');
         </li>
         @endif
         @if (StaticController::subMenuRights('program-course-master') )
+        <li>
+          <a href="{{route('admin.student-program-master')}}">
+            <div class="parent-icon">
+              <i class="fas fa-arrow-alt-circle-right"></i>
+            </div>
+            <div class="menu-title">Student Program Master </div>
+          </a>
+        </li>
         <li>
           <a href="{{route('admin.course-master')}}">
             <div class="parent-icon">

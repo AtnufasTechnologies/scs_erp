@@ -31,4 +31,9 @@ class ProgramGroup extends Model
     {
         return $this->hasMany(FeeStructureHasManyProgram::class, 'std_program_id');
     }
+
+    function studentmaster()
+    {
+        return $this->hasMany(StudentMaster::class, 'programme', 'id');
+    }
 }
