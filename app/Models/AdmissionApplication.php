@@ -14,6 +14,7 @@ class AdmissionApplication extends Model
     protected $table = 'admission_applications';
 
     protected $fillable = [
+        'application_code',
         'payment_gateway_ref',
         'payment_gateway_status',
         'captured_amount',

@@ -918,9 +918,11 @@ class AdmissionController extends Controller
         // Save application
         $userId = Auth::user()->id;
         $registrationId = AdmissionRegistration::where('id', $userId)->value('id');
-
+        $generatedNo = $userId  . rand(1000, 9999);
         $application = new AdmissionApplication();
+
         $application->user_id = $userId;
+        $application->application_code = $generatedNo;
         $application->registration_id = $registrationId;
         $application->department = $request->department;
         $application->course = $request->course;
@@ -1052,7 +1054,7 @@ class AdmissionController extends Controller
             } else {
                 $generatedNo = $userId . $applicationRecord->id . rand(1000, 9999);
                 $appl_no = encrypt($generatedNo);
-                AdmissionApplication::where('id', $userId)->update([
+                AdmissionApplication::where('id', $applicationRecord->id)->update([
                     'application_code' => $generatedNo,
                 ]);
                 $data = AdmissionRegistration::with([
@@ -1091,8 +1093,9 @@ class AdmissionController extends Controller
     {
         $userId = Auth::user()->id;
         $applicationRegRecord = AdmissionRegistration::where('id', $userId)->first();
-        $invoice = AdmissionApplication::where('user_id', $userId)->value('application_code');
-        $applicationId = AdmissionApplication::where('user_id', $userId)->value('id');
+        $applicationRecord = AdmissionApplication::where('registration_id', $applicationRegRecord->id)->first();
+        $applicationId = $applicationRecord->id;
+        $invoice = $applicationRecord->application_code;
         //program split logic for easebuzz
         if ($applicationRegRecord->application_type == 'UG') {
             $payableAmount =  AdmissionSetting::where('id', 1)
@@ -1135,7 +1138,7 @@ class AdmissionController extends Controller
         $response = $client->post(env('EASEBUZZ_INITIATE_URL'), [
             'form_params' => [
                 'key' => $key,
-                'txnid' => $txnid,
+                'txnid' => $invoice,
                 'amount' => $payableAmount,
                 'productinfo' => $productinfo,
                 'firstname' => $firstname,
