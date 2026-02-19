@@ -55,7 +55,7 @@ $programs = Qs::getProgramGroups();
 
         <div class="profile-card shadow">
           <div class="profile-image">
-            <img src="{{asset('admin/images/logo.png')}}" alt="proile picture" />
+            <img src="{{Storage::disk('s3')->url($item->applicationinfo->photo)}}" alt="proile picture" />
           </div>
           <div class="profile-info">
             @if($item->final_status == 1)
@@ -67,7 +67,9 @@ $programs = Qs::getProgramGroups();
             <div class="profile-title">{{ $item->registrationmaster->mobile_no  }}</div>
             <div class="profile-title">{{ $item->registrationmaster->mail_id  }}</div>
             <div class="profile-bio">
+              @if($item->applicationinfo->stdprogramMaster != null)
               {{ $item->applicationinfo->stdprogramMaster->code }} - {{ $item->applicationinfo->stdprogramMaster->name }}
+              @endif
             </div>
             <label for="">{{$item->interview_datetime}}</label>
           </div>
@@ -256,7 +258,7 @@ $programs = Qs::getProgramGroups();
                 <div class="mb-3">
                   <?php
                   $programs = StudentProgram::where('id', '!=', $item->programme_id)
-                    ->where('campus_id', $item->registrationmaster->programinfo->campus_id)->get();
+                    ->where('campus_id', $item->registrationmaster->campus_id)->get();
 
                   ?>
                   <label for="new_program{{ $item->id }}" class="form-label">Select New Program</label>

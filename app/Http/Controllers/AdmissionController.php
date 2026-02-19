@@ -408,7 +408,7 @@ class AdmissionController extends Controller
                     'registrationmaster',
                     'applicationinfo',
                 ])->whereHas('applicationinfo', function ($query) use ($search) {
-                    $query->where('application_id', 'like', '%' . $search . '%');
+                    $query->where('application_code', 'like', '%' . $search . '%');
                 })->latest()->get();
             } else {
                 $data =   AdmissionFirstPhase::with([
@@ -425,10 +425,10 @@ class AdmissionController extends Controller
                     'registrationmaster',
                     'applicationinfo',
                 ])->whereHas('applicationinfo', function ($query) use ($search) {
-                    $query->where('application_id', 'like', '%' . $search . '%');
+                    $query->where('application_code', 'like', '%' . $search . '%');
                 })
-                    ->whereHas('registrationmaster.programinfo.campus', function ($query) use ($campusId) {
-                        $query->where('id', $campusId);
+                    ->whereHas('registrationmaster', function ($query) use ($campusId) {
+                        $query->where('campus_id', $campusId);
                     })->latest()->get();
             } else {
                 $data =  AdmissionFirstPhase::with([
