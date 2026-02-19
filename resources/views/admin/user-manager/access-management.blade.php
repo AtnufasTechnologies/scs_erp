@@ -13,16 +13,25 @@ $campusMaster = Campus::all()
 @include('includes.header')
 @include('admin.sidebar')
 <h3>User Access Management </h3>
-
-<button class="cst-button mb-3" style="--clr: #21d9c7ff;" data-bs-toggle="modal" data-bs-target="#add">
-  <span class="button-decor"></span>
-  <div class="button-content">
-    <div class="button__icon">
-      <i class="fa fa-plus-circle"></i>
-    </div>
-    <span class="button__text">Add New</span>
+<div class="row">
+  <div class="col-lg-4">
+    <button class="cst-button mb-3" style="--clr: #21d9c7ff;" data-bs-toggle="modal" data-bs-target="#add">
+      <span class="button-decor"></span>
+      <div class="button-content">
+        <div class="button__icon">
+          <i class="fa fa-plus-circle"></i>
+        </div>
+        <span class="button__text">Add New</span>
+      </div>
+    </button>
   </div>
-</button>
+  <div class="col-lg-4 offset-lg-4">
+    <div class="input-group mb-3">
+      <input type="text" id="userSearch" class="form-control" placeholder="Search by name or email...">
+    </div>
+  </div>
+</div>
+
 
 <div class="modal fade" id="add" tabindex="-1" aria-labelledby="exampleModalLabel" aria-hidden="true">
   <div class="modal-dialog">
@@ -80,11 +89,29 @@ $campusMaster = Campus::all()
 </div>
 
 
+
+<script>
+  document.getElementById('userSearch').addEventListener('keyup', function() {
+    const searchTerm = this.value.toLowerCase();
+    const cards = document.querySelectorAll('.fixed-card');
+
+    cards.forEach(card => {
+      const name = card.querySelector('.card-title').textContent.toLowerCase();
+      const email = card.querySelector('.fa-envelope').parentElement.textContent.toLowerCase();
+
+      if (name.includes(searchTerm) || email.includes(searchTerm)) {
+        card.parentElement.style.display = '';
+      } else {
+        card.parentElement.style.display = 'none';
+      }
+    });
+  });
+</script>
 @if (count($data))
 <div class="row">
   @foreach ($data as $itm)
   <div class="col-lg-4 mb-4">
-    <div class="card mb-4 fixed-card" style="background: linear-gradient(135deg, #363c58ba 0%, #3475d1 100%); border: none; border-radius: 12px; box-shadow: 0 8px 32px rgba(102, 126, 234, 0.4); transition: all 0.3s ease;">
+    <div class="card mb-4 fixed-card" style="background: linear-gradient(135deg, #1c2242e3 0%, #263851 100%); border: none; border-radius: 12px; box-shadow: 0 8px 32px rgba(102, 126, 234, 0.4); transition: all 0.3s ease;">
       <div class="card-body scrollable-card" style="color: white;">
         <div style="display: flex; justify-content: space-between; align-items: start; margin-bottom: 15px;">
           <h5 class="card-title text-capitalize" style="margin: 0; font-weight: 600; font-size: 1.3rem;">{{ $itm->name }}</h5>
@@ -92,10 +119,10 @@ $campusMaster = Campus::all()
             <i class="fa fa-lock-open"></i></a>
         </div>
 
-        <p class="card-text" style="margin-bottom: 12px;"><strong>Email:</strong> {{ $itm->email }}</p>
+        <p class="card-text" style="margin-bottom: 12px;"><strong><i class="fa fa-envelope text-warning"></i></strong> {{ $itm->email }}</p>
 
         <p class="card-text" style="margin-bottom: 12px;">
-          User Type <span class="badge" style="background: rgba(255,255,255,0.25); padding: 6px 12px; border-radius: 20px; font-size: 0.85rem;"><strong>{{$itm->userroletype != null ? $itm->userroletype->role_name : 'N/A'}}</strong></span>
+          User Type <span class="badge" style="background: rgba(225, 219, 108, 0.43); padding: 6px 12px; border-radius: 20px; font-size: 0.85rem;"><strong>{{$itm->userroletype != null ? $itm->userroletype->role_name : 'N/A'}}</strong></span>
         </p>
 
         <p class="card-text" style="margin-bottom: 12px;"><strong>Access</strong>

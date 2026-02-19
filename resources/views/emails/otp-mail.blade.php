@@ -44,7 +44,7 @@
                                         <span style="display:inline-block; vertical-align:middle; margin:29px 0 26px; border-bottom:1px solidrgb(172, 172, 172); ">
 
                                             Registration Verification for Applicant <br>
-                                            {{$otpcode}} <br>
+                                            {{$details['otp']}} <br>
 
                                         </span>
 
@@ -64,8 +64,9 @@
                             <p
                                 style="font-size:14px; color:rgba(51, 89, 109, 0.74); line-height:18px; margin:0 0 0;">
                                 &copy; <strong>
-                                    <p> Powered by <a href="https://atnufas.com" target="_blank">Atnufas Technologies</a></p>
-                                    <h2>Salesian College Autonomous</h1>
+                                    <h2>Salesian College (Autonomous)</h2>
+                                    <p> Powered by Technical Partner <a href="https://atnufas.com" target="_blank">Atnufas Technologies</a></p>
+
                                 </strong></p>
                         </td>
                     </tr>

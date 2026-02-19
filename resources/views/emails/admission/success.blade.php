@@ -43,13 +43,13 @@
 
                     <span style="display:inline-block; vertical-align:middle; margin:29px 0 26px; border-bottom:1px solidrgb(172, 172, 172); ">
 
-                      Welcome! Your application has been received successfully. We will contact you shortly with details about your interview. <p></p>
+                      <p><b>Congratulations</b> on your successful application to Salesian College (Autonomous). <br>Further communication regarding the selection process will be shared soon. We look forward to seeing you on campus.</p>
                       Your Application Number is<br>
                       <div style="display:inline-block;margin-top:10px;padding:12px 18px;background:#2a9d8f;color:#ffffff;font-size:22px;font-weight:700;border-radius:6px;letter-spacing:1px;box-shadow:0 4px 10px rgba(0,0,0,0.1);">
                         {{ $application_code }}
                       </div>
                       <br>
-                      <p>You can also login and Download the application form from your account.</p>
+                      <p>You can also login to your account to download the application form and invoice.</p>
 
                     </span>
 
@@ -69,8 +69,9 @@
               <p
                 style="font-size:14px; color:rgba(51, 89, 109, 0.74); line-height:18px; margin:0 0 0;">
                 &copy; <strong>
-                  <p> Powered by <a href="https://atnufas.com" target="_blank">Atnufas Technologies</a></p>
-                  <h2>Salesian College Autonomous</h1>
+                  <h2>Salesian College (Autonomous)</h2>
+                  <p> Powered by Technical Partner <a href="https://atnufas.com" target="_blank">Atnufas Technologies</a></p>
+
                 </strong></p>
             </td>
           </tr>

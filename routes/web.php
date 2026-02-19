@@ -317,9 +317,12 @@ Route::group(['prefix' => '/erp'], function () {
         Route::get('application-list', [AdmissionController::class, 'deptApplicationList'])->name('department.admission.list');
         Route::get('interview-list', [AdmissionController::class, 'deptInterviewList'])->name('department.admission.interview-list');
     });
+
+
+    //Testing route
+    Route::group(['prefix' => '/test'], function () {
+        //   Route::get('dept-campus-mapping', [TestController::class, 'DeptCampusMapping']);
+        Route::get('mailing', [TestController::class, 'mailTest']);
+        Route::get('sms', [TestController::class, 'smsTest']);
+    });
 });
-
-//Testing route
-// Route::get('dept-campus-mapping', [TestController::class, 'DeptCampusMapping']);
-
-//ajax routes

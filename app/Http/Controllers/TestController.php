@@ -2,9 +2,12 @@
 
 namespace App\Http\Controllers;
 
+use App\Mail\ApplicationSuccessMail;
+use App\Mail\OtpMail;
 use App\Models\SubjectHasDeptAdmin;
 use App\Models\UserCampusSetting;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Mail;
 
 class TestController extends Controller
 {
@@ -31,4 +34,27 @@ class TestController extends Controller
         }
         return 'Created ' . $created . ' records';
     }
+    //mail testing
+    function mailTest()
+    {
+        $email = "prof.johngaurav@gmail.com";
+        $applicant_email = trim((string) $email);
+
+        //OTP  --WORKING FINE
+        $otp = rand(100000, 999999);
+
+        $details = [
+            'otp' => $otp,
+        ];
+        Mail::to($applicant_email)->send(new OtpMail($details));
+        dd('Mail sent successfully');
+
+        //Application Mail Testing -- WORKING FINE
+        $applicationId = 222111;
+        /*  Mail::to($applicant_email)->send(new ApplicationSuccessMail($applicationId));
+        dd('Application Mail sent successfully');*/
+    }
+
+    //sms Testing
+    function smsTest(Request $request) {}
 }

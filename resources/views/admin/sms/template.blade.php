@@ -91,7 +91,7 @@ use App\Http\Controllers\StaticController;
   </div>
 </div>
 
-<div class="container mt-4">
+<div class="container-fluid mt-4">
   <div class="row">
     <div class="col-md-12">
       <div class="card">
@@ -99,7 +99,7 @@ use App\Http\Controllers\StaticController;
           <h5>SMS Template Approval</h5>
         </div>
         <div class="card-body">
-          <table class="table table-striped">
+          <table class="table table-hover" id="exportTable">
             <thead>
               <tr>
                 <th>#</th>

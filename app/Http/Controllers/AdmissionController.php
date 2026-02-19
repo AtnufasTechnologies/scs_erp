@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Helpers\Qs;
 use App\Mail\AdmissionRegistrationForgotMail;
 use App\Mail\ApplicationSuccessMail;
+use App\Mail\OtpMail;
 use App\Models\AdmissionApplication;
 use App\Models\AdmissionApplicationPaymentLog;
 use App\Models\AdmissionFinalPhase;
@@ -127,10 +128,13 @@ class AdmissionController extends Controller
             //OTP ON NUMBER
             $phoneNo = $user->mobile_no;
             $fullname = $user->first_name . ' ' . $user->last_name;
+            $var1 = $fullname;
+            $var2 = $otp;
+            $var3 = "Salesian College Autonomous";
             $fields = array(
                 "sender_id" => 'ATNFAS',
                 "message" => '186603',
-                "variables_values" => $fullname . '|' . $otp . '|2mins. Admission Committee Salesian College  ',
+                "variables_values" => $var1 . '|' . $var2 . '|' . $var3,
                 "route" => "dlt",
                 "numbers" => $phoneNo,
             );
@@ -151,15 +155,11 @@ class AdmissionController extends Controller
     public function sendOTPEmail($otp, $email)
     {
 
-        $html = View::make('emails.otp-mail', ['otpcode' => $otp])->render();
         $applicant_email = trim((string) $email);
-        $response = Http::withToken(env('RESEND_API_KEY'))
-            ->post('https://api.resend.com/emails', [
-                'from' => 'salesian college autonomous <onboarding@resend.dev>', // Use verified sender
-                'to' =>  $applicant_email,
-                'subject' => 'Salesian College Autonomous - Otp Verification Code',
-                'html' => $html,
-            ]);
+        $details = [
+            'otp' => $otp,
+        ];
+        Mail::to($applicant_email)->send(new OtpMail($details));
     }
 
     function otpResend(Request $request)
@@ -172,10 +172,13 @@ class AdmissionController extends Controller
         //OTP ON NUMBER
         $phoneNo = $user->mobile_no;
         $fullname = $user->firstname . ' ' . $user->lastname;
+        $var1 = $fullname;
+        $var2 = $otp;
+        $var3 = "Salesian College Autonomous";
         $fields = array(
             "sender_id" => 'ATNFAS',
             "message" => '186603',
-            "variables_values" => $fullname . '|' . $otp . '|2mins. Admission Committee Salesian College  ',
+            "variables_values" => $var1 . '|' . $var2 . '|' . $var3,
             "route" => "dlt",
             "numbers" => $phoneNo,
         );
@@ -1185,20 +1188,13 @@ class AdmissionController extends Controller
         $applicationId = AdmissionApplication::where('application_code', $txnid)->value('application_code');
         $html = View::make('emails.admission.success', ['application_code' => $txnid])->render();
         $applicant_email = trim((string) $applicantEmail);
-        // $applicant_email = $applicantEmail;
-        $response = Http::withToken(env('RESEND_API_KEY'))
-            ->post('https://api.resend.com/emails', [
-                'from' => 'salesian college autonomous <onboarding@resend.dev>', // Use verified sender
-                'to' =>  $applicant_email,
-                'subject' => 'Salesian College Autonomous - Application Successful',
-                'html' => $html,
-            ]);
+        Mail::to($applicant_email)->send(new ApplicationSuccessMail($applicationId));
 
         //Send SMS to the Applicant
         $messageId = 186602;
         //preset message id for payment success   
-        $var1 =   $firstname . ', App Id:' . $applicationId; //dynamic variable for applicant name and application id
-        $var3 = 'admissions@salesiancollege.net'; //admission office email for applicant reference  
+        $var1 =   $firstname . ', App# ' . $applicationId; //dynamic variable for applicant name and application id
+        $var3 = 'admissionenquiry@salesiancollege.net'; //admission office email for applicant reference  
         $var2 = ' 99334 02478 / 0353 254 5622'; //college website for applicant reference
         $fields = [
             'body' => json_encode([
