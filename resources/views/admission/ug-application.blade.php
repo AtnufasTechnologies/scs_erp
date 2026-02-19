@@ -569,7 +569,7 @@
             <tbody>
               <tr>
                 <td>
-                  <input type="text" class="form-control" name="subject10_1" placeholder="ex:English" value="{{old('subject10_1')}}">
+                  <input type="text" class="form-control" name="subject10_1" placeholder="ex:English" value="English" readonly>
                   @error('subject10_1') <span class="text-danger">{{ $message }}</span> @enderror
                 </td>
 
@@ -695,7 +695,7 @@
               <tbody>
                 <tr>
                   <td>
-                    <input type="text" class="form-control" name="subject12_1" placeholder="English" value="{{old('subject12_1')}}">
+                    <input type="text" class="form-control" name="subject12_1" placeholder="English" value="English" readonly>
                     @error('subject12_1') <span class="text-danger">{{ $message }}</span> @enderror
                   </td>
 

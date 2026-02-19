@@ -14,8 +14,6 @@ $campusMaster = Campus::all()
 @include('admin.sidebar')
 <h3>User Access Management </h3>
 
-
-
 <button class="cst-button mb-3" style="--clr: #21d9c7ff;" data-bs-toggle="modal" data-bs-target="#add">
   <span class="button-decor"></span>
   <div class="button-content">
@@ -85,58 +83,76 @@ $campusMaster = Campus::all()
 @if (count($data))
 <div class="row">
   @foreach ($data as $itm)
-  <div class="col-lg-3 mb-4">
-    <div class="card mb-4 fixed-card">
-      <div class="card-body scrollable-card">
-        <h5 class="card-title">{{ $itm->name }}</h5>
-        <a href="{{ route('impersonate.user', ['id' => $itm->id]) }}" target="_blank"><i class="fa fa-lock-open"></i></a>
-        <p class="card-text"><strong>Email:</strong> {{ $itm->email }}</p>
-        <p class="card-text"> <span class="badge campus-badge"><strong> {{$itm->userroletype != null ? $itm->userroletype->role_name : ''}}</strong></span>
-        <p class="card-text"><strong>Access</strong>
-          @if ($itm->campuspermission && $itm->campuspermission->campus)
-          <span class="badge campus-badge">{{ $itm->campuspermission->campus->name }}</span>
+  <div class="col-lg-4 mb-4">
+    <div class="card mb-4 fixed-card" style="background: linear-gradient(135deg, #363c58ba 0%, #3475d1 100%); border: none; border-radius: 12px; box-shadow: 0 8px 32px rgba(102, 126, 234, 0.4); transition: all 0.3s ease;">
+      <div class="card-body scrollable-card" style="color: white;">
+        <div style="display: flex; justify-content: space-between; align-items: start; margin-bottom: 15px;">
+          <h5 class="card-title text-capitalize" style="margin: 0; font-weight: 600; font-size: 1.3rem;">{{ $itm->name }}</h5>
+          <a href="{{ route('impersonate.user', ['id' => $itm->id]) }}" target="_blank" style="color: #fff; font-size: 1.2rem; transition: 0.2s;">
+            <i class="fa fa-lock-open"></i></a>
+        </div>
+
+        <p class="card-text" style="margin-bottom: 12px;"><strong>Email:</strong> {{ $itm->email }}</p>
+
+        <p class="card-text" style="margin-bottom: 12px;">
+          User Type <span class="badge" style="background: rgba(255,255,255,0.25); padding: 6px 12px; border-radius: 20px; font-size: 0.85rem;"><strong>{{$itm->userroletype != null ? $itm->userroletype->role_name : 'N/A'}}</strong></span>
+        </p>
+
+        <p class="card-text" style="margin-bottom: 12px;"><strong>Access</strong>
+          @if ($itm->userroletype != null)
+          @if($itm->userroletype->role_name == 'super-admin' || $itm->userroletype->role_name == 'principal')
+          <span class="badge" style="background: rgba(76, 255, 100, 0.3); color: #4cff64; padding: 6px 12px; border-radius: 20px; font-size: 0.85rem;">All Access <i class="fa fa-check-circle"></i></span>
           @else
-          <span class="badge campus-badge campus-badge--secondary">No Campus Assigned</span>
+          @if ($itm->campuspermission && $itm->campuspermission->campus)
+          <span class="badge" style="background: rgba(255,255,255,0.25); padding: 6px 12px; border-radius: 20px; font-size: 0.85rem;">{{ $itm->campuspermission->campus->name }}</span>
+          @else
+          <span class="badge" style="background: rgba(255, 76, 76, 0.3); color: #ff4c4c; padding: 6px 12px; border-radius: 20px; font-size: 0.85rem;">No Campus</span>
+          @endif
+          @endif
           @endif
         </p>
+
         <p class="card-text"><strong>Permissions:</strong>
           @if ($itm->menupermission != null)
           @foreach ($itm->menupermission as $role)
-          <br>
-          <a href="{{route('admin.user-access.delete-permission', $role->id)}}" id="citadel"><i class="fa fa-trash text-danger"></i></a>
-          <span class="badge bg-success">{{ $role->permission_name }}</span>
-
-          @endforeach
-          @endif
+        <div style="display: flex; justify-content: space-between; align-items: center; margin: 8px 0; background: rgba(255, 255, 255, 0.14); padding: 8px; border-radius: 6px;">
+          <span class="badge" style="background: rgba(255,255,255,0.25); padding: 4px 10px; border-radius: 12px; font-size: 0.8rem;">{{ $role->permission_name }}</span>
+          <a href="{{route('admin.user-access.delete-permission', $role->id)}}" style="color: #fb4848;"><i class="fa fa-trash"></i></a>
+        </div>
+        @endforeach
+        @endif
         </p>
       </div>
-      <hr>
-      <div class="card-body">
-        <div class="row">
+
+      <div style="padding: 20px; border-top: 1px solid rgba(255,255,255,0.1);">
+        <div class="row g-2">
           <div class="col-lg-6">
-            <button class="btn btn-edit mb-3" data-bs-toggle="modal" data-bs-target="#edit{{$itm->id}}">
-              <i class="fa fa-edit"></i> Permission
+            <button class="btn w-100" style="background: linear-gradient(135deg, #b1b5f0 0%, #a5aaf0 100%); border: none; color: white; border-radius: 8px; padding: 10px; font-weight: 500; box-shadow: 0 4px 15px rgba(245, 87, 108, 0.3); transition: 0.3s;" data-bs-toggle="modal" data-bs-target="#edit{{$itm->id}}">
+              <i class="fa fa-edit"></i>
             </button>
           </div>
           <div class="col-lg-6">
-            <a href="{{route('admin.user-access.delete', $itm->id)}}"><button class="btn btn-danger"><i class="fa fa-trash"></i> Delete</button></a>
+            <a href="{{route('admin.user-access.delete', $itm->id)}}" class="w-100">
+              <button class="btn w-100" style="background: rgba(255,76,76,0.9); border: none; color: white; border-radius: 8px; padding: 10px; font-weight: 500; box-shadow: 0 4px 15px rgba(255, 76, 76, 0.3); transition: 0.3s;">
+                <i class="fa fa-trash"></i>
+              </button>
+            </a>
           </div>
         </div>
       </div>
 
-
-      <div class="modal fade" id="edit{{$itm->id}}" tabindex="-1" aria-labelledby="exampleModalLabel" aria-hidden="true">
+      <div class="modal fade" id="edit{{$itm->id}}" tabindex="-1" aria-hidden="true">
         <div class="modal-dialog">
-          <div class="modal-content">
-            <div class="modal-header">
-              <h5 class="modal-title" id="exampleModalLabel">Edit User Info</h5>
-              <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+          <div class="modal-content" style="border: none; border-radius: 12px; box-shadow: 0 10px 40px rgba(0,0,0,0.2);">
+            <div class="modal-header" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); border: none; border-radius: 12px 12px 0 0; color: white;">
+              <h5 class="modal-title">Edit User Info</h5>
+              <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
             </div>
             <form action="{{route('update.user.permission')}}" method="post" enctype="multipart/form-data">
               @csrf
               <div class="modal-body">
-                <label for="">Roles *</label>
-                <select name="roles[]" class="form-control mb-3 select-multiple" multiple>
+                <label for="" style="font-weight: 600; margin-bottom: 8px;">Roles *</label>
+                <select name="roles[]" class="form-control mb-3 select-multiple" multiple style="border-radius: 8px; border: 2px solid #667eea;">
                   @foreach ($permissionMaster as $pm)
                   <option value="{{ $pm->id }}">{{ $pm->menu_name }} - {{ $pm->module_type }}</option>
                   @endforeach
@@ -144,14 +160,12 @@ $campusMaster = Campus::all()
                 <input type="hidden" name="user_id" value="{{$itm->id}}">
               </div>
               <div class="modal-footer">
-                <button type="submit" class="btn btn-edit">Update</button>
+                <button type="submit" class="btn" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; border: none; border-radius: 8px; padding: 10px 20px; font-weight: 500;">Update</button>
               </div>
             </form>
           </div>
         </div>
       </div>
-
-
     </div>
   </div>
 

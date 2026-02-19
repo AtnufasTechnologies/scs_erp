@@ -1048,27 +1048,29 @@ $roleType = UserHasRole::where('user_id', $userId)->value('role_name');
         <li>
           <a href="{{route('admin.menu-access-types')}}">
             <div class="parent-icon">
-              <i class="fas fa-arrow-alt-circle-right"></i>
+              <i class="fas fa-list"></i>
             </div>
-            <div class="menu-title">Menu Access Types </div>
+            <div class="menu-title">Menu Master </div>
           </a>
         </li>
-        <li>
-          <a href="{{route('admin.impersonate')}}">
-            <div class="parent-icon">
-              <i class="fas fa-arrow-alt-circle-right"></i>
-            </div>
-            <div class="menu-title">Impersonate </div>
-          </a>
-        </li>
+
         @endif
 
       </ul>
+      @if (StaticController::subMenuRights('sms-template-auth') )
+    <li>
+      <a href="{{route('admin.sms.templates')}}">
+        <div class="parent-icon">
+          <i class="fas fa-sms"></i>
+        </div>
+        <div class="menu-title">SMS Templates </div>
+      </a>
+    </li>
+    @endif
 
+    @endif
 
-      @endif
-
-      <!-- logout -->
+    <!-- logout -->
     <li>
       <a href="{{url('logout')}}">
         <div class="parent-icon">

@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\SmsTemplate;
 use App\Models\Subject;
 use App\Models\SubjectHasDeptAdmin;
 use App\Models\User;
@@ -97,5 +98,35 @@ class AccessController extends Controller
         $user = User::findOrFail($id);
         auth()->login($user);
         return redirect('erp/admin/dashboard')->with('success', 'You are now impersonating ' . $user->name);
+    }
+    function smsTemplates()
+    {
+        $templates = SmsTemplate::latest()->get();
+        return view('admin.sms.template', ['templates' => $templates]);
+    }
+
+    function smsTemplateStore(Request $request)
+    {
+        $request->validate([
+            'template_name' => 'required|string|max:255',
+            'template_content' => 'required|string',
+        ]);
+
+        SmsTemplate::create([
+            'template_name' => $request->template_name,
+            'template_content' => $request->template_content,
+        ]);
+
+        return back()->with('success', 'SMS Template Created Successfully.');
+    }
+
+    function smsTemplateDelete($id)
+    {
+        $template = SmsTemplate::find($id);
+        if ($template) {
+            $template->delete();
+            return back()->with('success', 'SMS Template Deleted Successfully.');
+        }
+        return back()->with('error', 'SMS Template Not Found.');
     }
 }

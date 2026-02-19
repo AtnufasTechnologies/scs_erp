@@ -187,6 +187,9 @@ Route::group(['prefix' => '/erp'], function () {
             Route::get('revoke-access/{id}', [AccessController::class, 'revokeDeptAccess'])->name('dept.erp.revoke-access');
             //impersonate user
             Route::get('impersonate/{id}', [AccessController::class, 'impersonateUser'])->name('impersonate.user');
+            Route::get('sms-templates', [AccessController::class, 'smsTemplates'])->name('admin.sms.templates');
+            Route::post('sms-templates', [AccessController::class, 'smsTemplateStore'])->name('sms.template.store');
+            Route::get('sms-template/delete/{id}', [AccessController::class, 'smsTemplateDelete'])->name('sms.template.delete');
         });
 
         //admission routes Admin

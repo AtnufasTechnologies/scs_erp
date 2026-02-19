@@ -889,6 +889,7 @@ class AdminController extends Controller
         $data = User::with('menupermission')
             ->with('userroletype')
             ->with('campuspermission.campus:id,name')
+            ->where('id', '!=', 1)
             ->get();
         return view('admin.user-manager.access-management', ['data' => $data]);
     }
