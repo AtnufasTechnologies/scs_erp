@@ -198,3 +198,49 @@ $("#admissiondepartment").change(function () {
         });
     }
 });
+
+$("#admissiondepartmentadmin").change(function () {
+    var departmentId = $("#admissiondepartmentadmin").val();
+    var campusId = $("#campusId").val();
+    var base_url = window.location.origin;
+    $("#coursecombinations").empty();
+    if (departmentId == "") {
+        alert("Select Department");
+        $("#coursecombinations").hide();
+    } else {
+        $("#coursecombinations").show();
+
+        $.ajax({
+            type: "get",
+            url: base_url + "/erp/new-admission/getcombinations-bydepartment",
+            data: {
+                departmentId: departmentId,
+                campusId: campusId,
+            },
+            success: function (response) {
+                if (response && response.length > 0) {
+                    $("#coursecombinations").append(
+                        '<option value="">Select Dual Major Combination *</option>',
+                    );
+
+                    $.each(response, function (key, value) {
+                        $("#coursecombinations").append(
+                            '<option value="' +
+                                value["studentprograminfo"]["id"] +
+                                '">' +
+                                value["studentprograminfo"]["code"] +
+                                " - " +
+                                value["studentprograminfo"]["name"] +
+                                "</option>",
+                        );
+                    });
+                } else {
+                    $("#coursecombinations").append(
+                        '<option value="">No combinations available</option>',
+                    );
+                }
+            },
+            error: function () {},
+        });
+    }
+});

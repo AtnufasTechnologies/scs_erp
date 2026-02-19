@@ -215,6 +215,10 @@ Route::group(['prefix' => '/erp'], function () {
 
             //PG
             Route::get('pg-applications', [AdmissionController::class, 'pgApplications'])->name('admission.pg.applications');
+
+            //Edit Application
+            Route::get('edit-application/{id}', [AdmissionController::class, 'showEditApplication'])->name('admission.edit.application');
+            Route::put('update-application/{id}', [AdmissionController::class, 'updateUgApplication'])->name('admission.update.ug.application');
         });
     });
 
@@ -232,7 +236,7 @@ Route::group(['prefix' => '/erp'], function () {
         Route::get('logout', [AdmissionController::class, 'logout'])->name('admission.apply.logout');
         Route::get('application', [AdmissionController::class, 'showApplicationPage'])->name('admission.apply.application');
         Route::post('submit-ug-application-form', [AdmissionController::class, 'ugApplicationSubmit'])->name('submit.ug.application.form');
-        Route::get('getcombinations-bydepartment', [AdmissionController::class, 'getCombinationsByDepartment']);
+        Route::get('getcombinations-bydepartment', [AdmissionController::class, 'getCombinationsByDepartment'])->name('get.combinations.bydepartment');
         Route::get('payment-checkout', [AdmissionController::class, 'paymentCheckout'])->name('admission.payment.checkout');
         Route::post('payment-process', [AdmissionController::class, 'initateEaseBuzzPayment'])->name('admission.payment.process');
 

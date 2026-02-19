@@ -1702,4 +1702,113 @@ class AdmissionController extends Controller
 
         return view('admin.admission.pg.applications', ['data' => $data]);
     }
+
+
+    //Edit UG Application
+    function showEditApplication($id)
+    {
+        $data = AdmissionApplication::with([
+            'registrationmaster.countrymaster',
+            'registrationmaster.campusmaster',
+            'academicDeptMaster',
+            'stdCourseMaster',
+            'religionmaster',
+            'bloodgroupmaster'
+        ])->where('id', $id)->first();
+
+        return view('admin.admission.ug.edit_application', ['application' => $data]);
+    }
+
+    function updateUgApplication(Request $request, $id)
+    {
+        return redirect()->back()->with('info', 'Application editing is currently disabled.Work in Progress...');
+        $request->validate([
+            'photo' => 'nullable|image',
+            'department' => 'required',
+            'course' => 'required',
+            'dob' => 'required|date',
+            'bloodgroup' => 'required',
+            'gender' => 'required',
+            'religion' => 'required',
+            'mothertongue' => 'required',
+            'phychallenged' => 'required',
+            'caste' => 'required',
+            'father_name' => 'required|string|max:255',
+            'mother_name' => 'required|string|max:255',
+            'father_contact' => 'required',
+            'mother_contact' => 'required',
+            'father_occupation' => 'string|max:255',
+            'mother_occupation' => 'string|max:255',
+            'income' => 'required',
+            'permanent_address' => 'required',
+            'district' => 'required|string|max:255',
+            'city' => 'required|string|max:255',
+            'pincode' => 'required',
+            'local_address' => 'required',
+            'local_district' => 'required|string|max:255',
+            'local_city' => 'required|string|max:255',
+            'local_pincode' => 'required',
+        ]);
+
+        if ($request->religion == 10) {
+            $request->validate(['baptism' => 'nullable|file']);
+            if (!empty($request->baptism)) {
+                $baptismFilename = StaticController::s3_file_uploader($request->baptism, 'admission_baptisms');
+            }
+        }
+
+        $application = AdmissionApplication::findOrFail($id);
+
+        $application->department = $request->department;
+        $application->course = $request->course;
+        $application->dob = $request->dob;
+        $application->bloodgroup = $request->bloodgroup;
+        $application->gender = $request->gender;
+        $application->religion = $request->religion;
+        $application->mothertongue = $request->mothertongue;
+        $application->phychallenged = $request->phychallenged;
+        $application->caste = $request->caste;
+        $application->father_name = $request->father_name;
+        $application->mother_name = $request->mother_name;
+        $application->father_contact = $request->father_contact;
+        $application->mother_contact = $request->mother_contact;
+        $application->father_occupation = $request->father_occupation;
+        $application->mother_occupation = $request->mother_occupation;
+        $application->father_qualification = $request->father_qualification ?? null;
+        $application->mother_qualification = $request->mother_qualification ?? null;
+        $application->guardian_name = $request->guardian_name ?? null;
+        $application->guardian_contact = $request->guardian_contact ?? null;
+        $application->income = $request->income;
+        $application->permanent_address = $request->permanent_address;
+        $application->district = $request->district;
+        $application->city = $request->city;
+        $application->pincode = $request->pincode;
+        $application->state = $request->state ?? null;
+        $application->local_address = $request->local_address;
+        $application->local_district = $request->local_district;
+        $application->local_city = $request->local_city;
+        $application->local_pincode = $request->local_pincode;
+        $application->local_state = $request->local_state ?? null;
+        $application->has_laptop = $request->has_laptop ?? null;
+        $application->from_teaestate = $request->from_teaestate ?? null;
+        $application->adhaar = $request->adhaar ?? null;
+
+        if ($request->hasFile('photo')) {
+            $photoFilename = StaticController::s3_resize_image_uploader($request->photo, 'admission_photos', 300, 300);
+            $application->photo = $photoFilename;
+        }
+
+        if ($request->hasFile('national_id_proof')) {
+            $national_id_proofFilename = StaticController::s3_file_uploader($request->national_id_proof, 'admission_national_id_proofs');
+            $application->national_id_proof = $national_id_proofFilename;
+        }
+
+        if (isset($baptismFilename)) {
+            $application->baptism = $baptismFilename;
+        }
+
+        $application->save();
+
+        return back()->with('success', 'Application updated successfully.');
+    }
 }

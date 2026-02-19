@@ -85,10 +85,10 @@ $programs = Qs::getProgramGroups();
         <td>{{$item->registrationmaster->batch}}</td>
         <td><a href="{{ route('download.admission.application-form', $item->application_code) }}" class="btn btn-main " title="View">{{ $item->application_code }}</a></td>
         <td><span class="text-capitalize">{{ $item->registrationmaster->first_name }} {{ $item->registrationmaster->last_name }}</span></td>
-        <td>{{ $item->registrationmaster->mail_id }}</td>
-        <td>{{ $item->registrationmaster->mobile_no }}</td>
-        <td>{{$item->academicdepartmentinfo->title}}</td>
-        <td>{{ $item->stdCourseMaster->code }} -{{ $item->stdCourseMaster->name }}</td>
+        <td>{{ $item->registrationmaster->mail_id ?? '-' }}</td>
+        <td>{{ $item->registrationmaster->mobile_no ?? '-' }}</td>
+        <td>{{$item->academicdepartmentinfo->title ?? '-'}}</td>
+        <td>{{ $item->stdCourseMaster->code ?? '-' }} -{{ $item->stdCourseMaster->name ?? '-' }}</td>
         <td>
           @if($item->payment_gateway_status == null)
           <span class="badge bg-danger">Not Paid</span>
@@ -100,7 +100,7 @@ $programs = Qs::getProgramGroups();
         </td>
         <td>{{ $item->created_at->format('d M Y') }}</td>
         <td>
-          <a href="#" class="btn  btn-dark mb-3" title="Edit">
+          <a href="{{ route('admission.edit.application', $item->id) }}" class="btn  btn-dark mb-3" title="Edit">
             <i class="fas fa-edit"></i>
           </a>
 
