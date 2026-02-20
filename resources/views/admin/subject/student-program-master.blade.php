@@ -87,7 +87,7 @@
         <td>{{$loop->iteration}}</td>
         <td>{{$d->campus_id == 1 ? 'Sonada' : 'Siliguri Campus'}}</td>
         <td>{{$d->code}}</td>
-        <td><span class="text-capitalize">{{$d->name}}s</span></td>
+        <td><span class="text-capitalize">{{$d->name}}</span></td>
         <td>{{$d->description}}</td>
         <td>{{$d->semester_count}}</td>
         <td>{{$d->student_count}}</td>
