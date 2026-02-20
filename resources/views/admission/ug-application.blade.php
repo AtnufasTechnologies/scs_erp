@@ -118,7 +118,7 @@
           <div class="col-lg-8 col-sm-12">
             <label for="">Departmental Combinations<span class="text-danger">*</span></label><br>
             @error('course') <span class="text-danger">{{ $message }}</span> @enderror
-            <select class="form-control mb-3 radius-20 dark " name="course" id="coursecombinations">
+            <select class="form-control mb-3 radius-20 dark text-capitalize " name="course" id="coursecombinations">
               <option value="">-- Select Combination--</option>
             </select>
           </div>

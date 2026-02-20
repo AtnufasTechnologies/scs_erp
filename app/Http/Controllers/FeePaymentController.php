@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\AdmissionApplicationPaymentLog;
 use App\Models\FailedTransaction;
 use App\Models\FailedTransactionLog;
 use App\Models\FeesStructure;
@@ -1368,6 +1369,15 @@ class FeePaymentController extends Controller
 
         return view('admin.accounts.defaulters', [
             'defaulters' => $defaulters
+        ]);
+    }
+
+    function admissionApplicationFee(Request $request)
+    {
+
+        $data = AdmissionApplicationPaymentLog::with('applicationmaster.registrationmaster.campusmaster')->latest()->get();
+        return view('admin.accounts.admission-fee-collection', [
+            'data' => $data
         ]);
     }
 }

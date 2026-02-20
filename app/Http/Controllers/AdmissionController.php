@@ -1106,7 +1106,7 @@ class AdmissionController extends Controller
         }
 
         //banking Split
-        if ($applicationRegRecord->campus_id == 1) {
+        /* if ($applicationRegRecord->campus_id == 1) {
             $split = json_encode([
                 'SAL_SONADA' => $payableAmount
             ]);
@@ -1114,12 +1114,22 @@ class AdmissionController extends Controller
             $split = json_encode([
                 'SAL_SILIGURI' => $payableAmount
             ]);
+        }*/
+
+        if ($applicationRegRecord->campus_id == 1) {
+            $split = json_encode([
+                'SC_1' => $payableAmount
+            ]);
+        } else {
+            $split = json_encode([
+                'SC_4' => $payableAmount
+            ]);
         }
 
 
         // ---- EASEBUZZ PARAMS ----
-        $key = env('EASEBUZZ_KEY');
-        $salt = env('EASEBUZZ_SALT');
+        $key = env('EASEBUZZ_KEY_TEST');
+        $salt = env('EASEBUZZ_SALT_TEST');
         $txnid = $invoice;
         $phone = $applicationRegRecord->mobile_no;
         $email = $applicationRegRecord->mail_id;
@@ -1135,7 +1145,7 @@ class AdmissionController extends Controller
 
         // ---- INITIATE PAYMENT ----
         $client = new \GuzzleHttp\Client();
-        $response = $client->post(env('EASEBUZZ_INITIATE_URL'), [
+        $response = $client->post(env('EASEBUZZ_INITIATE_URL_TEST'), [
             'form_params' => [
                 'key' => $key,
                 'txnid' => $invoice,
@@ -1158,7 +1168,7 @@ class AdmissionController extends Controller
 
 
         if ($apiResponse['status'] == 1) {
-            return redirect(env('EASEBUZZ_PAYMENT_URL') . $apiResponse['data']);
+            return redirect(env('EASEBUZZ_PAYMENT_URL_TEST') . $apiResponse['data']);
         }
     }
 
@@ -1236,6 +1246,9 @@ class AdmissionController extends Controller
         $rec->msg = $request->error_Message;
         $rec->save();
         // Handle payment failure logic here
+        $user = AdmissionRegistration::find($request->udf1);
+        Auth::login($user, true);
+
         return redirect()->route('admission.apply.application')->with('info', 'Payment failed. Please try again.');
     }
 

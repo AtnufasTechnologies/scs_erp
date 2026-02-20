@@ -626,14 +626,14 @@ $roleType = UserHasRole::where('user_id', $userId)->value('role_name');
         @endif
 
         @if (StaticController::subMenuRights('admission-application-fee') )
-        <!-- <li>
-          <a href="{{url('erp/admin/accounts/all-payments')}}">
+        <li>
+          <a href="{{url('erp/admin/accounts/admission-application-fee')}}">
             <div class="parent-icon">
               <i class="fas fa-arrow-alt-circle-right"></i>
             </div>
             <div class="menu-title">Admission Application Fee</div>
           </a>
-    </li> -->
+        </li>
         @endif
 
 

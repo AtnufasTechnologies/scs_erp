@@ -13,4 +13,9 @@ class AdmissionApplicationPaymentLog extends Model
     {
         return $this->hasOne(AdmissionRegistration::class, 'user_id', 'user_id');
     }
+
+    function applicationmaster()
+    {
+        return $this->hasOne(AdmissionApplication::class, 'id', 'application_id');
+    }
 }
