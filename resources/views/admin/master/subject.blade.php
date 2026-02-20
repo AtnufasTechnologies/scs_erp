@@ -80,6 +80,7 @@ $campuses = Campus::latest()->get();
         <th>Code</th>
         <th>Academic Department Name</th>
         <th>Main Program Type</th>
+        <th>Edit</th>
         <th>View</th>
         <th>Delete</th>
       </tr>
@@ -94,6 +95,60 @@ $campuses = Campus::latest()->get();
         <td><span class="text-capitalize">{{$item->code}}</span></td>
         <td><span class="text-capitalize">{{$item->title}}</span></td>
         <td><span class="text-capitalize">{{$item->main_program_type}}</span></td>
+        <td>
+          <!-- Button trigger modal -->
+          <button type="button" class="btn btn-warning" data-bs-toggle="modal" data-bs-target="#edit{{$item->id}}">
+            <i class="fa fa-edit"></i>
+          </button>
+
+          <!-- Modal -->
+          <div class="modal fade" id="edit{{$item->id}}" tabindex="-1" aria-labelledby="exampleModalLabel" aria-hidden="true">
+            <div class="modal-dialog">
+              <div class="modal-content">
+                <div class="modal-header">
+                  <h1 class="modal-title fs-5" id="exampleModalLabel">Edit </h1>
+                  <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <form action="{{route('admin.master.update.academic-dept', $item->id)}}" method="post">
+                  @csrf
+                  <div class="modal-body">
+                    <div class="row">
+                      <div class="col-4">
+                        <select name="campus" class="form-control">
+                          <option value="">Select Campus *</option>
+                          @foreach ($campuses as $campus)
+                          <option value="{{$campus->id}}" {{$item->campus_id == $campus->id ? 'selected' : ''}}>{{$campus->name}}</option>
+                          @endforeach
+
+                        </select>
+                      </div>
+                      <div class="col-4">
+                        <select name="program_id" class="form-control">
+                          <option value="">Degree Type *</option>
+                          @foreach ($programs as $prog)
+                          <option value="{{$prog->title}}" {{$item->main_program_type == $prog->title ? 'selected' : ''}}>{{$prog->title}}</option>
+                          @endforeach
+                        </select>
+                      </div>
+                      <div class="col-4">
+                        <input type="text" class="form-control mb-3" name="code" placeholder="Subject Code *" value="{{$item->code}}">
+                      </div>
+                      <div class="col-12">
+                        <label for=""> Title</label>
+                        <input type="text" class="form-control mb-3" name="title" placeholder="Type here..." value="{{$item->title}}">
+
+                      </div>
+                    </div>
+                  </div>
+                  <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                    <button type="submit" class="btn btn-primary">Save changes</button>
+                  </div>
+                </form>
+              </div>
+            </div>
+          </div>
+        </td>
         <td>
           <form action="{{url('erp/admin/master/view-subject')}}" method="get">
             <input type="hidden" name="id" value="{{$item->id}}">

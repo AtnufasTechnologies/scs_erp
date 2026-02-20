@@ -534,17 +534,10 @@ class SubjectController extends Controller
     function studentProgramMaster()
     {
         $data = StudentProgram::with('programgroup')
-            ->get()
+            ->latest()->get()
             ->map(function ($program) {
-                $studentCount = StudentMaster::where('programme', $program->id)->count();
-                return [
-                    'program_id' => $program->id,
-                    'campus' => $program->campus_id,
-                    'program_code' => $program->code,
-                    'program_name' => $program->name,
-                    'program_description' => $program->description,
-                    'student_count' => $studentCount,
-                ];
+                $program->student_count = StudentMaster::where('new_program_id', $program->id)->count();
+                return $program;
             });
 
         return view('admin.subject.student-program-master', ['data' => $data]);
@@ -569,5 +562,44 @@ class SubjectController extends Controller
         $rec->save();
 
         return redirect()->back()->with('success', 'New Program Added');
+    }
+
+    function updateAcademicDept(Request $request, $id)
+    {
+        $data = Subject::findOrFail($id);
+        $request->validate([
+            'campus' => 'required',
+            'program_id' => 'required',
+        ]);
+
+
+        $data->campus_id = $request->campus;
+        $data->main_program_type = $request->program_id;
+        $data->code = Str::upper($request->code);
+        $data->title = Str::lower($request->title);
+        $data->save();
+
+        return redirect()->back()->with('success', 'Academic Department Updated');
+    }
+
+    function updateStudentProgram(Request $request, $id)
+    {
+        $data = StudentProgram::findOrFail($id);
+        $request->validate([
+            'campus' => 'required',
+            'code' => 'required|string|max:100',
+            'name' => 'required|string|max:255',
+            'semester_count' => 'required|integer|min:1',
+            'description' => 'nullable|string',
+        ]);
+
+        $data->campus_id = $request->campus;
+        $data->code = Str::upper($request->code);
+        $data->name = Str::lower($request->name);
+        $data->description = Str::lower($request->description);
+        $data->semester_count = $request->semester_count;
+        $data->save();
+
+        return redirect()->back()->with('success', 'Program Updated');
     }
 }

@@ -4,6 +4,8 @@ namespace App\Http\Controllers;
 
 use App\Mail\ApplicationSuccessMail;
 use App\Mail\OtpMail;
+use App\Models\ProgramGroup;
+use App\Models\StudentMaster;
 use App\Models\SubjectHasDeptAdmin;
 use App\Models\UserCampusSetting;
 use Illuminate\Http\Request;
@@ -57,4 +59,21 @@ class TestController extends Controller
 
     //sms Testing
     function smsTest(Request $request) {}
+
+    //student master - fixing new program 
+
+    function studentMasterProgramFixing()
+    {
+        $data = StudentMaster::all();
+        for ($i = 0; $i < $data->count(); $i++) {
+            $prgGroupId = $data[$i]->programme;
+            $programId =  ProgramGroup::where('id', $prgGroupId)->value('program_id');
+
+            if ($programId) {
+                StudentMaster::where('id', $data[$i]->id)->update(['new_program_id' => $programId]);
+            }
+        }
+
+        dd('All student master records updated with new program id');
+    }
 }

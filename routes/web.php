@@ -85,6 +85,7 @@ Route::group(['prefix' => '/erp'], function () {
             Route::get('delete-subject/{id}', [SubjectController::class, 'deleteSubject']);
             Route::post('link-student-programs', [SubjectController::class, 'linkStdPrograms'])->name('add.programs.to.subject');
             Route::post('add-subject-semester', [SubjectController::class, 'addSemesterToSubject'])->name('add.semester.to.subject');
+            Route::post('update-academic-dept/{id}', [SubjectController::class, 'updateAcademicDept'])->name('admin.master.update.academic-dept');
             //lecture halls
 
             Route::get('lecturehalls', [AdminController::class, 'lectureHalls']);
@@ -167,6 +168,7 @@ Route::group(['prefix' => '/erp'], function () {
             Route::get('delete-combination/{id}', [SubjectController::class, 'deleteCombination'])->name('admin.delete.combination');
             Route::get('student-program-master', [SubjectController::class, 'studentProgramMaster'])->name('admin.student-program-master');
             Route::post('add/new/student-program', [SubjectController::class, 'addNewStudentProgram'])->name('admin.add.new.student-program');
+            Route::post('update/student-program/{id}', [SubjectController::class, 'updateStudentProgram'])->name('admin.update.student-program');
         });
 
         //user access management
@@ -328,5 +330,6 @@ Route::group(['prefix' => '/erp'], function () {
         //   Route::get('dept-campus-mapping', [TestController::class, 'DeptCampusMapping']);
         Route::get('mailing', [TestController::class, 'mailTest']);
         Route::get('sms', [TestController::class, 'smsTest']);
+        Route::get('install-new-programid', [TestController::class, 'studentMasterProgramFixing']);
     });
 });
