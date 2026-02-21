@@ -1,4 +1,22 @@
-</div>
+<?php
+
+use App\Http\Controllers\StaticController;
+use App\Models\AdmissionRegistration;
+
+$registrations = StaticController::fetchAdmissionRegistrationByMonths();
+$monthsData = $registrations->pluck('month')->toArray();
+$countsData = $registrations->pluck('count')->toArray();
+$enrollments = StaticController::fetchAdmissionApplicationsByMonths();
+$enrollmentMonthsData = $enrollments->pluck('month')->toArray();
+$enrollmentCountsData = $enrollments->pluck('count')->toArray();
+$mostApplied = StaticController::mostAppliedDepartment();
+$departments = $mostApplied->pluck('academicDeptMaster.title')->toArray();
+$enrollmentDeptCountsData = $mostApplied->pluck('count')->toArray();
+$campusWiseRegistration = StaticController::campusWiseEnrollment();
+
+$registrationSonada = $campusWiseRegistration['sonada'] ?? 0;
+$registrationSiliguri = $campusWiseRegistration['siliguri'] ?? 0;
+?>
 <!-- end page content-->
 </div>
 <!--end page content wrapper-->
@@ -82,16 +100,23 @@
   document.addEventListener('DOMContentLoaded', function() {
     const ctx = document.getElementById('enrollmentChart').getContext('2d');
     const enrollmentChart = new Chart(ctx, {
-      type: 'line',
+      type: 'bar',
       data: {
-        labels: ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'],
+        labels: <?php echo json_encode($monthsData); ?>,
         datasets: [{
-          label: 'Enrollments',
-          data: [120, 135, 150, 145, 160, 170, 180, 175, 165, 155, 140, 130],
-          backgroundColor: 'rgba(102, 126, 234, 0.15)',
-          borderColor: '#667eea',
+          label: 'Registrations',
+          data: <?php echo json_encode($countsData); ?>,
+          backgroundColor: '#667eea',
           borderWidth: 3,
-          pointBackgroundColor: '#667eea',
+          pointBorderColor: '#fff',
+          pointRadius: 5,
+          fill: true,
+          tension: 0.4
+        }, {
+          label: 'Applications',
+          data: <?php echo json_encode($enrollmentCountsData); ?>,
+          backgroundColor: '#22c55e',
+          borderWidth: 3,
           pointBorderColor: '#fff',
           pointRadius: 5,
           fill: true,
@@ -128,6 +153,99 @@
       }
     });
   });
+
+  const ctx = document.getElementById('enrollmentDeptChart').getContext('2d');
+  const enrollmentDeptChart = new Chart(ctx, {
+    type: 'line',
+    data: {
+      labels: <?php echo json_encode($departments); ?>,
+      datasets: [{
+        label: 'Registrations',
+        data: <?php echo json_encode($enrollmentDeptCountsData); ?>,
+        backgroundColor: '#844ef0',
+        borderWidth: 3,
+        pointBorderColor: '#fff',
+        pointRadius: 5,
+        fill: true,
+        tension: 0.4
+      }]
+    },
+    options: {
+      responsive: true,
+      plugins: {
+        legend: {
+          display: false
+        },
+        tooltip: {
+          mode: 'index',
+          intersect: false
+        }
+      },
+      scales: {
+        x: {
+          grid: {
+            display: false
+          }
+        },
+        y: {
+          beginAtZero: true,
+          grid: {
+            color: '#e5e7eb'
+          },
+          ticks: {
+            stepSize: 20
+          }
+        }
+      }
+    }
+  });
+
+  const ctxi = document.getElementById('campusChart').getContext('2d');
+  const campusChart = new Chart(ctxi, {
+    type: 'pie',
+    data: {
+      labels: ['Sonada', 'Siliguri'],
+      datasets: [{
+        label: 'Registrations',
+        data: [<?php echo $registrationSonada; ?>, <?php echo $registrationSiliguri; ?>],
+        backgroundColor: ['#f08f34', '#844ef0'],
+        borderWidth: 3,
+        pointBorderColor: '#fff',
+        pointRadius: 5,
+        fill: true,
+        tension: 0.4
+      }]
+    },
+    options: {
+      responsive: true,
+      plugins: {
+        legend: {
+          display: false
+        },
+        tooltip: {
+          mode: 'index',
+          intersect: false
+        }
+      },
+      scales: {
+        x: {
+          grid: {
+            display: false
+          }
+        },
+        y: {
+          beginAtZero: true,
+          grid: {
+            color: '#e5e7eb'
+          },
+          ticks: {
+            stepSize: 20
+          }
+        }
+      }
+    }
+  });
+
 
   ClassicEditor.create(document.querySelector(".editor"), {
       removePlugins: [

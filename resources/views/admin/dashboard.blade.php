@@ -1,15 +1,19 @@
 <?php
 
+use App\Models\BatchMaster;
 use App\Models\Faculty;
 use App\Models\HourMaster;
 use App\Models\StudentMaster;
 use App\Models\StudentProgram;
+use App\Models\SubjectHasStudentProgam;
 
 $totalStudents = StudentMaster::count();
 $totalFaculty = Faculty::where('IS_LEFT', 0)->count();
 $activeCourses = StudentProgram::count(); // Example static data
 $labels = HourMaster::pluck('title')->all();
-$totalMonthlyAttendance = 68;
+$batchId = BatchMaster::where('admission_active_batch', 1)->value('id');
+$batchName = BatchMaster::where('admission_active_batch', 1)->value('batch_name');
+$combinationCount = SubjectHasStudentProgam::with('batchmaster')->where('batch_id', $batchId)->count();
 // Example data structure for hourwiseAttendance
 $hourwiseAttendance = [
   (object)[
@@ -102,19 +106,58 @@ $hourwiseAttendance = [
         <i class="fas fa-percentage"></i>
       </div>
       <div class="stat-content">
-        <h3>Monthly Attendance </h3>
-        <p class="stat-number">{{ $totalMonthlyAttendance  }}%</p>
-        <span class="stat-change positive">+2% from last month</span>
+        <h3>Offered Combinations {{$batchName}}</h3>
+        <p class="stat-number">{{ $combinationCount}}</p>
+        <span class="stat-change positive">Academic Batch - {{$batchName}}</span>
       </div>
     </div>
   </div>
-
-  <!-- Hourwise Class Attendance Section -->
   <div class="charts-section">
+    <div class="chart-card">
+      <h5> Admission Enrollment Trend - {{$batchName}}</h5>
+      <canvas id="enrollmentChart"></canvas>
+
+    </div>
+
+    <div class="chart-card">
+      <h5> Dept Wise Enrollment Distribution - {{$batchName}} </h5>
+
+      <canvas id="enrollmentDeptChart"></canvas>
+
+    </div>
+    <div class="chart-card">
+      <h5> Campus Wise Registration - {{$batchName}} </h5>
+
+      <canvas id="campusChart"></canvas>
+
+    </div>
+
+    <div class="chart-card">
+      <h3>Recent Notices</h3>
+      <div class="activity-list">
+        @forelse($recentNotices ?? [] as $notice)
+        <div class="activity-item">
+          <div class="activity-icon">
+            <i class="fas fa-bell"></i>
+          </div>
+          <div class="activity-details">
+            <p class="activity-title">{{ $notice->title }}</p>
+            <span class="activity-time">{{ $notice->created_at->diffForHumans() }}</span>
+          </div>
+        </div>
+        @empty
+        <p class="text-muted">No recent notices</p>
+        @endforelse
+      </div>
+    </div>
+
+  </div>
+  <!-- Hourwise Class Attendance Section -->
+  <!-- <div class="charts-section">
     <div class="chart-card" style="grid-column: span 2;">
       <h3>Hourwise Class Attendance (Today)</h3>
 
-      <!-- End Graphical View -->
+
       <table class="data-table" id="exportTable">
         <thead>
           <tr>
@@ -148,64 +191,10 @@ $hourwiseAttendance = [
         </tbody>
       </table>
     </div>
-  </div>
+  </div> -->
   <!-- End Hourwise Class Attendance Section -->
 
-  <div class="charts-section">
-    <div class="chart-card">
-      <h3>Student Enrollment Trends</h3>
-      <canvas id="enrollmentChart"></canvas>
 
-    </div>
-
-    <div class="chart-card">
-      <h3>Recent Notices</h3>
-      <div class="activity-list">
-        @forelse($recentNotices ?? [] as $notice)
-        <div class="activity-item">
-          <div class="activity-icon">
-            <i class="fas fa-bell"></i>
-          </div>
-          <div class="activity-details">
-            <p class="activity-title">{{ $notice->title }}</p>
-            <span class="activity-time">{{ $notice->created_at->diffForHumans() }}</span>
-          </div>
-        </div>
-        @empty
-        <p class="text-muted">No recent notices</p>
-        @endforelse
-      </div>
-    </div>
-    @php
-    $activities = [
-    (object)[
-    'icon' => 'fas fa-user-plus',
-    'title' => 'New student registered',
-    'time' => '2 hours ago'
-    ],
-    (object)[
-    'icon' => 'fas fa-file-invoice-dollar',
-    'title' => 'Fee payment received',
-    'time' => '3 hours ago'
-    ],
-    (object)[
-    'icon' => 'fas fa-chalkboard-teacher',
-    'title' => 'Faculty joined',
-    'time' => '5 hours ago'
-    ],
-    (object)[
-    'icon' => 'fas fa-bell',
-    'title' => 'Notice published',
-    'time' => '1 day ago'
-    ],
-    (object)[
-    'icon' => 'fas fa-user-edit',
-    'title' => 'Student profile updated',
-    'time' => '2 days ago'
-    ]
-    ];
-    @endphp
-  </div>
 
   <div class="data-table-section">
     <div class="table-card">

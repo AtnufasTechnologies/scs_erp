@@ -391,4 +391,47 @@ class StaticController extends Controller
     $role_name = UserHasRole::where('user_id', Auth::id())->value('role_name');
     return $role_name;
   }
+
+  static function fetchAdmissionRegistrationByMonths()
+  {
+    $data = AdmissionRegistration::selectRaw('MONTHNAME(created_at) as month, COUNT(*) as count')
+      ->groupBy('month')
+      ->where('otp_verification', 1)
+      ->get();
+
+    return $data;
+  }
+
+  static function fetchAdmissionApplicationsByMonths()
+  {
+    $data = AdmissionApplication::selectRaw('MONTHNAME(created_at) as month, COUNT(*) as count')
+      ->groupBy('month')
+      ->where('payment_gateway_status', 'success')
+      ->get();
+
+    return $data;
+  }
+
+
+  static function mostAppliedDepartment()
+  {
+    $data = AdmissionApplication::selectRaw('department, COUNT(*) as count')
+      ->where('payment_gateway_status', 'success')
+      ->groupBy('department')
+      ->orderBy('count', 'desc')
+      ->with('academicDeptMaster')
+      ->get();
+
+    return $data;
+  }
+
+
+  static function campusWiseEnrollment()
+  {
+
+    $data['sonada'] = AdmissionRegistration::where('campus_id', 1)->where('otp_verification', 1)->count();
+    $data['siliguri'] = AdmissionRegistration::where('campus_id', 2)->where('otp_verification', 1)->count();
+
+    return $data;
+  }
 }
