@@ -1106,7 +1106,7 @@ class AdmissionController extends Controller
         }
 
         //banking Split
-        /* if ($applicationRegRecord->campus_id == 1) {
+        if ($applicationRegRecord->campus_id == 1) {
             $split = json_encode([
                 'SAL_SONADA' => $payableAmount
             ]);
@@ -1114,9 +1114,9 @@ class AdmissionController extends Controller
             $split = json_encode([
                 'SAL_SILIGURI' => $payableAmount
             ]);
-        }*/
+        }
 
-        if ($applicationRegRecord->campus_id == 1) {
+        /* if ($applicationRegRecord->campus_id == 1) {
             $split = json_encode([
                 'SC_1' => $payableAmount
             ]);
@@ -1124,12 +1124,12 @@ class AdmissionController extends Controller
             $split = json_encode([
                 'SC_4' => $payableAmount
             ]);
-        }
+        }*/
 
 
         // ---- EASEBUZZ PARAMS ----
-        $key = env('EASEBUZZ_KEY_TEST');
-        $salt = env('EASEBUZZ_SALT_TEST');
+        $key = env('EASEBUZZ_KEY');
+        $salt = env('EASEBUZZ_SALT');
         $txnid = $invoice;
         $phone = $applicationRegRecord->mobile_no;
         $email = $applicationRegRecord->mail_id;
@@ -1145,7 +1145,7 @@ class AdmissionController extends Controller
 
         // ---- INITIATE PAYMENT ----
         $client = new \GuzzleHttp\Client();
-        $response = $client->post(env('EASEBUZZ_INITIATE_URL_TEST'), [
+        $response = $client->post(env('EASEBUZZ_INITIATE_URL'), [
             'form_params' => [
                 'key' => $key,
                 'txnid' => $invoice,
@@ -1168,7 +1168,7 @@ class AdmissionController extends Controller
 
 
         if ($apiResponse['status'] == 1) {
-            return redirect(env('EASEBUZZ_PAYMENT_URL_TEST') . $apiResponse['data']);
+            return redirect(env('EASEBUZZ_PAYMENT_URL') . $apiResponse['data']);
         }
     }
 
