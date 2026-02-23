@@ -21,7 +21,7 @@
         <h5 class="modal-title" id="exampleModalLabel">Add Main Stream </h5>
         <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
       </div>
-      <form action="{{route('add.program.master')}}" method="post">
+      <form action="{{route('add.stream.master')}}" method="post">
         @csrf
         <div class="modal-body">
           <div class="row">
