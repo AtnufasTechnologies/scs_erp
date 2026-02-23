@@ -344,7 +344,7 @@ class AdmissionController extends Controller
         if ($pg && !$ug) {
             return MainProgram::where('campus_id', $request->campusId)->where('name', 'PG')->get();
         } else if (!$pg && $ug) {
-            return MainProgram::where('campus_id', $request->campusId)->where('name', '!=', 'PG')->get();
+            return MainProgram::where('campus_id', $request->campusId)->get();
         } else if (!$pg && !$ug) {
             return response()->json(['message' => 'Admission is closed for both UG and PG'], 403);
         } else {
