@@ -51,6 +51,10 @@ Route::group(['prefix' => '/erp'], function () {
             Route::get('programs', [AdminController::class, 'programMaster']);
             Route::get('program-group', [AdminController::class, 'programGroup']);
             Route::post('update-program-group', [AdminController::class, 'updateProgramGroup']);
+            Route::post('add-stream-combination', [AdminController::class, 'addStreamCombination'])->name('add.stream.campus.combination');
+
+            Route::get('stream-master', [AdminController::class, 'streamMaster'])->name('stream.master');
+            Route::post('stream-master', [AdminController::class, 'addStreamMaster'])->name('add.stream.master');
 
             Route::get('batch', [AdminController::class, 'batchMaster']);
             Route::post('batch', [AdminController::class, 'addBatch']);

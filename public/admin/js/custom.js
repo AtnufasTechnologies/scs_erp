@@ -174,7 +174,7 @@ $("#admissiondepartment").change(function () {
             success: function (response) {
                 if (response && response.length > 0) {
                     $("#coursecombinations").append(
-                        '<option value="">Select Dual Major Combination *</option>',
+                        '<option value=""> -- Select -- *</option>',
                     );
 
                     $.each(response, function (key, value) {
@@ -190,7 +190,7 @@ $("#admissiondepartment").change(function () {
                     });
                 } else {
                     $("#coursecombinations").append(
-                        '<option value="">No combinations available</option>',
+                        '<option value="">No courses available</option>',
                     );
                 }
             },

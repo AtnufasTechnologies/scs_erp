@@ -116,11 +116,19 @@ $roleType = UserHasRole::where('user_id', $userId)->value('role_name');
 
         @if(StaticController::subMenuRights('main-program-master'))
         <li>
+          <a href="{{route('stream.master')}}">
+            <div class="parent-icon">
+              <i class="fas fa-arrow-alt-circle-right"></i>
+            </div>
+            <div class="menu-title"> Main Stream Master </div>
+          </a>
+        </li>
+        <li>
           <a href="{{url('erp/admin/master/programs')}}">
             <div class="parent-icon">
               <i class="fas fa-arrow-alt-circle-right"></i>
             </div>
-            <div class="menu-title">Main Stream </div>
+            <div class="menu-title">Campus Stream Combination </div>
           </a>
         </li>
         @endif

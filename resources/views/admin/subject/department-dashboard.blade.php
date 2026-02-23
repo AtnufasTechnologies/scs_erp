@@ -3,6 +3,7 @@
 use App\Http\Controllers\StaticController;
 use App\Models\BatchMaster;
 use App\Models\Faculty;
+use App\Models\ProgramMaster;
 use App\Models\Semester;
 use App\Models\StudentProgram;
 use App\Models\SubjectCourseMaster;
@@ -13,7 +14,7 @@ $batches = BatchMaster::latest()->get();
 $semesters = Semester::get();
 $course_master = SubjectCourseMaster::with('courseMaster')->where('subject_id', $data->id)->get();
 $faculty = Faculty::where('IS_LEFT', 0)->get();
-
+$mainStreams = ProgramMaster::all();
 ?>
 @include('includes.header')
 
@@ -181,8 +182,11 @@ $faculty = Faculty::where('IS_LEFT', 0)->get();
 
                       <select name="program_type" class="form-select" required>
                         <option value="">-- Select Program Type --</option>
-                        <option value="UG">UG</option>
-                        <option value="PG">PG</option>
+                        @foreach ($mainStreams as $ms)
+                        <option value="{{ $ms->title }}">{{ $ms->title }}</option>
+                        @endforeach
+
+
                       </select>
 
                     </div>

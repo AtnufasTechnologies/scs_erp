@@ -14,12 +14,16 @@ class ProgramMasterSeeder extends Seeder
      */
     public function run(): void
     {
+        // ProgramMaster::insert([
+        //     'title' => 'UG',
+        //     'created_at' => Carbon::now(),
+        // ]);
+        // ProgramMaster::insert([
+        //     'title' => 'PG',
+        //     'created_at' => Carbon::now(),
+        // ]);
         ProgramMaster::insert([
-            'title' => 'UG',
-            'created_at' => Carbon::now(),
-        ]);
-        ProgramMaster::insert([
-            'title' => 'PG',
+            'title' => 'UG and PG',
             'created_at' => Carbon::now(),
         ]);
     }

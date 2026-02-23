@@ -43,6 +43,7 @@ use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\View;
 use Mews\Captcha\Captcha;
+use Illuminate\Support\Str;
 
 
 class AdmissionController extends Controller
@@ -285,6 +286,21 @@ class AdmissionController extends Controller
 
             $academic_departments = Subject::where('campus_id', $campusId)
                 ->where('main_program_type', 'UG')
+                ->get();
+
+            return view('admission.ug-application', array_merge($commonData, [
+                'courses' => $courses,
+                'academic_departments' => $academic_departments,
+            ]));
+        }
+
+        if ($registrationInfo->application_type === 'UG and PG') {
+            $courses = ProgramGroup::whereHas('programInfo', function ($q) use ($campusId) {
+                $q->where('campus_id', $campusId);
+            })->where('campus_id', $campusId)->get();
+
+            $academic_departments = Subject::where('campus_id', $campusId)
+                ->where('main_program_type', 'UG and PG')
                 ->get();
 
             return view('admission.ug-application', array_merge($commonData, [
@@ -1081,11 +1097,13 @@ class AdmissionController extends Controller
     {
         $deptId = $request->departmentId;
         $campusId = $request->campusId;
+        $streamMain = Subject::find($deptId);
+        $progam_type = Str::upper($streamMain->main_program_type);
         $batchId =  BatchMaster::where('admission_active_batch', 1)->value('id');
         return SubjectHasStudentProgam::where('subject_id', $deptId)->where('campus_id', $campusId)
             ->where('batch_id', $batchId)
             ->with('studentprograminfo')
-            ->where('program_type', 'UG')
+            ->where('program_type', $progam_type)
             ->get();
     }
 
@@ -1097,12 +1115,12 @@ class AdmissionController extends Controller
         $applicationId = $applicationRecord->id;
         $invoice = $applicationRecord->application_code;
         //program split logic for easebuzz
-        if ($applicationRegRecord->application_type == 'UG') {
-            $payableAmount =  AdmissionSetting::where('id', 1)
-                ->value('application_fee_ug');
-        } else {
+        if ($applicationRegRecord->application_type == 'PG') {
             $payableAmount =  AdmissionSetting::where('id', 1)
                 ->value('application_fee_pg');
+        } else {
+            $payableAmount =  AdmissionSetting::where('id', 1)
+                ->value('application_fee_ug');
         }
 
         //banking Split

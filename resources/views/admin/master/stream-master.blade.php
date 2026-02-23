@@ -1,7 +1,7 @@
 @include('includes.header')
 @include('admin.sidebar')
 
-<h3><span class="text-uppercase">Main Stream</span></h3>
+<h3><span class="text-uppercase">Main Stream Master</span></h3>
 
 <button class="cst-button mb-3" style="--clr: #21d9c7ff;" data-bs-toggle="modal" data-bs-target="#add">
   <span class="button-decor"></span>
@@ -9,7 +9,7 @@
     <div class="button__icon">
       <i class="fa fa-plus-circle"></i>
     </div>
-    <span class="button__text">Add New</span>
+    <span class="button__text">Add Stream</span>
   </div>
 </button>
 
@@ -21,35 +21,16 @@
         <h5 class="modal-title" id="exampleModalLabel">Add Main Stream </h5>
         <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
       </div>
-      <form action="{{route('add.stream.campus.combination')}}" method="post">
+      <form action="{{route('add.program.master')}}" method="post">
         @csrf
         <div class="modal-body">
           <div class="row">
-            <div class="col-12 mb-3">
-              <select name="campus" class="form-control">
-                <option value="">Select Campus *</option>
-                @foreach ($campuses as $campus)
-                <option value="{{$campus->id}}">{{$campus->name}}</option>
-                @endforeach
-              </select>
+
+            <div class="col-12">
+              <input type="text" class="form-control mb-3" name="title" placeholder="Stream Type *">
             </div>
-
-
-            <div class="col-12 mb-3">
-              <select name="streamtype" class="form-control">
-                <option value="">Select Program *</option>
-                @foreach ($programs as $program)
-                <option value="{{$program->id}}">{{$program->title}}</option>
-                @endforeach
-              </select>
-            </div>
-
-
 
           </div>
-
-
-
 
         </div>
         <div class="modal-footer">
@@ -68,7 +49,6 @@
     <thead>
       <tr>
         <th>#</th>
-        <th>Campus</th>
         <th>Stream Type</th>
       </tr>
     </thead>
@@ -78,9 +58,7 @@
       @foreach ($data as $item)
       <tr>
         <td>{{$sl++}}</td>
-        <td><span class="text-uppercase"> {{$item->campus->name}}</span></td>
-        <td><span class="text-uppercase"> {{$item->name}}</span></td>
-
+        <td><span class="text-uppercase"> {{$item->title}}</span></td>
       </tr>
       @endforeach
 

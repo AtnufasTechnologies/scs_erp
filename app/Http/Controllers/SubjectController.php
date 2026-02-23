@@ -8,7 +8,9 @@ use App\Models\CognitiveLevelMaster;
 use App\Models\Department;
 use App\Models\Faculty;
 use App\Models\LectureHallMaster;
+use App\Models\MainProgram;
 use App\Models\ProgramCourseMaster;
+use App\Models\ProgramMaster;
 use App\Models\StudentMaster;
 use App\Models\StudentProgram;
 use App\Models\Subject;
@@ -47,6 +49,7 @@ class SubjectController extends Controller
 
     function addSubject(Request $request)
     {
+
         $request->validate([
             'code' => 'required|string|max:100',
             'title' => 'required|string|max:255',
@@ -58,13 +61,13 @@ class SubjectController extends Controller
         if ($check > 0) {
             return response()->json(['msg' => 'Subject already exists', 'status' => 'error']);
         } else {
-
+            $mainStream = ProgramMaster::find($request->program_id);
             if ($request->campus == 3) {
                 $campuses = Campus::all();
                 foreach ($campuses as $campus) {
                     $rec = new Subject();
                     $rec->campus_id = $campus->id;
-                    $rec->main_program_type = 'PG';
+                    $rec->main_program_type = $mainStream->title;
                     $rec->slug =   $slug;
                     $rec->code = Str::upper($request->code);
                     $rec->title = Str::lower($request->title);
@@ -73,7 +76,7 @@ class SubjectController extends Controller
             } else {
                 $rec = new Subject();
                 $rec->campus_id = $request->campus;
-                $rec->main_program_type = 'UG';
+                $rec->main_program_type = $mainStream->title;
                 $rec->slug =   $slug;
                 $rec->code = Str::upper($request->code);
                 $rec->title = Str::lower($request->title);

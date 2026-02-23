@@ -281,10 +281,35 @@ class AdminController extends Controller
         return redirect()->back()->with('success', 'Update Done');
     }
 
-    function programMaster()
+    function streamMaster()
     {
+        $data = ProgramMaster::latest()->get();
+        return view('admin.master.stream-master', ['data' => $data]);
+    }
+
+    function programMaster() //campus course combination
+    {
+        $campuses = Campus::latest()->get();
+        $programs = ProgramMaster::latest()->get();
         $data = MainProgram::with('campus')->get();
-        return view('admin.master.programs', ['data' => $data]);
+        return view('admin.master.programs', ['data' => $data, 'campuses' => $campuses, 'programs' => $programs]);
+    }
+
+    function addStreamCombination(Request $request)
+    {
+        $request->validate([
+            'campus' => 'required',
+            'streamtype' => 'required',
+        ]);
+
+        $prg =  ProgramMaster::find($request->streamtype);
+
+        $rec = new MainProgram();
+        $rec->campus_id = $request->campus;
+        $rec->program_id = $prg->id;
+        $rec->name = ucfirst($prg->title);
+        $rec->save();
+        return redirect()->back()->with('success', 'Done');
     }
 
     function programGroup()

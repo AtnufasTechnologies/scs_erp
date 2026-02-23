@@ -58,7 +58,28 @@ class TestController extends Controller
     }
 
     //sms Testing
-    function smsTest(Request $request) {}
+    function smsTest(Request $request)
+    {
+
+        $mobile = '9933402478';
+        $fullname = 'John Gaurav';
+
+        $var1 = 111234;
+        $var2 = '9933402478';
+        $var3 = 'admissionenquiry@salesaincollge.net';
+
+        $fields = array(
+            "sender_id" => 'SCSCLG',
+            "message" => '209774',
+            "variables_values" => $var1,
+            $var2,
+            $var3,
+            "route" => "dlt",
+            "numbers" => $mobile,
+        );
+        StaticController::otpSender($fields);
+        dd('SMS sent successfully to ' . $mobile);
+    }
 
     //student master - fixing new program 
 
