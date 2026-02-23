@@ -287,6 +287,19 @@ class AdminController extends Controller
         return view('admin.master.stream-master', ['data' => $data]);
     }
 
+    function addStreamMaster(Request $request)
+    {
+        $request->validate([
+            'title' => 'required|string|max:255',
+        ]);
+
+        $rec = new ProgramMaster();
+        $rec->title = ucfirst($request->title);
+        $rec->save();
+        return redirect()->back()->with('success', 'Done');
+    }
+
+
     function programMaster() //campus course combination
     {
         $campuses = Campus::latest()->get();
