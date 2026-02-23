@@ -128,14 +128,11 @@ class AdmissionController extends Controller
             $user = AdmissionRegistration::find($userId);
             //OTP ON NUMBER
             $phoneNo = $user->mobile_no;
-            $fullname = $user->first_name . ' ' . $user->last_name;
-            $var1 = $fullname;
-            $var2 = $otp;
-            $var3 = "Salesian College Autonomous";
+            $var1 = $otp;
             $fields = array(
-                "sender_id" => 'ATNFAS',
-                "message" => '186603',
-                "variables_values" => $var1 . '|' . $var2 . '|' . $var3,
+                "sender_id" => 'SCSCLG',
+                "message" => '209775',
+                "variables_values" => $var1,
                 "route" => "dlt",
                 "numbers" => $phoneNo,
             );
@@ -172,14 +169,13 @@ class AdmissionController extends Controller
         $user = AdmissionRegistration::find($userId);
         //OTP ON NUMBER
         $phoneNo = $user->mobile_no;
-        $fullname = $user->firstname . ' ' . $user->lastname;
-        $var1 = $fullname;
-        $var2 = $otp;
-        $var3 = "Salesian College Autonomous";
+
+        $var1 = $otp;
+
         $fields = array(
-            "sender_id" => 'ATNFAS',
-            "message" => '186603',
-            "variables_values" => $var1 . '|' . $var2 . '|' . $var3,
+            "sender_id" => 'SCSCLG',
+            "message" => '209775',
+            "variables_values" => $var1,
             "route" => "dlt",
             "numbers" => $phoneNo,
         );
@@ -1222,24 +1218,16 @@ class AdmissionController extends Controller
         Mail::to($applicant_email)->send(new ApplicationSuccessMail($applicationId));
 
         //Send SMS to the Applicant
-        $messageId = 186602;
-        //preset message id for payment success   
-        $var1 =   $firstname . ', App# ' . $applicationId; //dynamic variable for applicant name and application id
-        $var3 = 'admissionenquiry@salesiancollege.net'; //admission office email for applicant reference  
-        $var2 = ' 99334 02478 / 0353 254 5622'; //college website for applicant reference
-        $fields = [
-            'body' => json_encode([
-                'route' => 'dlt',
-                'requests' => [
-                    [
-                        'sender_id' => 'ATNFAS',
-                        'numbers' => $applicantPhone,
-                        'message' => $messageId,
-                        'variables_values' => $var1 . '|' . $var2 . '|' . $var3,
-                    ]
-                ]
-            ])
-        ];
+        $var1 = $applicationId; //dynamic variable for applicant name and application id
+        $var2 = 9933402478;
+        $var3 = 'admissionenquiry@salesiancollege.net';
+        $fields = array(
+            "sender_id" => 'SCSCLG',
+            "message" => '209774',
+            "variables_values" => $var1 . '|' . $var2 . '|' . $var3,
+            "route" => "dlt",
+            "numbers" => $applicantPhone,
+        );
 
         StaticController::bulkSmsSender($fields);
         //log User 

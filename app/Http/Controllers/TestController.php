@@ -61,19 +61,15 @@ class TestController extends Controller
     function smsTest(Request $request)
     {
 
-        $mobile = '9933402478';
-        $fullname = 'John Gaurav';
-
-        $var1 = 111234;
-        $var2 = '9933402478';
+        $mobile = '7699900008';
+        $var1 = 100053;
+        $var2 = 9933402478;
         $var3 = 'admissionenquiry@salesaincollge.net';
 
         $fields = array(
             "sender_id" => 'SCSCLG',
             "message" => '209774',
-            "variables_values" => $var1,
-            $var2,
-            $var3,
+            "variables_values" => $var1 . '|' . $var2 . '|' . $var3,
             "route" => "dlt",
             "numbers" => $mobile,
         );
