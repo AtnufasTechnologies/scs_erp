@@ -92,8 +92,8 @@ $campuses = Campus::latest()->get();
       <tr>
         <td>{{$sl++}}</td>
         <td>{{$item->campusmaster->name}}</td>
-        <td><span class="text-capitalize">{{$item->code}}</span></td>
-        <td><span class="text-capitalize">{{$item->title}}</span></td>
+        <td><span>{{$item->code}}</span></td>
+        <td><span>{{$item->title}}</span></td>
         <td><span class="text-capitalize">{{$item->main_program_type}}</span></td>
         <td>
           <!-- Button trigger modal -->

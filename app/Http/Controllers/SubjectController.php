@@ -69,8 +69,8 @@ class SubjectController extends Controller
                     $rec->campus_id = $campus->id;
                     $rec->main_program_type = $mainStream->title;
                     $rec->slug =   $slug;
-                    $rec->code = Str::upper($request->code);
-                    $rec->title = Str::lower($request->title);
+                    $rec->code = $request->code;
+                    $rec->title = $request->title;
                     $rec->save();
                 }
             } else {
@@ -78,8 +78,8 @@ class SubjectController extends Controller
                 $rec->campus_id = $request->campus;
                 $rec->main_program_type = $mainStream->title;
                 $rec->slug =   $slug;
-                $rec->code = Str::upper($request->code);
-                $rec->title = Str::lower($request->title);
+                $rec->code = $request->code;
+                $rec->title = $request->title;
                 $rec->save();
             }
 
@@ -578,8 +578,8 @@ class SubjectController extends Controller
 
         $data->campus_id = $request->campus;
         $data->main_program_type = $request->program_id;
-        $data->code = Str::upper($request->code);
-        $data->title = Str::lower($request->title);
+        $data->code = $request->code;
+        $data->title = $request->title;
         $data->save();
 
         return redirect()->back()->with('success', 'Academic Department Updated');
