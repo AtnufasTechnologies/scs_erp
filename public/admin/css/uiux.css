@@ -207,8 +207,9 @@
     box-shadow: 0 4px 16px rgba(255, 105, 97, 0.25);
 }
 
-.btn-primary {
-    background: linear-gradient(90deg, #614385 0%, #563b76 100%);
+.btn-primary,
+.btn-outline-primary {
+    background: linear-gradient(90deg, #661ac2 0%, #563b76 100%);
     color: #fff;
     border: none;
     border-radius: 10px;
@@ -223,12 +224,11 @@
     &:hover {
         background: linear-gradient(
             90deg,
-            #614385 0%,
+            #661ac2 0%,
 
             #563b76 100%
         );
-        transform: translateY(-2px) scale(1.03);
-        box-shadow: 0 4px 16px rgba(255, 105, 97, 0.25);
+        color: #f7cb7e;
     }
 }
 
@@ -256,7 +256,7 @@
 
 .btn-success,
 .btn-outline-success {
-    background: linear-gradient(90deg, #4cb8c4 0%, #3cd3ad 51%, #4cb8c4 100%);
+    background-image: linear-gradient(to right, #02aab0 30%, #00cdac 100%);
     color: #fff;
     border: none;
     border-radius: 10px;
@@ -270,14 +270,7 @@
     box-shadow: 0 2px 8px rgba(255, 105, 97, 0.15);
 
     &:hover {
-        background: linear-gradient(
-            90deg,
-            #4cb8c4 0%,
-            #3cd3ad 51%,
-            #4cb8c4 100%
-        );
-        transform: translateY(-2px) scale(1.03);
-        box-shadow: 0 4px 16px rgba(255, 105, 97, 0.25);
+        background-position: right center;
     }
 }
 
@@ -299,5 +292,45 @@
     &:hover {
         transform: translateY(-2px) scale(1.03);
         box-shadow: 0 4px 16px rgba(255, 105, 97, 0.25);
+    }
+}
+
+.btn-info,
+.btn-outline-info {
+    background-image: linear-gradient(to right, #504ba0f9 30%, #223568 100%);
+    color: #fff;
+    border: none;
+    border-radius: 10px;
+    padding: 0.8rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition:
+        background 0.2s,
+        transform 0.2s,
+        box-shadow 0.2s;
+
+    &:hover {
+        color: #ffee6d;
+        background-position: right center;
+    }
+}
+
+.btn-dark,
+.btn-outline-dark {
+    background-image: linear-gradient(to right, #202c34 30%, #1d253d 100%);
+    color: #fff;
+    border: none;
+    border-radius: 10px;
+    padding: 0.8rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition:
+        background 0.2s,
+        transform 0.2s,
+        box-shadow 0.2s;
+
+    &:hover {
+        color: #ffee6d;
+        background-position: right center;
     }
 }

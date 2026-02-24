@@ -172,12 +172,10 @@
 
           </div>
           @if ($data->countrymaster->name == 'India')
-          <div class="col-lg-3 col-sm-12">
-            <label for="">Adhaar No </label><br>
-
-            <input type="text" class="form-control mb-3 radius-20 dark" name="adhaar" value="{{old('adhaar')}}">
+          <div class="col-lg-4 col-sm-12">
+            <label for="">Adhaar Document <span class="text-danger">*</span></label><br>
+            <input type="file" class="form-control mb-3 radius-20 dark" name="adhaar_doc" accept=".pdf, .jpg, .jpeg, .png">
           </div>
-
 
           @else
           <div class="col-lg-4 col-sm-12">

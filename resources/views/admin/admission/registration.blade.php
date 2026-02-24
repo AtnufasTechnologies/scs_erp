@@ -49,7 +49,7 @@
           @if($item->otp_verification == '1')
           <span class="badge bg-success"><i class="bi bi-check-circle"></i> Verified</span>
           @else
-          <span class="badge bg-danger"><i class="bi bi-x-circle"></i> Not Verified</span>
+          <a href="{{route('otp.status.update', ['id' => $item->id])}}"><span class="badge bg-danger"><i class="bi bi-x-circle"></i> Not Verified</span></a>
           @endif
         </td>
         <td>

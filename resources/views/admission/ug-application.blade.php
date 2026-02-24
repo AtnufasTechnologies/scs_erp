@@ -201,9 +201,13 @@
           </div>
           @if ($data->countrymaster->name == 'India')
           <div class="col-lg-3 col-sm-12">
-            <label for="">Adhaar No </label><br>
-
+            <label for="">Adhaar No <span class="text-danger">*</span></label><br>
             <input type="text" class="form-control mb-3 radius-20 dark" name="adhaar" value="{{old('adhaar')}}">
+          </div>
+
+          <div class="col-lg-4 col-sm-12">
+            <label for="">Adhaar Document ()<span class="text-danger">*</span></label><br>
+            <input type="file" class="form-control mb-3 radius-20 dark" name="adhaar_doc" accept=".pdf, .jpg, .jpeg, .png">
           </div>
 
 
@@ -542,7 +546,7 @@
               <div class="col-lg-12 col-sm-12">
                 <label for=""> Year of Passing<span class="text-danger">*</span></label>
                 @error('passingyear') <span class="text-danger">{{ $message }}</span> @enderror
-                <input type="number" class="form-control mb-3 radius-20 dark" name="passingyear10" value="{{old('passingyear10')}}" min="2020" max="{{date('Y')}}" placeholder="YYYY">
+                <input type="number" class="form-control mb-3 radius-20 dark" name="passingyear10" value="{{old('passingyear10')}}" min="2000" max="{{date('Y')}}" placeholder="YYYY">
               </div>
             </div>
           </div>
@@ -551,7 +555,7 @@
 
 
         <div class="col-lg-5 col-sm-12">
-          <label for="">Class 10 Certificate (PDF - Max 5MB) <span class="text-danger">*</span></label>
+          <label for="">Class 10 Certificate (JPG,PDF - Max 5MB) <span class="text-danger">*</span></label>
           @error('certificate10') <span class="text-danger">{{ $message }}</span> @enderror
           <input type="file" class="form-control mb-3 radius-20 dark" name="certificate10" value="{{old('certificate10')}}" id="certificate10">
         </div>
@@ -671,7 +675,7 @@
               <div class="col-lg-12 col-sm-12">
                 <label for=""> Year of Passing<span class="text-danger">*</span></label>
                 @error('passingyear12') <span class="text-danger">{{ $message }}</span> @enderror
-                <input type="number" class="form-control mb-3 radius-20 dark" name="passingyear12" value="{{old('passingyear12')}}" min="2020" max="{{date('Y')}}" placeholder="YYYY">
+                <input type="number" class="form-control mb-3 radius-20 dark" name="passingyear12" value="{{old('passingyear12')}}" min="2000" max="{{date('Y')}}" placeholder="YYYY">
               </div>
             </div>
           </div>
