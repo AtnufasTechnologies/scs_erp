@@ -12,10 +12,10 @@
       <h1 class="text-capitalize">Salesian College Autonomous</h1>
       <h2 class="text-capitalize">Sonada & Siliguri Campus</h2>
       <div class="contact-links">
-        <a href="mailto:" aria-label="">
-          <i class="fas fa-envelope"></i> admissions@salesiancollege.net
+        <a href="mailto:admissionenquiry@salesiancollege.net" aria-label="Email">
+          <i class="fas fa-envelope"></i> admissionenquiry@salesiancollege.net
         </a>
-        <a href="tel:" target="_blank">
+        <a href="tel:+919933402478" target="_blank">
           <i class="fas fa-phone"></i> +91 99334 02478 / 0353 254 5622
         </a>
 
@@ -58,7 +58,9 @@
     @csrf
     <button type="submit" id="resendBtn" class="btn btn-link w-100" disabled>Resend OTP <span id="timer">(02:00)</span></button>
   </form>
-
+  <a href="{{route('admission.apply.logout')}}">
+    <button class="mb-3 btn btn-dark">Logout</button>
+  </a>
 </div>
 
 <script>

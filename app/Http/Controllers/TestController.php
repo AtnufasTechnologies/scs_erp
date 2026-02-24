@@ -62,11 +62,12 @@ class TestController extends Controller
     {
 
         $mobile = '8100556241';
-        $var1 = '123456';
+        $var1 = '456789';
+        $var2 = '2';
         $fields = array(
-            "sender_id" => 'SCSCLG',
-            "message" => '209775',
-            "variables_values" => $var1,
+            "sender_id" => 'ATNFAS',
+            "message" => '186600',
+            "variables_values" => $var1 . '|' . $var2,
             "route" => "dlt",
             "numbers" => $mobile,
         );

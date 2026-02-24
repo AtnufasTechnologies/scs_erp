@@ -136,10 +136,11 @@ class AdmissionController extends Controller
             //OTP ON NUMBER
             $phoneNo = $user->mobile_no;
             $var1 = $otp;
+            $var2 = '2';
             $fields = array(
-                "sender_id" => 'SCSCLG',
-                "message" => '209775',
-                "variables_values" => $var1,
+                "sender_id" => 'ATNFAS',
+                "message" => '186600',
+                "variables_values" => $var1 . '|' . $var2,
                 "route" => "dlt",
                 "numbers" => $phoneNo,
             );
@@ -178,11 +179,11 @@ class AdmissionController extends Controller
         $phoneNo = $user->mobile_no;
 
         $var1 = $otp;
-
+        $var2 = '2';
         $fields = array(
-            "sender_id" => 'SCSCLG',
-            "message" => '209775',
-            "variables_values" => $var1,
+            "sender_id" => 'ATNFAS',
+            "message" => '186600',
+            "variables_values" => $var1 . '|' . $var2,
             "route" => "dlt",
             "numbers" => $phoneNo,
         );
@@ -209,7 +210,11 @@ class AdmissionController extends Controller
         if ($user) {
             if (Hash::check($request->password, $user->password)) {
                 Auth::login($user, true);
-                return redirect()->route('admission.apply.application');
+                if ($user->otp_verification == 0) {
+                    return redirect()->route('otp.verification.page');
+                } else {
+                    return redirect()->route('admission.apply.application');
+                }
             } else {
                 return back()->withErrors(['registered_no' => 'Invalid credentials.']);
             }
