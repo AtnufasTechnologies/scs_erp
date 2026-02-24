@@ -136,10 +136,10 @@ class AdmissionController extends Controller
             //OTP ON NUMBER
             $phoneNo = $user->mobile_no;
             $var1 = $otp;
-            $var2 = '2';
+            $var2 = 2;
             $fields = array(
-                "sender_id" => 'ATNFAS',
-                "message" => '186600',
+                "sender_id" => 'SCSCLG',
+                "message" => '209861',
                 "variables_values" => $var1 . '|' . $var2,
                 "route" => "dlt",
                 "numbers" => $phoneNo,
@@ -179,10 +179,10 @@ class AdmissionController extends Controller
         $phoneNo = $user->mobile_no;
 
         $var1 = $otp;
-        $var2 = '2';
+        $var2 = 2;
         $fields = array(
-            "sender_id" => 'ATNFAS',
-            "message" => '186600',
+            "sender_id" => 'SCSCLG',
+            "message" => '209861',
             "variables_values" => $var1 . '|' . $var2,
             "route" => "dlt",
             "numbers" => $phoneNo,
@@ -1241,7 +1241,7 @@ class AdmissionController extends Controller
         $var3 = 'admissionenquiry@salesiancollege.net';
         $fields = array(
             "sender_id" => 'SCSCLG',
-            "message" => '209774',
+            "message" => '209860',
             "variables_values" => $var1 . '|' . $var2 . '|' . $var3,
             "route" => "dlt",
             "numbers" => $applicantPhone,

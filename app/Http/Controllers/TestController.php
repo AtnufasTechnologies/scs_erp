@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Mail\ApplicationSuccessMail;
 use App\Mail\OtpMail;
 use App\Models\ProgramGroup;
+use App\Models\SmsTemplate;
 use App\Models\StudentMaster;
 use App\Models\SubjectHasDeptAdmin;
 use App\Models\UserCampusSetting;
@@ -60,14 +61,14 @@ class TestController extends Controller
     //sms Testing
     function smsTest(Request $request)
     {
-
         $mobile = '8100556241';
-        $var1 = '456789';
-        $var2 = '2';
+        $var1 = 90002;
+        $var2 = 9933402478;
+        $var3 = 'admissionenquiry@salesiancollege.net';
         $fields = array(
-            "sender_id" => 'ATNFAS',
-            "message" => '186600',
-            "variables_values" => $var1 . '|' . $var2,
+            "sender_id" => 'SCSCLG',
+            "message" => '209860',
+            "variables_values" => $var1 . '|' . $var2 . '|' . $var3,
             "route" => "dlt",
             "numbers" => $mobile,
         );

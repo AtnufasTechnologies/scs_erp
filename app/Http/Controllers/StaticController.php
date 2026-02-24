@@ -312,6 +312,25 @@ class StaticController extends Controller
     }
   }
 
+  static function smsSender($fields)
+  {
+    $response = Http::withHeaders([
+      'authorization' => env('SMSAPIKEY'),
+      'accept' => '*/*',
+      'cache-control' => 'no-cache',
+      'content-type' => 'application/json',
+    ])->timeout(30)->post('https://www.fast2sms.com/dev/bulkV2', $fields);
+
+    if ($response->failed()) {
+      // You can log or handle the error as needed
+      echo "HTTP Error: " . $response->body();
+    } else {
+      $jsonResponse = $response->json();
+      // Optionally return or process $jsonResponse
+      return $jsonResponse;
+    }
+  }
+
   static function bulkSmsSender($fields)
 
   {
