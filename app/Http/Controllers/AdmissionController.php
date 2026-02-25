@@ -1222,6 +1222,7 @@ class AdmissionController extends Controller
         $status = $request->status;
         $txnid = $request->txnid;
         $userId = $request->udf1;
+        $applicationId = $request->udf2;
         //Online Transaction - Update Payment Record
         AdmissionApplication::where('application_code', $txnid)
             ->update(
@@ -1234,6 +1235,19 @@ class AdmissionController extends Controller
                 ]
             );
 
+        //Create Payment Log
+        AdmissionApplicationPaymentLog::create([
+
+            'application_id' => $applicationId,
+            'txnid' => $txnid,
+            'easepayid' => $easepayid,
+            'user_id' => $userId,
+            'amount' => $amount,
+            'hash' => $hash,
+            'msg' => $msg,
+            'status' => $status,
+
+        ]);
 
         //Send Email to the Applicant
         $firstname = AdmissionRegistration::where('id', $userId)->value('first_name');
@@ -1288,18 +1302,17 @@ class AdmissionController extends Controller
     /**
      * Webhook: Easebuzz server->server notifications
      */
-    public function webhook(Request $request)
+    public function webhookEasebuzz(Request $request)
     {
         // Validate signature if Easebuzz sends one (check docs)
         // Example: $signature = $request->header('X-Easebuzz-Signature'); verify it
         $payload = $request->all();
-        $application_id = $payload['udf2'] ?? null;
+        $application_code = $payload['udf2'] ?? null;
 
-        if (!$application_id) {
-            return response()->json(['status' => 'error', 'message' => 'application_id missing'], 400);
+        if (!$application_code) {
+            return response()->json(['status' => 'error', 'message' => 'application_code missing'], 400);
         }
-
-        $payment = AdmissionApplication::where('id', $application_id)->first();
+        $payment = AdmissionApplication::where('application_code', $application_code)->first();
 
         if (!$payment) {
             // maybe log and create a record
@@ -1312,7 +1325,11 @@ class AdmissionController extends Controller
         // Update according to webhook payload status
         $status = $payload['status'] ?? 'pending';
         $payment->update([
-            'payment_gateway_status' => strtoupper($status),
+            'payment_gateway_ref' => $payload['easepayid'] ?? null,
+            'status' => $status,
+            'msg' => $payload['error_Message'] ?? null,
+            'hash' => $payload['hash'] ?? null,
+            'captured_amount' => $payload['amount'] ?? null,
         ]);
 
         // perform reconciliation, ledger updates etc.
@@ -1954,5 +1971,72 @@ class AdmissionController extends Controller
 
 
         return redirect()->back()->with('success', 'Applicant campus shift successful.');
+    }
+
+    function verifyPayment($id)
+    {
+        $applicationRecord = AdmissionApplication::find($id);
+        if (!$applicationRecord) {
+            return back()->with('error', 'Application not found.');
+        }
+        $txnid = $applicationRecord->application_code;
+        // Call the payment gateway API to verify payment status
+        // This is a placeholder. You need to implement actual API call and response handling based on your payment gateway's documentation.
+        $response = StaticController::easebuzz_verifyPaymentWithHash($txnid);
+        $data =  $response['msg']['0'];
+        return view('admin.admission.ez-payment-verification', ['data' => $data]);
+    }
+
+    function updateApplicationPayment(Request $request)
+    {
+        $request->validate([
+            'id' => 'required',
+            'payment_gateway_ref' => 'required',
+            'captured_amount' => 'required',
+            'hash' => 'required',
+            'payment_gateway_status' => 'required',
+            'msg' => 'required',
+        ]);
+
+        $application  = AdmissionApplication::where('id', $request->id)->first();
+
+        //Updating payment details in application record
+        $application->update([
+            'payment_gateway_ref' => $request->payment_gateway_ref,
+            'captured_amount' => $request->captured_amount,
+            'hash' => $request->hash,
+            'payment_gateway_status' => $request->payment_gateway_status,
+            'msg' => $request->msg,
+        ]);
+
+        //Update payment log
+        $paymentLog =  AdmissionApplicationPaymentLog::where('application_id', $request->id)->first();
+        if ($paymentLog) {
+            $paymentLog->update([
+                'application_id' => $request->id,
+                'txnid' => $application->application_code,
+                'easepayid' => $request->payment_gateway_ref,
+                'user_id' => $application->user_id,
+                'amount' => $request->captured_amount,
+                'hash' => $request->hash,
+                'msg' => $request->msg,
+                'status' => $request->payment_gateway_status,
+            ]);
+        } else {
+            AdmissionApplicationPaymentLog::create([
+
+                'application_id' => $request->id,
+                'txnid' => $application->application_code,
+                'easepayid' => $request->payment_gateway_ref,
+                'user_id' => $application->user_id,
+                'amount' => $request->captured_amount,
+                'hash' => $request->hash,
+                'msg' => $request->msg,
+                'status' => $request->payment_gateway_status,
+
+            ]);
+        }
+
+        return back()->with('success', 'Payment status updated successfully.');
     }
 }

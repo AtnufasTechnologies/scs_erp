@@ -79,6 +79,7 @@ $campus = MainProgram::with('campus')->get();
         <th>Actions</th>
         <th>Interview</th>
         <th>Transfer</th>
+        <th>Payment</th>
       </tr>
     </thead>
     <tbody>
@@ -107,8 +108,6 @@ $campus = MainProgram::with('campus')->get();
           <a href="{{ route('admission.edit.application', $item->id) }}" class="btn  btn-dark mb-3" title="Edit">
             <i class="fas fa-edit"></i>
           </a>
-
-
 
         </td>
 
@@ -241,6 +240,12 @@ $campus = MainProgram::with('campus')->get();
               </form>
             </div>
           </div>
+        </td>
+
+        <td>
+          <a href="{{ route('admission.verify.payment', $item->id) }}">
+            <button class="btn btn-primary">Verify</button>
+          </a>
         </td>
       </tr>
       @endforeach
