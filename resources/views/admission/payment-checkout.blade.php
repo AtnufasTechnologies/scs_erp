@@ -11,13 +11,19 @@
       <h2 class="text-capitalize">Sonada & Siliguri Campus</h2>
       <div class="contact-links">
         <a href="mailto:" aria-label="">
-          <i class="fas fa-envelope"></i> admissionenquiry@salesiancollege.net
+          <i class="fas fa-envelope"></i> admissionenquiry@salesiancollege.net (Siliguri Campus)
         </a>
         <a href="tel:" target="_blank">
-          <i class="fas fa-phone"></i> +91 99334 02478 / 0353 254 5622
+          <i class="fas fa-phone"></i> +91 99334 02478 / 0353 254 5622 (Siliguri Campus)
         </a>
-
-
+      </div>
+      <div class="contact-links">
+        <a href="mailto:salesiancollegesonada@gmail.com" aria-label="">
+          <i class="fas fa-envelope"></i> salesiancollegesonada@gmail.com (Sonada)
+        </a>
+        <a href="tel:+917602032968" target="_blank">
+          <i class="fas fa-phone"></i> 76020 32968 / 99336 40168 (Sonada)
+        </a>
       </div>
     </div>
   </div>

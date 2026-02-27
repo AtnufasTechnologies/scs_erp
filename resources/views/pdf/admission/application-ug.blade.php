@@ -159,8 +159,11 @@
                             <td style="border: none; width: 70%;">
                                 <div class="college-title">Salesian College (Autonomous)</div>
                                 <div class="subtitle">Sonada and Siliguri</div>
-                                Email: admissionenquiry@salesiancollege.net <br> Phone: +91 99334 02478 / 0353 254 5622
-                                <br><br>
+                                Email: admissionenquiry@salesiancollege.net <br> Phone: +91 99334 02478 / 0353 254 5622 (Siliguri Campus) <br> Phone: 76020 32968 / 99336 40168 (Sonada)
+
+                                <br>
+                                salesiancollegesonada@gmail.com / 76020 32968 / 99336 40168 (Sonada)
+                                <br>
                                 <div class="subtitle">UG - Online Application Form ({{$data->registrationmaster->campusmaster->name}})</div>
 
                             </td>
