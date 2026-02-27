@@ -10,17 +10,7 @@ $campus = MainProgram::with('campus')->get();
 @include('includes.header')
 @include('admin.sidebar')
 <h3>UG - Applications </h3>
-<div class="row">
 
-  @foreach($programs as $program)
-  <div class="col-lg-2">
-    <div class="card" style="background-color: #c3d0ffd3;height: 100px; display: flex; align-items: center; justify-content: center;">
-      {{$program->code}} - {{ $program->name }} ({{ count($program->applicationCount)  }})
-    </div>
-  </div>
-  @endforeach
-
-</div>
 
 
 <div class="container-fluid">
