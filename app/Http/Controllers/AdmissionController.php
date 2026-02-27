@@ -1984,8 +1984,8 @@ class AdmissionController extends Controller
         // This is a placeholder. You need to implement actual API call and response handling based on your payment gateway's documentation.
 
         $response = StaticController::easebuzz_verifyPaymentWithHash($txnid);
-        if ($response == null) {
-            return back()->with('info', 'Payment yet Not Intitated');
+        if ($response['status'] == false) {
+            return back()->with('error', $response['msg']);
         }
         $data =  $response['msg']['0'];
         return view('admin.admission.ez-payment-verification', ['data' => $data]);
