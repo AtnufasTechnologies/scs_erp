@@ -255,9 +255,9 @@ class AdmissionController extends Controller
 
     function showApplicationPage()
     {
-        if (!Auth::check()) {
-            return redirect()->route('new.admission.login')->with('info', 'Please login to access application form.');
-        }
+        // if (!Auth::check()) {
+        //     return redirect()->route('new.admission.login')->with('info', 'Please login to access application form.');
+        // }
         $userId = Auth::user()->id;
         $registrationInfo = AdmissionRegistration::with([
             'campusmaster',
