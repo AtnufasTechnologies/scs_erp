@@ -120,10 +120,8 @@ class AdmissionController extends Controller
 
     function showOtpVerificationPage(Request $request)
     {
-        $logincheck = Auth::check();
-        if (!$logincheck) {
-            Auth::logout();
-            return redirect()->route('new.admission.login')->withErrors(['login' => 'Please login to access OTP verification.']);
+        if (!Auth::check()) {
+            return redirect()->route('new.admission.login')->with('info', 'Please login to access application form.');
         }
 
         $userId = Auth::user()->id;
@@ -213,7 +211,7 @@ class AdmissionController extends Controller
                 if ($user->otp_verification == 0) {
                     return redirect()->route('otp.verification.page');
                 } else {
-                    return redirect()->route('admission.apply.application');
+                    return $this->showApplicationPage();
                 }
             } else {
                 return back()->withErrors(['registered_no' => 'Invalid credentials.']);
@@ -258,12 +256,9 @@ class AdmissionController extends Controller
 
     function showApplicationPage()
     {
-        $logincheck = Auth::check();
-        if ($logincheck == false) {
-            Auth::logout();
+        if (!Auth::check()) {
             return redirect()->route('new.admission.login')->with('info', 'Please login to access application form.');
         }
-
         $userId = Auth::user()->id;
         $registrationInfo = AdmissionRegistration::with([
             'campusmaster',
