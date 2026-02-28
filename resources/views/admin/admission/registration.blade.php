@@ -55,6 +55,7 @@
         <td>
           @if($item->applicationmaster == null)
           <span class="badge bg-warning text-dark">Pending</span>
+          <!-- <a href="{{route('admin.fill.student.application.ug', ['id' => $item->id])}}"><span class="badge bg-primary">Fill Application</span></a> -->
           @else
           <span class="badge bg-success">Filled</span>
           @endif

@@ -104,8 +104,8 @@ class AdmissionController extends Controller
         $rec->batch = $batch;
         $rec->first_name = $request->firstname;
         $rec->last_name = $request->lastname;
-        $rec->mobile_no = $request->mobile_no;
-        $rec->mail_id = $request->mail_id;
+        $rec->mobile_no = trim($request->mobile_no);
+        $rec->mail_id = Str::lower($request->mail_id);
         $rec->campus_id = $request->campus;
         $rec->application_type = $request->applicationType;
         $rec->country = $request->country;
@@ -2039,5 +2039,21 @@ class AdmissionController extends Controller
         }
 
         return back()->with('success', 'Payment status updated successfully.');
+    }
+
+
+    function adminFillStudentApplicationUg($id)
+    {
+        $registrationInfo = AdmissionRegistration::with([
+            'campusmaster',
+            'countrymaster',
+        ])->where('id', $id)->first();
+
+        if ($registrationInfo->application_status == 1) {
+            return back()->with('info', 'Application already filled for this student.');
+        } else {
+
+            return view('admin.admission.ug.manual-application', ['data' => $registrationInfo]);
+        }
     }
 }
