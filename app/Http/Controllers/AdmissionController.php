@@ -1177,7 +1177,12 @@ class AdmissionController extends Controller
 
     function initateEaseBuzzPayment(Request $request)
     {
-        $userId = Auth::user()->id;
+        $id = $request->id ?? Auth::id();
+        $user = $id ? AdmissionRegistration::find($id) : null;
+        $userId = $user ? $user->id : null;
+        if (!$userId) {
+            return redirect()->route('new.admission.login')->withErrors(['registered_no' => 'User not found. Please login again.']);
+        }
         $applicationRegRecord = AdmissionRegistration::where('id', $userId)->first();
         $applicationRecord = AdmissionApplication::where('registration_id', $applicationRegRecord->id)->first();
         $applicationId = $applicationRecord->id;
