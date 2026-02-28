@@ -114,16 +114,27 @@ class AdmissionController extends Controller
         $rec->save();
 
         $user = AdmissionRegistration::find($rec->id);
+        if (!$user) {
+            return redirect()->route('new.admission.login')->withErrors(['registered_no' => 'Registration failed. Please try again.']);
+        }
         Auth::login($user, true);
-        return redirect()->route('otp.verification.page');
+        return redirect()->route('otp.verification.page', ['id' => $rec->id])->with('success', 'Registration successful. Please verify OTP sent to your registered email and mobile number.');
     }
 
 
     function showOtpVerificationPage(Request $request)
     {
 
-
-        $userId = Auth::user()->id;
+        $id = $request->id ?? Auth::id();
+        $user = $id ? AdmissionRegistration::find($id) : null;
+        if (!$user && Auth::check()) {
+            $user = Auth::user();
+        }
+        if (!$user) {
+            return redirect()->route('new.admission.login')->withErrors(['registered_no' => 'Session expired. Please login again.']);
+        }
+        Auth::login($user, true);
+        $userId = $user->id;
         $isOtpVerified = Otp::where('user_id', $userId)->where('status', 1)->first();
         if (!$isOtpVerified) {
             //OTP on EMAIL
@@ -167,7 +178,13 @@ class AdmissionController extends Controller
 
     function otpResend(Request $request)
     {
-        $userId = Auth::user()->id;
+
+        $id = $request->id ?? Auth::id();
+        $user = $id ? AdmissionRegistration::find($id) : null;
+        $userId = $user ? $user->id : null;
+        if (!$userId) {
+            return redirect()->route('new.admission.login')->withErrors(['registered_no' => 'User not found. Please login again.']);
+        }
         Otp::where('user_id', $userId)->where('status', 1)->update(['status' => 0]);
 
         $otp = StaticController::OtpGenerator($userId);
@@ -209,7 +226,7 @@ class AdmissionController extends Controller
                 Auth::login($user, true);
                 $name = $user->first_name . ' ' . $user->last_name;
                 if ($user->otp_verification == 0) {
-                    return redirect()->route('otp.verification.page');
+                    return redirect()->route('otp.verification.page', ['id' => $user->id])->with('info', 'Please verify OTP sent to your registered email and mobile number.');
                 } else {
                     return redirect()->route('admission.apply.application', ['id' => $user->id, 'name' => Str::slug($name)]);
                 }
@@ -232,7 +249,21 @@ class AdmissionController extends Controller
         $request->validate([
             'otp' => 'required|numeric',
         ]);
-        $userId = Auth::user()->id;
+
+        $record = Otp::where('otp', $request->otp)
+            ->where('status', 1)
+            ->first();
+        if (!$record) {
+            return back()->withErrors(['otp' => 'Invalid OTP. Please try again.']);
+        }
+
+        $id = $record->user_id;
+        $user =  AdmissionRegistration::find($id);
+        if (!$user) {
+            return redirect()->route('new.admission.login')->withErrors(['registered_no' => 'User not found. Please login again.']);
+        }
+        Auth::login($user, true);
+        $userId = $user->id;
         $record = Otp::where('user_id', $userId)
             ->where('otp', $request->otp)
             ->where('status', 1)
@@ -247,7 +278,8 @@ class AdmissionController extends Controller
                 'account_status' => 1
             ]);
 
-            return redirect()->route('admission.apply.application');
+            $name = Str::slug(trim($user->first_name . ' ' . $user->last_name));
+            return redirect()->route('admission.apply.application', ['id' => $userId, 'name' => $name]);
         } else {
             return back()->withErrors(['otp' => 'Invalid OTP. Please try again.']);
         }
@@ -256,11 +288,18 @@ class AdmissionController extends Controller
 
     function showApplicationPage(Request $request)
     {
-        $id = $request->id;
-        $user =  AdmissionRegistration::find($id);
+        $id = $request->id ?? Auth::id();
+        $user = $id ? AdmissionRegistration::find($id) : null;
+
+        if (!$user && Auth::check()) {
+            $user = Auth::user();
+        }
+        if (!$user) {
+            return redirect()->route('new.admission.login')->withErrors(['registered_no' => 'Session expired. Please login again.']);
+        }
 
         Auth::login($user, true);
-        $userId = Auth::user()->id;
+        $userId = $user->id;
         $registrationInfo = AdmissionRegistration::with([
             'campusmaster',
             'countrymaster',
@@ -942,7 +981,12 @@ class AdmissionController extends Controller
         }
 
         // Save application
-        $userId = Auth::user()->id;
+        $id = $request->id ?? Auth::id();
+        $user = $id ? AdmissionRegistration::find($id) : null;
+        $userId = $user ? $user->id : null;
+        if (!$userId) {
+            return redirect()->route('new.admission.login')->withErrors(['registered_no' => 'User not found. Please login again.']);
+        }
         $registrationId = AdmissionRegistration::where('id', $userId)->value('id');
         $generatedNo = $userId  . rand(1000, 9999);
         $application = new AdmissionApplication();
@@ -1269,9 +1313,12 @@ class AdmissionController extends Controller
         StaticController::bulkSmsSender($fields);
         //log User 
         $userData = AdmissionRegistration::where('id', $userId)->first();
-        Auth::login($userData, true);
+        if ($userData) {
+            Auth::login($userData, true);
+        }
 
-        return redirect()->route('admission.apply.application')->with('success', 'Payment successful. Your application is now complete.');
+        $name = $userData ? Str::slug(trim($userData->first_name . ' ' . $userData->last_name)) : null;
+        return redirect()->route('admission.apply.application', ['id' => $userId, 'name' => $name])->with('success', 'Payment successful. Your application is now complete.');
     }
 
 
@@ -1290,9 +1337,13 @@ class AdmissionController extends Controller
         $rec->save();
         // Handle payment failure logic here
         $user = AdmissionRegistration::find($request->udf1);
-        Auth::login($user, true);
+        if ($user) {
+            Auth::login($user, true);
+            $name = Str::slug(trim($user->first_name . ' ' . $user->last_name));
+            return redirect()->route('admission.apply.application', ['id' => $user->id, 'name' => $name])->with('info', 'Payment failed. Please try again.');
+        }
 
-        return redirect()->route('admission.apply.application')->with('info', 'Payment failed. Please try again.');
+        return redirect()->route('new.admission.login')->withErrors(['registered_no' => 'Session expired. Please login again.']);
     }
 
     /**
