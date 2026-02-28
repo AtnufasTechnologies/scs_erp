@@ -207,10 +207,11 @@ class AdmissionController extends Controller
         if ($user) {
             if (Hash::check($request->password, $user->password)) {
                 Auth::login($user, true);
+                $name = $user->first_name . ' ' . $user->last_name;
                 if ($user->otp_verification == 0) {
                     return redirect()->route('otp.verification.page');
                 } else {
-                    return redirect()->route('admission.apply.application');
+                    return redirect()->route('admission.apply.application', ['id' => $user->id, 'name' => Str::slug($name)]);
                 }
             } else {
                 return back()->withErrors(['registered_no' => 'Invalid credentials.']);
@@ -253,11 +254,12 @@ class AdmissionController extends Controller
     }
 
 
-    function showApplicationPage()
+    function showApplicationPage(Request $request)
     {
-        // if (!Auth::check()) {
-        //     return redirect()->route('new.admission.login')->with('info', 'Please login to access application form.');
-        // }
+        $id = $request->id;
+        $user =  AdmissionRegistration::find($id);
+
+        Auth::login($user, true);
         $userId = Auth::user()->id;
         $registrationInfo = AdmissionRegistration::with([
             'campusmaster',
