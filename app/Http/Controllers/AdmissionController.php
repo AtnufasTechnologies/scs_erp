@@ -110,6 +110,7 @@ class AdmissionController extends Controller
         $rec->application_type = $request->applicationType;
         $rec->country = $request->country;
         $rec->password = Hash::make($request->password);
+        $rec->account_status = 1;
         $rec->save();
 
         $user = AdmissionRegistration::find($rec->id);
@@ -209,7 +210,7 @@ class AdmissionController extends Controller
             if (Hash::check($request->password, $user->password)) {
                 Auth::login($user, true);
                 if ($user->otp_verification == 0) {
-                    return redirect()->route('otp.verification.page');
+                    return $this->showOtpVerificationPage($request);
                 } else {
                     return $this->showApplicationPage();
                 }
@@ -1912,10 +1913,11 @@ class AdmissionController extends Controller
     function updateOtpStatus($id)
     {
         AdmissionRegistration::where('id', $id)->update([
-            'otp_verification' => '1'
+            'otp_verification' => '1',
+            'account_status' => 1
         ]);
 
-        return back()->with('success', 'OTP verification status updated successfully.');
+        return back()->with('success', 'OTP and Account status updated successfully.');
     }
 
     function getDepartmentsByCampusProgram($id)
