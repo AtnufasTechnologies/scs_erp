@@ -2056,4 +2056,10 @@ class AdmissionController extends Controller
             return view('admin.admission.ug.manual-application', ['data' => $registrationInfo]);
         }
     }
+
+
+    function technicalMode()
+    {
+        return view('admission.technical-mode');
+    }
 }
