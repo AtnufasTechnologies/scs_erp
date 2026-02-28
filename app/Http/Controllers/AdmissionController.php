@@ -1120,10 +1120,15 @@ class AdmissionController extends Controller
         return redirect()->route('admission.payment.checkout')->with('success', 'Application Saved successfully. Please proceed to payment.');
     }
 
-    function paymentCheckout()
+    function paymentCheckout(Request $request)
     {
+        $id = $request->id ?? Auth::id();
+        $user = $id ? AdmissionRegistration::find($id) : null;
+        $userId = $user ? $user->id : null;
+        if (!$userId) {
+            return redirect()->route('new.admission.login')->withErrors(['registered_no' => 'User not found. Please login again.']);
+        }
 
-        $userId = Auth::user()->id;
         $applicationRecord = AdmissionApplication::where('user_id', $userId)->first();
         if ($applicationRecord != null) {
 
