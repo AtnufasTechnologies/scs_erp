@@ -121,7 +121,7 @@ class AdmissionController extends Controller
     function showOtpVerificationPage(Request $request)
     {
         $logincheck = Auth::check();
-        if ($logincheck == false) {
+        if (!$logincheck) {
             Auth::logout();
             return redirect()->route('new.admission.login')->withErrors(['login' => 'Please login to access OTP verification.']);
         }
@@ -150,7 +150,7 @@ class AdmissionController extends Controller
             /**Pending Approval from Client */
 
             //Send Otp on Phone
-            StaticController::otpSender($fields);
+            StaticController::smsSender($fields);
             //Send Otp on Email
             $usermail = $user->mail_id;
             $this->sendOTPEmail($otp, $usermail);
@@ -187,7 +187,7 @@ class AdmissionController extends Controller
             "route" => "dlt",
             "numbers" => $phoneNo,
         );
-        StaticController::otpSender($fields);
+        StaticController::smsSender($fields);
         //Send Otp on Email
         $usermail = $user->mail_id;
         $this->sendOTPEmail($otp, $usermail);

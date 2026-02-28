@@ -63,16 +63,17 @@ class TestController extends Controller
     {
         $mobile = '8100556241';
         $var1 = 90002;
-        $var2 = 9933402478;
-        $var3 = 'admissionenquiry@salesiancollege.net';
+        $var2 = 2;
+        // $var3 = 'admissionenquiry@salesiancollege.net';
         $fields = array(
             "sender_id" => 'SCSCLG',
-            "message" => '209860',
-            "variables_values" => $var1 . '|' . $var2 . '|' . $var3,
+            "message" => '209861',
+            "variables_values" => $var1 . '|' . $var2,
             "route" => "dlt",
             "numbers" => $mobile,
         );
-        StaticController::otpSender($fields);
+        $response =   StaticController::smsSender($fields);
+        return $response;
         dd('SMS sent successfully to ' . $mobile);
     }
 
