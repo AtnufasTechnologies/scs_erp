@@ -147,10 +147,10 @@ class AdmissionController extends Controller
             /**Pending Approval from Client */
 
             //Send Otp on Phone
-            //   StaticController::smsSender($fields);
+            StaticController::smsSender($fields);
             //Send Otp on Email
             $usermail = $user->mail_id;
-            //  $this->sendOTPEmail($otp, $usermail);
+            $this->sendOTPEmail($otp, $usermail);
         }
         return view('admission.otp-verification');
     }
