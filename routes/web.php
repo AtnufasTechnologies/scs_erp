@@ -245,10 +245,10 @@ Route::group(['prefix' => '/erp'], function () {
 
     //admission student routes
     Route::group(['prefix' => '/new-admission'], function () {
-        // Route::get('login', [AdmissionController::class, 'login'])->name('new.admission.login');
-        // Route::get('registration', [AdmissionController::class, 'index'])->name('new.admission.registration');
-        Route::get('login', [AdmissionController::class, 'technicalMode'])->name('new.admission.login');
-        Route::get('registration', [AdmissionController::class, 'technicalMode'])->name('new.admission.registration');
+        Route::get('login', [AdmissionController::class, 'login'])->name('new.admission.login');
+        Route::get('registration', [AdmissionController::class, 'index'])->name('new.admission.registration');
+        // Route::get('login', [AdmissionController::class, 'technicalMode'])->name('new.admission.login');
+        // Route::get('registration', [AdmissionController::class, 'technicalMode'])->name('new.admission.registration');
 
         Route::post('registration', [AdmissionController::class, 'admissionRegistration'])->name('admission.registration.submit');
         Route::post('applicant-login', [AdmissionController::class, 'applicantLogin'])->name('applicant.login');

@@ -121,9 +121,7 @@ class AdmissionController extends Controller
 
     function showOtpVerificationPage(Request $request)
     {
-        if (!Auth::check()) {
-            return redirect()->route('new.admission.login')->with('info', 'Please login to access application form.');
-        }
+
 
         $userId = Auth::user()->id;
         $isOtpVerified = Otp::where('user_id', $userId)->where('status', 1)->first();
@@ -149,10 +147,10 @@ class AdmissionController extends Controller
             /**Pending Approval from Client */
 
             //Send Otp on Phone
-            StaticController::smsSender($fields);
+            //   StaticController::smsSender($fields);
             //Send Otp on Email
             $usermail = $user->mail_id;
-            $this->sendOTPEmail($otp, $usermail);
+            //  $this->sendOTPEmail($otp, $usermail);
         }
         return view('admission.otp-verification');
     }
@@ -210,9 +208,9 @@ class AdmissionController extends Controller
             if (Hash::check($request->password, $user->password)) {
                 Auth::login($user, true);
                 if ($user->otp_verification == 0) {
-                    return $this->showOtpVerificationPage($request);
+                    return redirect()->route('otp.verification.page');
                 } else {
-                    return $this->showApplicationPage();
+                    return redirect()->route('admission.apply.application');
                 }
             } else {
                 return back()->withErrors(['registered_no' => 'Invalid credentials.']);
