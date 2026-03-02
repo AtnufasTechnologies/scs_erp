@@ -62,18 +62,18 @@ class TestController extends Controller
     function smsTest(Request $request)
     {
         $mobile = '8100556241';
-        $var1 = 90002;
-        $var2 = 2;
-        // $var3 = 'admissionenquiry@salesiancollege.net';
+        $var1 = '123456'; //dynamic variable for applicant name and application id
+        $var2 = 9933402478;
+        $var3 = 'admissionenquiry@salesiancollege.net';
         $fields = array(
             "sender_id" => 'SCSCLG',
-            "message" => '209861',
-            "variables_values" => $var1 . '|' . $var2,
+            "message" => '209860',
+            "variables_values" => $var1 . '|' . $var2 . '|' . $var3,
             "route" => "dlt",
             "numbers" => $mobile,
         );
-        $response =   StaticController::smsSender($fields);
-        return $response;
+
+        StaticController::smsSender($fields);
         dd('SMS sent successfully to ' . $mobile);
     }
 
