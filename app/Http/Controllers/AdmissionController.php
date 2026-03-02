@@ -1320,7 +1320,7 @@ class AdmissionController extends Controller
             "numbers" => $applicantPhone,
         );
 
-        StaticController::bulkSmsSender($fields);
+        StaticController::smsSender($fields);
         //log User 
         $userData = AdmissionRegistration::where('id', $userId)->first();
         if ($userData) {
