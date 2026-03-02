@@ -347,6 +347,18 @@ Route::group(['prefix' => '/erp'], function () {
     });
 
 
+    // Faculty routes
+    Route::group(['prefix' => 'faculty', 'as' => 'faculty.'], function () {
+        Route::get('dashboard', [\App\Faculty\Http\Controllers\FacultyDashboardController::class, 'index'])->name('faculty.dashboard');
+        Route::get('timetable', [\App\Faculty\Http\Controllers\TimetableController::class, 'index'])->name('faculty.timetable');
+        Route::get('attendance', [\App\Faculty\Http\Controllers\AttendanceController::class, 'index'])->name('faculty.attendance');
+        Route::get('work-diary', [\App\Faculty\Http\Controllers\WorkDiaryController::class, 'index'])->name('faculty.workdiary');
+        Route::get('request-application', [\App\Faculty\Http\Controllers\RequestApplicationController::class, 'index'])->name('faculty.requestapplication');
+        Route::get('payroll', [\App\Faculty\Http\Controllers\PayrollController::class, 'index'])->name('faculty.payroll');
+        Route::get('payroll/download', [\App\Faculty\Http\Controllers\PayrollController::class, 'download'])->name('faculty.payroll.download');
+    });
+
+
     //Testing route
     Route::group(['prefix' => '/test'], function () {
         //   Route::get('dept-campus-mapping', [TestController::class, 'DeptCampusMapping']);
@@ -354,15 +366,4 @@ Route::group(['prefix' => '/erp'], function () {
         Route::get('sms', [TestController::class, 'smsTest']);
         Route::get('install-new-programid', [TestController::class, 'studentMasterProgramFixing']);
     });
-});
-
-// Faculty routes
-Route::group(['prefix' => 'faculty', 'as' => 'faculty.'], function () {
-    Route::get('dashboard', [\App\Faculty\Http\Controllers\FacultyDashboardController::class, 'index'])->name('dashboard');
-    Route::get('timetable', [\App\Faculty\Http\Controllers\TimetableController::class, 'index'])->name('timetable');
-    Route::get('attendance', [\App\Faculty\Http\Controllers\AttendanceController::class, 'index'])->name('attendance');
-    Route::get('work-diary', [\App\Faculty\Http\Controllers\WorkDiaryController::class, 'index'])->name('workdiary');
-    Route::get('request-application', [\App\Faculty\Http\Controllers\RequestApplicationController::class, 'index'])->name('requestapplication');
-    Route::get('payroll', [\App\Faculty\Http\Controllers\PayrollController::class, 'index'])->name('payroll');
-    Route::get('payroll/download', [\App\Faculty\Http\Controllers\PayrollController::class, 'download'])->name('payroll.download');
 });
