@@ -5,10 +5,12 @@ namespace App\Http\Controllers;
 use App\Models\BatchMaster;
 use App\Models\Campus;
 use App\Models\CognitiveLevelMaster;
+use App\Models\CourseObjective;
 use App\Models\Department;
 use App\Models\Faculty;
 use App\Models\LectureHallMaster;
 use App\Models\MainProgram;
+use App\Models\PoHasCo;
 use App\Models\ProgramCourseMaster;
 use App\Models\ProgramMaster;
 use App\Models\StudentMaster;
@@ -403,7 +405,7 @@ class SubjectController extends Controller
         $data = Subject::find($academicDeptId);
 
         $courses =  SubjectCourseMaster::with([
-            'courseMaster',
+            'courseMaster.paperTypeMaster',
         ])->where('subject_id', $academicDeptId)->get();
 
         $programCourseMaster =  ProgramCourseMaster::all();
@@ -604,5 +606,93 @@ class SubjectController extends Controller
         $data->save();
 
         return redirect()->back()->with('success', 'Program Updated');
+    }
+
+    function addNewCourseMaster(Request $request)
+    {
+        $request->validate([
+            'batch' => 'required',
+            'course_code' => 'required|string|max:100',
+            'course_title' => 'required|string|max:255',
+            'course_type' => 'required',
+            'internal' => 'required|numeric|min:0',
+            'external' => 'required|numeric|min:0',
+            'credits' => 'required|numeric|min:0',
+        ]);
+
+        $rec = new ProgramCourseMaster();
+        $rec->academic_year = $request->batch;
+        $rec->course_code = Str::upper($request->course_code);
+        $rec->course_title = $request->course_title;
+        $rec->course_type = $request->course_type;
+        $rec->internal = $request->internal;
+        $rec->external =  $request->external;
+        $rec->total = $request->internal + $request->external;
+        $rec->credits = $request->credits;
+        $rec->paper_type_id = $request->paper_type;
+        $rec->total_alloted_hours = $request->total_alloted_hours;
+        $rec->save();
+
+        return redirect()->back()->with('success', 'New Course Master Added and Can be Used in Departments Now');
+    }
+
+    function viewCourseObjective($courseId)
+    {
+        $course = SubjectCourseMaster::with('courseMaster.coursetypemaster')->where('course_master_id', $courseId)->first();
+
+        if (!$course) {
+            return redirect()->back()->with('error', 'Course not found');
+        }
+
+        $objectives = PoHasCo::where('co_id', $courseId)->get();
+
+        return view('admin.subject.course-objective', [
+            'course' => $course,
+            'objectives' => $objectives,
+        ]);
+    }
+
+    function createCourseObjective(Request $request)
+    {
+        $validated = $request->validate([
+            'objective_title' => 'required|string|max:255',
+            'objective_description' => 'required|string',
+            'course_id' => 'required|exists:subject_course_masters,id',
+        ]);
+
+        PoHasCo::create([
+            'subject_course_master_id' => $request->course_id,
+            'objective_title' => $request->objective_title,
+            'objective_description' => $request->objective_description,
+        ]);
+
+        return redirect()->back()->with('success', 'Course objective added successfully');
+    }
+
+    function updateCourseMaster(Request $request, $id)
+    {
+        $courseMaster = ProgramCourseMaster::findOrFail($id);
+
+        $request->validate([
+            'course_code' => 'required|string|max:100',
+            'course_title' => 'required|string|max:255',
+            'course_type' => 'required',
+            'credits' => 'required|integer|min:0',
+            'internal' => 'required|numeric|min:0',
+            'external' => 'required|numeric|min:0',
+        ]);
+
+        $courseMaster->course_code = Str::upper($request->course_code);
+        $courseMaster->course_title = $request->course_title;
+        $courseMaster->course_type = $request->course_type;
+        $courseMaster->credits = $request->credits;
+        $courseMaster->internal = $request->internal;
+        $courseMaster->external = $request->external;
+        $courseMaster->total = $request->internal + $request->external;
+        $courseMaster->total_alloted_hours = $request->total_alloted_hours;
+        $courseMaster->paper_type_id = $request->paper_type;
+        $courseMaster->save();
+
+        return redirect()->back()->with('success', 'Course Master Updated');
     }
 }

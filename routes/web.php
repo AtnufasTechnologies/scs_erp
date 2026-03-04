@@ -198,6 +198,8 @@ Route::group(['prefix' => '/erp'], function () {
             Route::get('sms-templates', [AccessController::class, 'smsTemplates'])->name('admin.sms.templates');
             Route::post('sms-templates', [AccessController::class, 'smsTemplateStore'])->name('sms.template.store');
             Route::get('sms-template/delete/{id}', [AccessController::class, 'smsTemplateDelete'])->name('sms.template.delete');
+            Route::get('activity-logs-dashboard', [AccessController::class, 'activityLogsDashboard'])->name('admin.activity-logs.dashboard');
+            Route::get('activity-logs', [AccessController::class, 'userActivityLogs'])->name('admin.user.activity-logs');
         });
 
         //admission routes Admin
@@ -319,8 +321,12 @@ Route::group(['prefix' => '/erp'], function () {
         Route::delete('course-master/{id}/delete', [SubjectController::class, 'deleteCourseMaster'])->name('department.course.delete');
         Route::get('delete-semester/{id}', [SubjectController::class, 'deleteSemesterFromSubject'])->name('department.delete.subject.semester');
         Route::post('add-faculty-master', [SubjectController::class, 'addFacultyMasterToSubject'])->name('dept.add.faculty.master');
+        // Course Objectives
+        Route::get('course/{id}/objectives', [SubjectController::class, 'viewCourseObjective'])->name('department.view.course.objective');
+        Route::post('course/objective/create', [SubjectController::class, 'createCourseObjective'])->name('department.create.course.objective');
         Route::delete('delete-faculty-master/{id}', [SubjectController::class, 'deleteFacultyMasterFromSubject'])->name('department.faculty.delete');
-
+        Route::post('add-new-course-master', [SubjectController::class, 'addNewCourseMaster'])->name('department.create.course.master');
+        Route::put('/course-master/{id}', [SubjectController::class, 'updateCourseMaster'])->name('department.update.course.master');
         // Faculty Timetable
 
         //timetable

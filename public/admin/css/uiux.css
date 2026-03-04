@@ -191,9 +191,9 @@
     background: linear-gradient(90deg, #ffbb47 0%, #ffc061 100%);
     color: #fff;
     border: none;
-    border-radius: 10px;
-    padding: 0.8rem;
-    font-weight: 600;
+    border-radius: 5px;
+    padding: 0.5rem;
+    font-weight: 400;
     cursor: pointer;
     transition:
         background 0.2s,
@@ -209,12 +209,12 @@
 
 .btn-primary,
 .btn-outline-primary {
-    background: linear-gradient(90deg, #661ac2 0%, #563b76 100%);
+    background: linear-gradient(90deg, #452fa5 0%, #415cbf 100%);
     color: #fff;
     border: none;
-    border-radius: 10px;
-    padding: 0.8rem;
-    font-weight: 600;
+    border-radius: 5px;
+    padding: 0.5rem;
+    font-weight: 400;
     cursor: pointer;
     transition:
         background 0.2s,
@@ -224,9 +224,9 @@
     &:hover {
         background: linear-gradient(
             90deg,
-            #661ac2 0%,
+            #415cbf 0%,
 
-            #563b76 100%
+            #452fa5 100%
         );
         color: #f7cb7e;
     }
@@ -237,9 +237,9 @@
     background: linear-gradient(90deg, #ff5047 0%, #ff7161 100%);
     color: #fff;
     border: none;
-    border-radius: 10px;
-    padding: 0.8rem;
-    font-weight: 600;
+    border-radius: 5px;
+    padding: 0.5rem;
+    font-weight: 400;
     cursor: pointer;
     transition:
         background 0.2s,
@@ -259,9 +259,9 @@
     background-image: linear-gradient(to right, #02aab0 30%, #00cdac 100%);
     color: #fff;
     border: none;
-    border-radius: 10px;
-    padding: 0.8rem;
-    font-weight: 600;
+    border-radius: 5px;
+    padding: 0.5rem;
+    font-weight: 400;
     cursor: pointer;
     transition:
         background 0.2s,
@@ -271,6 +271,7 @@
 
     &:hover {
         background-position: right center;
+        transform: translateY(-2px) scale(1.03);
     }
 }
 
@@ -279,9 +280,9 @@
     background: linear-gradient(90deg, #494a4b 0%, #333536 100%);
     color: #fff;
     border: none;
-    border-radius: 10px;
-    padding: 0.8rem;
-    font-weight: 600;
+    border-radius: 5px;
+    padding: 0.5rem;
+    font-weight: 400;
     cursor: pointer;
     transition:
         background 0.2s,
@@ -300,9 +301,9 @@
     background-image: linear-gradient(to right, #504ba0f9 30%, #223568 100%);
     color: #fff;
     border: none;
-    border-radius: 10px;
-    padding: 0.8rem;
-    font-weight: 600;
+    border-radius: 5px;
+    padding: 0.5rem;
+    font-weight: 400;
     cursor: pointer;
     transition:
         background 0.2s,
@@ -320,9 +321,9 @@
     background-image: linear-gradient(to right, #202c34 30%, #1d253d 100%);
     color: #fff;
     border: none;
-    border-radius: 10px;
-    padding: 0.8rem;
-    font-weight: 600;
+    border-radius: 5px;
+    padding: 0.5rem;
+    font-weight: 400;
     cursor: pointer;
     transition:
         background 0.2s,

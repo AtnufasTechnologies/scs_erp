@@ -6,6 +6,7 @@ use App\Models\SmsTemplate;
 use App\Models\Subject;
 use App\Models\SubjectHasDeptAdmin;
 use App\Models\User;
+use App\Models\UserActivityLog;
 use App\Models\UserCampusSetting;
 use App\Models\UserHasRole;
 use Illuminate\Http\Request;
@@ -128,5 +129,126 @@ class AccessController extends Controller
             return back()->with('success', 'SMS Template Deleted Successfully.');
         }
         return back()->with('error', 'SMS Template Not Found.');
+    }
+
+    function userActivityLogs(Request $request)
+    {
+        $query = UserActivityLog::with('user:id,name,email')->latest('id');
+
+        if (!empty($request->user_id)) {
+            $query->where('user_id', $request->user_id);
+        }
+
+        if (!empty($request->event)) {
+            $query->where('event', $request->event);
+        }
+
+        if (!empty($request->from_date)) {
+            $query->whereDate('created_at', '>=', $request->from_date);
+        }
+
+        if (!empty($request->to_date)) {
+            $query->whereDate('created_at', '<=', $request->to_date);
+        }
+
+        if (!empty($request->keyword)) {
+            $keyword = trim($request->keyword);
+            $query->where(function ($q) use ($keyword) {
+                $q->where('auditable_type', 'like', "%{$keyword}%")
+                    ->orWhere('auditable_id', 'like', "%{$keyword}%")
+                    ->orWhere('description', 'like', "%{$keyword}%")
+                    ->orWhere('url', 'like', "%{$keyword}%");
+            });
+        }
+
+        $logs = $query->paginate(50)->appends($request->query());
+        $users = User::select('id', 'name', 'email')->orderBy('name')->get();
+
+        return view('admin.user-manager.activity-logs', [
+            'logs' => $logs,
+            'users' => $users,
+        ]);
+    }
+
+    function activityLogsDashboard()
+    {
+        // Total stats
+        $totalActivityCount = UserActivityLog::count();
+        $totalCreated = UserActivityLog::where('event', 'created')->count();
+        $totalUpdated = UserActivityLog::where('event', 'updated')->count();
+        $totalDeleted = UserActivityLog::where('event', 'deleted')->count();
+
+        // Today's activity
+        $todayActivity = UserActivityLog::whereDate('created_at', today())->count();
+        $todayCreated = UserActivityLog::where('event', 'created')->whereDate('created_at', today())->count();
+        $todayUpdated = UserActivityLog::where('event', 'updated')->whereDate('created_at', today())->count();
+        $todayDeleted = UserActivityLog::where('event', 'deleted')->whereDate('created_at', today())->count();
+
+        // This week activity
+        $weekStart = now()->startOfWeek();
+        $weekActivity = UserActivityLog::where('created_at', '>=', $weekStart)->count();
+
+        // Most active users (last 7 days)
+        $mostActiveUsers = UserActivityLog::select('user_id')
+            ->where('created_at', '>=', now()->subDays(7))
+            ->groupBy('user_id')
+            ->with('user:id,name,email')
+            ->orderByRaw('COUNT(*) DESC')
+            ->limit(10)
+            ->get()
+            ->map(function ($log) {
+                return [
+                    'user' => $log->user ? $log->user->name : 'System',
+                    'count' => $log->count(),
+                ];
+            });
+
+        // Activity by model (last 30 days)
+        $activityByModel = UserActivityLog::select('auditable_type')
+            ->where('created_at', '>=', now()->subDays(30))
+            ->groupBy('auditable_type')
+            ->orderByRaw('COUNT(*) DESC')
+            ->limit(15)
+            ->get()
+            ->groupBy(function ($item) {
+                $model = class_basename($item->auditable_type);
+                return $model;
+            })
+            ->map(function ($items) {
+                return $items->count();
+            });
+
+        // Recent activities
+        $recentActivities = UserActivityLog::with('user:id,name,email')
+            ->latest('id')
+            ->limit(10)
+            ->get();
+
+        // Activity timeline (last 7 days)
+        $activityTimeline = collect();
+        for ($i = 6; $i >= 0; $i--) {
+            $date = now()->subDays($i)->startOfDay();
+            $count = UserActivityLog::whereDate('created_at', $date)->count();
+            $activityTimeline->push([
+                'date' => $date->format('M d'),
+                'count' => $count,
+            ]);
+        }
+
+        return view('admin.user-manager.activity-logs-dashboard', [
+            'totalActivityCount' => $totalActivityCount,
+            'totalCreated' => $totalCreated,
+            'totalUpdated' => $totalUpdated,
+            'totalDeleted' => $totalDeleted,
+            'todayActivity' => $todayActivity,
+            'todayCreated' => $todayCreated,
+            'todayUpdated' => $todayUpdated,
+            'todayDeleted' => $todayDeleted,
+            'weekActivity' => $weekActivity,
+            'mostActiveUsers' => $mostActiveUsers,
+            'activityByModel' => $activityByModel,
+            'recentActivities' => $recentActivities,
+            'activityTimeline' => $activityTimeline,
+        ]);
     }
 }

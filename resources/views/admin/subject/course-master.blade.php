@@ -1,110 +1,341 @@
+<?php
+
+use App\Models\BatchMaster;
+use App\Models\PaperTypeMaster;
+use App\Models\SubjectTypeMaster;
+
+$coursetypes = SubjectTypeMaster::all();
+$batches = BatchMaster::all();
+$papertypes = PaperTypeMaster::all();
+?>
+
 @include('includes.header')
+@include('includes.dept-sidebar')
+<div class="main-content">
 
-<style>
-  body {
-    background: linear-gradient(135deg, #5740b4 0%, #8931f6 100%);
-  }
-</style>
-<div class="container-fluid py-4">
-  <nav class="navbar navbar-expand-lg navbar-dark mb-4" style="background: linear-gradient(135deg, #5740b4 0%, #8931f6 100%); border-radius: 0.75rem;">
-    <div class="container-fluid">
-      <a class="navbar-brand d-flex align-items-center" href="#">
-        <img src="{{ asset('admin/images/logo.png') }}" alt="Logo" style="max-height: 50px;" class="me-2">
-        <span class="fw-bold text-white text-capitalize">{{ $data->code ?? '-' }} - {{ $data->title ?? '-' }} / Course Master</span>
-      </a>
-      <div class="d-flex">
-        <a href="{{ route('department.dashboard') }}" class="btn btn-light btn-sm fw-bold ms-auto" style="box-shadow:0 2px 8px #0002;">
-          <i class="fa fa-step-backward me-1"></i> back
+  <div class="container-fluid py-4">
+    <nav class="navbar navbar-expand-lg navbar-dark mb-4" style="background: linear-gradient(135deg, #5740b4 0%, #8931f6 100%); border-radius: 0.75rem;">
+      <div class="container-fluid">
+        <a class="navbar-brand d-flex align-items-center" href="#">
+          <img src="{{ asset('admin/images/logo.png') }}" alt="Logo" style="max-height: 50px;" class="me-2">
+          <span class="fw-bold text-white text-capitalize">{{ $data->code ?? '-' }} - {{ $data->title ?? '-' }} / Course Master</span>
         </a>
-      </div>
-    </div>
-  </nav>
-
-
-  <!-- Bootstrap Modal -->
-  <div class="modal fade" id="exampleModal" tabindex="-1" aria-labelledby="exampleModalLabel" aria-hidden="true">
-    <div class="modal-dialog modal-lg">
-      <div class="modal-content">
-        <div class="modal-header">
-          <h5 class="modal-title" id="exampleModalLabel">Add Courses</h5>
-          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+        <div class="d-flex">
+          <a href="{{ route('department.dashboard') }}" class="btn btn-light btn-sm fw-bold ms-auto" style="box-shadow:0 2px 8px #0002;">
+            <i class="fa fa-step-backward me-1"></i> back
+          </a>
         </div>
-        <form action="{{ route('department.add.course.master') }}" method="post">
-          @csrf
-          <div class="modal-body">
-            <label for="">Select Master Course</label>
-            <select name="courses[]" class="select-multiple" multiple>
-              @foreach ($course_master as $course)
-              <option value="{{ $course->id }}">{{ $course->course_code }} - {{ $course->course_title }} ({{$course->coursetypemaster->title ?? '-'   }})</option>
-              @endforeach
-            </select>
-
-            <input type="hidden" name="subject_id" value="{{ $data->id }}">
-          </div>
-          <div class="modal-footer">
-            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
-            <button type="submit" class="btn btn-primary">Save changes</button>
-          </div>
-        </form>
       </div>
-    </div>
-  </div>
+    </nav>
 
-  <!-- Button to trigger modal -->
-  <button type="button" class="btn btn-light mb-3" data-bs-toggle="modal" data-bs-target="#exampleModal">
-    <i class="fa fa-plus-circle"></i> From Existing Course Master
-  </button>
+    <!-- Button to trigger modal for new course -->
+    <button type="button" class="btn btn-success mb-3" data-bs-toggle="modal" data-bs-target="#addCourseModal">
+      <i class="fa fa-plus-circle"></i> Add New Course
+    </button>
 
+    <!-- Modal for adding new course -->
+    <div class="modal fade" id="addCourseModal" tabindex="-1" aria-labelledby="addCourseModalLabel" aria-hidden="true">
+      <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+          <div class="modal-header">
+            <h5 class="modal-title" id="addCourseModalLabel">Add New Course</h5>
+            <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+          </div>
+          <form action="{{ route('department.create.course.master') }}" method="post">
+            @csrf
+            <div class="modal-body">
 
-  <div class="container-fluid">
-    <div class="row">
-      <div class="card">
+              <div class="row">
+                <div class="col-lg-6">
+                  <div class="mb-3">
+                    <label for="batch" class="form-label">Batch *</label>
+                    <select class="form-select dselect-example" id="" name="batch" required>
+                      <option value="">Select Batch</option>
+                      @foreach($batches as $batch)
+                      <option value="{{ $batch->id }}">{{ $batch->batch_name }}</option>
+                      @endforeach
+                    </select>
+                  </div>
+                </div>
+                <div class="col-lg-6">
+                  <div class="mb-3">
+                    <label for="courseType" class="form-label">Course Type *</label>
+                    <select class="form-select dselect-example" id="" name="course_type" required>
+                      <option value="">Select Course Type</option>
+                      @foreach($coursetypes as $type)
+                      <option value="{{ $type->id }}">{{ $type->title }} - {{$type->description}}</option>
+                      @endforeach
+                    </select>
+                  </div>
+                </div>
+                <div class="col-lg-4">
+                  <div class="mb-3">
+                    <label for="courseCode" class="form-label">Course Code *</label>
+                    <input type="text" class="form-control" id="courseCode" name="course_code" required>
+                  </div>
+                </div>
+                <div class="col-lg-4">
+                  <div class="mb-3">
+                    <label for="paperType" class="form-label">Paper Type *</label>
+                    <select class="form-select" id="paperType" name="paper_type" required>
+                      <option value="">Select Paper Type</option>
+                      @foreach($papertypes as $papertype)
+                      <option value="{{ $papertype->id }}">{{ $papertype->name }}</option>
+                      @endforeach
+                    </select>
+                  </div>
+                </div>
+                <div class="col-lg-4">
+                  <div class="mb-3">
+                    <label for="credits" class="form-label">Credits *</label>
+                    <input type="number" class="form-control" id="credits" name="credits" step="0.5" required>
+                  </div>
+                </div>
+                <div class="col-lg-4">
+                  <div class="mb-3">
+                    <label for="teachingHours" class="form-label">Teaching Hours *</label>
+                    <input type="number" class="form-control" id="teachingHours" name="total_alloted_hours" min="0">
+                  </div>
+                </div>
+                <div class="col-lg-4">
+                  <div class="mb-3">
+                    <label for="internalMarks" class="form-label">Internal Marks *</label>
+                    <input type="number" class="form-control" id="internalMarks" name="internal" min="0">
+                  </div>
+                </div>
+                <div class="col-lg-4">
+                  <div class="mb-3">
+                    <label for="externalMarks" class="form-label">External Marks *</label>
+                    <input type="number" class="form-control" id="externalMarks" name="external" min="0">
+                  </div>
+                </div>
+                <div class="col-lg-12">
+                  <div class="mb-3">
+                    <label for="courseTitle" class="form-label">Course Title *</label>
+                    <input type="text" class="form-control" id="courseTitle" name="course_title" required>
+                  </div>
+                </div>
+              </div>
 
-
-        <div class="table-responsive">
-          <table class="table table-bordered table-striped bg-white rounded shadow-sm">
-            <thead class="table-dark">
-              <tr>
-                <th>#</th>
-                <th>Course Type</th>
-                <th>Course Code</th>
-                <th>Course Title</th>
-                <th>Credits</th>
-
-                <th>Actions</th>
-              </tr>
-            </thead>
-            <tbody>
-              @forelse($mycourses as $course)
-              <tr>
-                <td>{{ $loop->iteration}}</td>
-                <td>{{ $course->courseMaster->coursetypemaster->code ?? '-' }} {{ $course->courseMaster->coursetypemaster->title ?? '-' }}</td>
-                <td>{{ $course->courseMaster->course_code ?? '-' }}</td>
-                <td>{{ $course->courseMaster->course_title ?? '-' }}</td>
-                <td>{{ $course->courseMaster->credits ?? '-' }}</td>
-
-                <td>
-                  <!-- Example action buttons -->
-
-                  <form action="" method="POST" style="display:inline;">
-                    @csrf
-                    @method('DELETE')
-                    <button type="submit" class="btn btn-sm btn-danger" onclick="return confirm('Delete this course?')">Delete</button>
-                  </form>
-                </td>
-              </tr>
-              @empty
-              <tr>
-                <td colspan="6" class="text-center">No courses found.</td>
-              </tr>
-              @endforelse
-            </tbody>
-          </table>
+              <input type="hidden" name="subject_id" value="{{ $data->id }}">
+            </div>
+            <div class="modal-footer">
+              <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+              <button type="submit" class="btn btn-success">Create Course</button>
+            </div>
+          </form>
         </div>
-
       </div>
     </div>
+
+
+    <!-- Bootstrap Modal -->
+    <div class="modal fade" id="exampleModal" tabindex="-1" aria-labelledby="exampleModalLabel" aria-hidden="true">
+      <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+          <div class="modal-header">
+            <h5 class="modal-title" id="exampleModalLabel">Add Courses</h5>
+            <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+          </div>
+          <form action="{{ route('department.add.course.master') }}" method="post">
+            @csrf
+            <div class="modal-body">
+              <label for="">Select Master Course</label>
+              <select name="courses[]" class="select-multiple" multiple>
+                @foreach ($course_master as $course)
+                <option value="{{ $course->id }}">{{ $course->course_code }} - {{ $course->course_title }} ({{$course->coursetypemaster->title ?? '-'   }})</option>
+                @endforeach
+              </select>
+
+              <input type="hidden" name="subject_id" value="{{ $data->id }}">
+            </div>
+            <div class="modal-footer">
+              <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+              <button type="submit" class="btn btn-primary">Save changes</button>
+            </div>
+          </form>
+        </div>
+      </div>
+    </div>
+
+    <!-- Button to trigger modal -->
+    <button type="button" class="btn btn-warning mb-3" data-bs-toggle="modal" data-bs-target="#exampleModal">
+      <i class="fa fa-plus-circle"></i> From Existing Course Master
+    </button>
+
+
+    <div class="container-fluid">
+      <div class="row">
+        <div class="card">
+
+
+          <div class="table-responsive">
+            <table class="table table-bordered table-striped bg-white rounded shadow-sm">
+              <thead class="table-dark">
+                <tr>
+                  <th>#</th>
+                  <th>Course Type</th>
+                  <th>Course Code</th>
+                  <th>Course Title</th>
+                  <th>Credits</th>
+                  <th>Type</th>
+                  <th>Alloted Hours</th>
+                  <th>Internal Marks</th>
+                  <th>External Marks</th>
+                  <th>Total Marks</th>
+                  <th>Edit</th>
+                  <th>Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                @forelse($mycourses as $course)
+                <tr>
+                  <td>{{ $loop->iteration}}</td>
+                  <td>{{ $course->courseMaster->coursetypemaster->title ?? '-' }}
+                    <br>{{ $course->courseMaster->coursetypemaster->description ?? '-' }}
+                  </td>
+                  <td>{{ $course->courseMaster->course_code ?? '-' }}</td>
+                  <td>
+                    <a href="{{ route('department.view.course.objective', $course->course_master_id  ) }}" class="text-decoration-none cursor-pointer">
+                      {{ $course->courseMaster->course_title ?? '-' }}
+                    </a>
+                  </td>
+                  <td>{{ $course->courseMaster->credits ?? '-' }}</td>
+                  <td>{{ $course->courseMaster->papertypemaster->name ?? '-' }}</td>
+                  <td>{{ $course->courseMaster->total_alloted_hours ?? '-' }}</td>
+                  <td>{{ $course->courseMaster->internal ?? '-' }}</td>
+                  <td>{{ $course->courseMaster->external ?? '-' }}</td>
+                  <td>{{ $course->courseMaster->total_alloted_hours ?? '-'}}</td>
+                  <td>
+                    <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#editCourseModal{{ $course->id }}"><i class="fa fa-edit"></i></button>
+
+                    <!-- Edit Course Modal -->
+                    <div class="modal fade" id="editCourseModal{{ $course->id }}" tabindex="-1" aria-labelledby="editCourseModalLabel" aria-hidden="true">
+                      <div class="modal-dialog modal-lg">
+                        <div class="modal-content">
+                          <div class="modal-header">
+                            <h5 class="modal-title" id="editCourseModalLabel">Edit Course</h5>
+                            <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                          </div>
+                          <form action="{{ route('department.update.course.master',$course->courseMaster->id) }}" method="post">
+                            @csrf
+                            @method('PUT')
+                            <div class="modal-body">
+                              <div class="row">
+                                <div class="col-lg-4">
+                                  <div class="mb-3">
+                                    <label class="form-label">Course Code *</label>
+                                    <input type="text" class="form-control" name="course_code" value="{{ $course->courseMaster->course_code }}" required>
+                                  </div>
+                                </div>
+                                <div class="col-lg-4">
+                                  <div class="mb-3">
+                                    <label class="form-label">Credits *</label>
+                                    <input type="number" class="form-control" name="credits" value="{{ $course->courseMaster->credits }}" step="0.5" required>
+                                  </div>
+                                </div>
+                                <div class="col-lg-4">
+                                  <div class="mb-3">
+                                    <label class="form-label">Total Teaching Hours</label>
+                                    <input type="number" class="form-control" name="total_alloted_hours" value="{{ $course->courseMaster->total_alloted_hours}}">
+                                  </div>
+                                </div>
+
+                                <div class="col-lg-4">
+                                  <div class="mb-3">
+                                    <label class="form-label">Internal</label>
+                                    <input type="number" class="form-control internal-marks" name="internal" value="{{ $course->courseMaster->internal }}" required>
+                                  </div>
+                                </div>
+
+                                <div class="col-lg-4">
+                                  <div class="mb-3">
+                                    <label class="form-label">External</label>
+                                    <input type="number" class="form-control external-marks" name="external" value="{{ $course->courseMaster->external }}" required>
+                                  </div>
+                                </div>
+
+                                <div class="col-lg-4">
+                                  <div class="mb-3">
+                                    <label class="form-label">Full</label>
+                                    <input type="number" class="form-control full-marks" value="{{ $course->courseMaster->internal + $course->courseMaster->external }}" name="full" readonly>
+                                  </div>
+                                </div>
+
+                                <script>
+                                  document.querySelectorAll('.internal-marks, .external-marks').forEach(input => {
+                                    input.addEventListener('input', function() {
+                                      const parent = this.closest('.modal-content');
+                                      const internal = parseFloat(parent.querySelector('.internal-marks').value) || 0;
+                                      const external = parseFloat(parent.querySelector('.external-marks').value) || 0;
+                                      parent.querySelector('.full-marks').value = (internal + external);
+                                    });
+                                  });
+                                </script>
+                                <div class="col-lg-3">
+                                  <div class="mb-3">
+                                    <label class="form-label">Paper Type *</label>
+                                    <select name="paper_type" id="paper_type" class="form-select" required>
+                                      <option value="">Select Paper Type</option>
+                                      @foreach($papertypes as $papertype)
+                                      <option value="{{ $papertype->id }}" {{ ($course->courseMaster->papertypemaster->id ?? '') == $papertype->id ? 'selected' : '' }}>{{ $papertype->name }}</option>
+                                      @endforeach
+
+                                    </select>
+                                  </div>
+                                </div>
+                                <div class="col-lg-9">
+                                  <div class="mb-3">
+                                    <label class="form-label">Course Type *</label>
+                                    <select class="form-select dselect-example" name="course_type" required>
+                                      <option value="">Select Course Type</option>
+                                      @foreach($coursetypes as $type)
+                                      <option value="{{ $type->id }}" {{ ($course->courseMaster->coursetypemaster->id ?? '') == $type->id ? 'selected' : '' }}>{{ $type->title }} - {{$type->description}}</option>
+                                      @endforeach
+                                    </select>
+                                  </div>
+                                </div>
+                                <div class="col-lg-12">
+                                  <div class="mb-3">
+                                    <label class="form-label">Course Title *</label>
+                                    <input type="text" class="form-control" name="course_title" value="{{ $course->courseMaster->course_title }}" required>
+                                  </div>
+                                </div>
+                              </div>
+                            </div>
+                            <div class="modal-footer">
+                              <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                              <button type="submit" class="btn btn-success">Update Course</button>
+                            </div>
+                          </form>
+                        </div>
+                      </div>
+                    </div>
+                  </td>
+                  <td>
+
+                    <form action="" method="POST" style="display:inline;">
+                      @csrf
+                      @method('DELETE')
+                      <button type="submit" class="btn btn-sm btn-danger" onclick="return confirm('Delete this course?')"><i class="fa fa-trash"></i></button>
+                    </form>
+                  </td>
+                </tr>
+                @empty
+                <tr>
+                  <td colspan="9" class="text-center">No courses found.</td>
+                </tr>
+                @endforelse
+              </tbody>
+            </table>
+          </div>
+
+        </div>
+      </div>
+    </div>
+
   </div>
+</div>
 
 
-  @include('includes.footer')
+@include('includes.footer')
