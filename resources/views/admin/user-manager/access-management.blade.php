@@ -111,7 +111,7 @@ $campusMaster = Campus::all()
 <div class="row">
   @foreach ($data as $itm)
   <div class="col-lg-4 mb-4">
-    <div class="card mb-4 fixed-card" style="background: linear-gradient(135deg, #1c2242e3 0%, #263851 100%); border: none; border-radius: 12px; box-shadow: 0 8px 32px rgba(102, 126, 234, 0.4); transition: all 0.3s ease;">
+    <div class="card mb-4 fixed-card" style="background: linear-gradient(135deg, #261c42e3 0%, #5537a8 100%); border: none; border-radius: 12px; box-shadow: 0 8px 32px rgba(102, 126, 234, 0.4); transition: all 0.3s ease;">
       <div class="card-body scrollable-card" style="color: white;">
         <div style="display: flex; justify-content: space-between; align-items: start; margin-bottom: 15px;">
           <h5 class="card-title text-capitalize" style="margin: 0; font-weight: 600; font-size: 1.3rem;">{{ $itm->name }}</h5>

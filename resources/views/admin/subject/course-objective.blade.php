@@ -1,3 +1,10 @@
+<?php
+
+use App\Models\CognitiveLevelMaster;
+
+$taxonomylevels = CognitiveLevelMaster::all();
+
+?>
 @include('includes.header')
 @include('includes.dept-sidebar')
 <div class="main-content">
@@ -9,11 +16,7 @@
           <img src="{{ asset('admin/images/logo.png') }}" alt="Logo" style="max-height: 50px;" class="me-2">
           <span class="fw-bold text-white text-capitalize">{{ $course->courseMaster->course_code ?? '-' }} - {{ $course->courseMaster->course_title ?? '-' }} / Objectives</span>
         </a>
-        <div class="d-flex">
-          <a href="{{ route('department.dashboard') }}" class="btn btn-light btn-sm fw-bold ms-auto" style="box-shadow:0 2px 8px #0002;">
-            <i class="fa fa-step-backward me-1"></i> back
-          </a>
-        </div>
+
       </div>
     </nav>
 
@@ -41,6 +44,15 @@
                   </div>
                 </div>
                 <div class="col-lg-12">
+                  <div class="mb-3">
+                    <label for="bloomsTaxonomy" class="form-label">Blooms Taxonomy *</label>
+                    <select class="form-select" id="bloomsTaxonomy" name="taxonomy" required>
+                      <option value="" disabled selected>Select Bloom's Taxonomy Level</option>
+                      @foreach($taxonomylevels as $level)
+                      <option value="{{ $level->id ?? '' }}">{{ $level->shortname }} - {{ $level->fullname }}</option>
+                      @endforeach
+                    </select>
+                  </div>
                   <div class="mb-3">
                     <label for="objectiveDescription" class="form-label">Objective Description *</label>
                     <textarea class="form-control" id="objectiveDescription" name="objective_description" rows="4" required></textarea>
@@ -75,8 +87,10 @@
                 </div>
                 <div class="col-md-6">
                   <p><strong>Course Type:</strong> {{ $course->courseMaster->coursetypemaster->title ?? '-' }}</p>
-                  <p><strong>Credits:</strong> {{ $course->courseMaster->credits ?? '-' }}</p>
+                  <p><strong>Credits:</strong> {{ $course->courseMaster->credits ?? '-' }} | <strong>Paper Type:</strong> {{ $course->courseMaster->papertypemaster->name ?? '-' }}</p>
+
                 </div>
+
               </div>
             </div>
           </div>
@@ -99,6 +113,7 @@
                   <th>#</th>
                   <th>Objective Title</th>
                   <th>Description</th>
+                  <th>Blooms Taxonomy</th>
                   <th>Actions</th>
                 </tr>
               </thead>
@@ -108,6 +123,7 @@
                   <td>{{ $loop->iteration }}</td>
                   <td>{{ $objective->objective_title ?? '-' }}</td>
                   <td>{{ Str::limit($objective->objective_description ?? '-', 100) }}</td>
+                  <td>{{ $objective->blooms_taxonomy ?? '-' }}</td>
                   <td>
                     <button type="button" class="btn btn-sm btn-primary" data-bs-toggle="modal" data-bs-target="#editObjectiveModal{{ $objective->id ?? '' }}">
                       <i class="fa fa-edit"></i> Edit

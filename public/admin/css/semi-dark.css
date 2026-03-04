@@ -1,6 +1,7 @@
 html.semi-dark .sidebar-wrapper,
 html.semi-dark .sidebar-wrapper .sidebar-header {
-    background-color: #232745;
+    /* background-color: #232745; */
+    background: linear-gradient(180deg, #5842b1 30%, #3f3782 100%);
 }
 
 html.semi-dark .sidebar-wrapper,
@@ -14,12 +15,13 @@ html.semi-dark .sidebar-wrapper .sidebar-header {
 
 html.semi-dark .sidebar-wrapper .sidebar-header .logo-text,
 html.semi-dark .sidebar-wrapper .sidebar-header .toggle-icon {
-    color: #f8d29d;
+    color: #ffffff;
 }
 
 html.semi-dark .sidebar-wrapper .metismenu ul {
     background-color: rgb(255 255 255 / 4%);
     border: 1px solid rgb(255 255 255 / 12%);
+    border-radius: 15px;
 }
 
 html.semi-dark .sidebar-wrapper .metismenu a {
@@ -30,9 +32,10 @@ html.semi-dark .sidebar-wrapper .metismenu .mm-active > a,
 html.semi-dark .sidebar-wrapper .metismenu a:active,
 html.semi-dark .sidebar-wrapper .metismenu a:focus,
 html.semi-dark .sidebar-wrapper .metismenu a:hover {
-    color: #ffffff;
+    color: #272727;
     text-decoration: none;
-    background-color: rgb(255 255 255 / 12%);
+    background-color: rgba(255, 245, 108, 0.807);
+    border-radius: 15px;
 }
 
 html.semi-dark .sidebar-wrapper .sidebar-header img {

@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\BatchMaster;
 use App\Models\Campus;
 use App\Models\CognitiveLevelMaster;
+use App\Models\CoHasCso;
 use App\Models\CourseObjective;
 use App\Models\Department;
 use App\Models\Faculty;
@@ -657,13 +658,15 @@ class SubjectController extends Controller
         $validated = $request->validate([
             'objective_title' => 'required|string|max:255',
             'objective_description' => 'required|string',
-            'course_id' => 'required|exists:subject_course_masters,id',
+            'co_id' => 'required',
+            'taxonomy' => 'required',
         ]);
 
-        PoHasCo::create([
+        CoHasCso::create([
             'subject_course_master_id' => $request->course_id,
             'objective_title' => $request->objective_title,
             'objective_description' => $request->objective_description,
+            'blooms_taxonomy' => $request->taxonomy,
         ]);
 
         return redirect()->back()->with('success', 'Course objective added successfully');

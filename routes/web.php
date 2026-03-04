@@ -27,7 +27,7 @@ use Illuminate\Support\Str;
 */
 
 Route::get('/', [LoginController::class, 'index'])->name('login');
-Route::get('forgot-password', [LoginController::class, 'forgotPassword']);
+Route::get('forgot-password', [LoginController::class, 'forgotPassword'])->name('scms.forgot.password');
 Route::post('login', [LoginController::class, 'login']);
 Route::post('forgot-password', [LoginController::class, 'sendPasswordReset']);
 Route::get('verify-mail-reset-token/{id}', [LoginController::class, 'verifyResetToken']);
