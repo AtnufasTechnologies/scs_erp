@@ -5,13 +5,7 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 
-class PoHasCo extends Model
+class CosHasSubunit extends Model
 {
     use HasFactory;
-
-    protected $fillable = [
-        'co_id',
-        'title',
-        'lectures_needed',
-    ];
 }

@@ -18,7 +18,7 @@ $papertypes = PaperTypeMaster::all();
       <div class="container-fluid">
         <a class="navbar-brand d-flex align-items-center" href="#">
           <img src="{{ asset('admin/images/logo.png') }}" alt="Logo" style="max-height: 50px;" class="me-2">
-          <span class="fw-bold text-white text-capitalize">{{ $data->code ?? '-' }} - {{ $data->title ?? '-' }} / Course Master</span>
+          <span class="fw-bold text-white text-capitalize">{{ $data->code ?? '-' }} - {{ $data->title ?? '-' }} / Course Objective Master</span>
         </a>
         <div class="d-flex">
           <a href="{{ route('department.dashboard') }}" class="btn btn-light btn-sm fw-bold ms-auto" style="box-shadow:0 2px 8px #0002;">
@@ -188,7 +188,7 @@ $papertypes = PaperTypeMaster::all();
 
 
     <div class="container-fluid">
-
+      <h3>MY CO List</h3>
 
       <!-- Card Layout for Courses -->
       <div class="row mt-4">

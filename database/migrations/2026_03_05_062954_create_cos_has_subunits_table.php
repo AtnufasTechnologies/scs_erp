@@ -11,11 +11,11 @@ return new class extends Migration
      */
     public function up(): void
     {
-        Schema::create('po_has_cos', function (Blueprint $table) {
+        Schema::create('cos_has_subunits', function (Blueprint $table) {
             $table->id();
-            $table->integer('co_id');
-            $table->text('title');
-            $table->integer('lectures_needed');
+            $table->unsignedBigInteger('cos_id');
+            $table->text('name');
+            $table->text('description')->nullable();
             $table->timestamps();
             $table->softDeletes();
         });
@@ -26,6 +26,6 @@ return new class extends Migration
      */
     public function down(): void
     {
-        Schema::dropIfExists('po_has_cos');
+        Schema::dropIfExists('cos_has_subunits');
     }
 };

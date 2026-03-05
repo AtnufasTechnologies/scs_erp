@@ -639,7 +639,10 @@ class SubjectController extends Controller
 
     function viewCourseObjective($courseId)
     {
-        $course = SubjectCourseMaster::with('courseMaster.coursetypemaster')->where('course_master_id', $courseId)->first();
+        $course = SubjectCourseMaster::with([
+            'courseMaster.coursetypemaster',
+            'courseMaster.csos',
+        ])->where('course_master_id', $courseId)->first();
 
         if (!$course) {
             return redirect()->back()->with('error', 'Course not found');
@@ -653,23 +656,21 @@ class SubjectController extends Controller
         ]);
     }
 
-    function createCourseObjective(Request $request)
+    function createCourseSpecificObjective(Request $request)
     {
         $validated = $request->validate([
-            'objective_title' => 'required|string|max:255',
-            'objective_description' => 'required|string',
-            'co_id' => 'required',
-            'taxonomy' => 'required',
+            'title' => 'required',
+            'course_id' => 'required',
+            'lectures_needed' => 'required',
         ]);
 
         CoHasCso::create([
-            'subject_course_master_id' => $request->course_id,
-            'objective_title' => $request->objective_title,
-            'objective_description' => $request->objective_description,
-            'blooms_taxonomy' => $request->taxonomy,
+            'co_id' => $request->course_id,
+            'title' => $request->title,
+            'lectures_needed' => $request->lectures_needed,
         ]);
 
-        return redirect()->back()->with('success', 'Course objective added successfully');
+        return redirect()->back()->with('success', 'CSO added successfully');
     }
 
     function updateCourseMaster(Request $request, $id)
@@ -697,5 +698,21 @@ class SubjectController extends Controller
         $courseMaster->save();
 
         return redirect()->back()->with('success', 'Course Master Updated');
+    }
+
+    function updateCourseSpecificObjective(Request $request, $id)
+    {
+        $cso = CoHasCso::findOrFail($id);
+
+        $validated = $request->validate([
+            'title' => 'required',
+            'lectures_needed' => 'required',
+        ]);
+
+        $cso->title = $request->title;
+        $cso->lectures_needed = $request->lectures_needed;
+        $cso->save();
+
+        return redirect()->back()->with('success', 'CSO updated successfully');
     }
 }

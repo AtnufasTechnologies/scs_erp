@@ -13,11 +13,9 @@ return new class extends Migration
     {
         Schema::create('co_has_csos', function (Blueprint $table) {
             $table->id();
-            $table->integer('batch_id');
             $table->integer('co_id');
             $table->text('title')->nullable();
             $table->integer('lectures_needed');
-            $table->smallInteger('isComplete');
             $table->timestamps();
             $table->softDeletes();
         });
