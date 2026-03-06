@@ -156,7 +156,7 @@ $taxonomylevels = CognitiveLevelMaster::all();
                           </div>
                         </div>
                       </div>
-                      <button class="btn btn-sm btn-danger">Delete</button>
+                      <a href="{{ route('department.delete.cso', $cso->id) }}" class="btn btn-sm btn-danger" id="citadel">Delete</a>
 
 
                     </div>
@@ -164,40 +164,70 @@ $taxonomylevels = CognitiveLevelMaster::all();
 
                   <!-- CSO Subunits Section -->
                   <hr class="my-3">
-                  <h6 class="mb-2">Subunits:</h6>
-                  @if($cso->subunits && count($cso->subunits) > 0)
+                  <h6 class="mb-2">Sub Units:</h6>
+                  @if($cso->csosubunits && count($cso->csosubunits) > 0)
                   <ul class="list-group list-group-sm mb-2">
-                    @foreach($cso->subunits as $subunit)
-                    <li class="list-group-item">{{ $subunit->title }}</li>
+                    @foreach($cso->csosubunits as $subunit)
+                    <li class="list-group-item shadow">{{$loop->iteration}}. {{ $subunit->title }} - Taxonomy Level ({{$subunit->taxomonylevel->fullname}})
+                      @if($subunit->image_path != null)
+                      <br>
+                      <img src="{{Storage::disk('s3')->url($subunit->image_path)}}" alt="Subunit Image" class="img-fluid mt-2">
+                      @endif
+                    </li>
                     @endforeach
                   </ul>
                   @else
                   <p class="text-muted small">No subunits added yet.</p>
                   @endif
                   <button type="button" class="btn btn-sm btn-info" data-bs-toggle="modal" data-bs-target="#addSubunitModal{{ $cso->id }}">
-                    <i class="fa fa-plus"></i> Add Subunit
+                    <i class="fa fa-plus"></i> Add Sub Unit
                   </button>
 
                   <!-- Modal for adding subunit -->
                   <div class="modal fade" id="addSubunitModal{{ $cso->id }}" tabindex="-1" aria-hidden="true">
-                    <div class="modal-dialog">
+                    <div class="modal-dialog modal-lg">
                       <div class="modal-content">
                         <div class="modal-header">
-                          <h5 class="modal-title">Add Subunit to CSO</h5>
+                          <h5 class="modal-title">Add Sub Unit to CSO</h5>
                           <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
                         </div>
-                        <form action="" method="post">
+                        <form action="{{route('department.add.cso.subunit')}}" method="post" enctype="multipart/form-data">
                           @csrf
                           <div class="modal-body">
+
                             <div class="mb-3">
-                              <label for="subunitTitle" class="form-label">Subunit Title *</label>
-                              <textarea name="title" class="form-control" required></textarea>
+                              <label for="subunitTitle" class="form-label">Sub Unit Title *</label>
+                              <textarea name="title" class="form-control"></textarea>
                             </div>
+
+
+                            <div class="row">
+                              <div class="col-lg-6">
+                                <div class="mb-3">
+                                  <label for="" class="form-label">Bloom's Taxonomy *</label>
+                                  <select name="taxonomy" class="form-select">
+                                    <option value="" selected>Select</option>
+                                    @foreach ($taxonomylevels as $level)
+                                    <option value="{{$level->id}}">{{$level->shortname}} - {{$level->fullname}}</option>
+                                    @endforeach
+                                  </select>
+                                </div>
+                              </div>
+                              <div class="col-lg-6">
+                                <div class="mb-3">
+                                  <label for="subunitPhoto" class="form-label">Upload Photo (allowed: jpg,pn max: 5MB)</label>
+                                  <input type="file" class="form-control" name="photo">
+                                </div>
+                              </div>
+                            </div>
+
+
+
                             <input type="hidden" name="cso_id" value="{{ $cso->id }}">
                           </div>
                           <div class="modal-footer">
                             <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
-                            <button type="submit" class="btn btn-success">Add Subunit</button>
+                            <button type="submit" class="btn btn-success">Add Sub Unit</button>
                           </div>
                         </form>
                       </div>

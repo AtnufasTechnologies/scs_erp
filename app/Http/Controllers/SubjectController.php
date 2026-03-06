@@ -7,6 +7,7 @@ use App\Models\Campus;
 use App\Models\CognitiveLevelMaster;
 use App\Models\CoHasCso;
 use App\Models\CourseObjective;
+use App\Models\CsoSubunit;
 use App\Models\Department;
 use App\Models\Faculty;
 use App\Models\LectureHallMaster;
@@ -637,11 +638,11 @@ class SubjectController extends Controller
         return redirect()->back()->with('success', 'New Course Master Added and Can be Used in Departments Now');
     }
 
-    function viewCourseObjective($courseId)
+    function viewCourseSpecificObjective($courseId)
     {
         $course = SubjectCourseMaster::with([
             'courseMaster.coursetypemaster',
-            'courseMaster.csos',
+            'courseMaster.csos.csosubunits.taxomonylevel',
         ])->where('course_master_id', $courseId)->first();
 
         if (!$course) {
@@ -714,5 +715,37 @@ class SubjectController extends Controller
         $cso->save();
 
         return redirect()->back()->with('success', 'CSO updated successfully');
+    }
+
+    function deleteCourseSpecificObjective($id)
+    {
+        $cso = CoHasCso::findOrFail($id);
+        $cso->delete();
+        //delete all cso subunit
+        return redirect()->back()->with('success', 'CSO deleted successfully');
+    }
+
+    function addCsoSubunit(Request $request)
+    {
+        $request->validate([
+            'title' => 'required',
+            'cso_id' => 'required',
+            'taxonomy' => 'required',
+        ]);
+
+
+        $csoSubunit = new CsoSubunit();
+        $csoSubunit->cso_id = $request->cso_id;
+        $csoSubunit->taxonomy_id = $request->taxonomy;
+        $csoSubunit->title = $request->title; // default value for subunit
+
+        if (!empty($request->photo)) {
+            $photo = $request->photo;
+            $filePath = StaticController::s3_file_uploader($photo, 'cso-subunits');
+            $csoSubunit->image_path = $filePath;
+        }
+        $csoSubunit->save();
+
+        return redirect()->back()->with('success', 'CSO Sub Unit added successfully');
     }
 }

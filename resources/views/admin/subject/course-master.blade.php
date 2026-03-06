@@ -196,7 +196,7 @@ $papertypes = PaperTypeMaster::all();
         <div class="col-md-6 col-lg-4 mb-3">
           <div class="card shadow-sm h-100">
             <div class="card-body">
-              <a href="{{ route('department.view.course.objective', $course->course_master_id  ) }}">
+              <a href="{{ route('department.view.cso', $course->course_master_id  ) }}">
                 <h5 class="card-title">{{ $course->courseMaster->course_code }}</h5>
               </a>
               <p class="card-text text-muted">{{ $course->courseMaster->course_title }}</p>

@@ -15,4 +15,9 @@ class CoHasCso extends Model
         'title',
         'lectures_needed',
     ];
+
+    function csosubunits()
+    {
+        return $this->hasMany(CsoSubunit::class, 'cso_id', 'id');
+    }
 }
