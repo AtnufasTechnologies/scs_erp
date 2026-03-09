@@ -2,6 +2,8 @@
 
 namespace App\Services;
 
+use App\Models\AdmissionRegistration;
+use App\Models\User;
 use App\Models\UserActivityLog;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Arr;
@@ -32,8 +34,15 @@ class UserActivityLogger
       return;
     }
 
+    // Don't log for /new-admission routes (applicant actions)
+    if (request()->is('new-admission*') || request()->is('*/new-admission*')) {
+      return;
+    }
+
     [$oldValues, $newValues] = self::resolvePayload($event, $model);
 
+
+    // Ensure user is authenticated before logging
     DB::table('user_activity_logs')->insert([
       'user_id' => Auth::id(),
       'event' => $event,
