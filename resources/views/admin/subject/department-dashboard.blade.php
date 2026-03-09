@@ -21,28 +21,28 @@ $mainStreams = ProgramMaster::all();
 <!-- Main Content -->
 <div class="main-content">
   <!-- Welcome Header -->
-  <div class="welcome-header d-flex justify-content-between align-items-center">
+  <div class="welcome-header d-flex justify-content-between align-items-center" style="background: linear-gradient(135deg, #e9e9e9 40%, #7c3aed 100%)">
     <div>
       <h2 class="mb-1" style="color: #1a1a1a; font-weight: 700;">Hello, {{ Auth::user()->name ?? 'User' }} 👋</h2>
       <p class="mb-0" style="color: #6b7280;">Nice to have you back, what an exciting day!</p>
       <p class="mb-0 mt-2" style="color: #6b7280;">Get ready and continue your work today.</p>
     </div>
     <div class="d-flex align-items-center gap-4">
-      <img src="https://ui-avatars.com/api/?name={{ urlencode(Auth::user()->name ?? 'User') }}&background=5b4cdb&color=fff&size=120&rounded=true" alt="Avatar" style="width: 90px; height: 90px; border-radius: 20px; box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);">
       <div class="xp-badge">
         <div class="xp-coin">
-          <i class="fas fa-coins" style="color: #b8860b; font-size: 18px;"></i>
+          <i class="fas fa-user-graduate me-1" style="color: #b8860b; font-size: 18px;"></i>
+
         </div>
         <div>
-          <div style="font-size: 24px; font-weight: 700; color: #1a1a1a;">2400 XP</div>
-          <div style="font-size: 12px; color: #6b7280;">Points</div>
+          <div style="font-size: 24px; font-weight: 700; color: #1a1a1a;">{{ $data->students_count ?? 0 }} </div>
+          <div style="font-size: 12px; color: #6b7280;">Students</div>
         </div>
       </div>
     </div>
   </div>
 
   <!-- Department Info Bar -->
-  <div class="d-flex align-items-center mb-4" style="background: white; padding: 16px 24px; border-radius: 16px; box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);">
+  <!-- <div class="d-flex align-items-center mb-4" style="background: white; padding: 16px 24px; border-radius: 16px; box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);">
     <div class="d-flex align-items-center flex-grow-1">
       <div style="width: 48px; height: 48px; background: linear-gradient(135deg, #5b4cdb 0%, #7c3aed 100%); border-radius: 12px; display: flex; align-items: center; justify-content: center; margin-right: 16px;">
         <i class="fas fa-building" style="color: white; font-size: 20px;"></i>
@@ -57,7 +57,7 @@ $mainStreams = ProgramMaster::all();
       <i class="fas fa-external-link-alt me-2"></i>Admin Console
     </a>
     @endif
-  </div>
+  </div> -->
 
   <div class="row g-4">
     <!-- Left Column: Today's Course -->
@@ -88,7 +88,7 @@ $mainStreams = ProgramMaster::all();
         </div>
         <div class="mt-3 d-flex gap-2">
           <a href="{{route('department.course.master',[$data->id,$data->slug])}}" class="btn btn-sm btn-modern" style="background: #43cea2; color: white; flex: 1;">Continue</a>
-          <button class="btn btn-sm btn-modern" style="background: #f5f7fa; color: #6b7280;">Skip</button>
+          <button class="btn btn-sm btn-modern" style="background: #e6e6e6; color: #6b7280;">Skip</button>
         </div>
       </div>
 
@@ -115,7 +115,7 @@ $mainStreams = ProgramMaster::all();
         </div>
         <div class="mt-3 d-flex gap-2">
           <button class="btn btn-sm btn-modern" style="background: #ff9966; color: white; flex: 1;">Continue</button>
-          <button class="btn btn-sm btn-modern" style="background: #f5f7fa; color: #6b7280;">Skip</button>
+          <button class="btn btn-sm btn-modern" style="background: #e6e6e6; color: #6b7280;">Skip</button>
         </div>
       </div>
     </div>
@@ -143,12 +143,14 @@ $mainStreams = ProgramMaster::all();
           <div class="stats-card gradient-red">
             <div class="d-flex justify-content-between align-items-start">
               <div>
-                <div style="font-size: 14px; opacity: 0.9; margin-bottom: 8px;">Total Students</div>
+                <div style="font-size: 14px; opacity: 0.9; margin-bottom: 8px;">Syllabus </div>
                 <div style="font-size: 36px; font-weight: 700;">{{ $data->students_count ?? 0 }}</div>
-                <div style="opacity: 0.9; font-size: 13px;">Enrolled</div>
+                <div style="opacity: 0.9; font-size: 13px;">
+                  <a href="{{route('department.syllabus.manager',['id'=>$data->id,'slug'=>$data->slug])}}" style="color: white; opacity: 0.9; font-size: 13px; text-decoration: none;">Manager →</a>
+                </div>
               </div>
               <div style="width: 56px; height: 56px; background: rgba(255, 255, 255, 0.2); border-radius: 14px; display: flex; align-items: center; justify-content: center;">
-                <i class="fas fa-user-graduate" style="font-size: 28px;"></i>
+                <i class="fas fa-box" style="font-size: 28px;"></i>
               </div>
             </div>
           </div>

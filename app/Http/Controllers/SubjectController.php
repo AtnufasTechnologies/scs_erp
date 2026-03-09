@@ -15,6 +15,7 @@ use App\Models\MainProgram;
 use App\Models\PoHasCo;
 use App\Models\ProgramCourseMaster;
 use App\Models\ProgramMaster;
+use App\Models\Semester;
 use App\Models\StudentMaster;
 use App\Models\StudentProgram;
 use App\Models\Subject;
@@ -657,6 +658,17 @@ class SubjectController extends Controller
         ]);
     }
 
+    function getCsoListForCourse($courseId)
+    {
+        $csos = CoHasCso::with(['csosubunits.taxomonylevel'])->where('co_id', $courseId)->get();
+
+        if ($csos->isEmpty()) {
+            return response()->json(['error' => 'Course not found'], 404);
+        }
+
+        return response()->json($csos);
+    }
+
     function createCourseSpecificObjective(Request $request)
     {
         $validated = $request->validate([
@@ -747,5 +759,40 @@ class SubjectController extends Controller
         $csoSubunit->save();
 
         return redirect()->back()->with('success', 'CSO Sub Unit added successfully');
+    }
+
+    function syllabusManager(Request $request)
+    {
+
+        $id = $request->id;
+        $batches = BatchMaster::all();
+        $semesters = Semester::all();
+        $cos =  SubjectCourseMaster::with([
+            'courseMaster.coursetypemaster'
+        ])->where('subject_id', $id)->get();
+        $data['id'] = $id;
+        $data['slug'] = $request->slug;
+        return view('admin.subject.syllabus-manager', [
+            'batches' => $batches,
+            'semesters' => $semesters,
+            'cos' => $cos,
+            'data' => $data
+        ]);
+    }
+
+    function createSyllabus(Request $request)
+    {
+        return $request->all();
+        $request->validate([
+
+            'batch' => 'required',
+            'semester_id' => 'required',
+            'subject_id' => 'required',
+            'co_id' => 'required',
+            'cso_id' => 'required',
+
+        ]);
+
+        return redirect()->back()->with('success', 'Syllabus Created');
     }
 }

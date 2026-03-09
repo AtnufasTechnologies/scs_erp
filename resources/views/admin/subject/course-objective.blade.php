@@ -8,7 +8,18 @@ $taxonomylevels = CognitiveLevelMaster::all();
 @include('includes.header')
 @include('includes.dept-sidebar')
 <div class="main-content">
+  @if ($errors->any())
 
+  <div class="alert alert-warning alert-dismissible fade show" role="alert">
+    <ul>
+      @foreach ($errors->all() as $error)
+      <li>{{ $error }}</li>
+      @endforeach
+    </ul>
+    <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+  </div>
+
+  @endif
   <div class="container-fluid py-4">
     <nav class="navbar navbar-expand-lg navbar-dark mb-4" style="background: linear-gradient(135deg, #5740b4 0%, #8931f6 100%); border-radius: 0.75rem;">
       <div class="container-fluid">
@@ -198,7 +209,12 @@ $taxonomylevels = CognitiveLevelMaster::all();
                             <div class="mb-3">
                               <label for="subunitTitle" class="form-label">Sub Unit Title *</label>
                               <textarea name="title" class="form-control"></textarea>
+                              @error('title')
+                              <span class="text-danger">{{$message}}</span>
+                              @enderror
                             </div>
+
+
 
 
                             <div class="row">
@@ -211,6 +227,9 @@ $taxonomylevels = CognitiveLevelMaster::all();
                                     <option value="{{$level->id}}">{{$level->shortname}} - {{$level->fullname}}</option>
                                     @endforeach
                                   </select>
+                                  @error('taxonomy')
+                                  <span class="text-danger">{{$message}}</span>
+                                  @enderror
                                 </div>
                               </div>
                               <div class="col-lg-6">
@@ -227,7 +246,17 @@ $taxonomylevels = CognitiveLevelMaster::all();
                           </div>
                           <div class="modal-footer">
                             <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
-                            <button type="submit" class="btn btn-success">Add Sub Unit</button>
+                            <button type="submit" class="btn btn-success" id="submitBtn">
+                              <span class="spinner-border spinner-border-sm d-none me-2" id="loader" role="status" aria-hidden="true"></span>
+                              <span id="btnText">Add Sub Unit</span>
+                            </button>
+
+                            <script>
+                              document.querySelector('form').addEventListener('submit', function() {
+                                document.getElementById('submitBtn').disabled = true;
+                                document.getElementById('loader').classList.remove('d-none');
+                              });
+                            </script>
                           </div>
                         </form>
                       </div>
