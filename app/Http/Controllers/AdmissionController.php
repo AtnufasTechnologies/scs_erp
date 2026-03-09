@@ -1703,8 +1703,14 @@ class AdmissionController extends Controller
         }
 
         // Save application
-        $userId = Auth::user()->id;
+        $id = $request->id ?? Auth::id();
+        $user = $id ? AdmissionRegistration::find($id) : null;
+        $userId = $user ? $user->id : null;
+        if (!$userId) {
+            return redirect()->route('new.admission.login')->withErrors(['registered_no' => 'User not found. Please login again.']);
+        }
         $registrationId = AdmissionRegistration::where('id', $userId)->value('id');
+        $generatedNo = $userId  . rand(1000, 9999);
 
         //Department  auto filled based on the registration data for PG applicants,
         $subjectProgramData = SubjectHasStudentProgam::find($request->course);
@@ -1713,6 +1719,7 @@ class AdmissionController extends Controller
 
         $application = new AdmissionApplication();
         $application->user_id = $userId;
+        $application->application_code = $generatedNo;
         $application->registration_id = $registrationId;
         $application->department = $deptId;
         $application->course = $courseId;

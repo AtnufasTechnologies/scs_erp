@@ -68,4 +68,9 @@ class User extends Authenticatable
     {
         return $this->hasOne(SubjectHasDeptAdmin::class, 'user_id', 'id');
     }
+
+    public function activityLogs()
+    {
+        return $this->hasMany(UserActivityLog::class, 'user_id')->latest('id');
+    }
 }

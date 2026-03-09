@@ -1015,7 +1015,7 @@ $roleType = UserHasRole::where('user_id', $userId)->value('role_name');
         <div class="parent-icon">
           <i class="fas fa-shield"></i>
         </div>
-        <div class="menu-title">Security and Authorization </div>
+        <div class="menu-title">Authorization </div>
       </a>
       <ul>
         <!--     User Access Management -->
@@ -1023,20 +1023,22 @@ $roleType = UserHasRole::where('user_id', $userId)->value('role_name');
         <li>
           <a href="{{route('admin.user.management')}}">
             <div class="parent-icon">
-              <i class="fas fa-user"></i>
+              <i class="far fa-users-cog"></i>
             </div>
-            <div class="menu-title">User Control </div>
+            <div class="menu-title">User Manager </div>
           </a>
         </li>
+
+
         @endif
         <!--Departmental Admission Access Control -->
         @if (StaticController::subMenuRights('admission-dept-access') )
         <li>
           <a href="{{route('dept.erp.access-list')}}">
             <div class="parent-icon">
-              <i class="fas fa-users"></i>
+              <i class="far fa-users-class"></i>
             </div>
-            <div class="menu-title">Dept Access </div>
+            <div class="menu-title">Department Access </div>
           </a>
         </li>
         @endif
@@ -1056,9 +1058,9 @@ $roleType = UserHasRole::where('user_id', $userId)->value('role_name');
         <li>
           <a href="{{route('admin.menu-access-types')}}">
             <div class="parent-icon">
-              <i class="fas fa-list"></i>
+              <i class="far fa-ellipsis-h-alt"></i>
             </div>
-            <div class="menu-title">Menu Master </div>
+            <div class="menu-title">Menu Manager </div>
           </a>
         </li>
 
@@ -1075,7 +1077,34 @@ $roleType = UserHasRole::where('user_id', $userId)->value('role_name');
       </a>
     </li>
     @endif
-
+    @if (StaticController::subMenuRights('activity-logger') )
+    <li>
+      <a class="has-arrow" href="javascript:;">
+        <div class="parent-icon">
+          <i class="fas fa-wave-sine"></i>
+        </div>
+        <div class="menu-title">System Logs </div>
+      </a>
+      <ul>
+        <li>
+          <a href="{{route('admin.activity-logs.dashboard')}}">
+            <div class="parent-icon">
+              <i class="fas fa-chart-bar"></i>
+            </div>
+            <div class="menu-title">Activity Dashboard </div>
+          </a>
+        </li>
+        <li>
+          <a href="{{route('admin.user.activity-logs')}}">
+            <div class="parent-icon">
+              <i class="fas fa-history"></i>
+            </div>
+            <div class="menu-title">Activity Logs </div>
+          </a>
+        </li>
+      </ul>
+    </li>
+    @endif
     @endif
 
     <!-- logout -->

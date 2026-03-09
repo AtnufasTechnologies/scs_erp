@@ -1,3 +1,9 @@
+<?php
+
+use App\Models\BatchMaster;
+
+$batches = BatchMaster::latest()->get();
+?>
 @include('includes.header')
 <div class="container-fluid py-4">
   <div class="row mb-4">
@@ -35,7 +41,7 @@
     }
 
     .calendar-block {
-      background: linear-gradient(135deg, #327175 0%, #4ba288 100%);
+      background: linear-gradient(135deg, #5e6daa 0%, #3b4a84 100%);
       color: #fff;
       border-radius: 8px;
       font-size: 0.95em;
@@ -66,6 +72,30 @@
       color: #fff;
     }
   </style>
+
+  <div class="row mb-3">
+    <div class="col-md-2">
+      <label for="batchFilter" class="form-label">Filter by Batch:</label>
+      <form action="" method="GET" class="d-flex">
+        <div class="input-group">
+          <select id="batchFilter" class="form-select" name="batch">
+            <option value="">All Batches</option>
+
+            @foreach($batches as $batch)
+            <option value="{{ $batch->id }}" {{ request('batch') == $batch->id ? 'selected' : '' }}>{{ $batch->batch_name }}</option>
+            @endforeach
+          </select>
+          <button class="btn btn-outline-success"><i class="fa fa-search"></i></button>
+        </div>
+
+      </form>
+    </div>
+
+  </div>
+
+
+
+
   <div class="table-responsive">
     @php
     $weekdays = ['Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];

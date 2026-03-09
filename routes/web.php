@@ -27,7 +27,7 @@ use Illuminate\Support\Str;
 */
 
 Route::get('/', [LoginController::class, 'index'])->name('login');
-Route::get('forgot-password', [LoginController::class, 'forgotPassword']);
+Route::get('forgot-password', [LoginController::class, 'forgotPassword'])->name('scms.forgot.password');
 Route::post('login', [LoginController::class, 'login']);
 Route::post('forgot-password', [LoginController::class, 'sendPasswordReset']);
 Route::get('verify-mail-reset-token/{id}', [LoginController::class, 'verifyResetToken']);
@@ -198,6 +198,8 @@ Route::group(['prefix' => '/erp'], function () {
             Route::get('sms-templates', [AccessController::class, 'smsTemplates'])->name('admin.sms.templates');
             Route::post('sms-templates', [AccessController::class, 'smsTemplateStore'])->name('sms.template.store');
             Route::get('sms-template/delete/{id}', [AccessController::class, 'smsTemplateDelete'])->name('sms.template.delete');
+            Route::get('activity-logs-dashboard', [AccessController::class, 'activityLogsDashboard'])->name('admin.activity-logs.dashboard');
+            Route::get('activity-logs', [AccessController::class, 'userActivityLogs'])->name('admin.user.activity-logs');
         });
 
         //admission routes Admin
@@ -319,7 +321,22 @@ Route::group(['prefix' => '/erp'], function () {
         Route::delete('course-master/{id}/delete', [SubjectController::class, 'deleteCourseMaster'])->name('department.course.delete');
         Route::get('delete-semester/{id}', [SubjectController::class, 'deleteSemesterFromSubject'])->name('department.delete.subject.semester');
         Route::post('add-faculty-master', [SubjectController::class, 'addFacultyMasterToSubject'])->name('dept.add.faculty.master');
+        // Course Objectives
+        Route::get('course/{id}/cso', [SubjectController::class, 'viewCourseSpecificObjective'])->name('department.view.cso');
+        Route::get('course/{id}/cso-list', [SubjectController::class, 'getCsoListForCourse'])->name('department.get.cso.list');
+        Route::post('course/objective/create', [SubjectController::class, 'createCourseSpecificObjective'])->name('department.create.course.specific.objective');
         Route::delete('delete-faculty-master/{id}', [SubjectController::class, 'deleteFacultyMasterFromSubject'])->name('department.faculty.delete');
+        Route::post('add-new-course-master', [SubjectController::class, 'addNewCourseMaster'])->name('department.create.course.master');
+        Route::put('/course-master/{id}', [SubjectController::class, 'updateCourseMaster'])->name('department.update.course.master');
+
+        Route::put('/course-specific-objective/{id}', [SubjectController::class, 'updateCourseSpecificObjective'])->name('department.update.cso');
+        Route::get('cso/{id}/delete', [SubjectController::class, 'deleteCourseSpecificObjective'])->name('department.delete.cso');
+
+        Route::post('add-cso-subunit', [SubjectController::class, 'addCsoSubunit'])->name('department.add.cso.subunit');
+
+        Route::get('syllabus-manager', [SubjectController::class, 'syllabusManager'])->name('department.syllabus.manager');
+        Route::get('course/{id}/cso-list', [SubjectController::class, 'getCsoListForCourse'])->name('department.get.cso.list');
+        Route::post('create-syllabus', [SubjectController::class, 'createSyllabus'])->name('department.create.syllabus');
 
         // Faculty Timetable
 
@@ -347,6 +364,18 @@ Route::group(['prefix' => '/erp'], function () {
     });
 
 
+    // Faculty routes
+    Route::group(['prefix' => 'faculty', 'as' => 'faculty.'], function () {
+        Route::get('dashboard', [\App\Faculty\Http\Controllers\FacultyDashboardController::class, 'index'])->name('faculty.dashboard');
+        Route::get('timetable', [\App\Faculty\Http\Controllers\TimetableController::class, 'index'])->name('faculty.timetable');
+        Route::get('attendance', [\App\Faculty\Http\Controllers\AttendanceController::class, 'index'])->name('faculty.attendance');
+        Route::get('work-diary', [\App\Faculty\Http\Controllers\WorkDiaryController::class, 'index'])->name('faculty.workdiary');
+        Route::get('request-application', [\App\Faculty\Http\Controllers\RequestApplicationController::class, 'index'])->name('faculty.requestapplication');
+        Route::get('payroll', [\App\Faculty\Http\Controllers\PayrollController::class, 'index'])->name('faculty.payroll');
+        Route::get('payroll/download', [\App\Faculty\Http\Controllers\PayrollController::class, 'download'])->name('faculty.payroll.download');
+    });
+
+
     //Testing route
     Route::group(['prefix' => '/test'], function () {
         //   Route::get('dept-campus-mapping', [TestController::class, 'DeptCampusMapping']);
@@ -354,15 +383,4 @@ Route::group(['prefix' => '/erp'], function () {
         Route::get('sms', [TestController::class, 'smsTest']);
         Route::get('install-new-programid', [TestController::class, 'studentMasterProgramFixing']);
     });
-});
-
-// Faculty routes
-Route::group(['prefix' => 'faculty', 'as' => 'faculty.'], function () {
-    Route::get('dashboard', [\App\Faculty\Http\Controllers\FacultyDashboardController::class, 'index'])->name('dashboard');
-    Route::get('timetable', [\App\Faculty\Http\Controllers\TimetableController::class, 'index'])->name('timetable');
-    Route::get('attendance', [\App\Faculty\Http\Controllers\AttendanceController::class, 'index'])->name('attendance');
-    Route::get('work-diary', [\App\Faculty\Http\Controllers\WorkDiaryController::class, 'index'])->name('workdiary');
-    Route::get('request-application', [\App\Faculty\Http\Controllers\RequestApplicationController::class, 'index'])->name('requestapplication');
-    Route::get('payroll', [\App\Faculty\Http\Controllers\PayrollController::class, 'index'])->name('payroll');
-    Route::get('payroll/download', [\App\Faculty\Http\Controllers\PayrollController::class, 'download'])->name('payroll.download');
 });

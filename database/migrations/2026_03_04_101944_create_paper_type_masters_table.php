@@ -11,13 +11,10 @@ return new class extends Migration
      */
     public function up(): void
     {
-        Schema::create('po_has_cos', function (Blueprint $table) {
+        Schema::create('paper_type_masters', function (Blueprint $table) {
             $table->id();
-            $table->integer('co_id');
-            $table->text('title');
-            $table->integer('lectures_needed');
+            $table->string('name'); // T=Theory, P=Practical, TP=Theory + Practical
             $table->timestamps();
-            $table->softDeletes();
         });
     }
 
@@ -26,6 +23,6 @@ return new class extends Migration
      */
     public function down(): void
     {
-        Schema::dropIfExists('po_has_cos');
+        Schema::dropIfExists('paper_type_masters');
     }
 };

@@ -44,6 +44,7 @@ class LoginController extends Controller
                     }
                 } else if ($roleType == 'faculty') {
                     //Faculty Dashboard
+                    return redirect()->route('faculty.dashboard')->with('success', 'Login Success');
                 } else if ($roleType == 'student') {
                     //Student Dashboard
                 } else {
@@ -183,7 +184,6 @@ class LoginController extends Controller
             $details = [
                 'token' =>  $code,
             ];
-
 
             Mail::to($email)->send(new PasswordResetOtpMail($details));
 

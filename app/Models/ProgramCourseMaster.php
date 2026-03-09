@@ -28,4 +28,14 @@ class ProgramCourseMaster extends Model
     {
         return  $this->hasMany(StudentCourseInfo::class, 'course_id', 'id');
     }
+
+    function papertypemaster()
+    {
+        return  $this->hasOne(PaperTypeMaster::class, 'id', 'paper_type_id');
+    }
+
+    function csos()
+    {
+        return $this->hasMany(CoHasCso::class, 'co_id', 'id');
+    }
 }

@@ -5,12 +5,17 @@ namespace App\Http\Controllers;
 use App\Models\BatchMaster;
 use App\Models\Campus;
 use App\Models\CognitiveLevelMaster;
+use App\Models\CoHasCso;
+use App\Models\CourseObjective;
+use App\Models\CsoSubunit;
 use App\Models\Department;
 use App\Models\Faculty;
 use App\Models\LectureHallMaster;
 use App\Models\MainProgram;
+use App\Models\PoHasCo;
 use App\Models\ProgramCourseMaster;
 use App\Models\ProgramMaster;
+use App\Models\Semester;
 use App\Models\StudentMaster;
 use App\Models\StudentProgram;
 use App\Models\Subject;
@@ -403,7 +408,7 @@ class SubjectController extends Controller
         $data = Subject::find($academicDeptId);
 
         $courses =  SubjectCourseMaster::with([
-            'courseMaster',
+            'courseMaster.paperTypeMaster',
         ])->where('subject_id', $academicDeptId)->get();
 
         $programCourseMaster =  ProgramCourseMaster::all();
@@ -604,5 +609,190 @@ class SubjectController extends Controller
         $data->save();
 
         return redirect()->back()->with('success', 'Program Updated');
+    }
+
+    function addNewCourseMaster(Request $request)
+    {
+        $request->validate([
+            'batch' => 'required',
+            'course_code' => 'required|string|max:100',
+            'course_title' => 'required|string|max:255',
+            'course_type' => 'required',
+            'internal' => 'required|numeric|min:0',
+            'external' => 'required|numeric|min:0',
+            'credits' => 'required|numeric|min:0',
+        ]);
+
+        $rec = new ProgramCourseMaster();
+        $rec->academic_year = $request->batch;
+        $rec->course_code = Str::upper($request->course_code);
+        $rec->course_title = $request->course_title;
+        $rec->course_type = $request->course_type;
+        $rec->internal = $request->internal;
+        $rec->external =  $request->external;
+        $rec->total = $request->internal + $request->external;
+        $rec->credits = $request->credits;
+        $rec->paper_type_id = $request->paper_type;
+        $rec->total_alloted_hours = $request->total_alloted_hours;
+        $rec->save();
+
+        return redirect()->back()->with('success', 'New Course Master Added and Can be Used in Departments Now');
+    }
+
+    function viewCourseSpecificObjective($courseId)
+    {
+        $course = SubjectCourseMaster::with([
+            'courseMaster.coursetypemaster',
+            'courseMaster.csos.csosubunits.taxomonylevel',
+        ])->where('course_master_id', $courseId)->first();
+
+        if (!$course) {
+            return redirect()->back()->with('error', 'Course not found');
+        }
+
+        $objectives = PoHasCo::where('co_id', $courseId)->get();
+
+        return view('admin.subject.course-objective', [
+            'course' => $course,
+            'objectives' => $objectives,
+        ]);
+    }
+
+    function getCsoListForCourse($courseId)
+    {
+        $csos = CoHasCso::with(['csosubunits.taxomonylevel'])->where('co_id', $courseId)->get();
+
+        if ($csos->isEmpty()) {
+            return response()->json(['error' => 'Course not found'], 404);
+        }
+
+        return response()->json($csos);
+    }
+
+    function createCourseSpecificObjective(Request $request)
+    {
+        $validated = $request->validate([
+            'title' => 'required',
+            'course_id' => 'required',
+            'lectures_needed' => 'required',
+        ]);
+
+        CoHasCso::create([
+            'co_id' => $request->course_id,
+            'title' => $request->title,
+            'lectures_needed' => $request->lectures_needed,
+        ]);
+
+        return redirect()->back()->with('success', 'CSO added successfully');
+    }
+
+    function updateCourseMaster(Request $request, $id)
+    {
+        $courseMaster = ProgramCourseMaster::findOrFail($id);
+
+        $request->validate([
+            'course_code' => 'required|string|max:100',
+            'course_title' => 'required|string|max:255',
+            'course_type' => 'required',
+            'credits' => 'required|integer|min:0',
+            'internal' => 'required|numeric|min:0',
+            'external' => 'required|numeric|min:0',
+        ]);
+
+        $courseMaster->course_code = Str::upper($request->course_code);
+        $courseMaster->course_title = $request->course_title;
+        $courseMaster->course_type = $request->course_type;
+        $courseMaster->credits = $request->credits;
+        $courseMaster->internal = $request->internal;
+        $courseMaster->external = $request->external;
+        $courseMaster->total = $request->internal + $request->external;
+        $courseMaster->total_alloted_hours = $request->total_alloted_hours;
+        $courseMaster->paper_type_id = $request->paper_type;
+        $courseMaster->save();
+
+        return redirect()->back()->with('success', 'Course Master Updated');
+    }
+
+    function updateCourseSpecificObjective(Request $request, $id)
+    {
+        $cso = CoHasCso::findOrFail($id);
+
+        $validated = $request->validate([
+            'title' => 'required',
+            'lectures_needed' => 'required',
+        ]);
+
+        $cso->title = $request->title;
+        $cso->lectures_needed = $request->lectures_needed;
+        $cso->save();
+
+        return redirect()->back()->with('success', 'CSO updated successfully');
+    }
+
+    function deleteCourseSpecificObjective($id)
+    {
+        $cso = CoHasCso::findOrFail($id);
+        $cso->delete();
+        //delete all cso subunit
+        return redirect()->back()->with('success', 'CSO deleted successfully');
+    }
+
+    function addCsoSubunit(Request $request)
+    {
+        $request->validate([
+            'title' => 'required',
+            'cso_id' => 'required',
+            'taxonomy' => 'required',
+        ]);
+
+
+        $csoSubunit = new CsoSubunit();
+        $csoSubunit->cso_id = $request->cso_id;
+        $csoSubunit->taxonomy_id = $request->taxonomy;
+        $csoSubunit->title = $request->title; // default value for subunit
+
+        if (!empty($request->photo)) {
+            $photo = $request->photo;
+            $filePath = StaticController::s3_file_uploader($photo, 'cso-subunits');
+            $csoSubunit->image_path = $filePath;
+        }
+        $csoSubunit->save();
+
+        return redirect()->back()->with('success', 'CSO Sub Unit added successfully');
+    }
+
+    function syllabusManager(Request $request)
+    {
+
+        $id = $request->id;
+        $batches = BatchMaster::all();
+        $semesters = Semester::all();
+        $cos =  SubjectCourseMaster::with([
+            'courseMaster.coursetypemaster'
+        ])->where('subject_id', $id)->get();
+        $data['id'] = $id;
+        $data['slug'] = $request->slug;
+        return view('admin.subject.syllabus-manager', [
+            'batches' => $batches,
+            'semesters' => $semesters,
+            'cos' => $cos,
+            'data' => $data
+        ]);
+    }
+
+    function createSyllabus(Request $request)
+    {
+        return $request->all();
+        $request->validate([
+
+            'batch' => 'required',
+            'semester_id' => 'required',
+            'subject_id' => 'required',
+            'co_id' => 'required',
+            'cso_id' => 'required',
+
+        ]);
+
+        return redirect()->back()->with('success', 'Syllabus Created');
     }
 }

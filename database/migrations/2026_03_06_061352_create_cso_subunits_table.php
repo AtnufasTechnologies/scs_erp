@@ -11,11 +11,13 @@ return new class extends Migration
      */
     public function up(): void
     {
-        Schema::create('po_has_cos', function (Blueprint $table) {
+        Schema::create('cso_subunits', function (Blueprint $table) {
             $table->id();
-            $table->integer('co_id');
-            $table->text('title');
-            $table->integer('lectures_needed');
+            $table->unsignedBigInteger('cso_id');
+            $table->integer('taxonomy_id')->nullable();
+            $table->string('title');
+            $table->foreign('cso_id')->references('id')->on('co_has_csos')->onDelete('cascade');
+            $table->string('image_path')->nullable();
             $table->timestamps();
             $table->softDeletes();
         });
@@ -26,6 +28,6 @@ return new class extends Migration
      */
     public function down(): void
     {
-        Schema::dropIfExists('po_has_cos');
+        Schema::dropIfExists('cso_subunits');
     }
 };
