@@ -34,8 +34,14 @@ class UserActivityLogger
       return;
     }
 
-    // Don't log for /new-admission routes (applicant actions)
-    if (request()->is('new-admission*') || request()->is('*/new-admission*')) {
+    // Don't log for admission routes (applicant actions - not users in users table)
+    // Covers /erp/new-admission/* and /erp/admission/* route groups
+    if (
+      request()->is('erp/new-admission*') ||
+      request()->is('erp/admission*') ||
+      request()->is('*/erp/new-admission*') ||
+      request()->is('*/erp/admission*')
+    ) {
       return;
     }
 
