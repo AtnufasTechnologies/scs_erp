@@ -144,7 +144,7 @@ $mainStreams = ProgramMaster::all();
             <div class="d-flex justify-content-between align-items-start">
               <div>
                 <div style="font-size: 14px; opacity: 0.9; margin-bottom: 8px;">Syllabus </div>
-                <div style="font-size: 36px; font-weight: 700;">{{ $data->students_count ?? 0 }}</div>
+                <div style="font-size: 36px; font-weight: 700;">{{ $syllabusCount ?? 0 }}</div>
                 <div style="opacity: 0.9; font-size: 13px;">
                   <a href="{{route('department.syllabus.manager',['id'=>$data->id,'slug'=>$data->slug])}}" style="color: white; opacity: 0.9; font-size: 13px; text-decoration: none;">Manager →</a>
                 </div>
