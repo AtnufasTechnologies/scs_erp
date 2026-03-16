@@ -2,8 +2,10 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\Faculty;
 use App\Models\SmsTemplate;
 use App\Models\Subject;
+use App\Models\SubjectFacultyMaster;
 use App\Models\SubjectHasDeptAdmin;
 use App\Models\User;
 use App\Models\UserActivityLog;
@@ -250,5 +252,73 @@ class AccessController extends Controller
             'recentActivities' => $recentActivities,
             'activityTimeline' => $activityTimeline,
         ]);
+    }
+
+
+    function facultyAccessList($departmentId, $departmentSlug)
+    {
+        $faculties = SubjectFacultyMaster::with('faculty')->where('subject_id', $departmentId)->get();
+        $data = SubjectFacultyMaster::with(['useraccess'])->where('access_id', '!=', null)->get();
+        return view('admin.subject.dept-faculty-access', [
+            'faculties' => $faculties,
+            'data' => $data,
+            'departmentId' => $departmentId,
+            'departmentSlug' => $departmentSlug
+        ]);
+    }
+
+    function grantFacultyAccess(Request $request)
+    {
+        // Logic to grant faculty access
+        $request->validate([
+            'faculty_id' => 'required',
+            'subject_id' => 'required',
+            'password' => 'required|min:6',
+        ]);
+
+        $facultyId = $request->faculty_id;
+        $subjectId = $request->subject_id;
+        $password = $request->password;
+
+        // Logic to create or update faculty access with the provided password
+        $facultyInfo = Faculty::find($facultyId);
+        if (!$facultyInfo) {
+            return back()->with('error', 'Faculty not found.');
+        }
+        $rec = new User();
+        $rec->name =  $facultyInfo->FIRST_NAME . ' ' . $facultyInfo->LAST_NAME;
+        $rec->email = $facultyInfo->MAIL_ID;
+        $rec->phone = $facultyInfo->MOBILE_NO;
+        $rec->password = Hash::make($password);
+        $rec->otp_verification = 1;
+        $rec->status = 'ACTIVE';
+        $rec->decrypted_password = $password; // Store the decrypted password (not recommended for production)
+        $rec->save();
+        //assign campus access permission
+        UserHasRole::create([
+            'user_id' => $rec->id,
+            'role_name' =>  'faculty', //Faculty Role
+        ]);
+
+        //Updating access_id in subject_faculty_masters table to identify for which user access is given
+        SubjectFacultyMaster::where('subject_id', $subjectId)->where('faculty_id', $facultyId)->update(
+            [
+                'access_id' => $rec->id, // Store the user ID for which access is given
+            ]
+        );
+
+        return back()->with('success', 'Faculty access granted successfully.');
+    }
+
+    function revokeFacultyAccess($id)
+    {
+        // Logic to revoke faculty access
+        $user = User::find($id);
+        if ($user) {
+            $user->delete();
+            UserHasRole::where('user_id', $id)->delete();
+            return back()->with('success', 'Faculty access revoked successfully.');
+        }
+        return back()->with('error', 'Faculty not found.');
     }
 }

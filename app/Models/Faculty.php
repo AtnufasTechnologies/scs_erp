@@ -21,4 +21,9 @@ class Faculty extends Model
     {
         return $this->hasOne(NationalityMaster::class, 'id', 'NATIONALITY');
     }
+
+    function useraccess()
+    {
+        return $this->hasOne(User::class, 'id', 'faculty_id');
+    }
 }

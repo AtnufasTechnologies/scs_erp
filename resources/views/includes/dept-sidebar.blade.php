@@ -30,15 +30,20 @@ $data = $subject;
       <i class="fas fa-book fa-lg"></i>
     </div>
   </a>
+
+
   <div class="sidebar-icon" title="Students">
     <i class="fas fa-user-graduate fa-lg"></i>
   </div>
   <div class="sidebar-icon" title="Faculty">
     <i class="fas fa-chalkboard-teacher fa-lg"></i>
   </div>
-  <div class="sidebar-icon" title="Settings">
-    <i class="fas fa-cog fa-lg"></i>
-  </div>
+
+  <a href="{{route('department.faculty.access',[$data->id,$data->slug])}}">
+    <div class="sidebar-icon" title="Settings">
+      <i class="fas fa-cog fa-lg"></i>
+    </div>
+  </a>
   <div class="mt-auto sidebar-icon" title="Logout">
     <a href="{{ StaticController::fetchUserRole() == 'dept-admin-erp' ? url('logout') : route('admin.dashboard') }}" style="color: inherit;">
       <i class="fas fa-sign-out-alt fa-lg"></i>

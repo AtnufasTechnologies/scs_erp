@@ -362,6 +362,11 @@ Route::group(['prefix' => '/erp'], function () {
         //dept-admission-console
         Route::get('application-list', [AdmissionController::class, 'deptApplicationList'])->name('department.admission.list');
         Route::get('interview-list', [AdmissionController::class, 'deptInterviewList'])->name('department.admission.interview-list');
+
+        //Faculty Access
+        Route::get('faculty-access/{departmentId}/{departmentSlug}', [AccessController::class, 'facultyAccessList'])->name('department.faculty.access');
+        Route::post('faculty-access', [AccessController::class, 'grantFacultyAccess'])->name('department.faculty.grant-access');
+        Route::get('faculty-access-revoke/{id}', [AccessController::class, 'revokeFacultyAccess'])->name('department.faculty.revoke-access');
     });
 
 
