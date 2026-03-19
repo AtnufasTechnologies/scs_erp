@@ -315,9 +315,20 @@ class AccessController extends Controller
         // Logic to revoke faculty access
         $user = User::find($id);
         if ($user) {
-            $user->delete();
-            UserHasRole::where('user_id', $id)->delete();
-            return back()->with('success', 'Faculty access revoked successfully.');
+            if ($user->status == 'ACTIVE') {
+                User::where('id', $id)->update([
+                    'status' => 'INACTIVE',
+                ]);
+                return back()->with('success', 'Faculty access revoked successfully.');
+            } else {
+                User::where('id', $id)->update([
+                    'status' => 'ACTIVE',
+                ]);
+                return back()->with('success', 'Faculty access activated successfully.');
+            }
+            User::where('id', $id)->update([
+                'status' => 'INACTIVE',
+            ]);
         }
         return back()->with('error', 'Faculty not found.');
     }

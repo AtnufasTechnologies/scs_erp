@@ -11,6 +11,50 @@
   </div>
   <!--navigation ADMIN -->
   <ul class="metismenu" id="menu">
+    <li>
+      <a href="{{route('faculty.dashboard')}}">
+        <div class="parent-icon">
+          <i class="fas fa-home"></i>
+        </div>
+        <div class="menu-title">Menu </div>
+      </a>
+    </li>
+
+    <li>
+      <a href="{{route('faculty.timetable')}}">
+        <div class="parent-icon">
+          <i class="fas fa-calendar-alt"></i>
+        </div>
+        <div class="menu-title">Timetable </div>
+      </a>
+    </li>
+
+    <li>
+      <a href="{{route('faculty.subjects')}}">
+        <div class="parent-icon">
+          <i class="fas fa-book"></i>
+        </div>
+        <div class="menu-title">Subjects </div>
+      </a>
+    </li>
+
+    <li>
+      <a href="{{route('faculty.workdiary')}}">
+        <div class="parent-icon">
+          <i class="fas fa-briefcase"></i>
+        </div>
+        <div class="menu-title">Work Diary </div>
+      </a>
+    </li>
+
+    <li>
+      <a href="{{route('faculty.subjects')}}">
+        <div class="parent-icon">
+          <i class="fas fa-clipboard-list"></i>
+        </div>
+        <div class="menu-title">Attendance </div>
+      </a>
+    </li>
 
 
     <!-- logout -->

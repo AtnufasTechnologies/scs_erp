@@ -11,12 +11,16 @@ return new class extends Migration
      */
     public function up(): void
     {
+        Schema::disableForeignKeyConstraints();
         Schema::create('syllabus_has_faculties', function (Blueprint $table) {
             $table->id();
-            $table->integer('subject_syllabus_id');
+            $table->unsignedBigInteger('syllabus_id');
             $table->integer('faculty_id');
+            $table->foreign('syllabus_id')->references('id')->on('subject_has_syllabi')->onDelete('cascade');
+            $table->foreign('faculty_id')->references('id')->on('faculties')->onDelete('cascade');
             $table->timestamps();
         });
+        Schema::enableForeignKeyConstraints();
     }
 
     /**
@@ -24,6 +28,8 @@ return new class extends Migration
      */
     public function down(): void
     {
+        Schema::disableForeignKeyConstraints();
         Schema::dropIfExists('syllabus_has_faculties');
+        Schema::enableForeignKeyConstraints();
     }
 };

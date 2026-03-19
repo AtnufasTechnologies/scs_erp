@@ -1,5 +1,11 @@
 <?php
 
+use App\Faculty\Http\Controllers\FacultyDashboardController;
+use App\Faculty\Http\Controllers\TimetableController as FacultyTimetableController;
+use App\Faculty\Http\Controllers\AttendanceController as FacultyAttendanceController;
+use App\Faculty\Http\Controllers\WorkDiaryController as WorkDiaryController;
+use App\Faculty\Http\Controllers\PayrollController as FacultyPayrollController;
+use App\Faculty\Http\Controllers\RequestApplicationController as FacultyRequestApplicationController;
 use App\Http\Controllers\AccessController;
 use App\Http\Controllers\AdminController;
 use App\Http\Controllers\AdmissionController;
@@ -371,14 +377,20 @@ Route::group(['prefix' => '/erp'], function () {
 
 
     // Faculty routes
-    Route::group(['prefix' => 'faculty', 'as' => 'faculty.'], function () {
-        Route::get('dashboard', [\App\Faculty\Http\Controllers\FacultyDashboardController::class, 'index'])->name('faculty.dashboard');
-        Route::get('timetable', [\App\Faculty\Http\Controllers\TimetableController::class, 'index'])->name('faculty.timetable');
-        Route::get('attendance', [\App\Faculty\Http\Controllers\AttendanceController::class, 'index'])->name('faculty.attendance');
-        Route::get('work-diary', [\App\Faculty\Http\Controllers\WorkDiaryController::class, 'index'])->name('faculty.workdiary');
-        Route::get('request-application', [\App\Faculty\Http\Controllers\RequestApplicationController::class, 'index'])->name('faculty.requestapplication');
-        Route::get('payroll', [\App\Faculty\Http\Controllers\PayrollController::class, 'index'])->name('faculty.payroll');
-        Route::get('payroll/download', [\App\Faculty\Http\Controllers\PayrollController::class, 'download'])->name('faculty.payroll.download');
+    Route::group(['prefix' => 'faculty'], function () {
+        Route::get('dashboard', [FacultyDashboardController::class, 'index'])->name('faculty.dashboard');
+        Route::get('timetable', [FacultyDashboardController::class, 'facultyTimetable'])->name('faculty.timetable');
+        Route::get('attendance', [FacultyAttendanceController::class, 'index'])->name('faculty.attendance');
+        Route::get('work-diary', [WorkDiaryController::class, 'index'])->name('faculty.workdiary');
+        Route::post('work-diary', [WorkDiaryController::class, 'store'])->name('faculty.workdiary.store');
+        Route::put('work-diary/{id}', [WorkDiaryController::class, 'update'])->name('faculty.workdiary.update');
+        Route::delete('work-diary/{id}', [WorkDiaryController::class, 'destroy'])->name('faculty.workdiary.destroy');
+        Route::post('work-diary/{id}/toggle-status', [WorkDiaryController::class, 'toggleStatus'])->name('faculty.workdiary.toggle');
+        Route::get('request-application', [FacultyRequestApplicationController::class, 'index'])->name('faculty.requestapplication');
+        Route::get('payroll', [FacultyPayrollController::class, 'index'])->name('faculty.payroll');
+        Route::get('payroll/download', [FacultyPayrollController::class, 'download'])->name('faculty.payroll.download');
+        Route::get('subjects', [FacultyDashboardController::class, 'subjects'])->name('faculty.subjects');
+        Route::get('toggle-subunit-completion/{id}', [FacultyDashboardController::class, 'toggleSubunitCompletion'])->name('faculty.toggle.subunitcompletion');
     });
 
 

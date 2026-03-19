@@ -14,4 +14,13 @@ class SyllabusSubunit extends Model
         'unit_id',
         'is_completed',
     ];
+
+
+
+    function toggleCompletion()
+    {
+        // Toggle the completion status
+        $this->is_completed = $this->is_completed == 1 ? 0 : 1;
+        $this->save();
+    }
 }

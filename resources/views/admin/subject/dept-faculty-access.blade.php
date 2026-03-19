@@ -110,9 +110,15 @@
                 <td>{{ $item->useraccess->created_at ? $item->useraccess->created_at->format('d M Y') : '-' }}</td>
 
                 <td>
-                  <a href="{{ route('department.faculty.revoke-access', $item->id) }}" class="btn btn-danger btn-sm" onclick="return confirm('Are you sure you want to revoke access for this faculty?');">
+                  @if ($item->useraccess->status == 'ACTIVE')
+                  <a href="{{ route('department.faculty.revoke-access', $item->access_id) }}" class="btn btn-danger btn-sm" onclick="return confirm('Are you sure you want to revoke access for this faculty?');">
                     Revoke Access
+                  </a>@else
+                  <a href="{{ route('department.faculty.revoke-access', $item->access_id) }}" class="btn btn-success btn-sm" onclick="return confirm('Are you sure you want to activate access for this faculty?');">
+                    Activate Access
                   </a>
+                  @endif
+
                 </td>
               </tr>
               @empty
