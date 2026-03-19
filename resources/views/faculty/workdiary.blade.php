@@ -458,6 +458,9 @@
 @include('includes.footer')
 
 <script>
+  // Pass week start date from PHP to JavaScript
+  const currentWeekStart = '{{ $weekStart->format("Y-m-d") }}';
+
   $(document).ready(function() {
     let currentEntryId = null;
     const modal = new bootstrap.Modal(document.getElementById('entryModal'));
@@ -502,6 +505,12 @@
       }
 
       const $cell = $(this);
+
+      // Don't open modal if it's a holiday block
+      if ($cell.hasClass('holiday-block')) {
+        return;
+      }
+
       const date = $cell.data('date');
       const hour = $cell.data('hour');
       const weekday = $cell.data('weekday');
@@ -703,6 +712,9 @@
       $.ajax({
         url: '{{ route("faculty.workdiary.holidays.get") }}',
         type: 'GET',
+        data: {
+          month: currentWeekStart
+        },
         success: function(response) {
           if (response.success) {
             holidays = response.holidays;
@@ -827,6 +839,9 @@
       }
       return false;
     });
+
+    // Load holidays when page loads
+    loadHolidays();
   });
 </script>
 </script>

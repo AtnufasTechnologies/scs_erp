@@ -9,6 +9,7 @@ use App\Models\Faculty;
 use App\Models\HourMaster;
 use App\Models\MethodologyMaster;
 use App\Models\SubjectFacultyMaster;
+use App\Models\Weekday;
 use App\Models\WorkDiary;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -41,8 +42,10 @@ class WorkDiaryController extends Controller
     // Get hours from HourMaster table
     $hours = HourMaster::orderBy('id')->get();
 
+    // Get weekdays from Weekday table
+    $weekdays = Weekday::orderBy('id')->pluck('title')->toArray();
+
     // Organize entries by weekday and hour
-    $weekdays = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
     $calendar = [];
 
     foreach ($weekdays as $day) {
