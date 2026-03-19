@@ -382,10 +382,15 @@ Route::group(['prefix' => '/erp'], function () {
         Route::get('timetable', [FacultyDashboardController::class, 'facultyTimetable'])->name('faculty.timetable');
         Route::get('attendance', [FacultyAttendanceController::class, 'index'])->name('faculty.attendance');
         Route::get('work-diary', [WorkDiaryController::class, 'index'])->name('faculty.workdiary');
+        Route::get('work-diary/monthly-report', [WorkDiaryController::class, 'monthlyReport'])->name('faculty.workdiary.monthly.report');
+        Route::get('work-diary/monthly-report/pdf', [WorkDiaryController::class, 'downloadMonthlyReportPdf'])->name('faculty.workdiary.monthly.report.pdf');
         Route::post('work-diary', [WorkDiaryController::class, 'store'])->name('faculty.workdiary.store');
         Route::put('work-diary/{id}', [WorkDiaryController::class, 'update'])->name('faculty.workdiary.update');
         Route::delete('work-diary/{id}', [WorkDiaryController::class, 'destroy'])->name('faculty.workdiary.destroy');
         Route::post('work-diary/{id}/toggle-status', [WorkDiaryController::class, 'toggleStatus'])->name('faculty.workdiary.toggle');
+        Route::post('work-diary/holidays', [WorkDiaryController::class, 'storeHoliday'])->name('faculty.workdiary.holidays.store');
+        Route::get('work-diary/holidays', [WorkDiaryController::class, 'getHolidays'])->name('faculty.workdiary.holidays.get');
+        Route::delete('work-diary/holidays/{id}', [WorkDiaryController::class, 'deleteHoliday'])->name('faculty.workdiary.holidays.delete');
         Route::get('request-application', [FacultyRequestApplicationController::class, 'index'])->name('faculty.requestapplication');
         Route::get('payroll', [FacultyPayrollController::class, 'index'])->name('faculty.payroll');
         Route::get('payroll/download', [FacultyPayrollController::class, 'download'])->name('faculty.payroll.download');

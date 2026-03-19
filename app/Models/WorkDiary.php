@@ -18,6 +18,8 @@ class WorkDiary extends Model
     'description',
     'methodology',
     'class_type',
+    'work_type',
+    'document_path',
     'status'
   ];
 
