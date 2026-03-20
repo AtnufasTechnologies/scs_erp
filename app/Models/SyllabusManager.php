@@ -43,4 +43,14 @@ class SyllabusManager extends Model
     {
         return $this->belongsTo(CoHasCso::class, 'cso_id');
     }
+
+    public function syllabusSubunits()
+    {
+        return $this->hasMany(SyllabusSubunit::class, 'syllabus_manager_id');
+    }
+
+    public function courseLink()
+    {
+        return $this->belongsTo(ProgramCourseMaster::class, 'co_id');
+    }
 }

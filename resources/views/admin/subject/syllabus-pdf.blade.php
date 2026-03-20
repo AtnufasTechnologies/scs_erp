@@ -143,10 +143,10 @@
           @foreach ($courseData['csos'] as $syllabus)
           <div class="cso-title">{{ $syllabus->cso->title ?? 'N/A' }} ({{ $syllabus->cso->lectures_needed ?? '0' }} Lectures)</div>
           <ul class="units">
-            @foreach ($syllabus->cso->csosubunits ?? [] as $subunit)
+            @foreach ($syllabus->syllabusSubunits ?? [] as $syllabusSubunit)
             <li>
-              {{ $subunit->title }}
-              <span class="taxonomy">[{{ $subunit->taxomonylevel->shortname ?? '-' }}]</span>
+              {{ $syllabusSubunit->csoSubunit->title ?? 'N/A' }}
+              <span class="taxonomy">[{{ $syllabusSubunit->csoSubunit->taxomonylevel->shortname ?? '-' }}]</span>
             </li>
             @endforeach
           </ul>

@@ -200,20 +200,20 @@ $batches = BatchMaster::all();
                     <div class="card-body">
                       <h6 class="mb-3">Learning Units</h6>
                       <div class="list-group">
-                        @foreach ($syllabus->cso->csosubunits ?? [] as $subunit)
+                        @foreach ($syllabus->syllabusSubunits ?? [] as $syllabusSubunit)
                         <div class="list-group-item">
                           <div class="d-flex justify-content-between align-items-start">
                             <div class="flex-grow-1">
-                              <h6 class="mb-1">{{ $subunit->title }}</h6>
+                              <h6 class="mb-1">{{ $syllabusSubunit->csoSubunit->title ?? 'N/A' }}</h6>
                               <small class="text-muted">
                                 <span class="badge bg-primary">
-                                  {{ $subunit->taxomonylevel->shortname ?? '-' }} -
-                                  {{ $subunit->taxomonylevel->fullname ?? '-' }}
+                                  {{ $syllabusSubunit->csoSubunit->taxomonylevel->shortname ?? '-' }} -
+                                  {{ $syllabusSubunit->csoSubunit->taxomonylevel->fullname ?? '-' }}
                                 </span>
                               </small>
                             </div>
                             <div>
-                              @if ($subunit->is_completed == 1)
+                              @if ($syllabusSubunit->is_completed == 1)
                               <span class="badge bg-success" title="Completed">
                                 <i class="fa fa-check-circle"></i> Completed
                               </span>

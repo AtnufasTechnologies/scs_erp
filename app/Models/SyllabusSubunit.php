@@ -15,7 +15,15 @@ class SyllabusSubunit extends Model
         'is_completed',
     ];
 
+    public function csoSubunit()
+    {
+        return $this->belongsTo(CsoSubunit::class, 'unit_id');
+    }
 
+    public function syllabusManager()
+    {
+        return $this->belongsTo(SyllabusManager::class, 'syllabus_manager_id');
+    }
 
     function toggleCompletion()
     {

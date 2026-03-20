@@ -881,7 +881,8 @@ class SubjectController extends Controller
                 'batch',
                 'semester',
                 'courseobjective',
-                'cso.csosubunits.taxomonylevel',
+                'cso',
+                'syllabusSubunits.csoSubunit.taxomonylevel',
             ])->where('subject_id', $id)->where('batch_id', $request->filter_batch)->get();
         } else {
             $syllabusData = SyllabusManager::with([
@@ -889,7 +890,8 @@ class SubjectController extends Controller
                 'batch',
                 'semester',
                 'courseobjective',
-                'cso.csosubunits.taxomonylevel',
+                'cso',
+                'syllabusSubunits.csoSubunit.taxomonylevel',
             ])->where('subject_id', $id)->get();
         }
 
