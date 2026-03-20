@@ -396,6 +396,9 @@ Route::group(['prefix' => '/erp'], function () {
         Route::get('payroll/download', [FacultyPayrollController::class, 'download'])->name('faculty.payroll.download');
         Route::get('subjects', [FacultyDashboardController::class, 'subjects'])->name('faculty.subjects');
         Route::get('toggle-subunit-completion/{id}', [FacultyDashboardController::class, 'toggleSubunitCompletion'])->name('faculty.toggle.subunitcompletion');
+        Route::get('profile', [FacultyDashboardController::class, 'profile'])->name('faculty.profile');
+        Route::put('profile/update', [FacultyDashboardController::class, 'updateProfile'])->name('faculty.profile.update');
+        Route::post('profile/photo', [FacultyDashboardController::class, 'updatePhoto'])->name('faculty.profile.photo');
     });
 
 

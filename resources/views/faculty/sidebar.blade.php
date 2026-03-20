@@ -16,7 +16,7 @@
         <div class="parent-icon">
           <i class="fas fa-home"></i>
         </div>
-        <div class="menu-title">Menu </div>
+        <div class="menu-title">Dashboard </div>
       </a>
     </li>
 
@@ -53,6 +53,15 @@
           <i class="fas fa-clipboard-list"></i>
         </div>
         <div class="menu-title">Attendance </div>
+      </a>
+    </li>
+
+    <li>
+      <a href="{{route('faculty.profile')}}">
+        <div class="parent-icon">
+          <i class="fas fa-user-circle"></i>
+        </div>
+        <div class="menu-title">My Profile </div>
       </a>
     </li>
 

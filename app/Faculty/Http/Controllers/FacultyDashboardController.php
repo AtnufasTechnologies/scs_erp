@@ -3,6 +3,7 @@
 namespace App\Faculty\Http\Controllers;
 
 use App\Http\Controllers\Controller;
+use App\Http\Controllers\StaticController;
 use App\Models\Faculty;
 use App\Models\SubjectFacultyMaster;
 use App\Models\SubjectHasRoutine;
@@ -11,6 +12,7 @@ use App\Models\SyllabusSubunit;
 use App\Models\UserHasRole;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Storage;
 
 class FacultyDashboardController extends Controller
 {
@@ -131,5 +133,70 @@ class FacultyDashboardController extends Controller
     }
 
     return redirect()->back()->with('success', 'Subunit completion status updated successfully.');
+  }
+
+  function profile()
+  {
+    $userId = Auth::user()->id;
+    $facultyId = SubjectFacultyMaster::where('access_id', $userId)->value('faculty_id');
+    $faculty = Faculty::findOrFail($facultyId);
+    return view('faculty.profile', [
+      'faculty' => $faculty
+    ]);
+  }
+
+  public function updateProfile(Request $request)
+  {
+    $userId = Auth::user()->id;
+    $facultyId = SubjectFacultyMaster::where('access_id', $userId)->value('faculty_id');
+    $faculty = Faculty::findOrFail($facultyId);
+
+    // Validate the request
+    $validated = $request->validate([
+      'fname' => 'required|string|max:255',
+      'lname' => 'nullable|string|max:255',
+      'gender' => 'required|in:male,female,other',
+      'email' => 'required|email|max:255',
+      'phone' => 'required|string|max:15',
+      'address' => 'nullable|string',
+      'dob' => 'nullable|date',
+      'specialization' => 'nullable|string',
+    ]);
+
+    // Update the faculty record
+    $faculty->update([
+      'FIRST_NAME' => $validated['fname'],
+      'LAST_NAME' => $validated['lname'] ?? null,
+      'ADDRESS' => $validated['address'] ?? null,
+      'GENDER' => $validated['gender'] == 'male' ? 1 : ($validated['gender'] == 'female' ? 2 : 3),
+      'MAIL_ID' => $validated['email'],
+      'MOBILE_NO' => $validated['phone'],
+      'DOB' => $validated['dob'] ?? null,
+    ]);
+
+    return redirect()->route('faculty.profile')->with('success', 'Profile updated successfully!');
+  }
+
+  public function updatePhoto(Request $request)
+  {
+    $userId = Auth::user()->id;
+    $facultyId = SubjectFacultyMaster::where('access_id', $userId)->value('faculty_id');
+    $faculty = Faculty::findOrFail($facultyId);
+
+    // Validate the photo
+    $validated = $request->validate([
+      'photo' => 'required|image|mimes:jpeg,png,jpg,gif|max:2048', // 2MB max
+    ]);
+
+    // Handle the photo upload
+    if ($request->hasFile('photo')) {
+      $photo = $request->file('photo');
+      $photoPath = StaticController::s3_resize_image_uploader($photo, 'faculty_photos', 300, 300);
+    }
+
+    // Update the faculty record
+    $faculty->update(['photo' => $photoPath]);
+
+    return redirect()->route('faculty.profile')->with('success', 'Profile photo updated successfully!');
   }
 }
