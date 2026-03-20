@@ -107,7 +107,7 @@ class FacultyDashboardController extends Controller
         'syllabus.batchmaster:id,batch_name',
         'syllabus.semestermaster:id,title',
         'syllabus.courseLink.courseMaster.coursetypemaster',
-        'syllabus.courseLink.courseMaster.csos.csosubunits.taxomonylevel',
+        'syllabus.syllabusunits.csoSubunit.taxomonylevel',
       ])
       ->distinct()
       ->get('syllabus_id');
