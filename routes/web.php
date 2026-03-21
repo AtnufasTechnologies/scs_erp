@@ -4,6 +4,7 @@ use App\Faculty\Http\Controllers\FacultyDashboardController;
 use App\Faculty\Http\Controllers\TimetableController as FacultyTimetableController;
 use App\Faculty\Http\Controllers\AttendanceController as FacultyAttendanceController;
 use App\Faculty\Http\Controllers\WorkDiaryController as WorkDiaryController;
+use App\Faculty\Http\Controllers\FacultyLeaveController;
 use App\Faculty\Http\Controllers\PayrollController as FacultyPayrollController;
 use App\Faculty\Http\Controllers\RequestApplicationController as FacultyRequestApplicationController;
 use App\Http\Controllers\AccessController;
@@ -399,6 +400,17 @@ Route::group(['prefix' => '/erp'], function () {
         Route::get('profile', [FacultyDashboardController::class, 'profile'])->name('faculty.profile');
         Route::put('profile/update', [FacultyDashboardController::class, 'updateProfile'])->name('faculty.profile.update');
         Route::post('profile/photo', [FacultyDashboardController::class, 'updatePhoto'])->name('faculty.profile.photo');
+
+        // Leave Application Routes
+        Route::get('leave', [FacultyLeaveController::class, 'index'])->name('faculty.leave.index');
+        Route::get('leave/history', [FacultyLeaveController::class, 'history'])->name('faculty.leave.history');
+        Route::get('leave/create', [FacultyLeaveController::class, 'create'])->name('faculty.leave.create');
+        Route::post('leave', [FacultyLeaveController::class, 'store'])->name('faculty.leave.store');
+        Route::get('leave/{id}', [FacultyLeaveController::class, 'show'])->name('faculty.leave.show');
+        Route::get('leave/{id}/edit', [FacultyLeaveController::class, 'edit'])->name('faculty.leave.edit');
+        Route::put('leave/{id}', [FacultyLeaveController::class, 'update'])->name('faculty.leave.update');
+        Route::post('leave/{id}/cancel', [FacultyLeaveController::class, 'cancel'])->name('faculty.leave.cancel');
+        Route::delete('leave/{id}', [FacultyLeaveController::class, 'destroy'])->name('faculty.leave.destroy');
     });
 
 

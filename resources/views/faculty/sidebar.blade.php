@@ -48,6 +48,15 @@
     </li>
 
     <li>
+      <a href="{{route('faculty.leave.index')}}">
+        <div class="parent-icon">
+          <i class="fas fa-calendar-times"></i>
+        </div>
+        <div class="menu-title">Leave Applications </div>
+      </a>
+    </li>
+
+    <li>
       <a href="{{route('faculty.subjects')}}">
         <div class="parent-icon">
           <i class="fas fa-clipboard-list"></i>

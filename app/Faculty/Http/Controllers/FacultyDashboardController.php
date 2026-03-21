@@ -5,11 +5,13 @@ namespace App\Faculty\Http\Controllers;
 use App\Http\Controllers\Controller;
 use App\Http\Controllers\StaticController;
 use App\Models\Faculty;
+use App\Models\FacultyLeaveApplication;
 use App\Models\SubjectFacultyMaster;
 use App\Models\SubjectHasRoutine;
 use App\Models\SyllabusManager;
 use App\Models\SyllabusSubunit;
 use App\Models\UserHasRole;
+use App\Models\WorkDiary;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Storage;
@@ -24,7 +26,133 @@ class FacultyDashboardController extends Controller
       Auth::logout();
       return redirect('/')->with('error', 'Unauthorized Access');
     }
-    return view('faculty.dashboard');
+
+    // Get faculty ID
+    $facultyId = SubjectFacultyMaster::where('access_id', $userId)->value('faculty_id');
+
+    // Get recent work diary entries (last 10 entries)
+    $workDiaryEntries = WorkDiary::where('faculty_id', $facultyId)
+      ->orderBy('date', 'desc')
+      ->orderBy('created_at', 'desc')
+      ->limit(10)
+      ->get();
+
+    // Get assigned subjects with progress (limit to 5 for dashboard)
+    $allSubjectsRoutines = SubjectHasRoutine::where('faculty_id', $facultyId)
+      ->with([
+        'syllabus.subject:id,title',
+        'syllabus.batchmaster:id,batch_name',
+        'syllabus.semestermaster:id,title',
+        'syllabus.courseLink.courseMaster:id,course_title,course_code',
+      ])
+      ->distinct()
+      ->get('syllabus_id');
+
+    $assignedSubjects = $allSubjectsRoutines
+      ->take(5)
+      ->map(function ($routine) {
+        $syllabus = $routine->syllabus;
+        if (!$syllabus) return null;
+
+        // Get syllabus manager to fetch subunits
+        $syllabusManager = SyllabusManager::where('subject_id', $syllabus->subject_id)
+          ->where('batch_id', $syllabus->batch_id)
+          ->where('semester_id', $syllabus->semester_id)
+          ->with('syllabusSubunits')
+          ->first();
+
+        $totalUnits = 0;
+        $completedUnits = 0;
+
+        if ($syllabusManager && $syllabusManager->syllabusSubunits) {
+          $totalUnits = $syllabusManager->syllabusSubunits->count();
+          $completedUnits = $syllabusManager->syllabusSubunits->where('is_completed', 1)->count();
+        }
+
+        $completionPercentage = $totalUnits > 0 ? round(($completedUnits / $totalUnits) * 100) : 0;
+
+        return [
+          'subject_title' => $syllabus->subject->title ?? 'N/A',
+          'semester' => $syllabus->semestermaster->title ?? 'N/A',
+          'batch' => $syllabus->batchmaster->batch_name ?? 'N/A',
+          'total_units' => $totalUnits,
+          'completed_units' => $completedUnits,
+          'completion_percentage' => $completionPercentage,
+          'course_title' => $syllabus->courseLink->courseMaster->course_title ?? 'N/A',
+          'course_code' => $syllabus->courseLink->courseMaster->course_code ?? 'N/A',
+        ];
+      })
+      ->filter()
+      ->values();
+
+    $totalSubjectsCount = $allSubjectsRoutines->count();
+
+    // Get leave statistics for current session
+    $leaveStats = [
+      'total' => FacultyLeaveApplication::where('faculty_id', $facultyId)
+        ->currentSession()
+        ->count(),
+      'approved' => FacultyLeaveApplication::where('faculty_id', $facultyId)
+        ->currentSession()
+        ->approved()
+        ->count(),
+      'pending' => FacultyLeaveApplication::where('faculty_id', $facultyId)
+        ->currentSession()
+        ->pending()
+        ->count(),
+      'rejected' => FacultyLeaveApplication::where('faculty_id', $facultyId)
+        ->currentSession()
+        ->rejected()
+        ->count(),
+      'days_taken' => FacultyLeaveApplication::where('faculty_id', $facultyId)
+        ->currentSession()
+        ->approved()
+        ->sum('total_days'),
+    ];
+
+    // Get leave breakdown by type for current session
+    $casualLeaves = FacultyLeaveApplication::where('faculty_id', $facultyId)
+      ->currentSession()
+      ->approved()
+      ->where(function ($q) {
+        $q->where('leave_type', 'casual')
+          ->orWhereHas('leaveMaster', function ($sq) {
+            $sq->where('leave_type_code', 'CL');
+          });
+      })
+      ->sum('total_days');
+
+    $sickLeaves = FacultyLeaveApplication::where('faculty_id', $facultyId)
+      ->currentSession()
+      ->approved()
+      ->where(function ($q) {
+        $q->where('leave_type', 'sick')
+          ->orWhereHas('leaveMaster', function ($sq) {
+            $sq->where('leave_type_code', 'SL');
+          });
+      })
+      ->sum('total_days');
+
+    $earnedLeaves = FacultyLeaveApplication::where('faculty_id', $facultyId)
+      ->currentSession()
+      ->approved()
+      ->where(function ($q) {
+        $q->where('leave_type', 'earned')
+          ->orWhereHas('leaveMaster', function ($sq) {
+            $sq->where('leave_type_code', 'EL');
+          });
+      })
+      ->sum('total_days');
+
+    // Get recent leave applications (last 3)
+    $recentLeaves = FacultyLeaveApplication::where('faculty_id', $facultyId)
+      ->currentSession()
+      ->with(['leaveMaster'])
+      ->orderBy('created_at', 'desc')
+      ->limit(3)
+      ->get();
+
+    return view('faculty.dashboard', compact('workDiaryEntries', 'assignedSubjects', 'totalSubjectsCount', 'leaveStats', 'casualLeaves', 'sickLeaves', 'earnedLeaves', 'recentLeaves'));
   }
 
   public function facultyTimetable(Request $request)
