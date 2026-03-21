@@ -25,7 +25,6 @@ class WorkDiary extends Model
 
   protected $casts = [
     'date' => 'date',
-    'hour' => 'integer'
   ];
 
   public function faculty()

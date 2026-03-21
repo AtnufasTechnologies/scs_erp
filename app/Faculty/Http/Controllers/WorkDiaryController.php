@@ -13,15 +13,22 @@ use App\Models\Weekday;
 use App\Models\WorkDiary;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Storage;
 use Carbon\Carbon;
 use Barryvdh\DomPDF\Facade\Pdf;
 
 class WorkDiaryController extends Controller
 {
+  private $cachedFacultyId = null;
+
   public function index(Request $request)
   {
     $facultyId = $this->getFacultyId();
+
+    if (!$facultyId) {
+      return redirect()->route('faculty.dashboard')->with('error', 'Faculty profile not found.');
+    }
 
     // Get current week or the requested week
     try {
@@ -39,11 +46,15 @@ class WorkDiaryController extends Controller
       ->whereBetween('date', [$weekStart, $weekEnd])
       ->get();
 
-    // Get hours from HourMaster table
-    $hours = HourMaster::orderBy('id')->get();
+    // Get hours from HourMaster table (cached)
+    $hours = Cache::remember('hour_master_all', 3600, function () {
+      return HourMaster::orderBy('id')->get();
+    });
 
-    // Get weekdays from Weekday table
-    $weekdays = Weekday::orderBy('id')->pluck('title')->toArray();
+    // Get weekdays from Weekday table (cached)
+    $weekdays = Cache::remember('weekdays_titles', 3600, function () {
+      return Weekday::orderBy('id')->pluck('title')->toArray();
+    });
 
     // Organize entries by weekday and hour
     $calendar = [];
@@ -55,29 +66,34 @@ class WorkDiaryController extends Controller
       }
     }
 
+    // Map entries into calendar
     foreach ($entries as $entry) {
       $weekday = $entry->date->format('l');
-      $hour = $entry->hour;
-      if (isset($calendar[$weekday][$hour])) {
-        $calendar[$weekday][$hour][] = $entry;
+      $hourValue = $entry->hour;
+
+      // The hour field stores the title (e.g., "1st Hour", "2nd Hour")
+      if (isset($calendar[$weekday][$hourValue])) {
+        $calendar[$weekday][$hourValue][] = $entry;
       }
     }
 
-    // Get active methodologies
-    $methodologies = MethodologyMaster::active()->ordered()->get();
+    // Get active methodologies (cached)
+    $methodologies = Cache::remember('methodologies_active', 3600, function () {
+      return MethodologyMaster::active()->ordered()->get();
+    });
 
-    // Get analytics data for the faculty
-    $regularCount = WorkDiary::where('faculty_id', $facultyId)
-      ->where('class_type', 'regular')
-      ->count();
+    // Get analytics data for the faculty in a single query
+    $analytics = WorkDiary::selectRaw('
+        SUM(CASE WHEN class_type = "regular" THEN 1 ELSE 0 END) as regular_count,
+        SUM(CASE WHEN class_type = "extra" THEN 1 ELSE 0 END) as extra_count,
+        SUM(CASE WHEN class_type = "substitution" THEN 1 ELSE 0 END) as substitution_count
+      ')
+      ->where('faculty_id', $facultyId)
+      ->first();
 
-    $extraCount = WorkDiary::where('faculty_id', $facultyId)
-      ->where('class_type', 'extra')
-      ->count();
-
-    $substitutionCount = WorkDiary::where('faculty_id', $facultyId)
-      ->where('class_type', 'substitution')
-      ->count();
+    $regularCount = $analytics->regular_count ?? 0;
+    $extraCount = $analytics->extra_count ?? 0;
+    $substitutionCount = $analytics->substitution_count ?? 0;
 
     return view('faculty.workdiary', [
       'weekStart' => $weekStart,
@@ -97,7 +113,7 @@ class WorkDiaryController extends Controller
   {
     $request->validate([
       'date' => 'required|date',
-      'hour' => 'required|integer|min:0|max:23',
+      'hour' => 'required|string',
       'description' => 'required|string|max:1000',
       'methodology' => 'nullable|exists:methodology_masters,name',
       'class_type' => 'required|string|in:extra,regular,substitution',
@@ -310,8 +326,14 @@ class WorkDiaryController extends Controller
 
   private function getFacultyId()
   {
+    if ($this->cachedFacultyId !== null) {
+      return $this->cachedFacultyId;
+    }
+
     $userId = Auth::user()->id;
-    return SubjectFacultyMaster::where('access_id', $userId)->value('faculty_id');
+    $this->cachedFacultyId = SubjectFacultyMaster::where('access_id', $userId)->value('faculty_id');
+
+    return $this->cachedFacultyId;
   }
 
   // Holiday Management Methods
