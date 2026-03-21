@@ -66,18 +66,49 @@
             </div>
           </div>
 
-          <!-- Active Loan Info Alert -->
-          <div id="loan-info-box" class="alert alert-info d-none mb-4" style="border-left: 4px solid #0dcaf0;">
-            <div class="d-flex align-items-center">
-              <i class="fas fa-info-circle fa-2x me-3"></i>
-              <div>
-                <h6 class="mb-1"><strong>Active Loan Detected</strong></h6>
-                <div id="loan-details">
-                  <p class="mb-1"><strong>Loan Type:</strong> <span id="loan-type"></span> | <strong>Loan No:</strong> <span id="loan-number"></span></p>
-                  <p class="mb-1"><strong>EMI Amount:</strong> ₹<span id="emi-amount"></span> | <strong>Remaining:</strong> ₹<span id="remaining-amount"></span></p>
-                  <p class="mb-0"><strong>Installments:</strong> <span id="paid-installments"></span>/<span id="total-installments"></span> paid</p>
+          <!-- Active Loans Selection -->
+          <div id="loans-section" class="card mb-4 d-none" style="border-left: 4px solid #0dcaf0;">
+            <div class="card-header bg-light">
+              <h6 class="mb-0"><i class="fas fa-hand-holding-usd"></i> Active Loans - Select EMIs to Deduct</h6>
+            </div>
+            <div class="card-body">
+              <div id="loans-loading" class="text-center py-3">
+                <i class="fas fa-spinner fa-spin fa-2x"></i>
+                <p class="mt-2">Loading active loans...</p>
+              </div>
+              <div id="loans-content" class="d-none">
+                <p class="text-muted mb-3"><i class="fas fa-info-circle"></i> Select the loans for which you want to deduct EMI in this salary slip</p>
+                <div class="table-responsive">
+                  <table class="table table-bordered table-hover">
+                    <thead class="table-light">
+                      <tr>
+                        <th width="50">
+                          <input type="checkbox" id="select-all-loans" class="form-check-input" onchange="toggleAllLoans(this)">
+                        </th>
+                        <th>Loan Number</th>
+                        <th>Loan Type</th>
+                        <th>Total Amount</th>
+                        <th>EMI Amount</th>
+                        <th>Remaining</th>
+                        <th>Progress</th>
+                      </tr>
+                    </thead>
+                    <tbody id="loans-table-body">
+                      <!-- Loans will be populated here -->
+                    </tbody>
+                  </table>
                 </div>
-                <small class="text-muted"><i class="fas fa-exclamation-triangle"></i> This EMI will be automatically deducted from the salary</small>
+                <div class="row mt-3">
+                  <div class="col-md-6">
+                    <p class="mb-0"><strong>Total Selected Loans:</strong> <span id="selected-count" class="badge bg-primary">0</span></p>
+                  </div>
+                  <div class="col-md-6 text-end">
+                    <h6 class="mb-0"><strong>Total EMI Deduction:</strong> <span id="total-emi" class="text-danger">₹0.00</span></h6>
+                  </div>
+                </div>
+              </div>
+              <div id="no-loans" class="alert alert-info mb-0 d-none">
+                <i class="fas fa-info-circle"></i> No active loans found for this faculty.
               </div>
             </div>
           </div>
@@ -138,7 +169,7 @@
               <div class="mb-2">
                 <label class="form-label">Additional Loan Deduction</label>
                 <input type="number" name="additional_loan_deduction" class="form-control" step="0.01" value="0">
-                <small class="text-muted">Active loan EMI will be added automatically</small>
+                <small class="text-muted">Any extra loan amount beyond selected EMIs above</small>
               </div>
               <div class="mb-2">
                 <label class="form-label">Other Deductions</label>
@@ -180,38 +211,78 @@
 </div>
 
 <script>
+  let facultyLoans = [];
+
   function loadFacultyInfo(facultyId) {
     if (!facultyId) {
-      document.getElementById('loan-info-box').classList.add('d-none');
+      document.getElementById('loans-section').classList.add('d-none');
+      facultyLoans = [];
       return;
     }
 
     // Show loading
-    const loanBox = document.getElementById('loan-info-box');
-    loanBox.classList.remove('d-none');
-    document.getElementById('loan-details').innerHTML = '<p class="mb-0"><i class="fas fa-spinner fa-spin"></i> Loading...</p>';
+    const loansSection = document.getElementById('loans-section');
+    const loansLoading = document.getElementById('loans-loading');
+    const loansContent = document.getElementById('loans-content');
+    const noLoans = document.getElementById('no-loans');
+
+    loansSection.classList.remove('d-none');
+    loansLoading.classList.remove('d-none');
+    loansContent.classList.add('d-none');
+    noLoans.classList.add('d-none');
 
     // Fetch faculty info
     fetch(`{{ url('/erp/admin/accounts/payroll/faculty-info') }}/${facultyId}`)
       .then(response => response.json())
       .then(data => {
         if (data.success) {
-          // Display loan info if exists
-          if (data.loan) {
-            document.getElementById('loan-type').textContent = data.loan.loan_type;
-            document.getElementById('loan-number').textContent = data.loan.loan_number;
-            document.getElementById('emi-amount').textContent = parseFloat(data.loan.emi_amount).toFixed(2);
-            document.getElementById('remaining-amount').textContent = parseFloat(data.loan.remaining_amount).toFixed(2);
-            document.getElementById('paid-installments').textContent = data.loan.paid_installments;
-            document.getElementById('total-installments').textContent = data.loan.total_installments;
-            document.getElementById('loan-details').innerHTML = `
-            <p class="mb-1"><strong>Loan Type:</strong> ${data.loan.loan_type} | <strong>Loan No:</strong> ${data.loan.loan_number}</p>
-            <p class="mb-1"><strong>EMI Amount:</strong> ₹${parseFloat(data.loan.emi_amount).toFixed(2)} | <strong>Remaining:</strong> ₹${parseFloat(data.loan.remaining_amount).toFixed(2)}</p>
-            <p class="mb-0"><strong>Installments:</strong> ${data.loan.paid_installments}/${data.loan.total_installments} paid</p>
-          `;
-            loanBox.classList.remove('d-none');
+          facultyLoans = data.loans || [];
+
+          // Display loans if exist
+          if (facultyLoans.length > 0) {
+            loansLoading.classList.add('d-none');
+            loansContent.classList.remove('d-none');
+
+            const tbody = document.getElementById('loans-table-body');
+            tbody.innerHTML = '';
+
+            facultyLoans.forEach(loan => {
+              const row = `
+              <tr>
+                <td class="text-center">
+                  <input type="checkbox" name="selected_loans[]" value="${loan.id}" 
+                         class="form-check-input loan-checkbox" 
+                         data-emi="${loan.emi_amount}" 
+                         onchange="calculateTotalEMI()">
+                </td>
+                <td><strong>${loan.loan_number}</strong></td>
+                <td><span class="badge bg-info">${loan.loan_type}</span></td>
+                <td>₹${parseFloat(loan.loan_amount).toLocaleString('en-IN', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</td>
+                <td><strong class="text-primary">₹${parseFloat(loan.emi_amount).toLocaleString('en-IN', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</strong></td>
+                <td class="text-danger">₹${parseFloat(loan.remaining_amount).toLocaleString('en-IN', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</td>
+                <td>
+                  <div class="progress" style="height: 20px;">
+                    <div class="progress-bar bg-success" role="progressbar" 
+                         style="width: ${loan.progress_percentage}%" 
+                         aria-valuenow="${loan.progress_percentage}" 
+                         aria-valuemin="0" aria-valuemax="100">
+                      ${loan.progress_percentage}%
+                    </div>
+                  </div>
+                  <small class="text-muted">${loan.paid_installments}/${loan.total_installments} paid</small>
+                </td>
+              </tr>
+            `;
+              tbody.innerHTML += row;
+            });
+
+            // Auto-select all loans by default
+            document.getElementById('select-all-loans').checked = true;
+            document.querySelectorAll('.loan-checkbox').forEach(cb => cb.checked = true);
+            calculateTotalEMI();
           } else {
-            loanBox.classList.add('d-none');
+            loansLoading.classList.add('d-none');
+            noLoans.classList.remove('d-none');
           }
 
           // Auto-fill last salary data if exists
@@ -233,8 +304,41 @@
       })
       .catch(error => {
         console.error('Error loading faculty info:', error);
-        loanBox.classList.add('d-none');
+        loansLoading.classList.add('d-none');
+        loansSection.classList.add('d-none');
       });
+  }
+
+  function toggleAllLoans(checkbox) {
+    const loanCheckboxes = document.querySelectorAll('.loan-checkbox');
+    loanCheckboxes.forEach(cb => {
+      cb.checked = checkbox.checked;
+    });
+    calculateTotalEMI();
+  }
+
+  function calculateTotalEMI() {
+    const selectedCheckboxes = document.querySelectorAll('.loan-checkbox:checked');
+    let totalEMI = 0;
+    let selectedCount = 0;
+
+    selectedCheckboxes.forEach(cb => {
+      totalEMI += parseFloat(cb.getAttribute('data-emi'));
+      selectedCount++;
+    });
+
+    document.getElementById('total-emi').textContent = '₹' + totalEMI.toLocaleString('en-IN', {
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2
+    });
+    document.getElementById('selected-count').textContent = selectedCount;
+
+    // Update select all checkbox state
+    const allCheckboxes = document.querySelectorAll('.loan-checkbox');
+    const selectAllCheckbox = document.getElementById('select-all-loans');
+    if (selectAllCheckbox && allCheckboxes.length > 0) {
+      selectAllCheckbox.checked = (selectedCheckboxes.length === allCheckboxes.length);
+    }
   }
 </script>
 

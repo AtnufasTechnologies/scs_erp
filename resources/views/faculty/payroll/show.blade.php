@@ -6,7 +6,7 @@
   <!--start main wrapper-->
   <main class="page-content">
     <!--start breadcrumb-->
-    <div class="page-breadcrumb d-none d-sm-flex align-items-center gap-2">
+    <div class="page-breadcrumb d-none d-sm-flex align-items-center gap-2 ">
       <div class="breadcrumb-title pe-3">Payroll</div>
       <div class="ps-2">
         <nav aria-label="breadcrumb">
@@ -18,7 +18,7 @@
         </nav>
       </div>
       <div class="ms-auto">
-        <a href="{{ route('faculty.payroll.download', $salarySlip->id) }}" class="btn btn-success">
+        <a href="{{ route('faculty.payroll.download', $salarySlip->id) }}" class="btn btn-success mb-3">
           <i class="fas fa-download me-1"></i>Download PDF
         </a>
       </div>
@@ -37,7 +37,7 @@
             </p>
             <p class="text-muted mb-0">
               <i class="fas fa-user me-2"></i>
-              <strong>Faculty:</strong> {{ $salarySlip->faculty->title ?? 'N/A' }}
+              <strong>Faculty:</strong> {{ $salarySlip->faculty->USER_CODE ?? 'N/A' }} - {{ $salarySlip->faculty->FIRST_NAME ?? 'N/A' }} {{ $salarySlip->faculty->LAST_NAME ?? 'N/A' }}
             </p>
           </div>
           <div class="col-md-4 text-md-end">
@@ -59,7 +59,7 @@
       <div class="col-lg-6">
         <div class="card shadow-sm border-0 h-100">
           <div class="card-header bg-success bg-opacity-10 border-bottom">
-            <h6 class="mb-0 fw-bold text-success">
+            <h6 class="mb-0 fw-bold text-light">
               <i class="fas fa-plus-circle me-2"></i>Earnings
             </h6>
           </div>
@@ -122,7 +122,7 @@
       <div class="col-lg-6">
         <div class="card shadow-sm border-0 h-100">
           <div class="card-header bg-danger bg-opacity-10 border-bottom">
-            <h6 class="mb-0 fw-bold text-danger">
+            <h6 class="mb-0 fw-bold text-light">
               <i class="fas fa-minus-circle me-2"></i>Deductions
             </h6>
           </div>
@@ -186,7 +186,7 @@
     </div>
 
     <!-- Net Salary Card -->
-    <div class="card shadow-sm border-0 mt-4 bg-primary bg-opacity-10">
+    <div class="card shadow-sm border-0 mt-4  bg-opacity-10">
       <div class="card-body">
         <div class="row align-items-center">
           <div class="col-md-8">
@@ -206,7 +206,7 @@
       <div class="col-lg-6">
         <div class="card shadow-sm border-0">
           <div class="card-header bg-info bg-opacity-10 border-bottom">
-            <h6 class="mb-0 fw-bold text-info">
+            <h6 class="mb-0 fw-bold text-dark">
               <i class="fas fa-user-check me-2"></i>Attendance Information
             </h6>
           </div>
@@ -239,7 +239,7 @@
       <div class="col-lg-6">
         <div class="card shadow-sm border-0">
           <div class="card-header bg-warning bg-opacity-10 border-bottom">
-            <h6 class="mb-0 fw-bold text-warning">
+            <h6 class="mb-0 fw-bold text-dark">
               <i class="fas fa-money-check-alt me-2"></i>Payment Information
             </h6>
           </div>

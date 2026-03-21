@@ -5,6 +5,7 @@ namespace App\Console\Commands;
 use App\Models\AnnualSession;
 use App\Models\Faculty;
 use App\Models\FacultyLoan;
+use App\Models\FacultySalaryMaster;
 use App\Models\FacultySalarySlip;
 use Carbon\Carbon;
 use Illuminate\Console\Command;
@@ -42,21 +43,27 @@ class GenerateMonthlyPayroll extends Command
     // Get current active annual session
     $currentSession = AnnualSession::where('status', 1)->first();
 
-    // Get all active faculties
-    $faculties = Faculty::where('IS_LEFT', 0)->get();
-    $this->info("Found {$faculties->count()} active faculty members.");
+    // Get all faculties with active salary masters
+    $salaryMasters = FacultySalaryMaster::with('faculty')
+      ->active()
+      ->whereHas('faculty', function ($q) {
+        $q->where('IS_LEFT', 0);
+      })
+      ->get();
+
+    $this->info("Found {$salaryMasters->count()} faculty members with active salary masters.");
 
     $created = 0;
     $skipped = 0;
     $errors = 0;
 
-    $progressBar = $this->output->createProgressBar($faculties->count());
+    $progressBar = $this->output->createProgressBar($salaryMasters->count());
     $progressBar->start();
 
-    foreach ($faculties as $faculty) {
+    foreach ($salaryMasters as $salaryMaster) {
       try {
         // Check if slip already exists
-        $exists = FacultySalarySlip::where('faculty_id', $faculty->id)
+        $exists = FacultySalarySlip::where('faculty_id', $salaryMaster->faculty_id)
           ->where('year', $year)
           ->where('month', $month)
           ->exists();
@@ -69,68 +76,46 @@ class GenerateMonthlyPayroll extends Command
 
         if ($exists && $force) {
           // Delete existing slip
-          FacultySalarySlip::where('faculty_id', $faculty->id)
+          FacultySalarySlip::where('faculty_id', $salaryMaster->faculty_id)
             ->where('year', $year)
             ->where('month', $month)
             ->delete();
         }
 
-        // Get last salary slip for this faculty to use as template
-        $lastSlip = FacultySalarySlip::where('faculty_id', $faculty->id)
-          ->orderBy('year', 'desc')
-          ->orderBy('month', 'desc')
-          ->first();
-
-        $basicSalary = $lastSlip ? $lastSlip->basic_salary : 30000;
-
-        // Get active loan EMI
-        $loanDeduction = 0;
-        $activeLoan = FacultyLoan::where('faculty_id', $faculty->id)
+        // Get all active loans for this faculty
+        $activeLoans = FacultyLoan::where('faculty_id', $salaryMaster->faculty_id)
           ->active()
-          ->first();
+          ->get();
 
-        if ($activeLoan) {
-          $loanDeduction = $activeLoan->emi_amount;
-        }
+        $totalLoanDeduction = $activeLoans->sum('emi_amount');
 
         // Generate salary slip number
-        $slipNumber = 'SAL-' . $year . $month . '-' . str_pad($faculty->id, 4, '0', STR_PAD_LEFT);
+        $slipNumber = 'SAL-' . $year . $month . '-' . str_pad($salaryMaster->faculty_id, 4, '0', STR_PAD_LEFT);
 
-        // Create salary slip
+        // Create salary slip from salary master
         $salarySlip = new FacultySalarySlip();
-        $salarySlip->faculty_id = $faculty->id;
+        $salarySlip->faculty_id = $salaryMaster->faculty_id;
         $salarySlip->annual_session_id = $currentSession?->id;
         $salarySlip->month = $month;
         $salarySlip->year = $year;
         $salarySlip->salary_slip_number = $slipNumber;
 
-        // Copy from last slip or use defaults
-        if ($lastSlip) {
-          $salarySlip->basic_salary = $basicSalary;
-          $salarySlip->da = $lastSlip->da;
-          $salarySlip->hra = $lastSlip->hra;
-          $salarySlip->ta = $lastSlip->ta;
-          $salarySlip->medical_allowance = $lastSlip->medical_allowance;
-          $salarySlip->special_allowance = $lastSlip->special_allowance;
-          $salarySlip->other_allowances = $lastSlip->other_allowances;
+        // Copy from salary master
+        $salarySlip->basic_salary = $salaryMaster->basic_salary;
+        $salarySlip->da = $salaryMaster->da;
+        $salarySlip->hra = $salaryMaster->hra;
+        $salarySlip->ta = $salaryMaster->ta;
+        $salarySlip->medical_allowance = $salaryMaster->medical_allowance;
+        $salarySlip->special_allowance = $salaryMaster->special_allowance;
+        $salarySlip->other_allowances = $salaryMaster->other_allowances;
 
-          $salarySlip->pf = $lastSlip->pf;
-          $salarySlip->esi = $lastSlip->esi;
-          $salarySlip->professional_tax = $lastSlip->professional_tax;
-          $salarySlip->tds = $lastSlip->tds;
-          $salarySlip->other_deductions = $lastSlip->other_deductions;
-        } else {
-          $salarySlip->basic_salary = $basicSalary;
-          // Set default allowances as percentage of basic
-          $salarySlip->da = $basicSalary * 0.10; // 10% DA
-          $salarySlip->hra = $basicSalary * 0.20; // 20% HRA
-          $salarySlip->ta = 1000; // Fixed TA
+        $salarySlip->pf = $salaryMaster->pf;
+        $salarySlip->esi = $salaryMaster->esi;
+        $salarySlip->professional_tax = $salaryMaster->professional_tax;
+        $salarySlip->tds = $salaryMaster->tds;
+        $salarySlip->loan_deduction = $totalLoanDeduction;
+        $salarySlip->other_deductions = $salaryMaster->other_deductions;
 
-          // Set default deductions
-          $salarySlip->pf = $basicSalary * 0.12; // 12% PF
-        }
-
-        $salarySlip->loan_deduction = $loanDeduction;
         $salarySlip->working_days = Carbon::parse("{$year}-{$month}-01")->daysInMonth;
         $salarySlip->present_days = $salarySlip->working_days;
         $salarySlip->leave_days = 0;
@@ -139,14 +124,15 @@ class GenerateMonthlyPayroll extends Command
         $salarySlip->calculateTotals();
         $salarySlip->save();
 
-        // Deduct EMI from loan
-        if ($activeLoan && $loanDeduction > 0) {
-          $activeLoan->deductEMI();
+        // Deduct EMI from all active loans
+        foreach ($activeLoans as $loan) {
+          $loan->deductEMI();
         }
 
         $created++;
       } catch (\Exception $e) {
-        $this->error("\nError processing faculty {$faculty->FIRST_NAME}: " . $e->getMessage());
+        $facultyName = $salaryMaster->faculty->FIRST_NAME ?? 'Unknown';
+        $this->error("\nError processing faculty {$facultyName}: " . $e->getMessage());
         $errors++;
       }
 

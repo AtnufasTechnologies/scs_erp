@@ -662,6 +662,14 @@ $roleType = UserHasRole::where('user_id', $userId)->value('role_name');
             <div class="menu-title">Faculty Loans</div>
           </a>
         </li>
+        <li>
+          <a href="{{route('admin.payroll.salary-masters')}}">
+            <div class="parent-icon">
+              <i class="fas fa-arrow-alt-circle-right"></i>
+            </div>
+            <div class="menu-title">Salary Masters</div>
+          </a>
+        </li>
         @endif
         @if(StaticController::subMenuRights('fee-defaulter-list'))
         <li>

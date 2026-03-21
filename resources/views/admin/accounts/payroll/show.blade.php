@@ -202,7 +202,7 @@
       </div>
     </div>
 
-    <div class="card mt-3 bg-primary text-white">
+    <div class="card mt-3  text-light">
       <div class="card-body">
         <div class="row align-items-center">
           <div class="col-md-6">

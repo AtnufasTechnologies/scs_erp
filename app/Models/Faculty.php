@@ -68,4 +68,20 @@ class Faculty extends Model
     {
         return $this->hasMany(FacultyLoan::class, 'faculty_id')->where('status', 'active');
     }
+
+    /**
+     * Get salary master for this faculty
+     */
+    public function salaryMaster()
+    {
+        return $this->hasOne(FacultySalaryMaster::class, 'faculty_id')->where('status', 'active');
+    }
+
+    /**
+     * Get all salary masters (including inactive)
+     */
+    public function salaryMasters()
+    {
+        return $this->hasMany(FacultySalaryMaster::class, 'faculty_id');
+    }
 }

@@ -168,6 +168,7 @@
                 <th>Net Salary</th>
                 <th>Status</th>
                 <th>Actions</th>
+                <th></th>
               </tr>
             </thead>
             <tbody>
@@ -203,6 +204,9 @@
                   <a href="{{ route('faculty.payroll.show', $slip->id) }}" class="btn btn-sm btn-info me-1" title="View Details">
                     <i class="fas fa-eye"></i>
                   </a>
+
+                </td>
+                <td>
                   <a href="{{ route('faculty.payroll.download', $slip->id) }}" class="btn btn-sm btn-success" title="Download PDF">
                     <i class="fas fa-download"></i>
                   </a>

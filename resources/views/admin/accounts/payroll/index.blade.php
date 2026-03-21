@@ -218,16 +218,19 @@
             <input type="number" name="year" class="form-control" value="{{ date('Y') }}" required>
           </div>
           <div class="mb-3">
-            <label class="form-label">Working Days</label>
-            <input type="number" name="working_days" class="form-control" value="26">
-          </div>
-          <div class="mb-3">
-            <label class="form-label">Salary Increase %</label>
-            <input type="number" name="basic_salary_percentage" class="form-control" placeholder="0" step="0.01">
-            <small class="text-muted">Leave blank for no increase</small>
+            <div class="form-check">
+              <input class="form-check-input" type="checkbox" name="auto_approve" value="1" id="autoApproveCheck">
+              <label class="form-check-label" for="autoApproveCheck">
+                <strong>Auto-approve all generated slips</strong>
+              </label>
+              <div><small class="text-muted">Check this to automatically approve all salary slips after generation</small></div>
+            </div>
           </div>
           <div class="alert alert-info">
-            <i class="fas fa-info-circle"></i> This will generate salary slips for all active faculty members based on their last month's salary structure.
+            <i class="fas fa-info-circle"></i> <strong>Fast Generation:</strong> This will generate salary slips using faculty salary masters. All active loans will be automatically included. Perfect for 250+ faculty!
+          </div>
+          <div class="alert alert-warning">
+            <i class="fas fa-exclamation-triangle"></i> Only faculty with active salary masters will be processed. Set up salary masters first.
           </div>
         </div>
         <div class="modal-footer">

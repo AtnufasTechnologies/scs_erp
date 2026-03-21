@@ -28,15 +28,26 @@
     }
 
     .header h1 {
-      font-size: 24px;
+      font-size: 20px;
       color: #2c3e50;
       margin-bottom: 5px;
     }
 
     .header h2 {
-      font-size: 18px;
+      font-size: 16px;
       color: #7f8c8d;
       font-weight: normal;
+    }
+
+    .header h3 {
+      font-size: 14px;
+      color: #7f8c8d;
+      font-weight: normal;
+    }
+
+    .header img {
+      margin-bottom: 10px;
+      height: 80px;
     }
 
     .slip-info {
@@ -114,7 +125,7 @@
 
     .net-salary {
       clear: both;
-      background: #2ecc71;
+      background: #ecf0f1;
       color: white;
       padding: 15px;
       text-align: center;
@@ -125,18 +136,20 @@
     .net-salary h3 {
       font-size: 16px;
       margin-bottom: 5px;
+      color: #333;
     }
 
     .net-salary .amount {
       font-size: 28px;
       font-weight: bold;
+      color: #333;
     }
 
     .attendance-section {
       margin-top: 20px;
       padding: 15px;
       background: #e8f5e9;
-      border-left: 4px solid #4caf50;
+      border-left: 4px solid #4e67be;
     }
 
     .attendance-section table {
@@ -212,7 +225,8 @@
 
 <body>
   <div class="header">
-    <h1>{{ config('app.name', 'Institution Name') }}</h1>
+    <h1>Salesian College (Autonomous)</h1>
+    <h3>Sonada and Siliguri</h3>
     <h2>Salary Slip</h2>
   </div>
 
@@ -226,7 +240,7 @@
       </tr>
       <tr>
         <td>Faculty Name:</td>
-        <td>{{ $salarySlip->faculty->title ?? 'N/A' }}</td>
+        <td>{{ $salarySlip->faculty->USER_CODE ?? 'N/A' }} - {{ $salarySlip->faculty->FIRST_NAME ?? 'N/A' }} {{ $salarySlip->faculty->LAST_NAME ?? 'N/A' }}</td>
         <td>Status:</td>
         <td>
           <span class="status-badge status-{{ $salarySlip->status }}">
@@ -366,8 +380,8 @@
 
   <div class="net-salary">
     <h3>NET SALARY PAYABLE</h3>
-    <div class="amount">₹{{ number_format($salarySlip->net_salary, 2) }}</div>
-    <p style="margin-top: 10px; font-size: 14px;">
+    <div class="amount">INR {{ number_format($salarySlip->net_salary, 2) }}</div>
+    <p style="margin-top: 10px; font-size: 14px;color: #555;">
       In Words: <strong>{{ ucwords(\App\Helpers\Qs::numberToWords($salarySlip->net_salary)) }} Only</strong>
     </p>
   </div>
@@ -410,14 +424,14 @@
   @endif
 
   <!-- Signature Section -->
-  <div class="signature-section">
+  <!-- <div class="signature-section">
     <div class="signature-box">
       <p>Faculty Signature</p>
     </div>
     <div class="signature-box">
       <p>Authorized Signatory</p>
     </div>
-  </div>
+  </div> -->
 
   <div class="footer">
     <p>This is a computer-generated salary slip and does not require a physical signature.</p>

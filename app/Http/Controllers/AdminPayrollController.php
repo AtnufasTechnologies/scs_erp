@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\AnnualSession;
 use App\Models\Faculty;
 use App\Models\FacultyLoan;
+use App\Models\FacultySalaryMaster;
 use App\Models\FacultySalarySlip;
 use App\Models\User;
 use Carbon\Carbon;
@@ -112,14 +113,20 @@ class AdminPayrollController extends Controller
     // Generate salary slip number
     $slipNumber = 'SAL-' . $request->year . $request->month . '-' . str_pad($request->faculty_id, 4, '0', STR_PAD_LEFT);
 
-    // Get active loan EMI deduction
+    // Calculate total loan EMI deduction from selected loans
     $loanDeduction = 0;
-    $activeLoan = FacultyLoan::where('faculty_id', $request->faculty_id)
-      ->active()
-      ->first();
+    $selectedLoanIds = $request->input('selected_loans', []);
+    $selectedLoans = [];
 
-    if ($activeLoan) {
-      $loanDeduction = $activeLoan->emi_amount;
+    if (!empty($selectedLoanIds)) {
+      $selectedLoans = FacultyLoan::whereIn('id', $selectedLoanIds)
+        ->where('faculty_id', $request->faculty_id)
+        ->where('status', 'active')
+        ->get();
+
+      foreach ($selectedLoans as $loan) {
+        $loanDeduction += $loan->emi_amount;
+      }
     }
 
     // Create salary slip
@@ -159,13 +166,13 @@ class AdminPayrollController extends Controller
     $salarySlip->calculateTotals();
     $salarySlip->save();
 
-    // Deduct EMI from loan if applicable
-    if ($activeLoan && $loanDeduction > 0) {
-      $activeLoan->deductEMI();
+    // Deduct EMI from all selected loans
+    foreach ($selectedLoans as $loan) {
+      $loan->deductEMI();
     }
 
     return redirect()->route('admin.payroll.index')
-      ->with('success', 'Salary slip created successfully.');
+      ->with('success', 'Salary slip created successfully with EMI deduction from ' . count($selectedLoans) . ' loan(s).');
   }
 
   /**
@@ -190,6 +197,15 @@ class AdminPayrollController extends Controller
 
     $faculties = Faculty::where('IS_LEFT', 0)->orderBy('FIRST_NAME')->get();
     $sessions = AnnualSession::orderBy('id', 'desc')->get();
+
+    return view('admin.accounts.payroll.edit', compact('salarySlip', 'faculties', 'sessions'));
+  }
+
+  /**
+   * Update salary slip
+   */
+  public function update(Request $request, $id)
+  {
     $salarySlip = FacultySalarySlip::findOrFail($id);
 
     if ($salarySlip->status === 'paid') {
@@ -306,21 +322,26 @@ class AdminPayrollController extends Controller
     $request->validate([
       'month' => 'required|digits:2',
       'year' => 'required|digits:4',
-      'basic_salary_percentage' => 'nullable|numeric|min:0|max:100',
     ]);
 
     $month = $request->month;
     $year = $request->year;
-    $percentage = $request->basic_salary_percentage ?? 0;
 
-    // Get all active faculties
-    $faculties = Faculty::where('IS_LEFT', 0)->get();
+    // Get all faculties with active salary masters
+    $salaryMasters = FacultySalaryMaster::with('faculty')
+      ->active()
+      ->whereHas('faculty', function ($q) {
+        $q->where('IS_LEFT', 0);
+      })
+      ->get();
+
     $created = 0;
     $skipped = 0;
+    $autoApproved = 0;
 
-    foreach ($faculties as $faculty) {
+    foreach ($salaryMasters as $salaryMaster) {
       // Check if slip already exists
-      $exists = FacultySalarySlip::where('faculty_id', $faculty->id)
+      $exists = FacultySalarySlip::where('faculty_id', $salaryMaster->faculty_id)
         ->where('year', $year)
         ->where('month', $month)
         ->exists();
@@ -330,84 +351,71 @@ class AdminPayrollController extends Controller
         continue;
       }
 
-      // Get last salary slip for this faculty to use as template
-      $lastSlip = FacultySalarySlip::where('faculty_id', $faculty->id)
-        ->orderBy('year', 'desc')
-        ->orderBy('month', 'desc')
-        ->first();
-
-      $basicSalary = $lastSlip ? $lastSlip->basic_salary : ($request->default_basic_salary ?? 30000);
-
-      // Apply percentage increase if specified
-      if ($percentage > 0) {
-        $basicSalary = $basicSalary * (1 + ($percentage / 100));
-      }
-
-      // Get active loan EMI
-      $loanDeduction = 0;
-      $activeLoan = FacultyLoan::where('faculty_id', $faculty->id)
+      // Get all active loans and auto-select them for EMI deduction
+      $activeLoans = FacultyLoan::where('faculty_id', $salaryMaster->faculty_id)
         ->active()
-        ->first();
+        ->get();
 
-      if ($activeLoan) {
-        $loanDeduction = $activeLoan->emi_amount;
-      }
+      $totalLoanDeduction = $activeLoans->sum('emi_amount');
 
       // Generate salary slip number
-      $slipNumber = 'SAL-' . $year . $month . '-' . str_pad($faculty->id, 4, '0', STR_PAD_LEFT);
+      $slipNumber = 'SAL-' . $year . $month . '-' . str_pad($salaryMaster->faculty_id, 4, '0', STR_PAD_LEFT);
 
-      // Create salary slip
+      // Create salary slip from salary master
       $salarySlip = new FacultySalarySlip();
-      $salarySlip->faculty_id = $faculty->id;
+      $salarySlip->faculty_id = $salaryMaster->faculty_id;
       $salarySlip->annual_session_id = $request->annual_session_id;
       $salarySlip->month = $month;
       $salarySlip->year = $year;
       $salarySlip->salary_slip_number = $slipNumber;
 
-      // Copy from last slip or use defaults
-      if ($lastSlip) {
-        $salarySlip->basic_salary = $basicSalary;
-        $salarySlip->da = $lastSlip->da;
-        $salarySlip->hra = $lastSlip->hra;
-        $salarySlip->ta = $lastSlip->ta;
-        $salarySlip->medical_allowance = $lastSlip->medical_allowance;
-        $salarySlip->special_allowance = $lastSlip->special_allowance;
-        $salarySlip->other_allowances = $lastSlip->other_allowances;
+      // Copy from salary master
+      $salarySlip->basic_salary = $salaryMaster->basic_salary;
+      $salarySlip->da = $salaryMaster->da;
+      $salarySlip->hra = $salaryMaster->hra;
+      $salarySlip->ta = $salaryMaster->ta;
+      $salarySlip->medical_allowance = $salaryMaster->medical_allowance;
+      $salarySlip->special_allowance = $salaryMaster->special_allowance;
+      $salarySlip->other_allowances = $salaryMaster->other_allowances;
 
-        $salarySlip->pf = $lastSlip->pf;
-        $salarySlip->esi = $lastSlip->esi;
-        $salarySlip->professional_tax = $lastSlip->professional_tax;
-        $salarySlip->tds = $lastSlip->tds;
-        $salarySlip->other_deductions = $lastSlip->other_deductions;
-      } else {
-        $salarySlip->basic_salary = $basicSalary;
-        // Set default allowances as percentage of basic
-        $salarySlip->da = $basicSalary * 0.10; // 10% DA
-        $salarySlip->hra = $basicSalary * 0.20; // 20% HRA
-        $salarySlip->ta = 1000; // Fixed TA
+      $salarySlip->pf = $salaryMaster->pf;
+      $salarySlip->esi = $salaryMaster->esi;
+      $salarySlip->professional_tax = $salaryMaster->professional_tax;
+      $salarySlip->tds = $salaryMaster->tds;
+      $salarySlip->loan_deduction = $totalLoanDeduction;
+      $salarySlip->other_deductions = $salaryMaster->other_deductions;
 
-        // Set default deductions
-        $salarySlip->pf = $basicSalary * 0.12; // 12% PF
-      }
-
-      $salarySlip->loan_deduction = $loanDeduction;
-      $salarySlip->working_days = $request->working_days ?? 26;
-      $salarySlip->present_days = $request->working_days ?? 26;
+      $salarySlip->working_days = $salaryMaster->working_days;
+      $salarySlip->present_days = $salaryMaster->working_days;
       $salarySlip->leave_days = 0;
-      $salarySlip->status = 'draft';
+
+      // Auto-approve if requested, otherwise set as draft
+      if ($request->has('auto_approve') && $request->auto_approve == '1') {
+        $salarySlip->status = 'approved';
+        $salarySlip->approved_by = auth()->id();
+        $salarySlip->approved_at = now();
+        $autoApproved++;
+      } else {
+        $salarySlip->status = 'draft';
+      }
 
       $salarySlip->calculateTotals();
       $salarySlip->save();
 
-      // Deduct EMI from loan
-      if ($activeLoan && $loanDeduction > 0) {
-        $activeLoan->deductEMI();
+      // Deduct EMI from all active loans
+      foreach ($activeLoans as $loan) {
+        $loan->deductEMI();
       }
 
       $created++;
     }
 
-    return back()->with('success', "Bulk generation completed. Created: {$created}, Skipped: {$skipped}");
+    $message = "Bulk generation completed. Created: {$created}, Skipped: {$skipped}";
+    if ($autoApproved > 0) {
+      $message .= ", Auto-approved: {$autoApproved}";
+    }
+
+    return back()->with('success', $message);
   }
 
   /**
@@ -504,10 +512,23 @@ class AdminPayrollController extends Controller
   {
     $faculty = Faculty::findOrFail($facultyId);
 
-    // Get active loan with EMI
-    $activeLoan = FacultyLoan::where('faculty_id', $facultyId)
+    // Get all active loans
+    $activeLoans = FacultyLoan::where('faculty_id', $facultyId)
       ->where('status', 'active')
-      ->first();
+      ->get()
+      ->map(function ($loan) {
+        return [
+          'id' => $loan->id,
+          'loan_number' => $loan->loan_number,
+          'loan_type' => $loan->loan_type,
+          'loan_amount' => $loan->loan_amount,
+          'emi_amount' => $loan->emi_amount,
+          'remaining_amount' => $loan->remaining_amount,
+          'paid_installments' => $loan->paid_installments,
+          'total_installments' => $loan->total_installments,
+          'progress_percentage' => $loan->progress_percentage,
+        ];
+      });
 
     // Get last salary slip
     $lastSalary = FacultySalarySlip::where('faculty_id', $facultyId)
@@ -517,14 +538,7 @@ class AdminPayrollController extends Controller
 
     return response()->json([
       'success' => true,
-      'loan' => $activeLoan ? [
-        'loan_number' => $activeLoan->loan_number,
-        'loan_type' => $activeLoan->loan_type,
-        'emi_amount' => $activeLoan->emi_amount,
-        'remaining_amount' => $activeLoan->remaining_amount,
-        'paid_installments' => $activeLoan->paid_installments,
-        'total_installments' => $activeLoan->total_installments,
-      ] : null,
+      'loans' => $activeLoans,
       'lastSalary' => $lastSalary ? [
         'basic_salary' => $lastSalary->basic_salary,
         'da' => $lastSalary->da,
@@ -540,5 +554,161 @@ class AdminPayrollController extends Controller
         'other_deductions' => $lastSalary->other_deductions,
       ] : null,
     ]);
+  }
+
+  /**
+   * Salary Masters Management
+   */
+
+  /**
+   * List all faculty salary masters
+   */
+  public function salaryMasters(Request $request)
+  {
+    $query = FacultySalaryMaster::with('faculty');
+
+    // Filter by faculty
+    if ($request->filled('faculty_id')) {
+      $query->where('faculty_id', $request->faculty_id);
+    }
+
+    // Filter by status
+    if ($request->filled('status')) {
+      $query->where('status', $request->status);
+    }
+
+    $salaryMasters = $query->orderBy('id', 'desc')->paginate(30);
+    $faculties = Faculty::where('IS_LEFT', 0)->orderBy('FIRST_NAME')->get();
+
+    // Statistics
+    $stats = [
+      'total' => FacultySalaryMaster::active()->count(),
+      'total_monthly_cost' => FacultySalaryMaster::active()->get()->sum('net_salary'),
+    ];
+
+    return view('admin.accounts.payroll.salary-masters', compact('salaryMasters', 'faculties', 'stats'));
+  }
+
+  /**
+   * Show form to create salary master
+   */
+  public function createSalaryMaster()
+  {
+    $faculties = Faculty::where('IS_LEFT', 0)
+      ->whereDoesntHave('salaryMaster')
+      ->orderBy('FIRST_NAME')
+      ->get();
+
+    return view('admin.accounts.payroll.create-salary-master', compact('faculties'));
+  }
+
+  /**
+   * Store salary master
+   */
+  public function storeSalaryMaster(Request $request)
+  {
+    $request->validate([
+      'faculty_id' => 'required|exists:faculties,id',
+      'basic_salary' => 'required|numeric|min:0',
+    ]);
+
+    // Check if faculty already has active salary master
+    $existing = FacultySalaryMaster::where('faculty_id', $request->faculty_id)
+      ->where('status', 'active')
+      ->exists();
+
+    if ($existing) {
+      return back()->with('error', 'This faculty already has an active salary master. Please deactivate it first.');
+    }
+
+    $salaryMaster = FacultySalaryMaster::create([
+      'faculty_id' => $request->faculty_id,
+      'basic_salary' => $request->basic_salary,
+      'da' => $request->da ?? 0,
+      'hra' => $request->hra ?? 0,
+      'ta' => $request->ta ?? 0,
+      'medical_allowance' => $request->medical_allowance ?? 0,
+      'special_allowance' => $request->special_allowance ?? 0,
+      'other_allowances' => $request->other_allowances ?? 0,
+      'pf' => $request->pf ?? 0,
+      'esi' => $request->esi ?? 0,
+      'professional_tax' => $request->professional_tax ?? 0,
+      'tds' => $request->tds ?? 0,
+      'other_deductions' => $request->other_deductions ?? 0,
+      'working_days' => $request->working_days ?? 26,
+      'effective_from' => $request->effective_from,
+      'remarks' => $request->remarks,
+      'status' => 'active',
+    ]);
+
+    return redirect()->route('admin.payroll.salary-masters')
+      ->with('success', 'Salary master created successfully.');
+  }
+
+  /**
+   * Show form to edit salary master
+   */
+  public function editSalaryMaster($id)
+  {
+    $salaryMaster = FacultySalaryMaster::with('faculty')->findOrFail($id);
+    $faculties = Faculty::where('IS_LEFT', 0)->orderBy('FIRST_NAME')->get();
+
+    return view('admin.accounts.payroll.edit-salary-master', compact('salaryMaster', 'faculties'));
+  }
+
+  /**
+   * Update salary master
+   */
+  public function updateSalaryMaster(Request $request, $id)
+  {
+    $salaryMaster = FacultySalaryMaster::findOrFail($id);
+
+    $request->validate([
+      'basic_salary' => 'required|numeric|min:0',
+    ]);
+
+    $salaryMaster->update([
+      'basic_salary' => $request->basic_salary,
+      'da' => $request->da ?? 0,
+      'hra' => $request->hra ?? 0,
+      'ta' => $request->ta ?? 0,
+      'medical_allowance' => $request->medical_allowance ?? 0,
+      'special_allowance' => $request->special_allowance ?? 0,
+      'other_allowances' => $request->other_allowances ?? 0,
+      'pf' => $request->pf ?? 0,
+      'esi' => $request->esi ?? 0,
+      'professional_tax' => $request->professional_tax ?? 0,
+      'tds' => $request->tds ?? 0,
+      'other_deductions' => $request->other_deductions ?? 0,
+      'working_days' => $request->working_days ?? 26,
+      'effective_from' => $request->effective_from,
+      'remarks' => $request->remarks,
+    ]);
+
+    return redirect()->route('admin.payroll.salary-masters')
+      ->with('success', 'Salary master updated successfully.');
+  }
+
+  /**
+   * Delete salary master
+   */
+  public function destroySalaryMaster($id)
+  {
+    $salaryMaster = FacultySalaryMaster::findOrFail($id);
+    $salaryMaster->delete();
+
+    return back()->with('success', 'Salary master deleted successfully.');
+  }
+
+  /**
+   * Toggle salary master status
+   */
+  public function toggleSalaryMasterStatus($id)
+  {
+    $salaryMaster = FacultySalaryMaster::findOrFail($id);
+    $salaryMaster->status = $salaryMaster->status === 'active' ? 'inactive' : 'active';
+    $salaryMaster->save();
+
+    return back()->with('success', 'Salary master status updated successfully.');
   }
 }

@@ -147,15 +147,15 @@ class FacultySalarySlip extends Model
    */
   public function getMonthNameAttribute()
   {
-    return \Carbon\Carbon::parse($this->month . '-01')->format('F');
+    return \Carbon\Carbon::parse($this->year . '-' . $this->month . '-01')->format('F');
   }
 
   /**
-   * Get formatted month-year
+   * Get formatted month and year (e.g., "March 2026")
    */
   public function getMonthYearAttribute()
   {
-    return \Carbon\Carbon::parse($this->month . '-01')->format('F Y');
+    return \Carbon\Carbon::parse($this->year . '-' . $this->month . '-01')->format('F Y');
   }
 
   /**
