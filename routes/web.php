@@ -9,6 +9,7 @@ use App\Faculty\Http\Controllers\PayrollController as FacultyPayrollController;
 use App\Faculty\Http\Controllers\RequestApplicationController as FacultyRequestApplicationController;
 use App\Http\Controllers\AccessController;
 use App\Http\Controllers\AdminController;
+use App\Http\Controllers\AdminPayrollController;
 use App\Http\Controllers\AdmissionController;
 use App\Http\Controllers\FeePaymentController;
 use App\Http\Controllers\LoginController;
@@ -163,6 +164,28 @@ Route::group(['prefix' => '/erp'], function () {
             // Late Fee Exemption Management
             Route::get('late-fee-exemptions', [FeePaymentController::class, 'lateFeeExemptionIndex'])->name('late.fee.exemptions');
             Route::post('late-fee-exemption/grant', [FeePaymentController::class, 'grantLateFeeExemption'])->name('grant.late.fee.exemption');
+
+            // Faculty Payroll Management
+            Route::get('payroll', [AdminPayrollController::class, 'index'])->name('admin.payroll.index');
+            Route::get('payroll/create', [AdminPayrollController::class, 'create'])->name('admin.payroll.create');
+            Route::post('payroll', [AdminPayrollController::class, 'store'])->name('admin.payroll.store');
+            Route::post('payroll/bulk-generate', [AdminPayrollController::class, 'bulkGenerate'])->name('admin.payroll.bulk-generate');
+
+            // Faculty Loans Management (must come before {id} routes)
+            Route::get('payroll/loans', [AdminPayrollController::class, 'loans'])->name('admin.payroll.loans');
+            Route::post('payroll/loans', [AdminPayrollController::class, 'storeLoan'])->name('admin.payroll.loans.store');
+            Route::post('payroll/loans/{id}/update-status', [AdminPayrollController::class, 'updateLoanStatus'])->name('admin.payroll.loans.update-status');
+
+            // Get faculty info API (must come before {id} routes)
+            Route::get('payroll/faculty-info/{facultyId}', [AdminPayrollController::class, 'getFacultyInfo'])->name('admin.payroll.faculty-info');
+
+            // Payroll specific routes with {id}
+            Route::get('payroll/{id}', [AdminPayrollController::class, 'show'])->name('admin.payroll.show');
+            Route::get('payroll/{id}/edit', [AdminPayrollController::class, 'edit'])->name('admin.payroll.edit');
+            Route::put('payroll/{id}', [AdminPayrollController::class, 'update'])->name('admin.payroll.update');
+            Route::delete('payroll/{id}', [AdminPayrollController::class, 'destroy'])->name('admin.payroll.destroy');
+            Route::post('payroll/{id}/approve', [AdminPayrollController::class, 'approve'])->name('admin.payroll.approve');
+            Route::post('payroll/{id}/mark-paid', [AdminPayrollController::class, 'markAsPaid'])->name('admin.payroll.mark-paid');
             Route::post('late-fee-exemption/{id}/revoke', [FeePaymentController::class, 'revokeLateFeeExemption'])->name('revoke.late.fee.exemption');
 
             Route::get('defaulters-list', [FeePaymentController::class, 'defaultersList'])->name('defaulters-list');
@@ -394,7 +417,9 @@ Route::group(['prefix' => '/erp'], function () {
         Route::delete('work-diary/holidays/{id}', [WorkDiaryController::class, 'deleteHoliday'])->name('faculty.workdiary.holidays.delete');
         Route::get('request-application', [FacultyRequestApplicationController::class, 'index'])->name('faculty.requestapplication');
         Route::get('payroll', [FacultyPayrollController::class, 'index'])->name('faculty.payroll');
-        Route::get('payroll/download', [FacultyPayrollController::class, 'download'])->name('faculty.payroll.download');
+        Route::get('payroll/bulk/download', [FacultyPayrollController::class, 'downloadBulk'])->name('faculty.payroll.bulk.download');
+        Route::get('payroll/{id}', [FacultyPayrollController::class, 'show'])->name('faculty.payroll.show');
+        Route::get('payroll/{id}/download', [FacultyPayrollController::class, 'download'])->name('faculty.payroll.download');
         Route::get('subjects', [FacultyDashboardController::class, 'subjects'])->name('faculty.subjects');
         Route::get('toggle-subunit-completion/{id}', [FacultyDashboardController::class, 'toggleSubunitCompletion'])->name('faculty.toggle.subunitcompletion');
         Route::get('profile', [FacultyDashboardController::class, 'profile'])->name('faculty.profile');

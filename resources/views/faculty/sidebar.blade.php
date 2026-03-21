@@ -57,6 +57,15 @@
     </li>
 
     <li>
+      <a href="{{route('faculty.payroll')}}">
+        <div class="parent-icon">
+          <i class="fas fa-file-invoice-dollar"></i>
+        </div>
+        <div class="menu-title">Salary Slips </div>
+      </a>
+    </li>
+
+    <li>
       <a href="{{route('faculty.subjects')}}">
         <div class="parent-icon">
           <i class="fas fa-clipboard-list"></i>

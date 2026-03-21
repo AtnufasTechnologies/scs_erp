@@ -103,4 +103,119 @@ class Qs
 
     return $programs;
   }
+
+  /**
+   * Convert number to words (Indian Rupees format)
+   * 
+   * @param float $number
+   * @return string
+   */
+  static function numberToWords($number)
+  {
+    $number = (int)$number;
+
+    if ($number == 0) {
+      return 'Zero Rupees';
+    }
+
+    $ones = [
+      '',
+      'One',
+      'Two',
+      'Three',
+      'Four',
+      'Five',
+      'Six',
+      'Seven',
+      'Eight',
+      'Nine',
+      'Ten',
+      'Eleven',
+      'Twelve',
+      'Thirteen',
+      'Fourteen',
+      'Fifteen',
+      'Sixteen',
+      'Seventeen',
+      'Eighteen',
+      'Nineteen'
+    ];
+
+    $tens = [
+      '',
+      '',
+      'Twenty',
+      'Thirty',
+      'Forty',
+      'Fifty',
+      'Sixty',
+      'Seventy',
+      'Eighty',
+      'Ninety'
+    ];
+
+    $scales = [
+      '',
+      'Thousand',
+      'Lakh',
+      'Crore'
+    ];
+
+    $words = [];
+
+    // Handle crores
+    if ($number >= 10000000) {
+      $crores = (int)($number / 10000000);
+      $words[] = self::convertGroup($crores, $ones, $tens) . ' Crore';
+      $number %= 10000000;
+    }
+
+    // Handle lakhs
+    if ($number >= 100000) {
+      $lakhs = (int)($number / 100000);
+      $words[] = self::convertGroup($lakhs, $ones, $tens) . ' Lakh';
+      $number %= 100000;
+    }
+
+    // Handle thousands
+    if ($number >= 1000) {
+      $thousands = (int)($number / 1000);
+      $words[] = self::convertGroup($thousands, $ones, $tens) . ' Thousand';
+      $number %= 1000;
+    }
+
+    // Handle hundreds
+    if ($number >= 100) {
+      $hundreds = (int)($number / 100);
+      $words[] = $ones[$hundreds] . ' Hundred';
+      $number %= 100;
+    }
+
+    // Handle remaining (tens and ones)
+    if ($number > 0) {
+      $words[] = self::convertGroup($number, $ones, $tens);
+    }
+
+    return implode(' ', $words) . ' Rupees';
+  }
+
+  /**
+   * Convert a group of numbers (up to 99) to words
+   * 
+   * @param int $number
+   * @param array $ones
+   * @param array $tens
+   * @return string
+   */
+  private static function convertGroup($number, $ones, $tens)
+  {
+    if ($number < 20) {
+      return $ones[$number];
+    }
+
+    $tensDigit = (int)($number / 10);
+    $onesDigit = $number % 10;
+
+    return trim($tens[$tensDigit] . ' ' . $ones[$onesDigit]);
+  }
 }

@@ -44,4 +44,28 @@ class Faculty extends Model
     {
         return $this->hasOne(User::class, 'id', 'faculty_id');
     }
+
+    /**
+     * Get salary slips for this faculty
+     */
+    public function salarySlips()
+    {
+        return $this->hasMany(FacultySalarySlip::class, 'faculty_id');
+    }
+
+    /**
+     * Get loans for this faculty
+     */
+    public function loans()
+    {
+        return $this->hasMany(FacultyLoan::class, 'faculty_id');
+    }
+
+    /**
+     * Get active loans
+     */
+    public function activeLoans()
+    {
+        return $this->hasMany(FacultyLoan::class, 'faculty_id')->where('status', 'active');
+    }
 }
