@@ -18,6 +18,34 @@ $mainStreams = ProgramMaster::all();
 ?>
 @include('includes.header')
 @include('includes.dept-sidebar')
+
+<style>
+  /* Custom scrollbar for activities section */
+  .activities-scroll::-webkit-scrollbar {
+    width: 8px;
+  }
+
+  .activities-scroll::-webkit-scrollbar-track {
+    background: #f1f1f1;
+    border-radius: 10px;
+  }
+
+  .activities-scroll::-webkit-scrollbar-thumb {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    border-radius: 10px;
+  }
+
+  .activities-scroll::-webkit-scrollbar-thumb:hover {
+    background: linear-gradient(135deg, #764ba2 0%, #667eea 100%);
+  }
+
+  /* For Firefox */
+  .activities-scroll {
+    scrollbar-width: thin;
+    scrollbar-color: #667eea #f1f1f1;
+  }
+</style>
+
 <!-- Main Content -->
 <div class="main-content">
   <!-- Welcome Header -->
@@ -34,7 +62,7 @@ $mainStreams = ProgramMaster::all();
 
         </div>
         <div>
-          <div style="font-size: 24px; font-weight: 700; color: #1a1a1a;">{{ $data->students_count ?? 0 }} </div>
+          <div style="font-size: 24px; font-weight: 700; color: #1a1a1a;">{{ $deptStudentCount ?? 0 }} </div>
           <div style="font-size: 12px; color: #6b7280;">Students</div>
         </div>
       </div>
@@ -62,62 +90,62 @@ $mainStreams = ProgramMaster::all();
   <div class="row g-4">
     <!-- Left Column: Today's Course -->
     <div class="col-lg-5">
-      <h5 style="color: #1a1a1a; font-weight: 700; margin-bottom: 24px;">Today's Activities</h5>
 
-      <!-- Course Card 1 -->
-      <div class="course-card">
-        <div class="d-flex align-items-center">
-          <div class="progress-circle" style="background: linear-gradient(135deg, rgba(67, 206, 162, 0.15) 0%, rgba(14, 250, 179, 0.15) 100%);">
-            <div style="width: 60px; height: 60px; border-radius: 50%; background: conic-gradient(#43cea2 79%, #f0f0f0 0); display: flex; align-items: center; justify-content: center;">
-              <div style="width: 48px; height: 48px; border-radius: 50%; background: white; display: flex; align-items: center; justify-content: center; font-weight: 700; color: #43cea2;">
-                79%
+      <!-- Upcoming Activities Section -->
+      @if(count($upcomingActivities) > 0)
+      <div class="mb-4">
+        <div class="p-4">
+          <div class="d-flex justify-content-between align-items-center mb-4">
+            <h5 style="color: #1a1a1a; font-weight: 700; margin: 0;">
+              <i class="fas fa-calendar-star me-2" style="color: #fbbf24;"></i>Upcoming Activities
+            </h5>
+            <a href="{{ route('department.activities.index', [$data->id]) }}" class="btn btn-modern" style="background: #5b4cdb; color: white;">
+              <i class="fas fa-calendar-check me-2"></i>View All ({{ $activityStats['total'] ?? 0 }})
+            </a>
+          </div>
+          <div class="row g-3 activities-scroll" style="max-height: 500px; overflow-y: auto; overflow-x: hidden; padding-right: 10px;">
+            @foreach($upcomingActivities as $activity)
+            <div class="col-md-12">
+              <div class="course-card" style="border-left: 4px solid #667eea;">
+                <div class="d-flex align-items-start gap-3">
+                  <div style="width: 48px; height: 48px; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); border-radius: 12px; display: flex; align-items: center; justify-content: center; flex-shrink: 0;">
+                    <i class="fas fa-calendar-day" style="color: white; font-size: 20px;"></i>
+                  </div>
+                  <div class="flex-grow-1">
+                    <h6 class="mb-1" style="color: #1a1a1a; font-weight: 600;">{{ $activity->title }}</h6>
+                    <div class="mb-2">
+                      <span class="badge" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); padding: 4px 8px; border-radius: 6px; font-size: 11px;">
+                        {{ ucfirst(str_replace('_', ' ', $activity->activity_type)) }}
+                      </span>
+                    </div>
+                    <p class="mb-1" style="font-size: 13px; color: #6b7280;">
+                      <i class="fas fa-calendar me-1" style="color: #667eea;"></i>{{ $activity->formatted_date }}
+                    </p>
+                    @if($activity->start_time)
+                    <p class="mb-1" style="font-size: 13px; color: #6b7280;">
+                      <i class="fas fa-clock me-1" style="color: #667eea;"></i>{{ date('h:i A', strtotime($activity->start_time)) }}
+                    </p>
+                    @endif
+                    @if($activity->venue)
+                    <p class="mb-2" style="font-size: 13px; color: #6b7280;">
+                      <i class="fas fa-map-marker-alt me-1" style="color: #667eea;"></i>{{ Str::limit($activity->venue, 30) }}
+                    </p>
+                    @endif
+                    @if($activity->expected_participants)
+                    <p class="mb-0" style="font-size: 12px; color: #6b7280;">
+                      <i class="fas fa-users me-1"></i>{{ $activity->expected_participants }} attendees expected
+                    </p>
+                    @endif
+                  </div>
+                </div>
               </div>
             </div>
+            @endforeach
           </div>
-          <div class="flex-grow-1">
-            <h6 class="mb-1" style="color: #1a1a1a; font-weight: 600;">{{ $data->title ?? 'Course Management' }}</h6>
-            <div class="d-flex align-items-center gap-3 mb-2">
-              <span style="font-size: 13px; color: #6b7280;"><i class="fas fa-book me-1"></i> {{ $data->courseMasterPivot->count() ?? 0 }} lessons</span>
-              <span style="font-size: 13px; color: #6b7280;"><i class="fas fa-clock me-1"></i> 50 min</span>
-            </div>
-            <div class="d-flex align-items-center gap-2">
-              <span style="font-size: 13px; color: #6b7280;"><i class="fas fa-tasks me-1"></i> 5 assignments</span>
-              <span style="font-size: 13px; color: #6b7280;"><i class="fas fa-user-graduate me-1"></i> {{ $data->students_count ?? 0 }} students</span>
-            </div>
-          </div>
-        </div>
-        <div class="mt-3 d-flex gap-2">
-          <a href="{{route('department.course.master',[$data->id,$data->slug])}}" class="btn btn-sm btn-modern" style="background: #43cea2; color: white; flex: 1;">Continue</a>
-          <button class="btn btn-sm btn-modern" style="background: #e6e6e6; color: #6b7280;">Skip</button>
         </div>
       </div>
+      @endif
 
-      <!-- Course Card 2 -->
-      <div class="course-card">
-        <div class="d-flex align-items-center">
-          <div class="progress-circle" style="background: linear-gradient(135deg, rgba(255, 153, 102, 0.15) 0%, rgba(255, 94, 98, 0.15) 100%);">
-            <div style="width: 60px; height: 60px; border-radius: 50%; background: conic-gradient(#ff9966 64%, #f0f0f0 0); display: flex; align-items: center; justify-content: center;">
-              <div style="width: 48px; height: 48px; border-radius: 50%; background: white; display: flex; align-items: center; justify-content: center; font-weight: 700; color: #ff9966;">
-                64%
-              </div>
-            </div>
-          </div>
-          <div class="flex-grow-1">
-            <h6 class="mb-1" style="color: #1a1a1a; font-weight: 600;">Faculty Management</h6>
-            <div class="d-flex align-items-center gap-3 mb-2">
-              <span style="font-size: 13px; color: #6b7280;"><i class="fas fa-chalkboard-teacher me-1"></i> {{ count($deptfaculties) ?? 0 }} faculty</span>
-              <span style="font-size: 13px; color: #6b7280;"><i class="fas fa-clock me-1"></i> 45 min</span>
-            </div>
-            <div class="d-flex align-items-center gap-2">
-              <span style="font-size: 13px; color: #6b7280;"><i class="fas fa-tasks me-1"></i> 2 assignments</span>
-            </div>
-          </div>
-        </div>
-        <div class="mt-3 d-flex gap-2">
-          <button class="btn btn-sm btn-modern" style="background: #ff9966; color: white; flex: 1;">Continue</button>
-          <button class="btn btn-sm btn-modern" style="background: #e6e6e6; color: #6b7280;">Skip</button>
-        </div>
-      </div>
     </div>
 
     <!-- Right Column: Stats and Actions -->
@@ -222,9 +250,11 @@ $mainStreams = ProgramMaster::all();
             </div>
           </a>
         </div>
+
       </div>
     </div>
   </div>
+
 
   <!-- Program Combinations Section -->
   <div class="table-modern mt-4">
@@ -236,7 +266,6 @@ $mainStreams = ProgramMaster::all();
         </button>
       </div>
 
-      @if(count($combinations))
       <div class="mb-3">
         <form method="GET" action="" class="d-flex align-items-center gap-2">
           <label for="batchFilter" class="fw-semibold" style="color: #6b7280;">Filter by Batch:</label>
@@ -251,6 +280,7 @@ $mainStreams = ProgramMaster::all();
         </form>
       </div>
 
+      @if(count($combinations))
       <div class="table-responsive">
         <table class="table table-hover">
           <thead>
@@ -268,7 +298,12 @@ $mainStreams = ProgramMaster::all();
             <tr style="border-bottom: 1px solid #f5f5f5;">
               <td style="padding: 16px; color: #1a1a1a; font-weight: 500;">{{ $loop->iteration }}</td>
               <td style="color: #1a1a1a;">{{$combination->batchmaster->batch_name ?? '-'}}</td>
-              <td style="color: #1a1a1a;">{{ $combination->studentprograminfo->name ?? '-' }}</td>
+              <td style="color: #1a1a1a;">
+                <a href="{{ route('department.show.student.list', ['program_id' => $combination->studentprograminfo->id,
+                 'slug' => $combination->studentprograminfo->name, 'batch_id' => $combination->batchmaster->id]) }}">
+                  {{ $combination->studentprograminfo->name ?? '-' }}
+                </a>
+              </td>
               <td><span class="badge" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); padding: 6px 12px; border-radius: 8px;">{{$combination->program_type}}</span></td>
               <td>
                 <span class="badge" style="background: #43cea2; padding: 6px 12px; border-radius: 8px;">ID: {{ $combination->studentprograminfo->id ?? '-' }}</span>

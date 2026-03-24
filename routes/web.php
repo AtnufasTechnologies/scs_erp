@@ -11,6 +11,7 @@ use App\Http\Controllers\AccessController;
 use App\Http\Controllers\AdminController;
 use App\Http\Controllers\AdminPayrollController;
 use App\Http\Controllers\AdmissionController;
+use App\Http\Controllers\DepartmentActivityController;
 use App\Http\Controllers\FeePaymentController;
 use App\Http\Controllers\LoginController;
 use App\Http\Controllers\SubjectController;
@@ -406,6 +407,17 @@ Route::group(['prefix' => '/erp'], function () {
         Route::get('faculty-access/{departmentId}/{departmentSlug}', [AccessController::class, 'facultyAccessList'])->name('department.faculty.access');
         Route::post('faculty-access', [AccessController::class, 'grantFacultyAccess'])->name('department.faculty.grant-access');
         Route::get('faculty-access-revoke/{id}', [AccessController::class, 'revokeFacultyAccess'])->name('department.faculty.revoke-access');
+        Route::get('show-student-list', [SubjectController::class, 'showStudentList'])->name('department.show.student.list');
+        Route::get('student-profile', [SubjectController::class, 'studentProfile'])->name('department.student.profile');
+
+        // Department Activities
+        Route::get('activities/{subjectId}', [DepartmentActivityController::class, 'index'])->name('department.activities.index');
+        Route::post('activities', [DepartmentActivityController::class, 'store'])->name('department.activities.store');
+        Route::get('activities/{id}/show', [DepartmentActivityController::class, 'show'])->name('department.activities.show');
+        Route::put('activities/{id}', [DepartmentActivityController::class, 'update'])->name('department.activities.update');
+        Route::delete('activities/{id}', [DepartmentActivityController::class, 'destroy'])->name('department.activities.destroy');
+        Route::post('activities/{id}/status', [DepartmentActivityController::class, 'updateStatus'])->name('department.activities.status');
+        Route::get('activities/{subjectId}/by-type', [DepartmentActivityController::class, 'getByType'])->name('department.activities.by-type');
     });
 
 

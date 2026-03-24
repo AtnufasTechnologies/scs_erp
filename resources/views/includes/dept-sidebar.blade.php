@@ -31,6 +31,11 @@ $data = $subject;
     </div>
   </a>
 
+  <a href="{{ route('department.activities.index', [$data->id]) }}">
+    <div class="sidebar-icon  {{ request()->routeIs('department.activities.index') ? 'active' : '' }}" title="Activities">
+      <i class="fas fa-calendar-check fa-lg"></i>
+    </div>
+  </a>
 
   <div class="sidebar-icon" title="Students">
     <i class="fas fa-user-graduate fa-lg"></i>
@@ -39,11 +44,13 @@ $data = $subject;
     <i class="fas fa-chalkboard-teacher fa-lg"></i>
   </div>
 
+
   <a href="{{route('department.faculty.access',[$data->id,$data->slug])}}">
     <div class="sidebar-icon" title="Settings">
       <i class="fas fa-cog fa-lg"></i>
     </div>
   </a>
+
   <div class="mt-auto sidebar-icon" title="Logout">
     <a href="{{ StaticController::fetchUserRole() == 'dept-admin-erp' ? url('logout') : route('admin.dashboard') }}" style="color: inherit;">
       <i class="fas fa-sign-out-alt fa-lg"></i>

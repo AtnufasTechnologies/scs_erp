@@ -9,6 +9,7 @@ use App\Models\CoHasCso;
 use App\Models\CourseObjective;
 use App\Models\CsoSubunit;
 use App\Models\Department;
+use App\Models\DepartmentActivity;
 use App\Models\Faculty;
 use App\Models\LectureHallMaster;
 use App\Models\MainProgram;
@@ -389,6 +390,23 @@ class SubjectController extends Controller
         $faculties = SubjectFacultyMaster::with('faculty')->where('subject_id', $subjectId)->get();
         $syllabusCount = SyllabusManager::where('subject_id', $subjectId)->distinct('batch_id')->count();
 
+        //Student Count for each Program
+        $deptStudentCount = SubjectHasStudentProgam::where('subject_id', $subjectId)
+            ->withCount('studentmaster')
+            ->get()
+            ->sum('studentmaster_count');
+
+        // Get upcoming activities
+        $upcomingActivities = DepartmentActivity::where('subject_id', $subjectId)
+            ->upcoming()
+            ->take(3)
+            ->get();
+
+        // Get activity stats
+        $activityStats = [
+            'total' => DepartmentActivity::where('subject_id', $subjectId)->count(),
+            'upcoming' => DepartmentActivity::where('subject_id', $subjectId)->upcoming()->count(),
+        ];
 
         return view('admin.subject.department-dashboard', [
             'data' => $courseMaster,
@@ -399,6 +417,9 @@ class SubjectController extends Controller
             'programs' => $programs,
             'deptfaculties' => $faculties,
             'syllabusCount' => $syllabusCount,
+            'deptStudentCount' => $deptStudentCount,
+            'upcomingActivities' => $upcomingActivities,
+            'activityStats' => $activityStats,
 
         ]);
     }
@@ -928,5 +949,42 @@ class SubjectController extends Controller
 
         $pdf = Pdf::loadView('admin.subject.syllabus-pdf', $data);
         return $pdf->download('syllabus-' . $subject->slug . '-' . date('Y-m-d') . '.pdf');
+    }
+
+    function showStudentList(Request $request)
+    {
+        $programId = $request->program_id;
+        $slug = $request->slug;
+        $batchId = $request->batch_id;
+        $program = StudentProgram::findOrFail($programId);
+        $students = StudentMaster::with(['batchmaster', 'campusmaster'])
+            ->where('new_program_id', $programId)
+            ->where('batch', $batchId)
+            ->get();
+        return view('admin.subject.student-list', [
+            'students' => $students,
+            'program' => $program,
+            'slug' => $slug
+        ]);
+    }
+
+    function studentProfile(Request $request)
+    {
+        $id = $request->id;
+        $rollno = $request->rollno;
+        $data = StudentMaster::where('id', $id)->where('roll_no', $rollno)->with([
+            'religionmaster:id,name',
+            'deptmaster:id,department_code,name',
+            'campusmaster:id,slug,name',
+            'nationalitymaster:id,name',
+            'usertype:id,name',
+            'bloodgroup',
+            'batchmaster:id,batch_name',
+            'programgroup.programInfo',
+
+
+        ])->firstOrFail();
+
+        return view('admin.subject.student-profile', ['data' => $data]);
     }
 }
