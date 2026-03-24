@@ -13,7 +13,7 @@ return new class extends Migration
   {
     Schema::create('faculty_salary_masters', function (Blueprint $table) {
       $table->id();
-      $table->unsignedBigInteger('faculty_id');
+      $table->integer('faculty_id');
       $table->foreign('faculty_id')->references('id')->on('faculties')->onDelete('cascade');
 
       // Salary Structure - Earnings
@@ -52,6 +52,8 @@ return new class extends Migration
    */
   public function down(): void
   {
+    Schema::disableForeignKeyConstraints();
     Schema::dropIfExists('faculty_salary_masters');
+    Schema::enableForeignKeyConstraints();
   }
 };
