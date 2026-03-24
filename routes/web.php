@@ -1,7 +1,15 @@
 <?php
 
+use App\Faculty\Http\Controllers\FacultyDashboardController;
+use App\Faculty\Http\Controllers\TimetableController as FacultyTimetableController;
+use App\Faculty\Http\Controllers\AttendanceController as FacultyAttendanceController;
+use App\Faculty\Http\Controllers\WorkDiaryController as WorkDiaryController;
+use App\Faculty\Http\Controllers\FacultyLeaveController;
+use App\Faculty\Http\Controllers\PayrollController as FacultyPayrollController;
+use App\Faculty\Http\Controllers\RequestApplicationController as FacultyRequestApplicationController;
 use App\Http\Controllers\AccessController;
 use App\Http\Controllers\AdminController;
+use App\Http\Controllers\AdminPayrollController;
 use App\Http\Controllers\AdmissionController;
 use App\Http\Controllers\FeePaymentController;
 use App\Http\Controllers\LoginController;
@@ -156,6 +164,37 @@ Route::group(['prefix' => '/erp'], function () {
             // Late Fee Exemption Management
             Route::get('late-fee-exemptions', [FeePaymentController::class, 'lateFeeExemptionIndex'])->name('late.fee.exemptions');
             Route::post('late-fee-exemption/grant', [FeePaymentController::class, 'grantLateFeeExemption'])->name('grant.late.fee.exemption');
+
+            // Faculty Payroll Management
+            Route::get('payroll', [AdminPayrollController::class, 'index'])->name('admin.payroll.index');
+            Route::get('payroll/create', [AdminPayrollController::class, 'create'])->name('admin.payroll.create');
+            Route::post('payroll', [AdminPayrollController::class, 'store'])->name('admin.payroll.store');
+            Route::post('payroll/bulk-generate', [AdminPayrollController::class, 'bulkGenerate'])->name('admin.payroll.bulk-generate');
+
+            // Faculty Loans Management (must come before {id} routes)
+            Route::get('payroll/loans', [AdminPayrollController::class, 'loans'])->name('admin.payroll.loans');
+            Route::post('payroll/loans', [AdminPayrollController::class, 'storeLoan'])->name('admin.payroll.loans.store');
+            Route::post('payroll/loans/{id}/update-status', [AdminPayrollController::class, 'updateLoanStatus'])->name('admin.payroll.loans.update-status');
+
+            // Salary Masters Management (must come before {id} routes)
+            Route::get('payroll/salary-masters', [AdminPayrollController::class, 'salaryMasters'])->name('admin.payroll.salary-masters');
+            Route::get('payroll/salary-masters/create', [AdminPayrollController::class, 'createSalaryMaster'])->name('admin.payroll.salary-masters.create');
+            Route::post('payroll/salary-masters', [AdminPayrollController::class, 'storeSalaryMaster'])->name('admin.payroll.salary-masters.store');
+            Route::get('payroll/salary-masters/{id}/edit', [AdminPayrollController::class, 'editSalaryMaster'])->name('admin.payroll.salary-masters.edit');
+            Route::put('payroll/salary-masters/{id}', [AdminPayrollController::class, 'updateSalaryMaster'])->name('admin.payroll.salary-masters.update');
+            Route::delete('payroll/salary-masters/{id}', [AdminPayrollController::class, 'destroySalaryMaster'])->name('admin.payroll.salary-masters.destroy');
+            Route::post('payroll/salary-masters/{id}/toggle-status', [AdminPayrollController::class, 'toggleSalaryMasterStatus'])->name('admin.payroll.salary-masters.toggle-status');
+
+            // Get faculty info API (must come before {id} routes)
+            Route::get('payroll/faculty-info/{facultyId}', [AdminPayrollController::class, 'getFacultyInfo'])->name('admin.payroll.faculty-info');
+
+            // Payroll specific routes with {id}
+            Route::get('payroll/{id}', [AdminPayrollController::class, 'show'])->name('admin.payroll.show');
+            Route::get('payroll/{id}/edit', [AdminPayrollController::class, 'edit'])->name('admin.payroll.edit');
+            Route::put('payroll/{id}', [AdminPayrollController::class, 'update'])->name('admin.payroll.update');
+            Route::delete('payroll/{id}', [AdminPayrollController::class, 'destroy'])->name('admin.payroll.destroy');
+            Route::post('payroll/{id}/approve', [AdminPayrollController::class, 'approve'])->name('admin.payroll.approve');
+            Route::post('payroll/{id}/mark-paid', [AdminPayrollController::class, 'markAsPaid'])->name('admin.payroll.mark-paid');
             Route::post('late-fee-exemption/{id}/revoke', [FeePaymentController::class, 'revokeLateFeeExemption'])->name('revoke.late.fee.exemption');
 
             Route::get('defaulters-list', [FeePaymentController::class, 'defaultersList'])->name('defaulters-list');
@@ -337,6 +376,7 @@ Route::group(['prefix' => '/erp'], function () {
         Route::get('syllabus-manager', [SubjectController::class, 'syllabusManager'])->name('department.syllabus.manager');
         Route::get('course/{id}/cso-list', [SubjectController::class, 'getCsoListForCourse'])->name('department.get.cso.list');
         Route::post('create-syllabus', [SubjectController::class, 'createSyllabus'])->name('department.create.syllabus');
+        Route::get('syllabus-download-pdf', [SubjectController::class, 'downloadSyllabusPdf'])->name('department.syllabus.download.pdf');
 
         // Faculty Timetable
 
@@ -361,18 +401,50 @@ Route::group(['prefix' => '/erp'], function () {
         //dept-admission-console
         Route::get('application-list', [AdmissionController::class, 'deptApplicationList'])->name('department.admission.list');
         Route::get('interview-list', [AdmissionController::class, 'deptInterviewList'])->name('department.admission.interview-list');
+
+        //Faculty Access
+        Route::get('faculty-access/{departmentId}/{departmentSlug}', [AccessController::class, 'facultyAccessList'])->name('department.faculty.access');
+        Route::post('faculty-access', [AccessController::class, 'grantFacultyAccess'])->name('department.faculty.grant-access');
+        Route::get('faculty-access-revoke/{id}', [AccessController::class, 'revokeFacultyAccess'])->name('department.faculty.revoke-access');
     });
 
 
     // Faculty routes
-    Route::group(['prefix' => 'faculty', 'as' => 'faculty.'], function () {
-        Route::get('dashboard', [\App\Faculty\Http\Controllers\FacultyDashboardController::class, 'index'])->name('faculty.dashboard');
-        Route::get('timetable', [\App\Faculty\Http\Controllers\TimetableController::class, 'index'])->name('faculty.timetable');
-        Route::get('attendance', [\App\Faculty\Http\Controllers\AttendanceController::class, 'index'])->name('faculty.attendance');
-        Route::get('work-diary', [\App\Faculty\Http\Controllers\WorkDiaryController::class, 'index'])->name('faculty.workdiary');
-        Route::get('request-application', [\App\Faculty\Http\Controllers\RequestApplicationController::class, 'index'])->name('faculty.requestapplication');
-        Route::get('payroll', [\App\Faculty\Http\Controllers\PayrollController::class, 'index'])->name('faculty.payroll');
-        Route::get('payroll/download', [\App\Faculty\Http\Controllers\PayrollController::class, 'download'])->name('faculty.payroll.download');
+    Route::group(['prefix' => 'faculty'], function () {
+        Route::get('dashboard', [FacultyDashboardController::class, 'index'])->name('faculty.dashboard');
+        Route::get('timetable', [FacultyDashboardController::class, 'facultyTimetable'])->name('faculty.timetable');
+        Route::get('attendance', [FacultyAttendanceController::class, 'index'])->name('faculty.attendance');
+        Route::get('work-diary', [WorkDiaryController::class, 'index'])->name('faculty.workdiary');
+        Route::get('work-diary/monthly-report', [WorkDiaryController::class, 'monthlyReport'])->name('faculty.workdiary.monthly.report');
+        Route::get('work-diary/monthly-report/pdf', [WorkDiaryController::class, 'downloadMonthlyReportPdf'])->name('faculty.workdiary.monthly.report.pdf');
+        Route::post('work-diary', [WorkDiaryController::class, 'store'])->name('faculty.workdiary.store');
+        Route::put('work-diary/{id}', [WorkDiaryController::class, 'update'])->name('faculty.workdiary.update');
+        Route::delete('work-diary/{id}', [WorkDiaryController::class, 'destroy'])->name('faculty.workdiary.destroy');
+        Route::post('work-diary/{id}/toggle-status', [WorkDiaryController::class, 'toggleStatus'])->name('faculty.workdiary.toggle');
+        Route::post('work-diary/holidays', [WorkDiaryController::class, 'storeHoliday'])->name('faculty.workdiary.holidays.store');
+        Route::get('work-diary/holidays', [WorkDiaryController::class, 'getHolidays'])->name('faculty.workdiary.holidays.get');
+        Route::delete('work-diary/holidays/{id}', [WorkDiaryController::class, 'deleteHoliday'])->name('faculty.workdiary.holidays.delete');
+        Route::get('request-application', [FacultyRequestApplicationController::class, 'index'])->name('faculty.requestapplication');
+        Route::get('payroll', [FacultyPayrollController::class, 'index'])->name('faculty.payroll');
+        Route::get('payroll/bulk/download', [FacultyPayrollController::class, 'downloadBulk'])->name('faculty.payroll.bulk.download');
+        Route::get('payroll/{id}', [FacultyPayrollController::class, 'show'])->name('faculty.payroll.show');
+        Route::get('payroll/{id}/download', [FacultyPayrollController::class, 'download'])->name('faculty.payroll.download');
+        Route::get('subjects', [FacultyDashboardController::class, 'subjects'])->name('faculty.subjects');
+        Route::get('toggle-subunit-completion/{id}', [FacultyDashboardController::class, 'toggleSubunitCompletion'])->name('faculty.toggle.subunitcompletion');
+        Route::get('profile', [FacultyDashboardController::class, 'profile'])->name('faculty.profile');
+        Route::put('profile/update', [FacultyDashboardController::class, 'updateProfile'])->name('faculty.profile.update');
+        Route::post('profile/photo', [FacultyDashboardController::class, 'updatePhoto'])->name('faculty.profile.photo');
+
+        // Leave Application Routes
+        Route::get('leave', [FacultyLeaveController::class, 'index'])->name('faculty.leave.index');
+        Route::get('leave/history', [FacultyLeaveController::class, 'history'])->name('faculty.leave.history');
+        Route::get('leave/create', [FacultyLeaveController::class, 'create'])->name('faculty.leave.create');
+        Route::post('leave', [FacultyLeaveController::class, 'store'])->name('faculty.leave.store');
+        Route::get('leave/{id}', [FacultyLeaveController::class, 'show'])->name('faculty.leave.show');
+        Route::get('leave/{id}/edit', [FacultyLeaveController::class, 'edit'])->name('faculty.leave.edit');
+        Route::put('leave/{id}', [FacultyLeaveController::class, 'update'])->name('faculty.leave.update');
+        Route::post('leave/{id}/cancel', [FacultyLeaveController::class, 'cancel'])->name('faculty.leave.cancel');
+        Route::delete('leave/{id}', [FacultyLeaveController::class, 'destroy'])->name('faculty.leave.destroy');
     });
 
 

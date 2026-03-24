@@ -9,7 +9,8 @@ class SyllabusHasFaculty extends Model
 {
     use HasFactory;
 
-    function syllabusroutine(){
-        return $this->hasOne(SubjectHasSyllabus::class,'id','subject_syllabus_id');
+    function syllabusroutine()
+    {
+        return $this->hasOne(SubjectHasSyllabus::class, 'id', 'subject_syllabus_id');
     }
 }

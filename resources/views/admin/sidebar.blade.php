@@ -646,14 +646,30 @@ $roleType = UserHasRole::where('user_id', $userId)->value('role_name');
 
 
         @if (StaticController::subMenuRights('faculty-pay-roll') )
-        <!-- <li>
-          <a href="{{url('erp/admin/accounts/all-payments')}}">
+        <li>
+          <a href="{{route('admin.payroll.index')}}">
             <div class="parent-icon">
               <i class="fas fa-arrow-alt-circle-right"></i>
             </div>
-            <div class="menu-title">Faculty Pay Roll</div>
+            <div class="menu-title">Faculty Payroll</div>
           </a>
-        </li> -->
+        </li>
+        <li>
+          <a href="{{route('admin.payroll.loans')}}">
+            <div class="parent-icon">
+              <i class="fas fa-arrow-alt-circle-right"></i>
+            </div>
+            <div class="menu-title">Faculty Loans</div>
+          </a>
+        </li>
+        <li>
+          <a href="{{route('admin.payroll.salary-masters')}}">
+            <div class="parent-icon">
+              <i class="fas fa-arrow-alt-circle-right"></i>
+            </div>
+            <div class="menu-title">Salary Masters</div>
+          </a>
+        </li>
         @endif
         @if(StaticController::subMenuRights('fee-defaulter-list'))
         <li>

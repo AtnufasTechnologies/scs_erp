@@ -15,6 +15,7 @@ return new class extends Migration
             $table->id();
             $table->integer('subject_id');
             $table->integer('faculty_id');
+            $table->integer('access_id')->nullable(); //user Table id for which access is given
             $table->timestamps();
             $table->softDeletes();
         });

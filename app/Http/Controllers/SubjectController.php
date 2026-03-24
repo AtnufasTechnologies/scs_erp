@@ -29,12 +29,15 @@ use App\Models\SubjectHasStudentProgam;
 use App\Models\SubjectHasSyllabus;
 use App\Models\SubjectTypeMaster;
 use App\Models\SyllabusHasFaculty;
+use App\Models\SyllabusManager;
+use App\Models\SyllabusSubunit;
 use App\Models\User;
 use App\Models\UserHasRole;
 use Illuminate\Support\Str;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Validator;
+use Barryvdh\DomPDF\Facade\Pdf;
 
 class SubjectController extends Controller
 {
@@ -384,6 +387,8 @@ class SubjectController extends Controller
 
         $programs = StudentProgram::where('campus_id', $subject->campus_id)->get();
         $faculties = SubjectFacultyMaster::with('faculty')->where('subject_id', $subjectId)->get();
+        $syllabusCount = SyllabusManager::where('subject_id', $subjectId)->distinct('batch_id')->count();
+
 
         return view('admin.subject.department-dashboard', [
             'data' => $courseMaster,
@@ -393,6 +398,8 @@ class SubjectController extends Controller
             'combinations' => $combinations,
             'programs' => $programs,
             'deptfaculties' => $faculties,
+            'syllabusCount' => $syllabusCount,
+
         ]);
     }
 
@@ -772,6 +779,53 @@ class SubjectController extends Controller
         ])->where('subject_id', $id)->get();
         $data['id'] = $id;
         $data['slug'] = $request->slug;
+
+        if (!empty($request->filter_batch)) {
+            $syllabusData = SyllabusManager::with([
+                'subject',
+                'batch',
+                'semester',
+                'courseobjective',
+                'cso.csosubunits.taxomonylevel',
+            ])->where('subject_id', $id)->where('batch_id', $request->filter_batch)->get();
+        } else {
+            $syllabusData = SyllabusManager::with([
+                'subject',
+                'batch',
+                'semester',
+                'courseobjective',
+                'cso.csosubunits.taxomonylevel',
+            ])->where('subject_id', $id)->get();
+        }
+
+
+        // Organize data: Batch -> Semester -> Course -> CSOs
+        $organized = [];
+        foreach ($syllabusData as $syllabus) {
+            $batchName = $syllabus->batch->batch_name ?? 'Unknown Batch';
+            $semesterName = $syllabus->semester->title ?? 'Unknown Semester';
+            $courseCode = $syllabus->courseobjective->course_code ?? 'N/A';
+            $courseTitle = $syllabus->courseobjective->course_title ?? 'Unknown Course';
+            $courseKey = $courseCode . ' - ' . $courseTitle;
+
+            if (!isset($organized[$batchName])) {
+                $organized[$batchName] = [];
+            }
+            if (!isset($organized[$batchName][$semesterName])) {
+                $organized[$batchName][$semesterName] = [];
+            }
+            if (!isset($organized[$batchName][$semesterName][$courseKey])) {
+                $organized[$batchName][$semesterName][$courseKey] = [
+                    'course' => $syllabus->courseobjective,
+                    'csos' => []
+                ];
+            }
+
+            $organized[$batchName][$semesterName][$courseKey]['csos'][] = $syllabus;
+        }
+
+        $data['organized_syllabus'] = $organized;
+
         return view('admin.subject.syllabus-manager', [
             'batches' => $batches,
             'semesters' => $semesters,
@@ -782,17 +836,97 @@ class SubjectController extends Controller
 
     function createSyllabus(Request $request)
     {
-        return $request->all();
         $request->validate([
-
-            'batch' => 'required',
-            'semester_id' => 'required',
             'subject_id' => 'required',
+            'batch' => 'required',
+            'semester' => 'required',
             'co_id' => 'required',
             'cso_id' => 'required',
+            'cso_subunit' => 'required|array|min:1',
 
         ]);
 
+        //save syllabus main table
+        $rec = new SyllabusManager();
+        $rec->subject_id = $request->subject_id;
+        $rec->batch_id = $request->batch;
+        $rec->semester_id = $request->semester;
+        $rec->co_id = $request->co_id;
+        $rec->cso_id = $request->cso_id;
+        $rec->save();
+
+        $syllabusId = $rec->id;
+
+        //save syllabus subunit
+        $cso_subunit = $request->cso_subunit;
+        for ($i = 0; $i < count($cso_subunit); $i++) {
+            SyllabusSubunit::create([
+                'syllabus_manager_id' => $syllabusId,
+                'unit_id' => $cso_subunit[$i],
+                'is_completed' => 0, // default value for subunit
+            ]);
+        }
+
         return redirect()->back()->with('success', 'Syllabus Created');
+    }
+
+    function downloadSyllabusPdf(Request $request)
+    {
+        $id = $request->id;
+        $subject = Subject::find($id);
+
+        if (!empty($request->filter_batch)) {
+            $syllabusData = SyllabusManager::with([
+                'subject',
+                'batch',
+                'semester',
+                'courseobjective',
+                'cso',
+                'syllabusSubunits.csoSubunit.taxomonylevel',
+            ])->where('subject_id', $id)->where('batch_id', $request->filter_batch)->get();
+        } else {
+            $syllabusData = SyllabusManager::with([
+                'subject',
+                'batch',
+                'semester',
+                'courseobjective',
+                'cso',
+                'syllabusSubunits.csoSubunit.taxomonylevel',
+            ])->where('subject_id', $id)->get();
+        }
+
+        // Organize data: Batch -> Semester -> Course -> CSOs
+        $organized = [];
+        foreach ($syllabusData as $syllabus) {
+            $batchName = $syllabus->batch->batch_name ?? 'Unknown Batch';
+            $semesterName = $syllabus->semester->title ?? 'Unknown Semester';
+            $courseCode = $syllabus->courseobjective->course_code ?? 'N/A';
+            $courseTitle = $syllabus->courseobjective->course_title ?? 'Unknown Course';
+            $courseKey = $courseCode . ' - ' . $courseTitle;
+
+            if (!isset($organized[$batchName])) {
+                $organized[$batchName] = [];
+            }
+            if (!isset($organized[$batchName][$semesterName])) {
+                $organized[$batchName][$semesterName] = [];
+            }
+            if (!isset($organized[$batchName][$semesterName][$courseKey])) {
+                $organized[$batchName][$semesterName][$courseKey] = [
+                    'course' => $syllabus->courseobjective,
+                    'csos' => []
+                ];
+            }
+
+            $organized[$batchName][$semesterName][$courseKey]['csos'][] = $syllabus;
+        }
+
+        $data = [
+            'subject' => $subject,
+            'organized_syllabus' => $organized,
+            'slug' => $request->slug ?? $subject->slug
+        ];
+
+        $pdf = Pdf::loadView('admin.subject.syllabus-pdf', $data);
+        return $pdf->download('syllabus-' . $subject->slug . '-' . date('Y-m-d') . '.pdf');
     }
 }

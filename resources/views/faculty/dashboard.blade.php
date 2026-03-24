@@ -50,7 +50,7 @@
               </div>
               <div>
                 <p class="text-muted mb-1" style="font-size: 0.85rem;">Assigned Subjects</p>
-                <h4 class="mb-0 fw-bold">5</h4>
+                <h4 class="mb-0 fw-bold">{{ $totalSubjectsCount ?? 0 }}</h4>
               </div>
             </div>
           </div>
@@ -79,8 +79,8 @@
                 <i class="fas fa-calendar-check text-success" style="font-size: 1.8rem;"></i>
               </div>
               <div>
-                <p class="text-muted mb-1" style="font-size: 0.85rem;">Leaves Approved</p>
-                <h4 class="mb-0 fw-bold">8/12</h4>
+                <p class="text-muted mb-1" style="font-size: 0.85rem;">Leave Days Taken</p>
+                <h4 class="mb-0 fw-bold">{{ $leaveStats['days_taken'] ?? 0 }} days</h4>
               </div>
             </div>
           </div>
@@ -114,85 +114,53 @@
                 <h6 class="mb-0 fw-bold"><i class="fas fa-book-open me-2 text-primary"></i>Assigned Subjects</h6>
               </div>
               <div class="col-auto">
-                <a href="javascript:;" class="btn btn-sm btn-light"><i class="fas fa-eye"></i> View All</a>
+                <a href="{{ route('faculty.subjects') }}" class="btn btn-sm btn-light"><i class="fas fa-eye"></i> View All</a>
               </div>
             </div>
           </div>
-          <div class="card-body">
-            <!-- Subject 1 -->
-            <div class="mb-4">
-              <div class="d-flex justify-content-between align-items-start mb-2">
-                <div>
-                  <h6 class="mb-1">Data Structures & Algorithms</h6>
-                  <small class="text-muted">Semester 3 | 45 Students</small>
-                </div>
-                <span class="badge bg-success">Active</span>
-              </div>
-              <div class="progress" style="height: 8px;">
-                <div class="progress-bar bg-gradient-primary" role="progressbar" style="width: 78%;" aria-valuenow="78" aria-valuemin="0" aria-valuemax="100"></div>
-              </div>
-              <small class="text-muted d-block mt-1">Completion: 78% | Resources: 12/15 uploaded</small>
-            </div>
+          <div class="card-body" style="max-height: 500px; overflow-y: auto;">
+            @forelse($assignedSubjects as $index => $subject)
+            @php
+            $progressColors = ['primary', 'info', 'warning', 'success', 'danger'];
+            $progressClass = 'bg-success';
 
-            <!-- Subject 2 -->
-            <div class="mb-4">
-              <div class="d-flex justify-content-between align-items-start mb-2">
-                <div>
-                  <h6 class="mb-1">Web Development</h6>
-                  <small class="text-muted">Semester 4 | 38 Students</small>
-                </div>
-                <span class="badge bg-success">Active</span>
-              </div>
-              <div class="progress" style="height: 8px;">
-                <div class="progress-bar bg-gradient-info" role="progressbar" style="width: 92%;" aria-valuenow="92" aria-valuemin="0" aria-valuemax="100"></div>
-              </div>
-              <small class="text-muted d-block mt-1">Completion: 92% | Resources: 15/15 uploaded</small>
-            </div>
+            // Determine status based on completion
+            if ($subject['completion_percentage'] >= 80) {
+            $statusBadge = '<span class="badge bg-success">Active</span>';
+            } elseif ($subject['completion_percentage'] >= 50) {
+            $statusBadge = '<span class="badge bg-warning">In Progress</span>';
+            } else {
+            $statusBadge = '<span class="badge bg-danger">Pending</span>';
+            }
+            @endphp
 
-            <!-- Subject 3 -->
-            <div class="mb-4">
+            <div class="{{ $loop->last ? '' : 'mb-4' }}">
               <div class="d-flex justify-content-between align-items-start mb-2">
                 <div>
-                  <h6 class="mb-1">Database Management Systems</h6>
-                  <small class="text-muted">Semester 4 | 42 Students</small>
+                  <h6 class="mb-1">{{ $subject['semester'] }} | {{ $subject['batch'] }}</h6>
+                  <small class="text-muted"> {{ $subject['course_code'] }} - {{ $subject['course_title'] }}</small>
                 </div>
-                <span class="badge bg-warning">In Progress</span>
+                {!! $statusBadge !!}
               </div>
               <div class="progress" style="height: 8px;">
-                <div class="progress-bar bg-gradient-warning" role="progressbar" style="width: 65%;" aria-valuenow="65" aria-valuemin="0" aria-valuemax="100"></div>
+                <div class="progress-bar {{ $progressClass }}" role="progressbar"
+                  style="width: {{ $subject['completion_percentage'] }}%;"
+                  aria-valuenow="{{ $subject['completion_percentage'] }}"
+                  aria-valuemin="0"
+                  aria-valuemax="100"></div>
               </div>
-              <small class="text-muted d-block mt-1">Completion: 65% | Resources: 10/15 uploaded</small>
+              <small class="text-muted d-block mt-1">
+                Completion: {{ $subject['completion_percentage'] }}% |
+                Units: {{ $subject['completed_units'] }}/{{ $subject['total_units'] }} completed
+              </small>
             </div>
-
-            <!-- Subject 4 -->
-            <div class="mb-4">
-              <div class="d-flex justify-content-between align-items-start mb-2">
-                <div>
-                  <h6 class="mb-1">Software Engineering</h6>
-                  <small class="text-muted">Semester 5 | 35 Students</small>
-                </div>
-                <span class="badge bg-success">Active</span>
-              </div>
-              <div class="progress" style="height: 8px;">
-                <div class="progress-bar bg-gradient-success" role="progressbar" style="width: 85%;" aria-valuenow="85" aria-valuemin="0" aria-valuemax="100"></div>
-              </div>
-              <small class="text-muted d-block mt-1">Completion: 85% | Resources: 13/15 uploaded</small>
+            @empty
+            <div class="text-center py-5">
+              <i class="fas fa-book-open text-muted" style="font-size: 3rem; opacity: 0.3;"></i>
+              <p class="text-muted mt-3 mb-0">No subjects assigned yet</p>
+              <small class="text-muted">Please contact your department for subject assignments</small>
             </div>
-
-            <!-- Subject 5 -->
-            <div>
-              <div class="d-flex justify-content-between align-items-start mb-2">
-                <div>
-                  <h6 class="mb-1">Cloud Computing</h6>
-                  <small class="text-muted">Semester 6 | 28 Students</small>
-                </div>
-                <span class="badge bg-danger">Pending</span>
-              </div>
-              <div class="progress" style="height: 8px;">
-                <div class="progress-bar bg-gradient-danger" role="progressbar" style="width: 35%;" aria-valuenow="35" aria-valuemin="0" aria-valuemax="100"></div>
-              </div>
-              <small class="text-muted d-block mt-1">Completion: 35% | Resources: 5/15 uploaded</small>
-            </div>
+            @endforelse
           </div>
         </div>
       </div>
@@ -279,63 +247,106 @@
                 <h6 class="mb-0 fw-bold"><i class="fas fa-calendar-alt me-2 text-danger"></i>Leaves Applied & Sanctioned</h6>
               </div>
               <div class="col-auto">
-                <a href="javascript:;" class="btn btn-sm btn-light"><i class="fas fa-plus"></i> Apply Leave</a>
+                <a href="{{ route('faculty.leave.create') }}" class="btn btn-sm btn-light"><i class="fas fa-plus"></i> Apply Leave</a>
               </div>
             </div>
           </div>
           <div class="card-body">
-            <!-- Sanctioned Leave -->
+            <!-- Casual Leave -->
             <div class="mb-4">
               <div class="d-flex justify-content-between align-items-center mb-3">
                 <div>
-                  <h6 class="mb-1 fw-bold">Casual Leave</h6>
-                  <small class="text-muted">You have 3 days remaining</small>
+                  <h6 class="mb-1 fw-bold text-primary">
+                    <i class="fas fa-umbrella-beach me-1"></i>Casual Leave
+                  </h6>
+                  <small class="text-muted">You have {{ max(0, 10 - $casualLeaves) }} days remaining</small>
                 </div>
-                <span class="badge bg-success">Sanctioned</span>
+                <span class="badge bg-primary rounded-pill">CL</span>
               </div>
-              <div class="progress" style="height: 10px;">
-                <div class="progress-bar bg-success" style="width: 70%;"></div>
+              <div class="progress" style="height: 10px; border-radius: 10px;">
+                <div class="progress-bar bg-primary" style="width: {{ min(100, ($casualLeaves / 10) * 100) }}%; border-radius: 10px;"></div>
               </div>
-              <small class="text-muted d-block mt-2">Used: 7/10 days | Last used: 2 days ago</small>
+              <small class="text-muted d-block mt-2">
+                Used: {{ $casualLeaves }}/10 days
+                @if($casualLeaves > 0)
+                | {{ number_format(($casualLeaves / 10) * 100, 0) }}% utilized
+                @endif
+              </small>
             </div>
 
-            <!-- Applied Leave -->
+            <!-- Sick Leave -->
             <div class="mb-4">
               <div class="d-flex justify-content-between align-items-center mb-3">
                 <div>
-                  <h6 class="mb-1 fw-bold">Sick Leave</h6>
+                  <h6 class="mb-1 fw-bold text-danger">
+                    <i class="fas fa-notes-medical me-1"></i>Sick Leave
+                  </h6>
                   <small class="text-muted">Unlimited</small>
                 </div>
-                <span class="badge bg-warning">Pending Approval</span>
+                <span class="badge bg-danger rounded-pill">SL</span>
               </div>
-              <div class="leave-item p-2 border rounded bg-light mb-2">
-                <div class="d-flex justify-content-between align-items-center">
-                  <div>
-                    <small class="fw-bold d-block">Applied: 15 Mar 2026 to 16 Mar 2026</small>
-                    <small class="text-muted">Reason: Medical Appointment</small>
-                  </div>
-                  <div>
-                    <button class="btn btn-sm btn-outline-danger me-1"><i class="fas fa-times"></i></button>
-                    <button class="btn btn-sm btn-outline-primary"><i class="fas fa-check"></i></button>
-                  </div>
-                </div>
+              <div class="progress" style="height: 10px; border-radius: 10px;">
+                <div class="progress-bar bg-danger bg-gradient" style="width: {{ min(100, ($sickLeaves / 15) * 100) }}%; border-radius: 10px;"></div>
               </div>
+              <small class="text-muted d-block mt-2">
+                Used: {{ $sickLeaves }} days | No limit applicable
+              </small>
             </div>
 
             <!-- Earned Leave -->
-            <div>
+            <div class="{{ $recentLeaves->count() > 0 ? 'mb-4' : '' }}">
               <div class="d-flex justify-content-between align-items-center mb-3">
                 <div>
-                  <h6 class="mb-1 fw-bold">Earned Leave</h6>
-                  <small class="text-muted">You have 8 days remaining</small>
+                  <h6 class="mb-1 fw-bold text-success">
+                    <i class="fas fa-award me-1"></i>Earned Leave
+                  </h6>
+                  <small class="text-muted">You have {{ max(0, 25 - $earnedLeaves) }} days remaining</small>
                 </div>
-                <span class="badge bg-success">Sanctioned</span>
+                <span class="badge bg-success rounded-pill">EL</span>
               </div>
-              <div class="progress" style="height: 10px;">
-                <div class="progress-bar bg-info" style="width: 40%;"></div>
+              <div class="progress" style="height: 10px; border-radius: 10px;">
+                <div class="progress-bar bg-success" style="width: {{ min(100, ($earnedLeaves / 25) * 100) }}%; border-radius: 10px;"></div>
               </div>
-              <small class="text-muted d-block mt-2">Used: 15/25 days | Year ending: 31 Mar 2027</small>
+              <small class="text-muted d-block mt-2">
+                Used: {{ $earnedLeaves }}/25 days
+                @if($earnedLeaves > 0)
+                | {{ number_format(($earnedLeaves / 25) * 100, 0) }}% utilized
+                @endif
+              </small>
             </div>
+
+            <!-- Recent Leave Applications -->
+            @if($recentLeaves->count() > 0)
+            <div class="mt-4 pt-3 border-top">
+              <h6 class="mb-3 fw-bold text-muted" style="font-size: 0.85rem;">
+                <i class="fas fa-clock me-1"></i>RECENT APPLICATIONS
+              </h6>
+              @foreach($recentLeaves as $leave)
+              <div class="leave-item p-2 border rounded mb-2 {{ $leave->status == 'pending' ? 'bg-warning bg-opacity-10' : '' }}">
+                <div class="d-flex justify-content-between align-items-start">
+                  <div class="flex-grow-1">
+                    <div class="d-flex align-items-center gap-2 mb-1">
+                      <span class="badge bg-{{ $leave->leave_type_badge }} badge-sm">
+                        {{ $leave->leave_type_name }}
+                      </span>
+                      <span class="badge bg-{{ $leave->status_badge }} badge-sm">
+                        {{ ucfirst($leave->status) }}
+                      </span>
+                    </div>
+                    <small class="fw-bold d-block">
+                      {{ $leave->start_date->format('d M') }} - {{ $leave->end_date->format('d M Y') }}
+                      <span class="text-muted">({{ $leave->total_days }} {{ $leave->total_days > 1 ? 'days' : 'day' }})</span>
+                    </small>
+                    <small class="text-muted">{{ Str::limit($leave->reason, 50) }}</small>
+                  </div>
+                </div>
+              </div>
+              @endforeach
+              <a href="{{ route('faculty.leave.index') }}" class="btn btn-sm btn-outline-primary w-100 mt-2">
+                <i class="fas fa-list me-1"></i>View All Applications
+              </a>
+            </div>
+            @endif
           </div>
         </div>
       </div>
@@ -349,109 +360,61 @@
                 <h6 class="mb-0 fw-bold"><i class="fas fa-pen-square me-2 text-info"></i>Work Diary</h6>
               </div>
               <div class="col-auto">
-                <a href="{{ url('faculty/workdiary') }}" class="btn btn-sm btn-light"><i class="fas fa-plus"></i> New Entry</a>
+                <a href="{{ route('faculty.workdiary') }}" class="btn btn-sm btn-light"><i class="fas fa-eye"></i> View All</a>
               </div>
             </div>
           </div>
           <div class="card-body" style="max-height: 500px; overflow-y: auto;">
-            <!-- Activity 1 -->
-            <div class="activity-item mb-4 pb-3 border-bottom">
+            @forelse($workDiaryEntries as $index => $entry)
+            @php
+            $colors = ['primary', 'success', 'warning', 'info', 'danger'];
+            $colorClass = $colors[$index % count($colors)];
+            $daysDiff = \Carbon\Carbon::parse($entry->date)->diffInDays(now());
+            if ($daysDiff == 0) {
+            $timeAgo = 'Today';
+            } elseif ($daysDiff == 1) {
+            $timeAgo = 'Yesterday';
+            } else {
+            $timeAgo = $daysDiff . ' days ago';
+            }
+            @endphp
+            <div class="activity-item mb-4 pb-3 {{ $loop->last ? '' : 'border-bottom' }}">
               <div class="d-flex">
                 <div class="activity-timeline me-3">
-                  <div class="timeline-dot bg-primary"></div>
+                  <div class="timeline-dot bg-{{ $colorClass }}"></div>
                 </div>
                 <div class="flex-grow-1">
                   <div class="d-flex justify-content-between align-items-start mb-1">
-                    <h6 class="mb-0 fw-bold">Conducted Lecture - DSA Module 5</h6>
-                    <small class="text-muted">Today</small>
+                    <h6 class="mb-0 fw-bold">{{ $entry->description }}</h6>
+                    <small class="text-muted">{{ $timeAgo }}</small>
                   </div>
-                  <p class="text-muted mb-2" style="font-size: 0.9rem;">Completed chapter on Tree Traversal Techniques with practical examples</p>
+                  <p class="text-muted mb-2" style="font-size: 0.9rem;">
+                    @if($entry->subject_name)
+                    <strong>{{ $entry->subject_name }}</strong> |
+                    @endif
+                    Hour {{ $entry->hour }}
+                    @if($entry->methodology)
+                    | {{ $entry->methodology }}
+                    @endif
+                  </p>
                   <div class="d-flex gap-2">
-                    <span class="badge bg-light text-dark">DSA</span>
-                    <span class="badge bg-light text-dark">Classroom</span>
+                    @if($entry->subject_name)
+                    <span class="badge bg-primary">{{ $entry->subject_name }}</span>
+                    @endif
+                    @if($entry->class_type)
+                    <span class="badge bg-light text-dark">{{ ucfirst($entry->class_type) }}</span>
+                    @endif
                   </div>
                 </div>
               </div>
             </div>
-
-            <!-- Activity 2 -->
-            <div class="activity-item mb-4 pb-3 border-bottom">
-              <div class="d-flex">
-                <div class="activity-timeline me-3">
-                  <div class="timeline-dot bg-success"></div>
-                </div>
-                <div class="flex-grow-1">
-                  <div class="d-flex justify-content-between align-items-start mb-1">
-                    <h6 class="mb-0 fw-bold">Evaluated Assignment - Web Dev</h6>
-                    <small class="text-muted">Yesterday</small>
-                  </div>
-                  <p class="text-muted mb-2" style="font-size: 0.9rem;">Reviewed and graded 32 assignments on responsive design</p>
-                  <div class="d-flex gap-2">
-                    <span class="badge bg-light text-dark">Web Development</span>
-                    <span class="badge bg-light text-dark">Evaluation</span>
-                  </div>
-                </div>
-              </div>
+            @empty
+            <div class="text-center py-5">
+              <i class="fas fa-clipboard-list text-muted" style="font-size: 3rem; opacity: 0.3;"></i>
+              <p class="text-muted mt-3 mb-0">No work diary entries found</p>
+              <a href="{{ url('faculty/work-diary') }}" class="btn btn-sm btn-primary mt-3">Create Your First Entry</a>
             </div>
-
-            <!-- Activity 3 -->
-            <div class="activity-item mb-4 pb-3 border-bottom">
-              <div class="d-flex">
-                <div class="activity-timeline me-3">
-                  <div class="timeline-dot bg-warning"></div>
-                </div>
-                <div class="flex-grow-1">
-                  <div class="d-flex justify-content-between align-items-start mb-1">
-                    <h6 class="mb-0 fw-bold">Scheduled Office Hours</h6>
-                    <small class="text-muted">2 days ago</small>
-                  </div>
-                  <p class="text-muted mb-2" style="font-size: 0.9rem;">Held office hours for doubt clearing session - 15 students attended</p>
-                  <div class="d-flex gap-2">
-                    <span class="badge bg-light text-dark">Office Hours</span>
-                    <span class="badge bg-light text-dark">Student Support</span>
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            <!-- Activity 4 -->
-            <div class="activity-item mb-4 pb-3 border-bottom">
-              <div class="d-flex">
-                <div class="activity-timeline me-3">
-                  <div class="timeline-dot bg-info"></div>
-                </div>
-                <div class="flex-grow-1">
-                  <div class="d-flex justify-content-between align-items-start mb-1">
-                    <h6 class="mb-0 fw-bold">Updated Course Material</h6>
-                    <small class="text-muted">3 days ago</small>
-                  </div>
-                  <p class="text-muted mb-2" style="font-size: 0.9rem;">Uploaded new lecture notes and reference materials for Database Module</p>
-                  <div class="d-flex gap-2">
-                    <span class="badge bg-light text-dark">DBMS</span>
-                    <span class="badge bg-light text-dark">Resources</span>
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            <!-- Activity 5 -->
-            <div class="activity-item">
-              <div class="d-flex">
-                <div class="activity-timeline me-3">
-                  <div class="timeline-dot bg-danger"></div>
-                </div>
-                <div class="flex-grow-1">
-                  <div class="d-flex justify-content-between align-items-start mb-1">
-                    <h6 class="mb-0 fw-bold">Exam Paper Preparation</h6>
-                    <small class="text-muted">5 days ago</small>
-                  </div>
-                  <p class="text-muted mb-2" style="font-size: 0.9rem;">Started preparing final examination paper for semester 5 students</p>
-                  <div class="d-flex gap-2">
-                    <span class="badge bg-light text-dark">Assessment</span>
-                  </div>
-                </div>
-              </div>
-            </div>
+            @endforelse
           </div>
         </div>
       </div>

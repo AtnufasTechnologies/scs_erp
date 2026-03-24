@@ -1,2 +1,168 @@
-<h1>Faculty Timetable</h1>
-<p>Your timetable will appear here.</p>
+<?php
+
+use App\Models\BatchMaster;
+
+$batches = BatchMaster::latest()->get();
+?>
+@include('includes.header')
+
+<div class="wrapper">
+  @include('faculty.sidebar')
+
+  <!--start main wrapper-->
+  <main class="page-content">
+    <!--start breadcrumb-->
+    <div class="page-breadcrumb d-none d-sm-flex align-items-center gap-2">
+      <div class="breadcrumb-title pe-3">Dashboard</div>
+      <div class="ps-2">
+        <nav aria-label="breadcrumb">
+          <ol class="breadcrumb mb-0 p-0">
+            <li class="breadcrumb-item"><a href="javascript:;"><i class="bx bx-home-alt"></i></a></li>
+            <li class="breadcrumb-item active" aria-current="page">Faculty Timetable</li>
+          </ol>
+        </nav>
+      </div>
+    </div>
+    <!--end breadcrumb-->
+    <div class="container-fluid py-4">
+      <div class="row mb-4">
+        <div class="col-12">
+          <h2 class="fw-bold">My Timetable</h2>
+
+        </div>
+      </div>
+      <style>
+        .calendar-table {
+          border-collapse: separate;
+          border-spacing: 0;
+          width: 100%;
+          background: #535353;
+        }
+
+        .calendar-table th,
+        .calendar-table td {
+          text-align: center;
+          vertical-align: middle;
+          border: 1px solid #e0e0e0;
+          padding: 8px;
+        }
+
+        .calendar-table th {
+          background: #5e6daa;
+          font-weight: 600;
+        }
+
+        .calendar-table .hour-col {
+          background: #f0f4ff;
+          font-weight: bold;
+          color: #17472f;
+          width: 70px;
+        }
+
+        .calendar-block {
+          background: linear-gradient(135deg, #5e6daa 0%, #3b4a84 100%);
+          color: #fff;
+          border-radius: 8px;
+          font-size: 0.95em;
+          font-weight: 500;
+          box-shadow: 0 2px 8px #0001;
+          padding: 6px 4px;
+          margin: 2px 0;
+        }
+
+        .calendar-block .course {
+          font-size: 0.9em;
+          font-weight: 400;
+          color: #ffe082;
+        }
+
+        .calendar-block .semester {
+          font-size: 0.85em;
+          color: #b2ffef;
+        }
+
+        .calendar-block .batch {
+          font-size: 0.85em;
+          color: #fffde7;
+        }
+
+        .calendar-block .lecture {
+          font-size: 0.85em;
+          color: #fff;
+        }
+      </style>
+
+      <div class="row mb-3">
+        <div class="col-md-2">
+          <label for="batchFilter" class="form-label">Filter by Batch:</label>
+          <form action="" method="GET" class="d-flex">
+            <div class="input-group">
+              <select id="batchFilter" class="form-select" name="batch">
+                <option value="">All Batches</option>
+
+                @foreach($batches as $batch)
+                <option value="{{ $batch->id }}" {{ request('batch') == $batch->id ? 'selected' : '' }}>{{ $batch->batch_name }}</option>
+                @endforeach
+              </select>
+              <button class="btn btn-outline-success"><i class="fa fa-search"></i></button>
+            </div>
+
+          </form>
+        </div>
+
+      </div>
+
+
+
+
+      <div class="table-responsive">
+        @php
+        $weekdays = ['Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
+        $hours = collect($timetable)->pluck('hour')->unique()->sort()->values()->all();
+        $calendar = [];
+        foreach($weekdays as $day) {
+        $calendar[$day] = collect($timetable)->where('weekday', $day)->groupBy('hour');
+        }
+        @endphp
+        <table class="calendar-table">
+          <thead>
+            <tr>
+              <th class="hour-col">Hour</th>
+              @foreach($weekdays as $day)
+              <th>{{ $day }}</th>
+              @endforeach
+            </tr>
+          </thead>
+          <tbody>
+            @foreach($hours as $hour)
+            <tr>
+              <td class="hour-col">{{ $hour }}</td>
+              @foreach($weekdays as $day)
+              <td>
+                @if(isset($calendar[$day][$hour]))
+                @foreach($calendar[$day][$hour] as $entry)
+                <div class="calendar-block">
+                  <div>{{ $entry['course_type'] ?? '-' }}</div>
+                  <div class="course">{{ $entry['course'] ?? '-' }}</div>
+                  <div class="semester">{{ $entry['semester'] ?? '-' }}</div>
+                  <div class="batch">Batch: {{ $entry['batch'] ?? '-' }}</div>
+                  <div class="lecture">Hall: {{ $entry['lecture_hall'] ?? '-' }}</div>
+                </div>
+                @endforeach
+                @else
+                <span style="color:#bbb;">—</span>
+                @endif
+              </td>
+              @endforeach
+            </tr>
+            @endforeach
+          </tbody>
+        </table>
+      </div>
+
+    </div>
+</div>
+</div>
+</div>
+</div>
+@include('includes.footer')

@@ -50,4 +50,9 @@ class SubjectHasSyllabus extends Model
     {
         return $this->belongsTo(SubjectCourseMaster::class, 'course_id', 'course_master_id');
     }
+
+    function syllabusunits()
+    {
+        return $this->hasMany(SyllabusSubunit::class, 'syllabus_manager_id', 'id');
+    }
 }
