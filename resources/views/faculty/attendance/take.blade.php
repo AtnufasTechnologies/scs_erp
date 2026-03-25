@@ -1,0 +1,461 @@
+@include('includes.header')
+
+<div class="wrapper">
+  @include('faculty.sidebar')
+
+  <!--start main wrapper-->
+  <main class="page-content">
+    <!--start breadcrumb-->
+    <div class="page-breadcrumb d-none d-sm-flex align-items-center gap-2">
+      <div class="breadcrumb-title pe-3">Dashboard</div>
+      <div class="ps-2">
+        <nav aria-label="breadcrumb">
+          <ol class="breadcrumb mb-0 p-0">
+            <li class="breadcrumb-item"><a href="{{ route('faculty.attendance.index') }}"><i class="bx bx-home-alt"></i></a></li>
+            <li class="breadcrumb-item"><a href="{{ route('faculty.attendance.index') }}">Attendance</a></li>
+            <li class="breadcrumb-item active" aria-current="page">Take Attendance</li>
+          </ol>
+        </nav>
+      </div>
+    </div>
+    <!--end breadcrumb-->
+
+    @if(session('success'))
+    <div class="alert alert-success alert-dismissible fade show" role="alert">
+      <i class="fa fa-check-circle me-2"></i>{{ session('success') }}
+      <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+    </div>
+    @endif
+
+    @if(session('error'))
+    <div class="alert alert-danger alert-dismissible fade show" role="alert">
+      <i class="fa fa-exclamation-circle me-2"></i>{{ session('error') }}
+      <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+    </div>
+    @endif
+
+    <div class="container-fluid py-4">
+      <div class="row mb-4">
+        <div class="col-12">
+          <h2 class="fw-bold">Take Attendance</h2>
+          <p class="text-muted mb-1">
+            <strong>Subject:</strong> {{ $syllabusAssignment->syllabus->subject->title ?? 'N/A' }}
+          </p>
+          <p class="text-muted">
+            <strong>Course:</strong> {{ $syllabusAssignment->syllabus->courseLink->courseMaster->course_title ?? 'N/A' }}
+            ({{ $syllabusAssignment->syllabus->courseLink->courseMaster->course_code ?? 'N/A' }}) |
+            <strong>Semester:</strong> {{ $syllabusAssignment->syllabus->semestermaster->title ?? 'N/A' }}
+          </p>
+        </div>
+      </div>
+
+      <div class="card shadow-sm">
+        <div class="card-body">
+          <form action="{{ route('faculty.attendance.store') }}" method="POST" id="attendanceForm">
+            @csrf
+
+            <input type="hidden" name="routine_id" value="{{ $syllabusAssignment->id }}">
+
+            <div class="row mb-4">
+              <div class="col-md-4">
+                <label for="attendance_date" class="form-label">Date <span class="text-danger">*</span></label>
+                <input type="date" class="form-control" id="attendance_date" name="attendance_date"
+                  value="{{ $date }}" required max="{{ date('Y-m-d') }}">
+              </div>
+              <div class="col-md-4">
+                <label for="lecture_start_time" class="form-label">Lecture Start Time <span class="text-danger">*</span></label>
+                <input type="time" class="form-control" id="lecture_start_time" name="lecture_start_time"
+                  value="{{ $lectureTime }}" required>
+              </div>
+              <div class="col-md-4">
+                <label for="lecture_end_time" class="form-label">Lecture End Time</label>
+                <input type="time" class="form-control" id="lecture_end_time" name="lecture_end_time">
+              </div>
+
+            </div>
+
+            <div class="alert alert-info d-flex align-items-center">
+              <i class="fa fa-info-circle fs-4 me-3"></i>
+              <div>
+                <strong>Quick Marking:</strong> All students are marked <strong class="text-success">PRESENT</strong> by default.
+                Only check the box for students who are <strong class="text-danger">ABSENT</strong>.
+              </div>
+            </div>
+
+            @if($students->isEmpty())
+            <div class="alert alert-warning">
+              <i class="fa fa-exclamation-triangle me-2"></i>No students enrolled in this subject.
+            </div>
+            @else
+            <!-- Search Box -->
+            <div class="row mb-3">
+              <div class="col-md-6">
+                <div class="input-group">
+                  <span class="input-group-text bg-white">
+                    <i class="fa fa-search"></i>
+                  </span>
+                  <input type="text" class="form-control" id="studentSearch"
+                    placeholder="Search by name or registration number..."
+                    autocomplete="off">
+                  <button class="btn btn-outline-secondary" type="button" onclick="clearSearch()">
+                    <i class="fa fa-times"></i> Clear
+                  </button>
+                </div>
+                <small class="text-muted">
+                  <span id="searchResultCount"></span>
+                </small>
+              </div>
+              <div class="col-md-6 text-end d-flex align-items-center justify-content-end">
+                <span class="badge bg-secondary fs-6 px-3 py-2">
+                  Total Students: <strong id="visibleCount">{{ $students->count() }}</strong>
+                </span>
+              </div>
+            </div>
+
+            <div class="table-responsive">
+              <table class="table table-hover">
+                <thead class="table-light sticky-top">
+                  <tr>
+                    <th width="5%">#</th>
+                    <th width="15%">Reg No</th>
+                    <th width="40%">Student Name</th>
+                    <th width="10%" class="text-center">Absent</th>
+                    <th width="30%">Remarks</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  @foreach($students as $index => $student)
+                  @php
+                  $existingStatus = $existingAttendance[$student->id]->status ?? 'present';
+                  $existingRemarks = $existingAttendance[$student->id]->remarks ?? '';
+                  @endphp
+                  <tr class="student-row" data-student-id="{{ $student->id }}">
+                    <td>{{ $index + 1 }}</td>
+                    <td><span class="badge bg-secondary text-uppercase">{{ $student->roll_no ?? 'N/A' }}</span></td>
+                    <td class="student-name">{{ $student->first_name }} {{ $student->middle_name }} {{ $student->last_name }}</td>
+                    <td class="text-center">
+                      <div class="form-check d-inline-block">
+                        <input class="form-check-input status-checkbox" type="checkbox"
+                          value="absent"
+                          id="absent_{{ $student->id }}"
+                          data-student="{{ $student->id }}"
+                          {{ $existingStatus === 'absent' ? 'checked' : '' }}>
+                        <label class="form-check-label" for="absent_{{ $student->id }}"></label>
+                      </div>
+                    </td>
+                    <td>
+                      <input type="text" class="form-control form-control-sm remarks-input"
+                        name="remarks[{{ $student->id }}]"
+                        placeholder="Add remarks (optional)"
+                        value="{{ $existingRemarks }}">
+                    </td>
+                    <!-- Hidden input to store the final status -->
+                    <input type="hidden" name="attendance[{{ $student->id }}]"
+                      id="status_{{ $student->id }}"
+                      value="{{ $existingStatus }}">
+                  </tr>
+                  @endforeach
+                </tbody>
+              </table>
+            </div>
+
+            <div class="row mt-3">
+              <div class="col-md-12">
+                <div class="alert alert-light border">
+                  <strong>Summary:</strong>
+                  <span class="ms-2">Total: <strong id="totalCount">{{ $students->count() }}</strong></span>
+                  <span class="ms-3 text-success">Present: <strong id="presentCount">{{ $students->count() }}</strong></span>
+                  <span class="ms-3 text-danger">Absent: <strong id="absentCount">0</strong></span>
+                </div>
+              </div>
+            </div>
+
+            <div class="d-flex justify-content-between mt-4">
+              <a href="{{ route('faculty.attendance.index') }}" class="btn btn-secondary">
+                <i class="bi bi-arrow-left me-1"></i>Back
+              </a>
+              <button type="submit" class="btn btn-primary">
+                <i class="bi bi-save me-1"></i>Save Attendance
+              </button>
+            </div>
+            @endif
+          </form>
+        </div>
+      </div>
+    </div>
+  </main>
+</div>
+
+<script>
+  document.addEventListener('DOMContentLoaded', function() {
+    // Prevent Sunday selection in attendance date
+    const dateInput = document.getElementById('attendance_date');
+
+    dateInput.addEventListener('input', function() {
+      const selectedDate = new Date(this.value);
+      // getDay() returns 0 for Sunday
+      if (selectedDate.getDay() === 0) {
+        alert('⚠️ Sunday is a holiday. Please select a weekday for attendance.');
+        this.value = ''; // Clear the invalid date
+      }
+    });
+
+    // Handle checkbox changes - only one status per student
+    document.querySelectorAll('.status-checkbox').forEach(checkbox => {
+      checkbox.addEventListener('change', function() {
+        const studentId = this.dataset.student;
+        const row = this.closest('tr');
+
+        if (this.checked) {
+          // Update hidden input with absent status
+          document.getElementById('status_' + studentId).value = 'absent';
+
+          // Highlight row as absent (red)
+          row.classList.remove('table-success');
+          row.classList.add('table-danger');
+        } else {
+          // If unchecked, mark as present
+          document.getElementById('status_' + studentId).value = 'present';
+          row.classList.remove('table-danger');
+          row.classList.add('table-success');
+        }
+
+        updateSummary();
+      });
+    });
+
+    // Initialize row highlighting and summary
+    function initializeRows() {
+      document.querySelectorAll('.student-row').forEach(row => {
+        const studentId = row.dataset.studentId;
+        const status = document.getElementById('status_' + studentId).value;
+
+        row.classList.remove('table-success', 'table-danger');
+        if (status === 'present') row.classList.add('table-success');
+        else if (status === 'absent') row.classList.add('table-danger');
+      });
+      updateSummary();
+    }
+
+    // Update attendance summary
+    function updateSummary() {
+      const total = document.querySelectorAll('.student-row').length;
+      let absent = 0;
+
+      document.querySelectorAll('[id^="status_"]').forEach(input => {
+        const status = input.value;
+        if (status === 'absent') absent++;
+      });
+
+      const present = total - absent;
+
+      document.getElementById('totalCount').textContent = total;
+      document.getElementById('presentCount').textContent = present;
+      document.getElementById('absentCount').textContent = absent;
+    }
+
+    // Clear all selections
+    window.clearAll = function() {
+      document.querySelectorAll('.status-checkbox').forEach(cb => cb.checked = false);
+      document.querySelectorAll('[id^="status_"]').forEach(input => input.value = 'present');
+      document.querySelectorAll('.student-row').forEach(row => {
+        row.classList.remove('table-danger');
+        row.classList.add('table-success');
+      });
+      updateSummary();
+    };
+
+    // Search functionality
+    const searchInput = document.getElementById('studentSearch');
+    const searchResultCount = document.getElementById('searchResultCount');
+    const visibleCount = document.getElementById('visibleCount');
+
+    function performSearch() {
+      const searchTerm = searchInput.value.toLowerCase().trim();
+      const rows = document.querySelectorAll('.student-row');
+      let visibleStudents = 0;
+
+      rows.forEach(row => {
+        const regNo = row.querySelector('td:nth-child(2)').textContent.toLowerCase();
+        const studentName = row.querySelector('.student-name').textContent.toLowerCase();
+
+        if (regNo.includes(searchTerm) || studentName.includes(searchTerm)) {
+          row.style.display = '';
+          visibleStudents++;
+        } else {
+          row.style.display = 'none';
+        }
+      });
+
+      // Update visible count
+      visibleCount.textContent = visibleStudents;
+
+      // Update search result text
+      if (searchTerm) {
+        if (visibleStudents === 0) {
+          searchResultCount.textContent = '❌ No students found';
+          searchResultCount.classList.add('text-danger');
+          searchResultCount.classList.remove('text-success');
+        } else {
+          searchResultCount.textContent = `✓ Found ${visibleStudents} student${visibleStudents !== 1 ? 's' : ''}`;
+          searchResultCount.classList.add('text-success');
+          searchResultCount.classList.remove('text-danger');
+        }
+      } else {
+        searchResultCount.textContent = '';
+      }
+    }
+
+    // Clear search
+    window.clearSearch = function() {
+      searchInput.value = '';
+      performSearch();
+      searchInput.focus();
+    };
+
+    // Listen for search input
+    searchInput?.addEventListener('input', performSearch);
+
+    // Listen for Enter key on search
+    searchInput?.addEventListener('keypress', function(e) {
+      if (e.key === 'Enter') {
+        e.preventDefault();
+      }
+    });
+
+    // Initialize on page load
+    initializeRows();
+
+    // Form validation
+    document.getElementById('attendanceForm')?.addEventListener('submit', function(e) {
+      const date = document.getElementById('attendance_date').value;
+      const time = document.getElementById('lecture_start_time').value;
+
+      if (!date || !time) {
+        e.preventDefault();
+        alert('Please select both date and lecture start time.');
+        return false;
+      }
+
+      // Check if selected date is Sunday
+      const selectedDate = new Date(date);
+      if (selectedDate.getDay() === 0) {
+        e.preventDefault();
+        alert('⚠️ Cannot submit attendance for Sunday. Sunday is a holiday. Please select a weekday.');
+        document.getElementById('attendance_date').value = '';
+        return false;
+      }
+    });
+  });
+</script>
+
+<style>
+  .table-responsive {
+    max-height: 60vh;
+    overflow-y: auto;
+  }
+
+  .sticky-top {
+    position: sticky;
+    top: 0;
+    z-index: 10;
+    background: white;
+  }
+
+  .student-row {
+    transition: background-color 0.3s ease;
+  }
+
+  .student-row.table-success {
+    background-color: #d1e7dd !important;
+  }
+
+  .student-row.table-danger {
+    background-color: #f8d7da !important;
+  }
+
+  .student-row.table-warning {
+    background-color: #fff3cd !important;
+  }
+
+  .student-row.table-info {
+    background-color: #cff4fc !important;
+  }
+
+  .form-check-input {
+    cursor: pointer;
+    width: 1.25rem;
+    height: 1.25rem;
+  }
+
+  .form-check-input:checked[data-status="absent"] {
+    background-color: #dc3545;
+    border-color: #dc3545;
+  }
+
+  .form-check-input:checked[data-status="late"] {
+    background-color: #ffc107;
+    border-color: #ffc107;
+  }
+
+  .form-check-input:checked[data-status="excused"] {
+    background-color: #0dcaf0;
+    border-color: #0dcaf0;
+  }
+
+  .student-name {
+    font-weight: 500;
+  }
+
+  .remarks-input {
+    border: 1px solid #dee2e6;
+  }
+
+  .remarks-input:focus {
+    border-color: #86b7fe;
+    box-shadow: 0 0 0 0.25rem rgba(13, 110, 253, 0.25);
+  }
+
+  thead th {
+    font-weight: 600;
+    text-transform: uppercase;
+    font-size: 0.85rem;
+    letter-spacing: 0.5px;
+  }
+
+  /* Search Box Styling */
+  #studentSearch {
+    border-left: none;
+    font-size: 1rem;
+    padding: 0.75rem;
+  }
+
+  #studentSearch:focus {
+    box-shadow: none;
+    border-color: #dee2e6;
+  }
+
+  .input-group-text {
+    border-right: none;
+  }
+
+  #studentSearch:focus+.input-group-text {
+    border-color: #86b7fe;
+  }
+
+  #searchResultCount {
+    display: block;
+    margin-top: 0.25rem;
+    font-weight: 500;
+  }
+
+  .table tbody tr {
+    transition: all 0.2s ease;
+  }
+
+  .table tbody tr[style*="display: none"] {
+    opacity: 0;
+  }
+</style>
+
+@include('includes.footer')

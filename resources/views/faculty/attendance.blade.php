@@ -1,2 +1,4 @@
-<h1>Student Attendance</h1>
-<p>Manage student attendance here.</p>
+@php
+header("Location: " . route('faculty.attendance.index'));
+exit();
+@endphp
