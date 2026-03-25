@@ -29,7 +29,7 @@ use Illuminate\Support\Facades\Auth;
       <div class="stats-card gradient-green">
         <div class="d-flex justify-content-between align-items-start">
           <div>
-            <div style="font-size: 14px; opacity: 0.9; margin-bottom: 8px;">Total Activities</div>
+            <div style="font-size: 14px; opacity: 0.9; margin-bottom: 8px;"> Activities</div>
             <div style="font-size: 36px; font-weight: 700;">{{ $stats['total'] }}</div>
           </div>
           <div style="width: 56px; height: 56px; background: rgba(255, 255, 255, 0.2); border-radius: 14px; display: flex; align-items: center; justify-content: center;">

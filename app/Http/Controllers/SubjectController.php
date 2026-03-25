@@ -383,6 +383,9 @@ class SubjectController extends Controller
         $combinations = SubjectHasStudentProgam::where('subject_id', $subjectId)
             ->with(['studentprograminfo', 'batchmaster'])
             ->where('batch_id', $activeBatch)
+            ->withCount(['studentmaster' => function ($query) use ($activeBatch) {
+                $query->where('batch', $activeBatch);
+            }])
             ->get();
 
 
@@ -390,11 +393,8 @@ class SubjectController extends Controller
         $faculties = SubjectFacultyMaster::with('faculty')->where('subject_id', $subjectId)->get();
         $syllabusCount = SyllabusManager::where('subject_id', $subjectId)->distinct('batch_id')->count();
 
-        //Student Count for each Program
-        $deptStudentCount = SubjectHasStudentProgam::where('subject_id', $subjectId)
-            ->withCount('studentmaster')
-            ->get()
-            ->sum('studentmaster_count');
+
+
 
         // Get upcoming activities
         $upcomingActivities = DepartmentActivity::where('subject_id', $subjectId)
@@ -407,7 +407,6 @@ class SubjectController extends Controller
             'total' => DepartmentActivity::where('subject_id', $subjectId)->count(),
             'upcoming' => DepartmentActivity::where('subject_id', $subjectId)->upcoming()->count(),
         ];
-
         return view('admin.subject.department-dashboard', [
             'data' => $courseMaster,
             'students_count' => $studentsCount,
@@ -417,7 +416,6 @@ class SubjectController extends Controller
             'programs' => $programs,
             'deptfaculties' => $faculties,
             'syllabusCount' => $syllabusCount,
-            'deptStudentCount' => $deptStudentCount,
             'upcomingActivities' => $upcomingActivities,
             'activityStats' => $activityStats,
 
@@ -986,5 +984,15 @@ class SubjectController extends Controller
         ])->firstOrFail();
 
         return view('admin.subject.student-profile', ['data' => $data]);
+    }
+
+    function deptFacultyList($subjectId)
+    {
+        $faculties = SubjectFacultyMaster::with('faculty')->where('subject_id', $subjectId)->get();
+        $subject = Subject::find($subjectId);
+        return view('admin.department.faculty.index', [
+            'data' => $faculties,
+            'subject' => $subject,
+        ]);
     }
 }

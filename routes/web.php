@@ -409,7 +409,7 @@ Route::group(['prefix' => '/erp'], function () {
         Route::get('faculty-access-revoke/{id}', [AccessController::class, 'revokeFacultyAccess'])->name('department.faculty.revoke-access');
         Route::get('show-student-list', [SubjectController::class, 'showStudentList'])->name('department.show.student.list');
         Route::get('student-profile', [SubjectController::class, 'studentProfile'])->name('department.student.profile');
-
+        Route::get('faculty-list/{subjectId}', [SubjectController::class, 'deptFacultyList'])->name('department.faculty.list');
         // Department Activities
         Route::get('activities/{subjectId}', [DepartmentActivityController::class, 'index'])->name('department.activities.index');
         Route::post('activities', [DepartmentActivityController::class, 'store'])->name('department.activities.store');

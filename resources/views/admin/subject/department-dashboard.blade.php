@@ -58,12 +58,12 @@ $mainStreams = ProgramMaster::all();
     <div class="d-flex align-items-center gap-4">
       <div class="xp-badge">
         <div class="xp-coin">
-          <i class="fas fa-user-graduate me-1" style="color: #b8860b; font-size: 18px;"></i>
+          <i class="fas fa-bell me-1" style="color: #322709; font-size: 18px;"></i>
 
         </div>
         <div>
-          <div style="font-size: 24px; font-weight: 700; color: #1a1a1a;">{{ $deptStudentCount ?? 0 }} </div>
-          <div style="font-size: 12px; color: #6b7280;">Students</div>
+          <div style="font-size: 24px; font-weight: 700; color: #1a1a1a;">5 </div>
+          <div style="font-size: 12px; color: #6b7280;">Notifications</div>
         </div>
       </div>
     </div>
@@ -144,6 +144,15 @@ $mainStreams = ProgramMaster::all();
           </div>
         </div>
       </div>
+      @else
+      <div class="card shadow">
+        <div class="d-flex justify-content-between align-items-center mb-4">
+          <h5 style="color: #1a1a1a; font-weight: 700; margin: 0;">
+            <i class="fas fa-calendar-star me-2" style="color: #fbbf24;"></i>No Upcoming Activities
+          </h5>
+        </div>
+      </div>
+
       @endif
 
     </div>
@@ -285,12 +294,13 @@ $mainStreams = ProgramMaster::all();
         <table class="table table-hover">
           <thead>
             <tr style="border-bottom: 2px solid #f0f0f0;">
-              <th style="color: #6b7280; font-weight: 600; padding: 16px;">#</th>
-              <th style="color: #6b7280; font-weight: 600;">Batch</th>
-              <th style="color: #6b7280; font-weight: 600;">Program</th>
-              <th style="color: #6b7280; font-weight: 600;">Program Type</th>
-              <th style="color: #6b7280; font-weight: 600;">Details</th>
-              <th style="color: #6b7280; font-weight: 600;">Action</th>
+              <th style="color: #e9ebef; font-weight: 600; padding: 16px;">#</th>
+              <th style="color: #e9ebef; font-weight: 600;">Batch</th>
+              <th style="color: #e9ebef; font-weight: 600;">Program</th>
+              <th style="color: #e9ebef; font-weight: 600;">Program Type</th>
+              <th style="color: #e9ebef; font-weight: 600;">Students </th>
+              <th style="color: #e9ebef; font-weight: 600;">Details</th>
+              <th style="color: #e9ebef; font-weight: 600;">Action</th>
             </tr>
           </thead>
           <tbody>
@@ -305,6 +315,7 @@ $mainStreams = ProgramMaster::all();
                 </a>
               </td>
               <td><span class="badge" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); padding: 6px 12px; border-radius: 8px;">{{$combination->program_type}}</span></td>
+              <td>{{ $combination->studentmaster_count }}</td>
               <td>
                 <span class="badge" style="background: #43cea2; padding: 6px 12px; border-radius: 8px;">ID: {{ $combination->studentprograminfo->id ?? '-' }}</span>
               </td>

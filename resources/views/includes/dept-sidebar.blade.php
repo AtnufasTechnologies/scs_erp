@@ -37,12 +37,16 @@ $data = $subject;
     </div>
   </a>
 
+  <a href="{{route('department.faculty.list',[$data->id])}}">
+    <div class="sidebar-icon" title="Faculty">
+      <i class="fas fa-chalkboard-teacher fa-lg"></i>
+    </div>
+  </a>
+
   <div class="sidebar-icon" title="Students">
     <i class="fas fa-user-graduate fa-lg"></i>
   </div>
-  <div class="sidebar-icon" title="Faculty">
-    <i class="fas fa-chalkboard-teacher fa-lg"></i>
-  </div>
+
 
 
   <a href="{{route('department.faculty.access',[$data->id,$data->slug])}}">
