@@ -41,40 +41,6 @@ class AttendanceController extends Controller
     ]);
   }
 
-  /**
-   * Show attendance form for a specific class
-   */
-  public function takeAttendance(Request $request, $routineId)
-  {
-    dd('testing');
-
-    $syllabusAssignment = SubjectHasRoutine::with([
-      'syllabus.subject',
-      'syllabus.semestermaster',
-      'syllabus.courseLink.courseMaster'
-    ])->findOrFail($routineId);
-
-    $date = $request->get('date', date('Y-m-d'));
-    $lectureTime = $request->get('lecture_time', date('H:i'));
-
-    // Get students enrolled in this subject
-    $students = $this->getEnrolledStudents($syllabusAssignment->syllabus_id);
-
-    // Get existing attendance records for today
-    $existingAttendance = StudentAttendance::where('routine_id', $routineId)
-      ->where('attendance_date', $date)
-      ->where('lecture_start_time', $lectureTime . ':00')
-      ->get()
-      ->keyBy('student_id');
-
-    return view('faculty.attendance.take', compact(
-      'syllabusAssignment',
-      'students',
-      'date',
-      'lectureTime',
-      'existingAttendance'
-    ));
-  }
 
   /**
    * Store attendance records
@@ -134,49 +100,42 @@ class AttendanceController extends Controller
   /**
    * View attendance records
    */
-  public function viewAttendance($routineId)
+  public function viewAttendance(Request $request)
   {
-    $syllabusAssignment = SubjectHasRoutine::with([
-      'syllabus.subject',
-      'syllabus.semestermaster',
-      'syllabus.courseLink.courseMaster'
-    ])->findOrFail($routineId);
 
-    $students = $this->getEnrolledStudents($syllabusAssignment->syllabus_id);
-
-    // Get all attendance records for this subject
-    $attendanceRecords = StudentAttendance::where('routine_id', $routineId)
-      ->orderBy('attendance_date', 'desc')
-      ->orderBy('lecture_start_time', 'desc')
+    $userId = Auth::user()->id;
+    $facultyId = SubjectFacultyMaster::where('access_id', $userId)->value('faculty_id');
+    // Get all subjects assigned to this faculty
+    $syllabusAssignments = SubjectHasRoutine::where('faculty_id', $facultyId)
+      ->with([
+        'syllabus.subject:id,title',
+        'syllabus.batchmaster:id,batch_name',
+        'syllabus.semestermaster:id,title',
+        'syllabus.courseLink.courseMaster:id,course_title,course_code',
+      ])
       ->get()
-      ->groupBy('attendance_date');
+      ->unique('syllabus_id');
 
-    // Calculate attendance statistics
-    $statistics = [];
-    foreach ($students as $student) {
-      $statistics[$student->id] = [
-        'student' => $student,
-        'percentage' => StudentAttendance::getAttendancePercentage($student->id, $routineId),
-        'present' => StudentAttendance::where('student_id', $student->id)
-          ->where('routine_id', $routineId)
-          ->where('status', 'present')
-          ->count(),
-        'absent' => StudentAttendance::where('student_id', $student->id)
-          ->where('routine_id', $routineId)
-          ->where('status', 'absent')
-          ->count(),
-        'late' => StudentAttendance::where('student_id', $student->id)
-          ->where('routine_id', $routineId)
-          ->where('status', 'late')
-          ->count(),
-      ];
+
+    $query = StudentAttendance::orderBy('attendance_date', 'desc')
+      ->orderBy('hour_id', 'asc')
+      ->where('faculty_id', $facultyId);
+
+    if (!empty($request->attendance_date)) {
+      $query->where('attendance_date', $request->attendance_date);
+    }
+    if (!empty($request->course_filter)) {
+      $query->where('course_id', $request->course_filter);
     }
 
-    return view('faculty.attendance.view', compact(
-      'syllabusAssignment',
-      'attendanceRecords',
-      'statistics'
-    ));
+    $data = $query->get();
+
+
+    return view('faculty.attendance.view', [
+      'syllabusAssignments' => $syllabusAssignments,
+      'attendanceRecords' => $data,
+
+    ]);
   }
 
   /**

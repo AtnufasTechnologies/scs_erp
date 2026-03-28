@@ -430,7 +430,7 @@ Route::group(['prefix' => '/erp'], function () {
         Route::get('attendance', [FacultyAttendanceController::class, 'index'])->name('faculty.attendance.index');
         Route::get('attendance/take/{routineId}', [FacultyAttendanceController::class, 'takeAttendance'])->name('faculty.attendance.take');
         Route::post('attendance/store', [FacultyAttendanceController::class, 'storeAttendance'])->name('faculty.attendance.store');
-        Route::get('attendance/view/{routineId}', [FacultyAttendanceController::class, 'viewAttendance'])->name('faculty.attendance.view');
+        Route::get('attendance/view', [FacultyAttendanceController::class, 'viewAttendance'])->name('faculty.attendance.view');
         Route::delete('attendance/{id}', [FacultyAttendanceController::class, 'deleteAttendance'])->name('faculty.attendance.delete');
         Route::get('attendance/create', [FacultyAttendanceController::class, 'getStudentList'])->name('faculty.attendance.create');
 

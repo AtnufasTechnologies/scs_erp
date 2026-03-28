@@ -31,6 +31,7 @@ $hourMaster = HourMaster::all();
           <h2 class="fw-bold">Student Attendance</h2>
           <p class="text-muted">Select a subject to take or view attendance</p>
         </div>
+        <a href="{{ route('faculty.attendance.view') }}"><button class="btn btn-primary">View Attendance List</button></a>
       </div>
 
       @if(session('success'))

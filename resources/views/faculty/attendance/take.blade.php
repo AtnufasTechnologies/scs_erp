@@ -180,8 +180,9 @@ $hourmaster = HourMaster::all();
               <a href="{{ route('faculty.attendance.index') }}" class="btn btn-secondary">
                 <i class="bi bi-arrow-left me-1"></i>Back
               </a>
-              <button type="submit" class="btn btn-primary">
-                <i class="bi bi-save me-1"></i>Save Attendance
+              <button type="submit" class="btn btn-primary" id="submitBtn">
+                <span id="submitBtnText"><i class="bi bi-save me-1"></i>Save Attendance</span>
+                <span id="loader" class="spinner-border spinner-border-sm d-none" role="status" aria-hidden="true"></span>
               </button>
             </div>
             @endif
@@ -350,6 +351,16 @@ $hourmaster = HourMaster::all();
         alert('⚠️ Cannot submit attendance for Sunday. Sunday is a holiday. Please select a weekday.');
         document.getElementById('attendance_date').value = '';
         return false;
+      }
+
+      // Show loader and disable submit button
+      var submitBtn = document.getElementById('submitBtn');
+      var submitBtnText = document.getElementById('submitBtnText');
+      var loader = document.getElementById('loader');
+      if (submitBtn && submitBtnText && loader) {
+        submitBtn.disabled = true;
+        submitBtnText.classList.add('d-none');
+        loader.classList.remove('d-none');
       }
     });
   });

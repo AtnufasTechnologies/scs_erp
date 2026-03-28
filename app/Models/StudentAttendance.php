@@ -68,10 +68,10 @@ class StudentAttendance extends Model
   /**
    * Get attendance percentage for a student
    */
-  public static function getAttendancePercentage($studentId, $routineId)
+  public static function getAttendancePercentage($studentId, $course_id)
   {
     $total = self::where('student_id', $studentId)
-      ->where('routine_id', $routineId)
+      ->where('course_id', $course_id)
       ->count();
 
     if ($total === 0) {
@@ -79,10 +79,15 @@ class StudentAttendance extends Model
     }
 
     $present = self::where('student_id', $studentId)
-      ->where('routine_id', $routineId)
+      ->where('course_id', $course_id)
       ->where('status', 'present')
       ->count();
 
     return round(($present / $total) * 100, 2);
+  }
+
+  function courseinfo()
+  {
+    return $this->belongsTo(ProgramCourseMaster::class, 'course_id');
   }
 }
