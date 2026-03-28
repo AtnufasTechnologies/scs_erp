@@ -1,3 +1,9 @@
+<?php
+
+use App\Models\HourMaster;
+
+$hourMaster = HourMaster::all();
+?>
 @include('includes.header')
 
 <div class="wrapper">
@@ -51,6 +57,7 @@
           <div class="card shadow-sm">
             <div class="card-body p-4">
               <!-- Subject Selection Dropdown -->
+
               <div class="mb-4">
                 <label for="subjectSelect" class="form-label fw-bold">
                   <i class="fa fa-book me-2"></i>Select Subject
@@ -59,11 +66,9 @@
                   <option value="" selected disabled>Choose a subject...</option>
                   @foreach($syllabusAssignments as $item)
                   <option value="{{ $item->id }}"
-                    data-subject-title="{{ $item->syllabus->subject->title ?? 'N/A' }}"
-                    data-course-title="{{ $item->syllabus->courseLink->courseMaster->course_title ?? 'N/A' }}"
-                    data-course-code="{{ $item->syllabus->courseLink->courseMaster->course_code ?? 'N/A' }}"
-                    data-semester="{{ $item->syllabus->semestermaster->title ?? 'N/A' }}"
-                    data-batch="{{ $item->syllabus->batchmaster->batch_name ?? 'N/A' }}">
+                    data-semester-id="{{ $item->syllabus->semester_id ?? '' }}"
+                    data-batch-id="{{ $item->syllabus->batchmaster->id ?? '' }}"
+                    data-syllabus-id="{{ $item->syllabus->id ?? '' }}">
                     {{ $item->syllabus->courseLink->courseMaster->course_title ?? 'N/A' }}
                     ({{ $item->syllabus->courseLink->courseMaster->course_code ?? 'N/A' }})
                     - {{ $item->syllabus->semestermaster->title ?? 'N/A' }}
@@ -73,49 +78,31 @@
                 </select>
               </div>
 
-              <!-- Subject Details Card (Hidden by default) -->
-              <div id="subjectDetails" class="d-none">
-                <div class="alert alert-light border">
-                  <div class="row">
-                    <div class="col-md-6 mb-3">
-                      <small class="text-muted d-block">Subject</small>
-                      <strong id="detailSubjectTitle">-</strong>
-                    </div>
-                    <div class="col-md-6 mb-3">
-                      <small class="text-muted d-block">Course Code</small>
-                      <strong id="detailCourseCode">-</strong>
-                    </div>
-                    <div class="col-md-6 mb-3">
-                      <small class="text-muted d-block">Course Title</small>
-                      <strong id="detailCourseTitle">-</strong>
-                    </div>
-                    <div class="col-md-3 mb-3">
-                      <small class="text-muted d-block">Semester</small>
-                      <strong id="detailSemester">-</strong>
-                    </div>
-                    <div class="col-md-3 mb-3">
-                      <small class="text-muted d-block">Batch</small>
-                      <strong id="detailBatch">-</strong>
-                    </div>
+
+              <div class="row">
+                <div class="col-lg-6">
+                  <div class="mb-4">
+                    <label for="hourSelect" class="form-label fw-bold">Hour</label>
+                    <select id="hourSelect" class="form-select">
+                      <option value="" selected disabled>Choose hour...</option>
+                      @foreach(App\Models\HourMaster::orderBy('id')->get() as $hour)
+                      <option value="{{ $hour->id }}">{{ $hour->title ?? $hour->hour_name ?? 'Hour '.$hour->id }}</option>
+                      @endforeach
+                    </select>
                   </div>
                 </div>
-
-                <!-- Action Buttons -->
-                <div class="d-flex gap-3 mt-4">
-                  <button type="button" class="btn btn-primary btn-lg flex-fill" id="btnTakeAttendance">
-                    <i class="fa fa-plus-circle me-2"></i>Take Attendance
-                  </button>
-                  <button type="button" class="btn btn-outline-primary btn-lg flex-fill" id="btnViewRecords">
-                    <i class="fa fa-eye me-2"></i>View Records
-                  </button>
+                <div class="col-lg-6">
+                  <label for="attendanceDate" class="form-label fw-bold">Date</label>
+                  <input type="date" id="attendanceDate" class="form-control" max="{{ date('Y-m-d') }}" value="{{ date('Y-m-d') }}">
                 </div>
               </div>
 
-              <!-- Help Text (Visible by default) -->
-              <div id="helpText" class="text-center text-muted py-5">
-                <i class="bi bi-arrow-up-circle display-4 text-muted mb-3 d-block"></i>
-                <p>Please select a subject from the dropdown above to continue</p>
+              <div class="mb-4 text-center">
+                <button type="button" class="btn btn-success btn-lg" id="btnLoadStudents" disabled>
+                  <i class="fa fa-users me-2"></i>Load Students
+                </button>
               </div>
+
             </div>
           </div>
         </div>
@@ -128,46 +115,46 @@
 <script>
   document.addEventListener('DOMContentLoaded', function() {
     const subjectSelect = document.getElementById('subjectSelect');
-    const subjectDetails = document.getElementById('subjectDetails');
-    const helpText = document.getElementById('helpText');
-    const btnTakeAttendance = document.getElementById('btnTakeAttendance');
-    const btnViewRecords = document.getElementById('btnViewRecords');
+    const hourSelect = document.getElementById('hourSelect');
+    const attendanceDate = document.getElementById('attendanceDate');
+    const btnLoadStudents = document.getElementById('btnLoadStudents');
 
-    // Handle subject selection
-    subjectSelect.addEventListener('change', function() {
-      const selectedOption = this.options[this.selectedIndex];
-
-      if (this.value) {
-        // Get data from selected option
-        const subjectTitle = selectedOption.dataset.subjectTitle;
-        const courseTitle = selectedOption.dataset.courseTitle;
-        const courseCode = selectedOption.dataset.courseCode;
-        const semester = selectedOption.dataset.semester;
-        const batch = selectedOption.dataset.batch;
-
-        // Update details
-        document.getElementById('detailSubjectTitle').textContent = subjectTitle;
-        document.getElementById('detailCourseCode').textContent = courseCode;
-        document.getElementById('detailCourseTitle').textContent = courseTitle;
-        document.getElementById('detailSemester').textContent = semester;
-        document.getElementById('detailBatch').textContent = batch;
-
-        // Show details, hide help text
-        subjectDetails.classList.remove('d-none');
-        helpText.classList.add('d-none');
-
-        // Update button URLs
-        const syllabusId = this.value;
-        btnTakeAttendance.onclick = function() {
-          window.location.href = `{{ route('faculty.attendance.take', '') }}/${syllabusId}`;
-        };
-        btnViewRecords.onclick = function() {
-          window.location.href = `{{ route('faculty.attendance.view', '') }}/${syllabusId}`;
-        };
+    function checkEnableButton() {
+      if (subjectSelect.value && hourSelect.value && attendanceDate.value) {
+        btnLoadStudents.disabled = false;
       } else {
-        // Hide details, show help text
-        subjectDetails.classList.add('d-none');
-        helpText.classList.remove('d-none');
+        btnLoadStudents.disabled = true;
+      }
+    }
+
+    subjectSelect.addEventListener('change', checkEnableButton);
+    hourSelect.addEventListener('change', checkEnableButton);
+    attendanceDate.addEventListener('change', checkEnableButton);
+
+    btnLoadStudents.addEventListener('click', function() {
+      const selectedOption = subjectSelect.options[subjectSelect.selectedIndex];
+      const recId = subjectSelect.value;
+      const hourId = hourSelect.value;
+      const date = attendanceDate.value;
+      const semesterId = selectedOption.dataset.semesterId;
+      const batchId = selectedOption.dataset.batchId;
+      const syllabusId = selectedOption.dataset.syllabusId;
+      // Redirect or fetch students as needed
+      // Example: redirect to attendance creation page with params
+      const url = `{{ url('erp/faculty/attendance/create') }}?rec_id=${recId}&syllabus_id=${syllabusId}&hour_id=${hourId}&attendance_date=${date}&semester_id=${semesterId}&batch_id=${batchId}`;
+      window.location.href = url;
+    });
+  });
+  document.addEventListener('DOMContentLoaded', function() {
+    // Prevent Sunday selection in attendance date
+    const dateInput = document.getElementById('attendanceDate');
+
+    dateInput.addEventListener('input', function() {
+      const selectedDate = new Date(this.value);
+      // getDay() returns 0 for Sunday
+      if (selectedDate.getDay() === 0) {
+        alert('⚠️ Sunday is a holiday. Please select a weekday for attendance.');
+        this.value = ''; // Clear the invalid date
       }
     });
   });

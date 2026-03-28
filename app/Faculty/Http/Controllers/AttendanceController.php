@@ -4,11 +4,13 @@ namespace App\Faculty\Http\Controllers;
 
 use App\Http\Controllers\Controller;
 use App\Models\StudentAttendance;
+use App\Models\StudentCourseInfo;
 use App\Models\SyllabusHasFaculty;
 use App\Models\StudentMaster;
 use App\Models\SubjectFacultyMaster;
 use App\Models\SubjectHasRoutine;
 use App\Models\SubjectHasSyllabus;
+use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
@@ -31,8 +33,8 @@ class AttendanceController extends Controller
         'syllabus.semestermaster:id,title',
         'syllabus.courseLink.courseMaster:id,course_title,course_code',
       ])
-      ->distinct()
-      ->get(['id', 'syllabus_id']);
+      ->get()
+      ->unique('syllabus_id');
 
     return view('faculty.attendance.index', [
       'syllabusAssignments' => $syllabusAssignments
@@ -44,6 +46,8 @@ class AttendanceController extends Controller
    */
   public function takeAttendance(Request $request, $routineId)
   {
+    dd('testing');
+
     $syllabusAssignment = SubjectHasRoutine::with([
       'syllabus.subject',
       'syllabus.semestermaster',
@@ -77,17 +81,17 @@ class AttendanceController extends Controller
    */
   public function storeAttendance(Request $request)
   {
+
     $request->validate([
       'routine_id' => 'required|exists:subject_has_routines,id',
       'attendance_date' => 'required|date',
-      'lecture_start_time' => 'required',
-      'lecture_end_time' => 'nullable',
       'attendance' => 'required|array',
       'attendance.*' => 'in:present,absent,late,excused',
+      'course_id' => 'required',
     ]);
 
     // Check if the selected date is Sunday
-    $attendanceDate = \Carbon\Carbon::parse($request->attendance_date);
+    $attendanceDate = Carbon::parse($request->attendance_date);
     if ($attendanceDate->isSunday()) {
       return back()
         ->withInput()
@@ -96,18 +100,23 @@ class AttendanceController extends Controller
 
     DB::beginTransaction();
     try {
+      $userId = Auth::user()->id;
+      $facultyId = SubjectFacultyMaster::where('access_id', $userId)->value('faculty_id');
       foreach ($request->attendance as $studentId => $status) {
         StudentAttendance::updateOrCreate(
           [
             'routine_id' => $request->routine_id,
             'student_id' => $studentId,
             'attendance_date' => $request->attendance_date,
-            'lecture_start_time' => $request->lecture_start_time,
+            'course_id' => $request->course_id,
+            'hour_id' => $request->hour_id,
+            'faculty_id' => $facultyId,
+            'semester_id' => $request->semester_id,
+            'batch' => $request->batch,
           ],
           [
-            'lecture_end_time' => $request->lecture_end_time,
             'status' => $status,
-            'remarks' => $request->remarks[$studentId] ?? null,
+            'attendance_method' => 'manual',
           ]
         );
       }
@@ -194,5 +203,78 @@ class AttendanceController extends Controller
     } catch (\Exception $e) {
       return back()->with('error', 'Failed to delete attendance record.');
     }
+  }
+
+  /**
+   * Show attendance creation form for selected subject, hour, and date
+   */
+  public function getStudentList(Request $request)
+  {
+
+    $id = $request->input('rec_id');
+    $syllabus_id = $request->input('syllabus_id');
+    $hourId = $request->input('hour_id');
+    $attendanceDate = $request->input('attendance_date', date('Y-m-d'));
+    $semesterId = $request->input('semester_id');
+    $batchId = $request->input('batch_id');
+
+    $record =  SubjectHasSyllabus::find($syllabus_id); // Validate syllabus_id
+    if (!$record) {
+      return back()->with('error', 'Invalid syllabus selected.');
+    }
+
+    $course_id = $record->course_id;
+    $campusId = $record->subject->campus_id;
+
+    // return response()->json([
+    //   'message' => 'Data received successfully',
+    //   'data' => [
+    //     'rec_id' => $id,
+    //     'syllabus_id' => $syllabus_id,
+    //     'hour_id' => $hourId,
+    //     'attendance_date' => $attendanceDate,
+    //     'semester_id' => $semesterId,
+    //     'batch_id' => $batchId,
+    //     'course_id' => $course_id,
+    //     'campus_id' => $campusId
+    //   ]
+    // ]);
+
+    // Fetch students from student_course_infos as per course_id, semester_id, campus_id
+    $studentIds = StudentCourseInfo::where('course_id', $course_id)
+      ->when($semesterId, function ($q) use ($semesterId) {
+        $q->where('semester', $semesterId);
+      })
+      ->when($campusId, function ($q) use ($campusId) {
+        $q->where('campus_id', $campusId);
+      })
+
+      ->pluck('student_id');
+
+    $students = StudentMaster::whereIn('id', $studentIds)
+      ->where('is_deleted', 0)
+      ->where('is_left', 0)
+      ->orderBy('first_name')
+      ->orderBy('last_name')
+      ->get(['id', 'first_name', 'last_name', 'roll_no']);
+
+    $syllabusAssignment = SubjectHasSyllabus::with([
+      'courseLink.courseMaster.coursetypemaster',
+      'semestermaster:id,title',
+      'batchmaster'
+    ])->find($syllabus_id);
+
+
+    return view('faculty.attendance.take', [
+      'students' => $students,
+      'recordId' => $id,
+      'syllabusId' => $syllabus_id,
+      'hourId' => $hourId,
+      'attendanceDate' => $attendanceDate,
+      'batchId' => $batchId,
+      'syllabusAssignment' => $syllabusAssignment,
+      'course_id' => $course_id,
+      'semesterId' => $semesterId,
+    ]);
   }
 }

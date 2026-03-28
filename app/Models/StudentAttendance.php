@@ -12,8 +12,15 @@ class StudentAttendance extends Model
 
   protected $fillable = [
     'routine_id',
+    'course_id',
+    'faculty_id',
     'student_id',
     'attendance_date',
+    'hour_id',
+    'semester_id',
+    'batch',
+    'qr_url',
+    'attendance_method',
     'lecture_start_time',
     'lecture_end_time',
     'status',

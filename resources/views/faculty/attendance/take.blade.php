@@ -1,3 +1,9 @@
+<?php
+
+use App\Models\HourMaster;
+
+$hourmaster = HourMaster::all();
+?>
 @include('includes.header')
 
 <div class="wrapper">
@@ -39,12 +45,13 @@
         <div class="col-12">
           <h2 class="fw-bold">Take Attendance</h2>
           <p class="text-muted mb-1">
-            <strong>Subject:</strong> {{ $syllabusAssignment->syllabus->subject->title ?? 'N/A' }}
+            <strong> Code:</strong> {{ $syllabusAssignment->courseLink->courseMaster->course_code ?? 'N/A' }}
+            | <strong>{{ $syllabusAssignment->semestermaster->title ?? 'N/A' }} - ({{$syllabusAssignment->batchmaster->batch_name ?? 'N/A' }})</strong>
           </p>
           <p class="text-muted">
-            <strong>Course:</strong> {{ $syllabusAssignment->syllabus->courseLink->courseMaster->course_title ?? 'N/A' }}
-            ({{ $syllabusAssignment->syllabus->courseLink->courseMaster->course_code ?? 'N/A' }}) |
-            <strong>Semester:</strong> {{ $syllabusAssignment->syllabus->semestermaster->title ?? 'N/A' }}
+            <strong>Course:</strong> {{ $syllabusAssignment->courseLink->courseMaster->course_title ?? 'N/A' }}
+
+
           </p>
         </div>
       </div>
@@ -54,23 +61,27 @@
           <form action="{{ route('faculty.attendance.store') }}" method="POST" id="attendanceForm">
             @csrf
 
-            <input type="hidden" name="routine_id" value="{{ $syllabusAssignment->id }}">
-
+            <input type="hidden" name="routine_id" value="{{ $recordId }}">
+            <input type="hidden" name="course_id" value="{{ $course_id }}">
+            <input type="hidden" name="semester_id" value="{{ $semesterId }}">
+            <input type="hidden" name="batch" value="{{$syllabusAssignment->batchmaster->batch_name ?? 'N/A' }}">
             <div class="row mb-4">
               <div class="col-md-4">
                 <label for="attendance_date" class="form-label">Date <span class="text-danger">*</span></label>
                 <input type="date" class="form-control" id="attendance_date" name="attendance_date"
-                  value="{{ $date }}" required max="{{ date('Y-m-d') }}">
+                  value="{{ $attendanceDate }}" required max="{{ date('Y-m-d') }}">
               </div>
+
               <div class="col-md-4">
-                <label for="lecture_start_time" class="form-label">Lecture Start Time <span class="text-danger">*</span></label>
-                <input type="time" class="form-control" id="lecture_start_time" name="lecture_start_time"
-                  value="{{ $lectureTime }}" required>
+                <label for="hour_id" class="form-label">Selected Hour</label>
+                <select name="hour_id" id="hour_id" class="form-select">
+                  @foreach ($hourmaster as $hour)
+                  <option value="{{ $hour->id }}" {{ $hour->id == $hourId ? 'selected' : '' }}>{{ $hour->title }}</option>
+                  @endforeach
+                </select>
               </div>
-              <div class="col-md-4">
-                <label for="lecture_end_time" class="form-label">Lecture End Time</label>
-                <input type="time" class="form-control" id="lecture_end_time" name="lecture_end_time">
-              </div>
+
+
 
             </div>
 
@@ -120,7 +131,7 @@
                     <th width="15%">Reg No</th>
                     <th width="40%">Student Name</th>
                     <th width="10%" class="text-center">Absent</th>
-                    <th width="30%">Remarks</th>
+
                   </tr>
                 </thead>
                 <tbody>
@@ -132,7 +143,7 @@
                   <tr class="student-row" data-student-id="{{ $student->id }}">
                     <td>{{ $index + 1 }}</td>
                     <td><span class="badge bg-secondary text-uppercase">{{ $student->roll_no ?? 'N/A' }}</span></td>
-                    <td class="student-name">{{ $student->first_name }} {{ $student->middle_name }} {{ $student->last_name }}</td>
+                    <td class="student-name">{{ $student->first_name }} {{ $student->last_name }}</td>
                     <td class="text-center">
                       <div class="form-check d-inline-block">
                         <input class="form-check-input status-checkbox" type="checkbox"
@@ -143,12 +154,7 @@
                         <label class="form-check-label" for="absent_{{ $student->id }}"></label>
                       </div>
                     </td>
-                    <td>
-                      <input type="text" class="form-control form-control-sm remarks-input"
-                        name="remarks[{{ $student->id }}]"
-                        placeholder="Add remarks (optional)"
-                        value="{{ $existingRemarks }}">
-                    </td>
+
                     <!-- Hidden input to store the final status -->
                     <input type="hidden" name="attendance[{{ $student->id }}]"
                       id="status_{{ $student->id }}"
