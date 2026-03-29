@@ -434,6 +434,13 @@ Route::group(['prefix' => '/erp'], function () {
         Route::delete('attendance/{id}', [FacultyAttendanceController::class, 'deleteAttendance'])->name('faculty.attendance.delete');
         Route::get('attendance/create', [FacultyAttendanceController::class, 'getStudentList'])->name('faculty.attendance.create');
 
+        //Extar classes
+        Route::get('extra-classes', [FacultyAttendanceController::class, 'extraClasses'])->name('faculty.extra.classes');
+        Route::post('extra-classes', [FacultyAttendanceController::class, 'storeExtraAttendance'])->name('faculty.extra.classes.store');
+        Route::delete('extra-classes/{id}', [FacultyAttendanceController::class, 'deleteExtraClass'])->name('faculty.extra.classes.delete');
+        Route::get('attendance/create/extra-class', [FacultyAttendanceController::class, 'getStudentListExtraClass'])->name('faculty.attendance.create.extra-class');
+        Route::get('attendance/view/extra-class', [FacultyAttendanceController::class, 'viewExtraClassAttendance'])->name('faculty.attendance.view.extra-class');
+
         Route::get('work-diary', [WorkDiaryController::class, 'index'])->name('faculty.workdiary');
         Route::get('work-diary/monthly-report', [WorkDiaryController::class, 'monthlyReport'])->name('faculty.workdiary.monthly.report');
         Route::get('work-diary/monthly-report/pdf', [WorkDiaryController::class, 'downloadMonthlyReportPdf'])->name('faculty.workdiary.monthly.report.pdf');

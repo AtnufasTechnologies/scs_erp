@@ -1,0 +1,83 @@
+<?php
+
+namespace App\Models;
+
+use Illuminate\Database\Eloquent\Factories\HasFactory;
+use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\SoftDeletes;
+
+class ExtraClassAttendance extends Model
+{
+  use HasFactory, SoftDeletes;
+
+  protected $fillable = [
+    'routine_id',
+    'faculty_id',
+    'student_id',
+    'course_id',
+    'attendance_date',
+    'status',
+    'hour_id',
+    'semester_id',
+    'batch',
+    'attendance_method'
+
+  ];
+  /**
+   * Get the routine assignment
+   */
+  public function routine()
+  {
+    return $this->belongsTo(SubjectHasRoutine::class, 'routine_id');
+  }
+
+  /**
+   * Get the student
+   */
+  public function student()
+  {
+    return $this->belongsTo(StudentMaster::class, 'student_id');
+  }
+
+  /**
+   * Scope to filter by date range
+   */
+  public function scopeDateRange($query, $startDate, $endDate)
+  {
+    return $query->whereBetween('attendance_date', [$startDate, $endDate]);
+  }
+
+  /**
+   * Scope to filter by status
+   */
+  public function scopeStatus($query, $status)
+  {
+    return $query->where('status', $status);
+  }
+
+  /**
+   * Get attendance percentage for a student
+   */
+  public static function getAttendancePercentage($studentId, $course_id)
+  {
+    $total = self::where('student_id', $studentId)
+      ->where('course_id', $course_id)
+      ->count();
+
+    if ($total === 0) {
+      return 0;
+    }
+
+    $present = self::where('student_id', $studentId)
+      ->where('course_id', $course_id)
+      ->where('status', 'present')
+      ->count();
+
+    return round(($present / $total) * 100, 2);
+  }
+
+  function courseinfo()
+  {
+    return $this->belongsTo(ProgramCourseMaster::class, 'course_id');
+  }
+}

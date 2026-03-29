@@ -75,6 +75,15 @@
     </li>
 
     <li>
+      <a href="{{route('faculty.extra.classes')}}">
+        <div class="parent-icon">
+          <i class="fas fa-chalkboard-teacher"></i>
+        </div>
+        <div class="menu-title">Extra Classes </div>
+      </a>
+    </li>
+
+    <li>
       <a href="{{route('faculty.profile')}}">
         <div class="parent-icon">
           <i class="fas fa-user-circle"></i>
