@@ -11,6 +11,7 @@ use App\Http\Controllers\AccessController;
 use App\Http\Controllers\AdminController;
 use App\Http\Controllers\AdminPayrollController;
 use App\Http\Controllers\AdmissionController;
+use App\Http\Controllers\DepartmentActivityController;
 use App\Http\Controllers\FeePaymentController;
 use App\Http\Controllers\LoginController;
 use App\Http\Controllers\SubjectController;
@@ -406,6 +407,17 @@ Route::group(['prefix' => '/erp'], function () {
         Route::get('faculty-access/{departmentId}/{departmentSlug}', [AccessController::class, 'facultyAccessList'])->name('department.faculty.access');
         Route::post('faculty-access', [AccessController::class, 'grantFacultyAccess'])->name('department.faculty.grant-access');
         Route::get('faculty-access-revoke/{id}', [AccessController::class, 'revokeFacultyAccess'])->name('department.faculty.revoke-access');
+        Route::get('show-student-list', [SubjectController::class, 'showStudentList'])->name('department.show.student.list');
+        Route::get('student-profile', [SubjectController::class, 'studentProfile'])->name('department.student.profile');
+        Route::get('faculty-list/{subjectId}', [SubjectController::class, 'deptFacultyList'])->name('department.faculty.list');
+        // Department Activities
+        Route::get('activities/{subjectId}', [DepartmentActivityController::class, 'index'])->name('department.activities.index');
+        Route::post('activities', [DepartmentActivityController::class, 'store'])->name('department.activities.store');
+        Route::get('activities/{id}/show', [DepartmentActivityController::class, 'show'])->name('department.activities.show');
+        Route::put('activities/{id}', [DepartmentActivityController::class, 'update'])->name('department.activities.update');
+        Route::delete('activities/{id}', [DepartmentActivityController::class, 'destroy'])->name('department.activities.destroy');
+        Route::post('activities/{id}/status', [DepartmentActivityController::class, 'updateStatus'])->name('department.activities.status');
+        Route::get('activities/{subjectId}/by-type', [DepartmentActivityController::class, 'getByType'])->name('department.activities.by-type');
     });
 
 
@@ -413,7 +425,22 @@ Route::group(['prefix' => '/erp'], function () {
     Route::group(['prefix' => 'faculty'], function () {
         Route::get('dashboard', [FacultyDashboardController::class, 'index'])->name('faculty.dashboard');
         Route::get('timetable', [FacultyDashboardController::class, 'facultyTimetable'])->name('faculty.timetable');
-        Route::get('attendance', [FacultyAttendanceController::class, 'index'])->name('faculty.attendance');
+
+        // Attendance Routes
+        Route::get('attendance', [FacultyAttendanceController::class, 'index'])->name('faculty.attendance.index');
+        Route::get('attendance/take/{routineId}', [FacultyAttendanceController::class, 'takeAttendance'])->name('faculty.attendance.take');
+        Route::post('attendance/store', [FacultyAttendanceController::class, 'storeAttendance'])->name('faculty.attendance.store');
+        Route::get('attendance/view', [FacultyAttendanceController::class, 'viewAttendance'])->name('faculty.attendance.view');
+        Route::delete('attendance/{id}', [FacultyAttendanceController::class, 'deleteAttendance'])->name('faculty.attendance.delete');
+        Route::get('attendance/create', [FacultyAttendanceController::class, 'getStudentList'])->name('faculty.attendance.create');
+
+        //Extar classes
+        Route::get('extra-classes', [FacultyAttendanceController::class, 'extraClasses'])->name('faculty.extra.classes');
+        Route::post('extra-classes', [FacultyAttendanceController::class, 'storeExtraAttendance'])->name('faculty.extra.classes.store');
+        Route::delete('extra-classes/{id}', [FacultyAttendanceController::class, 'deleteExtraClass'])->name('faculty.extra.classes.delete');
+        Route::get('attendance/create/extra-class', [FacultyAttendanceController::class, 'getStudentListExtraClass'])->name('faculty.attendance.create.extra-class');
+        Route::get('attendance/view/extra-class', [FacultyAttendanceController::class, 'viewExtraClassAttendance'])->name('faculty.attendance.view.extra-class');
+
         Route::get('work-diary', [WorkDiaryController::class, 'index'])->name('faculty.workdiary');
         Route::get('work-diary/monthly-report', [WorkDiaryController::class, 'monthlyReport'])->name('faculty.workdiary.monthly.report');
         Route::get('work-diary/monthly-report/pdf', [WorkDiaryController::class, 'downloadMonthlyReportPdf'])->name('faculty.workdiary.monthly.report.pdf');

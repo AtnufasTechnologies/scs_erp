@@ -27,4 +27,9 @@ class SubjectHasStudentProgam extends Model
     {
         return $this->hasOne(Campus::class, 'id', 'campus_id');
     }
+
+    function studentmaster()
+    {
+        return $this->hasMany(StudentMaster::class, 'new_program_id', 'student_program_id');
+    }
 }

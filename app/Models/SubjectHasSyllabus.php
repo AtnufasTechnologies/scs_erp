@@ -55,4 +55,14 @@ class SubjectHasSyllabus extends Model
     {
         return $this->hasMany(SyllabusSubunit::class, 'syllabus_manager_id', 'id');
     }
+
+    function semester()
+    {
+        return $this->belongsTo(Semester::class, 'semester_id', 'id');
+    }
+
+    function courseCombination()
+    {
+        return $this->belongsTo(CourseCombination::class, 'course_id', 'id');
+    }
 }

@@ -66,11 +66,20 @@
     </li>
 
     <li>
-      <a href="{{route('faculty.subjects')}}">
+      <a href="{{route('faculty.attendance.index')}}">
         <div class="parent-icon">
           <i class="fas fa-clipboard-list"></i>
         </div>
         <div class="menu-title">Attendance </div>
+      </a>
+    </li>
+
+    <li>
+      <a href="{{route('faculty.extra.classes')}}">
+        <div class="parent-icon">
+          <i class="fas fa-chalkboard-teacher"></i>
+        </div>
+        <div class="menu-title">Extra Classes </div>
       </a>
     </li>
 

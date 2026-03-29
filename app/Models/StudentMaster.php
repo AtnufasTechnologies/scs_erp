@@ -69,4 +69,10 @@ class StudentMaster extends Model
             get: fn($value, $attributes) => $attributes['first_name'] . ' ' . $attributes['last_name'],
         );
     }
+
+
+    function studentsyllabusinfo()
+    {
+        return $this->hasMany(StudentSyllabusInfo::class, 'student_id', 'id');
+    }
 }
