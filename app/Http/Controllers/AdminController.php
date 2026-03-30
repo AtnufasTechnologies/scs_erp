@@ -30,6 +30,7 @@ use App\Models\ProgramMaster;
 use App\Models\ReligionMaster;
 use App\Models\RoomMaster;
 use App\Models\Semester;
+use App\Models\StudentCourseInfo;
 use App\Models\StudentMaster;
 use App\Models\User;
 use App\Models\UserCampusSetting;
@@ -96,10 +97,17 @@ class AdminController extends Controller
             'programgroup.programInfo',
             'feepayment.feepaymentinfo:id,quarter_title',
             'feepayment.gatewaytype'
-
         ])->firstOrFail();
 
-        return view('admin.master.student-profile', ['data' => $data]);
+        // Fetch student's courses
+        $studentCourses = StudentCourseInfo::with('coursemaster')
+            ->where('student_id', $id)
+            ->get();
+
+        return view('admin.master.student-profile', [
+            'data' => $data,
+            'studentCourses' => $studentCourses
+        ]);
     }
 
     function batchMaster()

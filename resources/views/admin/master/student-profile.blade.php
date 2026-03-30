@@ -57,6 +57,36 @@
     </div>
   </section>
 
+  <section class="card mt-4">
+    <h3>🎓 Student Courses</h3>
+    <table class="table table-bordered">
+      <thead>
+        <tr>
+          <th>#</th>
+          <th>Course Code</th>
+          <th>Course Name</th>
+          <th>Status</th>
+        </tr>
+      </thead>
+      <tbody>
+        @forelse($studentCourses as $course)
+        <tr>
+          <td>{{ $loop->iteration}}</td>
+          <td>{{ $course->coursemaster ? $course->coursemaster->course_code : '' }}</td>
+          <td>{{ $course->coursemaster ? $course->coursemaster->course_title : '' }}</td>
+          <td>{{$course->is_active == 1 ? 'Active' : 'Inactive'}}</td>
+        </tr>
+        @empty
+        <tr>
+          <td colspan="4">No courses found.</td>
+        </tr>
+        @endforelse
+      </tbody>
+    </table>
+  </section>
+
+
+
   <section class="projects-section">
     <h3>✨ Fee Payments</h3>
     <div class="projects-grid">
@@ -68,7 +98,9 @@
         <span class="float-right">{{date('d-m-Y',strtotime($pay->transaction_date))}}</span>
 
         <h4>#{{$pay->invoice_id}}
+          @if( $pay->gatewaytype != null)
           <span class="badge rounded-pill bg-success">{{$pay->gateway_type_id != 3 ? $pay->gatewaytype->title : 'Cash'}}</span>
+          @endif
         </h4>
 
         <p>{{$pay->feepaymentinfo->quarter_title }}</p>
