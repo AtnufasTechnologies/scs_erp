@@ -103,7 +103,7 @@ use Carbon\Carbon;
 
             @foreach($attendanceRecords as $record)
             <tr class="attendance-row"
-              data-student="{{ strtolower($record->student->first_name . ' ' . $record->student->last_name . ' ' . $record->student->reg_no) }}"
+              data-student="{{ strtolower($record->student->first_name . ' ' . $record->student->last_name . ' ' . $record->student->register_no) }}"
               data-date="{{ $record->attendance_date }}">
               <td>{{$loop->iteration}}</td>
               <td>{{ $record->attendance_date }}</td>
