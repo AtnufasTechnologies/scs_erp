@@ -1,8 +1,11 @@
+@php
+use App\Http\Controllers\StaticController;
+@endphp
 <!--start sidebar -->
 <aside class="sidebar-wrapper" data-simplebar="true">
   <div class="sidebar-header">
     <div class="logo-text">
-      COE Panel
+      {{ StaticController::isCoe() ? 'COE Panel' : 'D.COE Panel' }}
     </div>
     <div class="toggle-icon ms-auto">
       <ion-icon name="menu-sharp"></ion-icon>
@@ -19,6 +22,7 @@
       </a>
     </li>
 
+    @if(StaticController::coeMenuAccess('exam-management'))
     <li>
       <a href="javascript:;" class="has-arrow">
         <div class="parent-icon">
@@ -39,7 +43,9 @@
         </li>
       </ul>
     </li>
+    @endif
 
+    @if(StaticController::coeMenuAccess('exam-registrations'))
     <li>
       <a href="javascript:;" class="has-arrow">
         <div class="parent-icon">
@@ -60,7 +66,9 @@
         </li>
       </ul>
     </li>
+    @endif
 
+    @if(StaticController::coeMenuAccess('seating-allocation'))
     <li>
       <a href="javascript:;" class="has-arrow">
         <div class="parent-icon">
@@ -81,7 +89,9 @@
         </li>
       </ul>
     </li>
+    @endif
 
+    @if(StaticController::coeMenuAccess('dummy-numbers'))
     <li>
       <a href="javascript:;" class="has-arrow">
         <div class="parent-icon">
@@ -102,7 +112,9 @@
         </li>
       </ul>
     </li>
+    @endif
 
+    @if(StaticController::coeMenuAccess('admit-cards'))
     <li>
       <a href="javascript:;" class="has-arrow">
         <div class="parent-icon">
@@ -123,7 +135,9 @@
         </li>
       </ul>
     </li>
+    @endif
 
+    @if(StaticController::coeMenuAccess('regulation-master'))
     <li>
       <a href="javascript:;" class="has-arrow">
         <div class="parent-icon">
@@ -144,7 +158,9 @@
         </li>
       </ul>
     </li>
+    @endif
 
+    @if(StaticController::coeMenuAccess('attendance'))
     <li>
       <a href="javascript:;" class="has-arrow">
         <div class="parent-icon">
@@ -175,7 +191,20 @@
         </li>
       </ul>
     </li>
+    @endif
 
+    @if(StaticController::coeMenuAccess('internal-marks-review'))
+    <li>
+      <a href="{{ route('coe.internal-marks-review.index') }}">
+        <div class="parent-icon">
+          <i class="fas fa-history"></i>
+        </div>
+        <div class="menu-title">FA Marks Review</div>
+      </a>
+    </li>
+    @endif
+
+    @if(StaticController::coeMenuAccess('marks-entry'))
     <li>
       <a href="javascript:;" class="has-arrow">
         <div class="parent-icon">
@@ -199,9 +228,54 @@
             <i class="bx bx-radio-circle"></i>MAC Whitelist
           </a>
         </li>
+        <li>
+          <a href="{{ route('coe.marks.locks') }}">
+            <i class="bx bx-radio-circle"></i>Marks Locks
+          </a>
+        </li>
+        <li>
+          <a href="{{ route('coe.marks.audit-log') }}">
+            <i class="bx bx-radio-circle"></i>Audit Log
+          </a>
+        </li>
       </ul>
     </li>
+    @endif
 
+    @if(StaticController::coeMenuAccess('packet-management'))
+    <li>
+      <a href="javascript:;" class="has-arrow">
+        <div class="parent-icon">
+          <i class="fas fa-box-open"></i>
+        </div>
+        <div class="menu-title">Packet Management</div>
+      </a>
+      <ul>
+        <li>
+          <a href="{{ route('coe.packets.index') }}">
+            <i class="bx bx-radio-circle"></i>All Packets
+          </a>
+        </li>
+        <li>
+          <a href="{{ route('coe.packets.generate') }}">
+            <i class="bx bx-radio-circle"></i>Generate Packets
+          </a>
+        </li>
+        <li>
+          <a href="{{ route('coe.packets.barcodes.scanner') }}">
+            <i class="bx bx-radio-circle"></i>Barcode Scanner
+          </a>
+        </li>
+        <li>
+          <a href="{{ route('coe.packets.barcodes.tracking') }}">
+            <i class="bx bx-radio-circle"></i>Packet Tracking
+          </a>
+        </li>
+      </ul>
+    </li>
+    @endif
+
+    @if(StaticController::coeMenuAccess('invigilation-duties'))
     <li>
       <a href="javascript:;" class="has-arrow">
         <div class="parent-icon">
@@ -222,7 +296,9 @@
         </li>
       </ul>
     </li>
+    @endif
 
+    @if(StaticController::coeMenuAccess('evaluation'))
     <li>
       <a href="javascript:;" class="has-arrow">
         <div class="parent-icon">
@@ -243,7 +319,9 @@
         </li>
       </ul>
     </li>
+    @endif
 
+    @if(StaticController::coeMenuAccess('moderation'))
     <li>
       <a href="javascript:;" class="has-arrow">
         <div class="parent-icon">
@@ -262,9 +340,16 @@
             <i class="bx bx-radio-circle"></i>Assign Duty
           </a>
         </li>
+        <li>
+          <a href="{{ route('admin.moderation-duties.compare') }}">
+            <i class="bx bx-radio-circle"></i>Compare Marks
+          </a>
+        </li>
       </ul>
     </li>
+    @endif
 
+    @if(StaticController::coeMenuAccess('results'))
     <li>
       <a href="javascript:;" class="has-arrow">
         <div class="parent-icon">
@@ -279,13 +364,20 @@
           </a>
         </li>
         <li>
-          <a href="{{ route('admin.exam-results.create') }}">
-            <i class="bx bx-radio-circle"></i>Add Result
+          <a href="{{ route('admin.exam-results.semester-wise') }}">
+            <i class="bx bx-radio-circle"></i>Semester-wise
+          </a>
+        </li>
+        <li>
+          <a href="{{ route('admin.exam-results.generate') }}">
+            <i class="bx bx-radio-circle"></i>Generate Results
           </a>
         </li>
       </ul>
     </li>
+    @endif
 
+    @if(StaticController::coeMenuAccess('backlogs'))
     <li>
       <a href="javascript:;" class="has-arrow">
         <div class="parent-icon">
@@ -300,13 +392,20 @@
           </a>
         </li>
         <li>
+          <a href="{{ route('coe.backlogs.failed-subjects') }}">
+            <i class="bx bx-radio-circle"></i>Failed Subjects
+          </a>
+        </li>
+        <li>
           <a href="{{ route('coe.backlogs.report') }}">
             <i class="bx bx-radio-circle"></i>Backlog Report
           </a>
         </li>
       </ul>
     </li>
+    @endif
 
+    @if(StaticController::coeMenuAccess('promotions'))
     <li>
       <a href="javascript:;" class="has-arrow">
         <div class="parent-icon">
@@ -320,14 +419,11 @@
             <i class="bx bx-radio-circle"></i>All Promotions
           </a>
         </li>
-        <li>
-          <a href="{{ route('admin.promotions.create') }}">
-            <i class="bx bx-radio-circle"></i>New Promotion
-          </a>
-        </li>
       </ul>
     </li>
+    @endif
 
+    @if(StaticController::coeMenuAccess('exit-certification'))
     <li>
       <a href="javascript:;" class="has-arrow">
         <div class="parent-icon">
@@ -348,7 +444,9 @@
         </li>
       </ul>
     </li>
+    @endif
 
+    @if(StaticController::coeMenuAccess('student-credits'))
     <li>
       <a href="javascript:;" class="has-arrow">
         <div class="parent-icon">
@@ -369,7 +467,9 @@
         </li>
       </ul>
     </li>
+    @endif
 
+    @if(StaticController::coeMenuAccess('remuneration'))
     <li>
       <a href="javascript:;" class="has-arrow">
         <div class="parent-icon">
@@ -395,7 +495,9 @@
         </li>
       </ul>
     </li>
+    @endif
 
+    @if(StaticController::coeMenuAccess('reports'))
     <li>
       <a href="javascript:;" class="has-arrow">
         <div class="parent-icon">
@@ -431,6 +533,19 @@
         </li>
       </ul>
     </li>
+    @endif
+
+    {{-- D.COE Management - Only visible to COE --}}
+    @if(StaticController::isCoe())
+    <li>
+      <a href="{{ route('coe.dcoe.index') }}">
+        <div class="parent-icon">
+          <i class="fas fa-user-shield"></i>
+        </div>
+        <div class="menu-title">D.COE Management</div>
+      </a>
+    </li>
+    @endif
 
     <!-- logout -->
     <li>

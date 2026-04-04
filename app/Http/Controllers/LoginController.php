@@ -48,6 +48,9 @@ class LoginController extends Controller
                 } else if ($roleType == 'coe') {
                     //COE    Dashboard
                     return redirect()->route('coe.dashboard')->with('success', 'Login Success');
+                } else if ($roleType == 'dcoe') {
+                    //Deputy COE Dashboard
+                    return redirect()->route('coe.dashboard')->with('success', 'Login Success');
                 } else if ($roleType == 'student') {
                     //Student Dashboard
                 } else {

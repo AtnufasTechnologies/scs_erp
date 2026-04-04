@@ -7,6 +7,7 @@ use App\Models\ExamSystem\Exam;
 use App\Models\ExamSystem\Room;
 use App\Models\Faculty;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 
 class InvigilationDutyController extends Controller
 {
@@ -14,28 +15,50 @@ class InvigilationDutyController extends Controller
   {
     $query = InvigilationDuty::with(['faculty', 'exam', 'room']);
 
-    if ($request->has('exam_id') && $request->exam_id != '') {
+    if ($request->filled('exam_id')) {
       $query->where('exam_id', $request->exam_id);
     }
 
-    if ($request->has('date')) {
+    if ($request->filled('faculty_id')) {
+      $query->where('faculty_id', $request->faculty_id);
+    }
+
+    if ($request->filled('date')) {
       $query->whereDate('date', $request->date);
     }
 
-    if ($request->has('status') && $request->status != '') {
+    if ($request->filled('session')) {
+      $query->where('session', $request->session);
+    }
+
+    if ($request->filled('status')) {
       $query->where('status', $request->status);
     }
 
-    $duties = $query->orderBy('date')->paginate(50);
+    $duties = $query->orderBy('date', 'desc')->paginate(50);
     $exams = Exam::all();
+    $faculties = Faculty::orderBy('FIRST_NAME')->get();
 
-    return view('coe.invigilation-duties.index', compact('duties', 'exams'));
+    $totalDuties = InvigilationDuty::count();
+    $assignedCount = InvigilationDuty::where('status', 'assigned')->count();
+    $completedCount = InvigilationDuty::where('status', 'completed')->count();
+    $todayCount = InvigilationDuty::whereDate('date', today())->count();
+
+    return view('coe.invigilation-duties.index', compact(
+      'duties',
+      'exams',
+      'faculties',
+      'totalDuties',
+      'assignedCount',
+      'completedCount',
+      'todayCount'
+    ));
   }
 
   public function create()
   {
     $exams = Exam::all();
-    $faculties = Faculty::all();
+    $faculties = Faculty::orderBy('FIRST_NAME')->get();
     $rooms = Room::all();
 
     return view('coe.invigilation-duties.create', compact('exams', 'faculties', 'rooms'));
@@ -45,17 +68,30 @@ class InvigilationDutyController extends Controller
   {
     $request->validate([
       'exam_id' => 'required|exists:exams,id',
-      'faculty_id' => 'required|exists:faculties,id',
-      'room_id' => 'required',
+      'faculty_id' => 'required|array|min:1',
+      'faculty_id.*' => 'exists:faculties,id',
+      'room_id' => 'required|exists:rooms,id',
       'date' => 'required|date',
       'session' => 'required|in:morning,afternoon,evening',
-      'role' => 'nullable|in:chief,assistant',
+      'role' => 'required|in:chief_invigilator,invigilator,reliever',
     ]);
 
-    InvigilationDuty::create(array_merge($request->all(), ['status' => 'assigned']));
+    $count = 0;
+    foreach ($request->faculty_id as $facultyId) {
+      InvigilationDuty::create([
+        'exam_id' => $request->exam_id,
+        'faculty_id' => $facultyId,
+        'room_id' => $request->room_id,
+        'date' => $request->date,
+        'session' => $request->session,
+        'role' => $request->role,
+        'status' => 'assigned',
+      ]);
+      $count++;
+    }
 
-    return redirect()->route('coe.invigilation-duties.index')
-      ->with('success', 'duty assigned successfully');
+    return redirect()->route('admin.invigilation-duties.index')
+      ->with('success', $count . ' duty/duties assigned successfully');
   }
 
   public function show($id)
@@ -68,7 +104,7 @@ class InvigilationDutyController extends Controller
   {
     $duty = InvigilationDuty::findOrFail($id);
     $exams = Exam::all();
-    $faculties = Faculty::all();
+    $faculties = Faculty::orderBy('FIRST_NAME')->get();
     $rooms = Room::all();
 
     return view('coe.invigilation-duties.edit', compact('duty', 'exams', 'faculties', 'rooms'));
@@ -79,16 +115,23 @@ class InvigilationDutyController extends Controller
     $request->validate([
       'exam_id' => 'required|exists:exams,id',
       'faculty_id' => 'required|exists:faculties,id',
-      'room_id' => 'required',
+      'room_id' => 'required|exists:rooms,id',
       'date' => 'required|date',
       'session' => 'required|in:morning,afternoon,evening',
-      'role' => 'nullable|in:chief,assistant',
+      'role' => 'required|in:chief_invigilator,invigilator,reliever',
     ]);
 
     $duty = InvigilationDuty::findOrFail($id);
-    $duty->update($request->all());
+    $duty->update($request->only([
+      'exam_id',
+      'faculty_id',
+      'room_id',
+      'date',
+      'session',
+      'role'
+    ]));
 
-    return redirect()->route('coe.invigilation-duties.index')
+    return redirect()->route('admin.invigilation-duties.index')
       ->with('success', 'Duty updated successfully');
   }
 
@@ -97,7 +140,7 @@ class InvigilationDutyController extends Controller
     $duty = InvigilationDuty::findOrFail($id);
     $duty->delete();
 
-    return redirect()->route('coe.invigilation-duties.index')
+    return redirect()->route('admin.invigilation-duties.index')
       ->with('success', 'Duty deleted successfully');
   }
 
@@ -113,7 +156,7 @@ class InvigilationDutyController extends Controller
   {
     $query = InvigilationDuty::with(['exam', 'faculty', 'room']);
 
-    if ($request->has('exam_id') && $request->exam_id != '') {
+    if ($request->filled('exam_id')) {
       $query->where('exam_id', $request->exam_id);
     }
 

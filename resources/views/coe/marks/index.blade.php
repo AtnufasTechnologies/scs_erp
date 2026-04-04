@@ -31,8 +31,14 @@
                   <p class="text-white-50 mb-0">View and manage marks entries for all exam sessions</p>
                 </div>
                 <div class="col-md-4 text-md-end">
-                  <a href="{{ route('coe.marks.entry') }}" class="btn btn-light btn-lg">
+                  <a href="{{ route('coe.marks.entry') }}" class="btn btn-light btn-lg me-2">
                     <i class="fas fa-plus-circle me-2"></i>Enter Marks
+                  </a>
+                  <a href="{{ route('coe.marks.audit-log') }}" class="btn btn-outline-light">
+                    <i class="fas fa-history me-2"></i>Audit Log
+                  </a>
+                  <a href="{{ route('coe.marks.locks') }}" class="btn btn-outline-light ms-1">
+                    <i class="fas fa-lock me-2"></i>Locks
                   </a>
                 </div>
               </div>

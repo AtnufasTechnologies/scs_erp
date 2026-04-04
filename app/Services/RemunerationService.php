@@ -4,7 +4,6 @@ namespace App\Services;
 
 use App\Models\RemunerationRate;
 use App\Models\FacultyRemuneration;
-use App\Models\Faculty;
 use Illuminate\Support\Facades\DB;
 
 class RemunerationService

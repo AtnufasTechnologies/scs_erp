@@ -12,7 +12,9 @@ class ExamStudent extends Model
     'erp_student_id',
     'program_id',
     'enrollment_no',
+    'current_semester',
     'status',
+    'promotion_status',
   ];
 
   public function student()

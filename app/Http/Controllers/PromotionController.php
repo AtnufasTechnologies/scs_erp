@@ -3,144 +3,97 @@
 namespace App\Http\Controllers;
 
 use App\Models\ExamSystem\Promotion;
-use App\Models\StudentMaster;
+use App\Models\ExamSystem\Backlog;
+use App\Models\ExamSystem\Student;
+use App\Models\ExamSystem\StudentCredit;
+use App\Models\ExamSystem\ExamSession;
+use App\Models\ExamSystem\StudentPromotionHistory;
+use App\Services\ExamSystem\PromotionService;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\DB;
 
 class PromotionController extends Controller
 {
   public function index(Request $request)
   {
-    $query = Promotion::with(['student']);
+    $query = Promotion::with(['student', 'examSession']);
 
-    if ($request->has('from_semester') && $request->from_semester != '') {
+    if ($request->filled('from_semester')) {
       $query->where('from_semester', $request->from_semester);
     }
 
-    if ($request->has('to_semester') && $request->to_semester != '') {
-      $query->where('to_semester', $request->to_semester);
+    if ($request->filled('promotion_status')) {
+      $query->where('promotion_status', $request->promotion_status);
     }
 
-    if ($request->has('status') && $request->status != '') {
-      $query->where('status', $request->status);
+    if ($request->filled('exam_session_id')) {
+      $query->where('exam_session_id', $request->exam_session_id);
+    }
+
+    if ($request->filled('search')) {
+      $search = $request->search;
+      $query->whereHas('student', function ($q) use ($search) {
+        $q->where('enrollment_no', 'like', "%{$search}%");
+      });
     }
 
     $promotions = $query->orderBy('created_at', 'desc')->paginate(50);
 
-    return view('coe.promotion.index', compact('promotions'));
-  }
+    // Stats
+    $totalPromotions = Promotion::count();
+    $promotedClean = Promotion::where('promotion_status', 'promoted')->count();
+    $promotedWithBacklogs = Promotion::where('promotion_status', 'promoted_with_backlogs')->count();
+    $withheldCount = Promotion::where('promotion_status', 'withheld')->count();
 
-  public function create()
-  {
-    $students = StudentMaster::where('is_deleted', 0)->where('is_left', 0)->get();
+    // Backlog stats
+    $totalPendingBacklogs = Backlog::where('status', 'pending')->count();
+    $totalClearedBacklogs = Backlog::where('status', 'cleared')->count();
 
-    return view('coe.promotion.create', compact('students'));
-  }
+    $sessions = ExamSession::orderBy('academic_year', 'desc')->orderBy('semester')->get();
 
-  public function store(Request $request)
-  {
-    $request->validate([
-      'exam_student_id' => 'required|exists:student_masters,id',
-      'from_semester' => 'required|integer',
-      'to_semester' => 'required|integer',
-      'academic_year' => 'required|string',
-    ]);
-
-    Promotion::create(array_merge($request->all(), ['status' => 'pending']));
-
-    return redirect()->route('coe.promotion.index')
-      ->with('success', 'Promotion entry created successfully');
+    return view('coe.promotion.index', compact(
+      'promotions',
+      'totalPromotions',
+      'promotedClean',
+      'promotedWithBacklogs',
+      'withheldCount',
+      'totalPendingBacklogs',
+      'totalClearedBacklogs',
+      'sessions'
+    ));
   }
 
   public function show($id)
   {
-    $promotion = Promotion::with(['student'])->findOrFail($id);
-    return view('coe.promotion.show', compact('promotion'));
-  }
+    $promotion = Promotion::with(['student', 'examSession'])->findOrFail($id);
 
-  public function edit($id)
-  {
-    $promotion = Promotion::findOrFail($id);
-    $students = StudentMaster::where('is_deleted', 0)->where('is_left', 0)->get();
+    $promotionService = new PromotionService();
+    $summary = $promotionService->getStudentSummary($promotion->exam_student_id);
 
-    return view('coe.promotion.edit', compact('promotion', 'students'));
-  }
+    // Get promotion history for this student
+    $history = StudentPromotionHistory::where('exam_student_id', $promotion->exam_student_id)
+      ->with('examSession')
+      ->orderBy('semester')
+      ->get();
 
-  public function update(Request $request, $id)
-  {
-    $request->validate([
-      'exam_student_id' => 'required|exists:student_masters,id',
-      'from_semester' => 'required|integer',
-      'to_semester' => 'required|integer',
-      'academic_year' => 'required|string',
-      'status' => 'nullable|in:pending,approved,rejected',
-    ]);
+    // Get backlog details with subject info
+    $backlogs = Backlog::with('subject')
+      ->where('exam_student_id', $promotion->exam_student_id)
+      ->orderBy('status')
+      ->orderBy('semester')
+      ->get();
 
-    $promotion = Promotion::findOrFail($id);
-    $promotion->update($request->all());
-
-    return redirect()->route('coe.promotion.index')
-      ->with('success', 'Promotion updated successfully');
-  }
-
-  public function destroy($id)
-  {
-    $promotion = Promotion::findOrFail($id);
-    $promotion->delete();
-
-    return redirect()->route('coe.promotion.index')
-      ->with('success', 'Promotion deleted successfully');
-  }
-
-  public function approve($id)
-  {
-    $promotion = Promotion::findOrFail($id);
-    $promotion->update(['status' => 'approved']);
-
-    return redirect()->back()->with('success', 'Promotion approved');
-  }
-
-  public function bulkPromote(Request $request)
-  {
-    $request->validate([
-      'from_semester' => 'required|integer',
-      'to_semester' => 'required|integer',
-      'academic_year' => 'required|string',
-      'student_ids' => 'required|array',
-    ]);
-
-    try {
-      DB::beginTransaction();
-
-      foreach ($request->student_ids as $studentId) {
-        Promotion::create([
-          'exam_student_id' => $studentId,
-          'from_semester' => $request->from_semester,
-          'to_semester' => $request->to_semester,
-          'academic_year' => $request->academic_year,
-          'status' => 'approved',
-        ]);
-      }
-
-      DB::commit();
-      return redirect()->route('coe.promotion.index')
-        ->with('success', 'Bulk promotion completed successfully');
-    } catch (\Exception $e) {
-      DB::rollBack();
-      return redirect()->back()
-        ->with('error', 'Bulk promotion failed: ' . $e->getMessage());
-    }
+    return view('coe.promotion.show', compact('promotion', 'summary', 'history', 'backlogs'));
   }
 
   public function export(Request $request)
   {
-    $query = Promotion::with(['student', 'fromSemester', 'toSemester']);
+    $query = Promotion::with(['student', 'examSession']);
 
-    if ($request->has('session_id') && $request->session_id != '') {
-      $query->where('session_id', $request->session_id);
+    if ($request->filled('exam_session_id')) {
+      $query->where('exam_session_id', $request->exam_session_id);
     }
 
-    $promotions = $query->get();
+    $promotions = $query->orderBy('exam_student_id')->get();
     return response()->json($promotions);
   }
 }

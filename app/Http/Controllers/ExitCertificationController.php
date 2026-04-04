@@ -2,125 +2,176 @@
 
 namespace App\Http\Controllers;
 
-use App\Models\ExamSystem\StudentExitRecord;
-use App\Models\StudentMaster;
+use App\Models\ExamSystem\ExitCertification;
+use App\Models\ExamSystem\Student;
+use App\Services\ExamSystem\ExitCertificationService;
+use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 
 class ExitCertificationController extends Controller
 {
-  public function index(Request $request)
+  protected ExitCertificationService $service;
+
+  public function __construct(ExitCertificationService $service)
   {
-    $query = StudentExitRecord::with(['student']);
-
-    if ($request->has('status') && $request->status != '') {
-      $query->where('exit_status', $request->status);
-    }
-
-    if ($request->has('year') && $request->year != '') {
-      $query->whereYear('exit_date', $request->year);
-    }
-
-    $records = $query->orderBy('exit_date', 'desc')->paginate(50);
-
-    return view('coe.exit-certification.index', compact('records'));
+    $this->service = $service;
   }
 
-  public function create()
+  public function index(Request $request)
   {
-    $students = StudentMaster::where('is_deleted', 0)->where('is_left', 0)->get();
+    $query = ExitCertification::with(['student', 'program']);
 
-    return view('coe.exit-certification.create', compact('students'));
+    if ($request->filled('exit_level')) {
+      $query->where('exit_level', $request->exit_level);
+    }
+    if ($request->filled('status')) {
+      $query->where('status', $request->status);
+    }
+    if ($request->filled('search')) {
+      $search = $request->search;
+      $query->where(function ($q) use ($search) {
+        $q->where('certificate_no', 'like', "%{$search}%")
+          ->orWhereHas('student', function ($sq) use ($search) {
+            $sq->where('enrollment_no', 'like', "%{$search}%");
+          });
+      });
+    }
+
+    $records = $query->orderBy('created_at', 'desc')->paginate(50);
+
+    // Stats
+    $totalRecords = ExitCertification::count();
+    $pendingCount = ExitCertification::where('status', 'pending')->count();
+    $issuedCount = ExitCertification::where('status', 'issued')->count();
+    $levelCounts = ExitCertification::select('exit_level', DB::raw('count(*) as count'))
+      ->groupBy('exit_level')
+      ->pluck('count', 'exit_level')
+      ->toArray();
+
+    return view('coe.exit-certification.index', compact(
+      'records',
+      'totalRecords',
+      'pendingCount',
+      'issuedCount',
+      'levelCounts'
+    ));
+  }
+
+  public function create(Request $request)
+  {
+    $students = Student::orderBy('enrollment_no')->get();
+    $eligibility = null;
+    $selectedStudent = null;
+
+    if ($request->filled('exam_student_id')) {
+      $selectedStudent = Student::findOrFail($request->exam_student_id);
+      $eligibility = $this->service->checkEligibility($request->exam_student_id);
+    }
+
+    return view('coe.exit-certification.create', compact('students', 'eligibility', 'selectedStudent'));
   }
 
   public function store(Request $request)
   {
     $request->validate([
-      'exam_student_id' => 'required|exists:student_masters,id|unique:student_exit_records,exam_student_id',
-      'exit_date' => 'required|date',
-      'exit_status' => 'required|in:graduated,transferred,withdrawn,expelled',
-      'cgpa' => 'nullable|numeric',
-      'final_result' => 'nullable|in:pass,fail',
+      'exam_student_id' => 'required|exists:exam_students,id',
+      'exit_level' => 'required|in:certificate,diploma,degree,honors',
+      'remarks' => 'nullable|string|max:1000',
     ]);
 
-    StudentExitRecord::create($request->all());
+    try {
+      $certification = $this->service->issueCertification(
+        $request->exam_student_id,
+        $request->exit_level,
+        $request->remarks
+      );
 
-    return redirect()->route('coe.exit-certification.index')
-      ->with('success', 'Exit record created successfully');
+      return redirect()->route('admin.exit-certification.index')
+        ->with('success', "Exit certification created: {$certification->certificate_no}");
+    } catch (\Exception $e) {
+      return redirect()->back()->withInput()
+        ->with('error', $e->getMessage());
+    }
   }
 
   public function show($id)
   {
-    $record = StudentExitRecord::with(['student'])->findOrFail($id);
+    $record = ExitCertification::with(['student', 'program', 'approver', 'issuer'])->findOrFail($id);
     return view('coe.exit-certification.show', compact('record'));
   }
 
-  public function edit($id)
+  public function approve($id)
   {
-    $record = StudentExitRecord::findOrFail($id);
-    $students = StudentMaster::where('is_deleted', 0)->get();
+    $record = ExitCertification::findOrFail($id);
 
-    return view('coe.exit-certification.edit', compact('record', 'students'));
-  }
+    if ($record->status !== 'pending') {
+      return redirect()->back()->with('error', 'Only pending certifications can be approved.');
+    }
 
-  public function update(Request $request, $id)
-  {
-    $request->validate([
-      'exam_student_id' => 'required|exists:student_masters,id',
-      'exit_date' => 'required|date',
-      'exit_status' => 'required|in:graduated,transferred,withdrawn,expelled',
-      'cgpa' => 'nullable|numeric',
-      'final_result' => 'nullable|in:pass,fail',
+    $record->update([
+      'status' => 'approved',
+      'approved_by' => auth()->id(),
     ]);
 
-    $record = StudentExitRecord::findOrFail($id);
-    $record->update($request->all());
+    return redirect()->back()->with('success', 'Certification approved successfully.');
+  }
 
-    return redirect()->route('coe.exit-certification.index')
-      ->with('success', 'Exit record updated successfully');
+  public function issue($id)
+  {
+    $record = ExitCertification::findOrFail($id);
+
+    if ($record->status !== 'approved') {
+      return redirect()->back()->with('error', 'Only approved certifications can be issued.');
+    }
+
+    $record->update([
+      'status' => 'issued',
+      'issue_date' => now(),
+      'issued_by' => auth()->id(),
+    ]);
+
+    return redirect()->back()->with('success', 'Certification issued. Certificate can now be downloaded.');
+  }
+
+  public function revoke($id)
+  {
+    $record = ExitCertification::findOrFail($id);
+
+    if ($record->status === 'revoked') {
+      return redirect()->back()->with('error', 'Already revoked.');
+    }
+
+    $record->update(['status' => 'revoked']);
+
+    return redirect()->back()->with('success', 'Certification revoked.');
+  }
+
+  public function downloadCertificate($id)
+  {
+    $record = ExitCertification::with(['student', 'program'])->findOrFail($id);
+
+    if ($record->status !== 'issued') {
+      return redirect()->back()->with('error', 'Certificate can only be downloaded after being issued.');
+    }
+
+    $pdf = Pdf::loadView('coe.exit-certification.certificate-pdf', compact('record'))
+      ->setPaper('a4', 'landscape');
+
+    return $pdf->download("exit-certificate-{$record->certificate_no}.pdf");
   }
 
   public function destroy($id)
   {
-    $record = StudentExitRecord::findOrFail($id);
-    $record->delete();
+    $record = ExitCertification::findOrFail($id);
 
-    return redirect()->route('coe.exit-certification.index')
-      ->with('success', 'Exit record deleted successfully');
-  }
-
-  public function certificate($id)
-  {
-    $record = StudentExitRecord::with(['student'])->findOrFail($id);
-
-    return view('coe.exit-certification.certificate', compact('record'));
-  }
-
-  public function export(Request $request)
-  {
-    $query = StudentExitRecord::with(['student', 'exitType']);
-
-    if ($request->has('exit_type') && $request->exit_type != '') {
-      $query->where('exit_type', $request->exit_type);
+    if ($record->status === 'issued') {
+      return redirect()->back()->with('error', 'Cannot delete issued certifications. Revoke first.');
     }
 
-    $records = $query->get();
-    return response()->json($records);
-  }
+    $record->delete();
 
-  public function approve(Request $request)
-  {
-    $request->validate([
-      'record_id' => 'required|exists:student_exit_records,id',
-    ]);
-
-    $record = StudentExitRecord::findOrFail($request->record_id);
-    $record->update([
-      'status' => 'approved',
-      'approved_at' => now(),
-      'approved_by' => auth()->id(),
-    ]);
-
-    return redirect()->back()
-      ->with('success', 'Exit certification approved successfully');
+    return redirect()->route('admin.exit-certification.index')
+      ->with('success', 'Certification record deleted.');
   }
 }

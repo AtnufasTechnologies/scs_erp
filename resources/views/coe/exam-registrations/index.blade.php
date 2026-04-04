@@ -71,6 +71,36 @@
                 value="{{ request('search') }}">
             </div>
 
+            <div class="col-md-2">
+              <label for="attendance_clearance" class="form-label">Attendance</label>
+              <select name="attendance_clearance" id="attendance_clearance" class="form-select">
+                <option value="">All</option>
+                <option value="cleared" {{ request('attendance_clearance') == 'cleared' ? 'selected' : '' }}>Cleared</option>
+                <option value="not_cleared" {{ request('attendance_clearance') == 'not_cleared' ? 'selected' : '' }}>Not Cleared</option>
+                <option value="pending" {{ request('attendance_clearance') == 'pending' ? 'selected' : '' }}>Pending</option>
+              </select>
+            </div>
+
+            <div class="col-md-2">
+              <label for="library_clearance" class="form-label">Library</label>
+              <select name="library_clearance" id="library_clearance" class="form-select">
+                <option value="">All</option>
+                <option value="cleared" {{ request('library_clearance') == 'cleared' ? 'selected' : '' }}>Cleared</option>
+                <option value="not_cleared" {{ request('library_clearance') == 'not_cleared' ? 'selected' : '' }}>Not Cleared</option>
+                <option value="pending" {{ request('library_clearance') == 'pending' ? 'selected' : '' }}>Pending</option>
+              </select>
+            </div>
+
+            <div class="col-md-2">
+              <label for="fees_clearance" class="form-label">Fees</label>
+              <select name="fees_clearance" id="fees_clearance" class="form-select">
+                <option value="">All</option>
+                <option value="cleared" {{ request('fees_clearance') == 'cleared' ? 'selected' : '' }}>Cleared</option>
+                <option value="not_cleared" {{ request('fees_clearance') == 'not_cleared' ? 'selected' : '' }}>Not Cleared</option>
+                <option value="pending" {{ request('fees_clearance') == 'pending' ? 'selected' : '' }}>Pending</option>
+              </select>
+            </div>
+
             <div class="col-md-3 d-flex align-items-end">
               <button type="submit" class="btn btn-primary me-2">
                 <i class="fa fa-search"></i> Search
@@ -92,6 +122,9 @@
         </a>
       </div>
       <div>
+        <button type="button" class="btn btn-warning" id="checkClearancesBtn" disabled>
+          <i class="fa fa-refresh"></i> Check Clearances
+        </button>
         <button type="button" class="btn btn-primary" id="bulkApproveBtn" disabled>
           <i class="fa fa-check"></i> Approve Selected
         </button>
@@ -116,6 +149,10 @@
                 <th>Exam Session</th>
                 <th>Program Type</th>
                 <th>Type</th>
+                <th>Subjects</th>
+                <th>Attendance</th>
+                <th>Library</th>
+                <th>Fees</th>
                 <th>Status</th>
                 <th>Registered At</th>
                 <th width="12%">Actions</th>
@@ -160,6 +197,70 @@
                   @endif
                 </td>
                 <td>
+                  @if($registration->registrationSubjects && $registration->registrationSubjects->count())
+                  @php
+                  $regularSubjects = $registration->registrationSubjects->where('is_backlog', false);
+                  $backlogSubjects = $registration->registrationSubjects->where('is_backlog', true);
+                  @endphp
+                  @foreach($regularSubjects as $rs)
+                  <span class="badge bg-primary mb-1" title="{{ $rs->examSubject->master->name ?? '' }}">
+                    {{ $rs->examSubject->master->subject_code ?? 'N/A' }}
+                  </span>
+                  @endforeach
+                  @foreach($backlogSubjects as $rs)
+                  <span class="badge bg-danger mb-1" title="{{ $rs->examSubject->master->name ?? '' }} (Backlog)">
+                    {{ $rs->examSubject->master->subject_code ?? 'N/A' }} <i class="fa fa-repeat"></i>
+                  </span>
+                  @endforeach
+                  <br><small class="text-muted">{{ $regularSubjects->count() }} regular{{ $backlogSubjects->count() > 0 ? ', ' . $backlogSubjects->count() . ' backlog' : '' }}</small>
+                  @else
+                  <span class="text-muted">-</span>
+                  @endif
+                </td>
+                <td>
+                  @if($registration->attendance_clearance == 'cleared')
+                  <span class="badge bg-success" title="Attendance: {{ $registration->attendance_percentage ?? 0 }}%">
+                    <i class="fa fa-check-circle"></i> Cleared
+                  </span>
+                  @if($registration->attendance_percentage)
+                  <br><small class="text-muted">{{ $registration->attendance_percentage }}%</small>
+                  @endif
+                  @elseif($registration->attendance_clearance == 'not_cleared')
+                  <span class="badge bg-danger" title="Attendance: {{ $registration->attendance_percentage ?? 0 }}%">
+                    <i class="fa fa-times-circle"></i> Not Cleared
+                  </span>
+                  @if($registration->attendance_percentage)
+                  <br><small class="text-danger">{{ $registration->attendance_percentage }}%</small>
+                  @endif
+                  @else
+                  <span class="badge bg-secondary"><i class="fa fa-clock-o"></i> Pending</span>
+                  @endif
+                </td>
+                <td>
+                  @if($registration->library_clearance == 'cleared')
+                  <span class="badge bg-success"><i class="fa fa-check-circle"></i> Cleared</span>
+                  @elseif($registration->library_clearance == 'not_cleared')
+                  <span class="badge bg-danger"><i class="fa fa-times-circle"></i> Not Cleared</span>
+                  @else
+                  <span class="badge bg-secondary"><i class="fa fa-clock-o"></i> Pending</span>
+                  @endif
+                  <br>
+                  <a href="javascript:void(0)" class="text-primary small update-clearance-link"
+                    data-id="{{ $registration->id }}" data-field="library_clearance"
+                    data-current="{{ $registration->library_clearance }}">
+                    <i class="fa fa-edit"></i> Update
+                  </a>
+                </td>
+                <td>
+                  @if($registration->fees_clearance == 'cleared')
+                  <span class="badge bg-success"><i class="fa fa-check-circle"></i> Cleared</span>
+                  @elseif($registration->fees_clearance == 'not_cleared')
+                  <span class="badge bg-danger"><i class="fa fa-times-circle"></i> Not Cleared</span>
+                  @else
+                  <span class="badge bg-secondary"><i class="fa fa-clock-o"></i> Pending</span>
+                  @endif
+                </td>
+                <td>
                   @if($registration->status == 'pending')
                   <span class="badge bg-warning">Pending</span>
                   @elseif($registration->status == 'approved')
@@ -195,7 +296,7 @@
               </tr>
               @empty
               <tr>
-                <td colspan="9" class="text-center py-5">
+                <td colspan="13" class="text-center py-5">
                   <i class="fa fa-inbox fa-3x text-muted mb-3"></i>
                   <p class="text-muted">No exam registrations found</p>
                 </td>
@@ -224,6 +325,43 @@
     @csrf
     <input type="hidden" name="registration_ids" id="rejectIds">
   </form>
+
+  <form id="checkClearancesForm" action="{{ route('admin.exam-registrations.check-clearances') }}" method="POST" style="display: none;">
+    @csrf
+    <input type="hidden" name="registration_ids" id="clearanceIds">
+  </form>
+
+  <!-- Clearance Update Modal -->
+  <div class="modal fade" id="clearanceModal" tabindex="-1">
+    <div class="modal-dialog">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h5 class="modal-title">Update Clearance</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+        </div>
+        <div class="modal-body">
+          <input type="hidden" id="clearanceRegId">
+          <input type="hidden" id="clearanceField">
+          <div class="mb-3">
+            <label class="form-label">Status</label>
+            <select id="clearanceValue" class="form-select">
+              <option value="pending">Pending</option>
+              <option value="cleared">Cleared</option>
+              <option value="not_cleared">Not Cleared</option>
+            </select>
+          </div>
+          <div class="mb-3">
+            <label class="form-label">Remarks (optional)</label>
+            <textarea id="clearanceRemarks" class="form-control" rows="2"></textarea>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+          <button type="button" class="btn btn-primary" id="saveClearanceBtn">Save</button>
+        </div>
+      </div>
+    </div>
+  </div>
 </div>
 @include('includes.footer')
 
@@ -246,13 +384,16 @@
     const checkedBoxes = document.querySelectorAll('.registration-checkbox:checked');
     const approveBtn = document.getElementById('bulkApproveBtn');
     const rejectBtn = document.getElementById('bulkRejectBtn');
+    const clearanceBtn = document.getElementById('checkClearancesBtn');
 
     if (checkedBoxes.length > 0) {
       approveBtn.disabled = false;
       rejectBtn.disabled = false;
+      clearanceBtn.disabled = false;
     } else {
       approveBtn.disabled = true;
       rejectBtn.disabled = true;
+      clearanceBtn.disabled = true;
     }
   }
 
@@ -276,5 +417,60 @@
       document.getElementById('rejectIds').value = JSON.stringify(ids);
       document.getElementById('bulkRejectForm').submit();
     }
+  });
+
+  // Check clearances
+  document.getElementById('checkClearancesBtn').addEventListener('click', function() {
+    const checkedBoxes = document.querySelectorAll('.registration-checkbox:checked');
+    const ids = Array.from(checkedBoxes).map(cb => cb.value);
+
+    if (confirm(`Check attendance & fees clearances for ${ids.length} registration(s)?`)) {
+      document.getElementById('clearanceIds').value = JSON.stringify(ids);
+      document.getElementById('checkClearancesForm').submit();
+    }
+  });
+
+  // Update clearance link click
+  document.querySelectorAll('.update-clearance-link').forEach(link => {
+    link.addEventListener('click', function() {
+      document.getElementById('clearanceRegId').value = this.dataset.id;
+      document.getElementById('clearanceField').value = this.dataset.field;
+      document.getElementById('clearanceValue').value = this.dataset.current;
+      document.getElementById('clearanceRemarks').value = '';
+      new bootstrap.Modal(document.getElementById('clearanceModal')).show();
+    });
+  });
+
+  // Save clearance update
+  document.getElementById('saveClearanceBtn').addEventListener('click', function() {
+    const regId = document.getElementById('clearanceRegId').value;
+    const field = document.getElementById('clearanceField').value;
+    const value = document.getElementById('clearanceValue').value;
+    const remarks = document.getElementById('clearanceRemarks').value;
+
+    fetch(`{{ url('/admin/exam-registrations') }}/${regId}/update-clearance`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-CSRF-TOKEN': '{{ csrf_token() }}',
+          'Accept': 'application/json'
+        },
+        body: JSON.stringify({
+          field,
+          value,
+          remarks
+        })
+      })
+      .then(response => response.json())
+      .then(data => {
+        if (data.success) {
+          location.reload();
+        } else {
+          alert(data.message || 'Failed to update clearance');
+        }
+      })
+      .catch(error => {
+        alert('Error updating clearance');
+      });
   });
 </script>

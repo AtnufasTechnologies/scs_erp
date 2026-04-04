@@ -4,197 +4,251 @@ namespace App\Http\Controllers;
 
 use App\Models\ExamSystem\Backlog;
 use App\Models\ExamSystem\Exam;
-use App\Models\StudentMaster;
+use App\Models\ExamSystem\ExamSession;
+use App\Models\ExamSystem\ResultSubject;
+use App\Models\ExamSystem\Student;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 
 class BacklogsController extends Controller
 {
-  /**
-   * Display a listing of all backlogs
-   */
   public function index(Request $request)
   {
-    $query = Backlog::with(['student', 'subject', 'exam']);
+    $query = Backlog::with(['student', 'subject', 'exam', 'examSession']);
 
-    // Filter by exam
     if ($request->filled('exam_id')) {
       $query->where('exam_id', $request->exam_id);
     }
-
-    // Filter by status
+    if ($request->filled('exam_session_id')) {
+      $query->where('exam_session_id', $request->exam_session_id);
+    }
     if ($request->filled('status')) {
       $query->where('status', $request->status);
     }
-
-    // Search by student name or reg no
     if ($request->filled('search')) {
       $search = $request->search;
       $query->whereHas('student', function ($q) use ($search) {
-        $q->where('full_name', 'LIKE', "%{$search}%")
-          ->orWhere('register_no', 'LIKE', "%{$search}%");
+        $q->where('enrollment_no', 'LIKE', "%{$search}%");
       });
     }
 
-    $backlogs = $query->orderBy('created_at', 'desc')->paginate(20);
-    $exams = Exam::orderBy('year', 'desc')->get();
+    $backlogs = $query->orderBy('created_at', 'desc')->paginate(50);
+    $exams = Exam::orderBy('name')->get();
+    $sessions = ExamSession::orderBy('academic_year', 'desc')->orderBy('semester')->get();
 
-    return view('coe.backlogs.index', compact('backlogs', 'exams'));
+    $totalBacklogs = Backlog::count();
+    $pendingCount = Backlog::where('status', 'pending')->count();
+    $registeredCount = Backlog::where('status', 'registered')->count();
+    $clearedCount = Backlog::where('status', 'cleared')->count();
+
+    return view('coe.backlogs.index', compact(
+      'backlogs',
+      'exams',
+      'sessions',
+      'totalBacklogs',
+      'pendingCount',
+      'registeredCount',
+      'clearedCount'
+    ));
   }
 
-  /**
-   * Display backlog report with statistics
-   */
+  public function failedSubjects(Request $request)
+  {
+    $query = ResultSubject::with(['result.student', 'result.examSession', 'subjectMaster'])
+      ->where(function ($q) {
+        $q->whereIn('grade', ['F', 'Ab'])
+          ->orWhere('result_status', 'Absent');
+      });
+
+    if ($request->filled('exam_session_id')) {
+      $query->whereHas('result', function ($q) use ($request) {
+        $q->where('exam_session_id', $request->exam_session_id);
+      });
+    }
+
+    if ($request->filled('search')) {
+      $search = $request->search;
+      $query->whereHas('result.student', function ($q) use ($search) {
+        $q->where('enrollment_no', 'LIKE', "%{$search}%");
+      });
+    }
+
+    $failedSubjects = $query->orderBy('created_at', 'desc')->paginate(50);
+    $sessions = ExamSession::orderBy('academic_year', 'desc')->orderBy('semester')->get();
+    $exams = Exam::orderBy('name')->get();
+
+    return view('coe.backlogs.failed_subjects', compact('failedSubjects', 'sessions', 'exams'));
+  }
+
+  public function registerBacklog(Request $request)
+  {
+    $request->validate([
+      'result_subject_ids' => 'required|array|min:1',
+      'result_subject_ids.*' => 'exists:result_subjects,id',
+      'exam_id' => 'required|exists:exams,id',
+      'exam_session_id' => 'nullable|exists:exam_sessions,id',
+    ]);
+
+    try {
+      DB::beginTransaction();
+
+      $registered = 0;
+
+      foreach ($request->result_subject_ids as $rsId) {
+        $rs = ResultSubject::with(['result.student'])->findOrFail($rsId);
+        $examStudent = $rs->result->student;
+
+        if (!$examStudent) continue;
+
+        // Count previous attempts
+        $previousAttempts = Backlog::where('exam_student_id', $examStudent->id)
+          ->where('exam_subject_id', $rs->erp_subject_id)
+          ->count();
+
+        // Skip if already registered for same exam
+        $exists = Backlog::where('exam_student_id', $examStudent->id)
+          ->where('exam_subject_id', $rs->erp_subject_id)
+          ->where('exam_id', $request->exam_id)
+          ->exists();
+
+        if ($exists) continue;
+
+        Backlog::create([
+          'exam_student_id' => $examStudent->id,
+          'exam_subject_id' => $rs->erp_subject_id,
+          'exam_id' => $request->exam_id,
+          'exam_session_id' => $request->exam_session_id,
+          'status' => 'registered',
+          'attempt_number' => $previousAttempts + 1,
+          'previous_marks' => $rs->total_marks,
+          'previous_grade' => $rs->grade,
+          'registered_at' => now(),
+        ]);
+
+        $registered++;
+      }
+
+      DB::commit();
+
+      return redirect()->route('coe.backlogs.index')
+        ->with('success', "Successfully registered {$registered} backlog(s).");
+    } catch (\Exception $e) {
+      DB::rollBack();
+      return redirect()->back()
+        ->with('error', 'Registration failed: ' . $e->getMessage());
+    }
+  }
+
+  public function show($id)
+  {
+    $backlog = Backlog::with(['student', 'subject', 'exam', 'examSession'])->findOrFail($id);
+
+    // Attempt history
+    $attemptHistory = Backlog::with(['exam', 'examSession'])
+      ->where('exam_student_id', $backlog->exam_student_id)
+      ->where('exam_subject_id', $backlog->exam_subject_id)
+      ->orderBy('attempt_number')
+      ->get();
+
+    return view('coe.backlogs.show', compact('backlog', 'attemptHistory'));
+  }
+
+  public function markCleared(Request $request, $id)
+  {
+    $backlog = Backlog::findOrFail($id);
+
+    $backlog->update([
+      'status' => 'cleared',
+      'cleared_at' => now(),
+      'remarks' => $request->input('remarks'),
+    ]);
+
+    return redirect()->route('coe.backlogs.show', $id)
+      ->with('success', 'Backlog marked as cleared.');
+  }
+
+  public function destroy($id)
+  {
+    $backlog = Backlog::findOrFail($id);
+
+    if ($backlog->status === 'cleared') {
+      return redirect()->back()->with('error', 'Cannot delete cleared backlogs.');
+    }
+
+    $backlog->delete();
+
+    return redirect()->route('coe.backlogs.index')
+      ->with('success', 'Backlog record deleted successfully.');
+  }
+
   public function report(Request $request)
   {
-    $query = Backlog::with(['student', 'subject', 'exam']);
+    $query = Backlog::with(['student', 'subject', 'exam', 'examSession']);
 
-    // Filter by exam
     if ($request->filled('exam_id')) {
       $query->where('exam_id', $request->exam_id);
     }
+    if ($request->filled('exam_session_id')) {
+      $query->where('exam_session_id', $request->exam_session_id);
+    }
 
     $backlogs = $query->get();
-    $exams = Exam::orderBy('year', 'desc')->get();
+    $exams = Exam::orderBy('name')->get();
+    $sessions = ExamSession::orderBy('academic_year', 'desc')->orderBy('semester')->get();
 
-    // Statistics
     $totalBacklogs = $backlogs->count();
     $pendingBacklogs = $backlogs->where('status', 'pending')->count();
+    $registeredBacklogs = $backlogs->where('status', 'registered')->count();
     $clearedBacklogs = $backlogs->where('status', 'cleared')->count();
 
-    // Group by student
     $studentBacklogs = $backlogs->groupBy('exam_student_id')->map(function ($group) {
       $student = $group->first()->student;
       return [
         'student' => $student,
         'total' => $group->count(),
         'pending' => $group->where('status', 'pending')->count(),
+        'registered' => $group->where('status', 'registered')->count(),
         'cleared' => $group->where('status', 'cleared')->count(),
-        'subjects' => $group->pluck('subject')
+        'max_attempt' => $group->max('attempt_number'),
+        'subjects' => $group,
       ];
-    });
+    })->sortByDesc('total');
 
-    // Group by subject
     $subjectBacklogs = $backlogs->groupBy('exam_subject_id')->map(function ($group) {
       $subject = $group->first()->subject;
       return [
         'subject' => $subject,
         'total' => $group->count(),
         'pending' => $group->where('status', 'pending')->count(),
-        'cleared' => $group->where('status', 'cleared')->count()
+        'cleared' => $group->where('status', 'cleared')->count(),
       ];
     })->sortByDesc('total');
 
     return view('coe.backlogs.report', compact(
       'backlogs',
       'exams',
+      'sessions',
       'totalBacklogs',
       'pendingBacklogs',
+      'registeredBacklogs',
       'clearedBacklogs',
       'studentBacklogs',
       'subjectBacklogs'
     ));
   }
 
-  /**
-   * Show the form for creating a new backlog
-   */
-  public function create()
-  {
-    $exams = Exam::orderBy('year', 'desc')->get();
-    $students = StudentMaster::orderBy('full_name')->get();
-
-    return view('coe.backlogs.create', compact('exams', 'students'));
-  }
-
-  /**
-   * Store a newly created backlog
-   */
-  public function store(Request $request)
-  {
-    $request->validate([
-      'exam_student_id' => 'required|exists:student_masters,id',
-      'exam_subject_id' => 'required',
-      'exam_id' => 'required|exists:exams,id',
-      'status' => 'required|in:pending,cleared'
-    ]);
-
-    Backlog::create($request->all());
-
-    return redirect()->route('coe.backlogs.index')
-      ->with('success', 'Backlog record created successfully');
-  }
-
-  /**
-   * Display the specified backlog
-   */
-  public function show($id)
-  {
-    $backlog = Backlog::with(['student', 'subject', 'exam'])->findOrFail($id);
-
-    return view('coe.backlogs.show', compact('backlog'));
-  }
-
-  /**
-   * Show the form for editing the specified backlog
-   */
-  public function edit($id)
-  {
-    $backlog = Backlog::findOrFail($id);
-    $exams = Exam::orderBy('year', 'desc')->get();
-    $students = StudentMaster::orderBy('full_name')->get();
-
-    return view('coe.backlogs.edit', compact('backlog', 'exams', 'students'));
-  }
-
-  /**
-   * Update the specified backlog
-   */
-  public function update(Request $request, $id)
-  {
-    $request->validate([
-      'exam_student_id' => 'required|exists:student_masters,id',
-      'exam_subject_id' => 'required',
-      'exam_id' => 'required|exists:exams,id',
-      'status' => 'required|in:pending,cleared'
-    ]);
-
-    $backlog = Backlog::findOrFail($id);
-    $backlog->update($request->all());
-
-    return redirect()->route('coe.backlogs.index')
-      ->with('success', 'Backlog record updated successfully');
-  }
-
-  /**
-   * Remove the specified backlog
-   */
-  public function destroy($id)
-  {
-    $backlog = Backlog::findOrFail($id);
-    $backlog->delete();
-
-    return redirect()->route('coe.backlogs.index')
-      ->with('success', 'Backlog record deleted successfully');
-  }
-
-  /**
-   * Export backlogs data
-   */
   public function export(Request $request)
   {
-    $query = Backlog::with(['student', 'subject', 'exam']);
+    $query = Backlog::with(['student', 'subject', 'exam', 'examSession']);
 
     if ($request->filled('exam_id')) {
       $query->where('exam_id', $request->exam_id);
     }
-
     if ($request->filled('status')) {
       $query->where('status', $request->status);
     }
 
     $backlogs = $query->get();
-
     return response()->json($backlogs);
   }
 }

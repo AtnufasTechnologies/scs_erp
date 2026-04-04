@@ -5,6 +5,7 @@ use App\Faculty\Http\Controllers\TimetableController as FacultyTimetableControll
 use App\Faculty\Http\Controllers\AttendanceController as FacultyAttendanceController;
 use App\Faculty\Http\Controllers\WorkDiaryController as WorkDiaryController;
 use App\Faculty\Http\Controllers\FacultyLeaveController;
+use App\Faculty\Http\Controllers\InternalMarksController;
 use App\Faculty\Http\Controllers\PayrollController as FacultyPayrollController;
 use App\Faculty\Http\Controllers\RequestApplicationController as FacultyRequestApplicationController;
 use App\Http\Controllers\AccessController;
@@ -14,20 +15,25 @@ use App\Http\Controllers\AdmissionController;
 use App\Http\Controllers\AdmitCardController;
 use App\Http\Controllers\BacklogsController;
 use App\Http\Controllers\CoeDashboardController;
+use App\Http\Controllers\CoeInternalMarksReviewController;
 use App\Http\Controllers\CoeAttendanceController;
 use App\Http\Controllers\CoeExamController;
+use App\Http\Controllers\DcoeManagementController;
 use App\Http\Controllers\CoeRegulationController;
 use App\Http\Controllers\DepartmentActivityController;
 use App\Http\Controllers\DummyNumberController;
 use App\Http\Controllers\EvaluationDutyController;
 use App\Http\Controllers\ExamAttendanceController;
 use App\Http\Controllers\ExamMarksController;
+use App\Http\Controllers\ExamPacketController;
+use App\Http\Controllers\ExamPacketBarcodeController;
 use App\Http\Controllers\ExamRegistrationController;
 use App\Http\Controllers\ExamRemunerationController;
 use App\Http\Controllers\ExamReportsController;
 use App\Http\Controllers\ExamResultController;
 use App\Http\Controllers\ExitCertificationController;
 use App\Http\Controllers\FeePaymentController;
+use App\Http\Controllers\StudentResultController;
 use App\Http\Controllers\InvigilationDutyController;
 use App\Http\Controllers\LoginController;
 use App\Http\Controllers\ModerationDutyController;
@@ -316,6 +322,8 @@ Route::group(['prefix' => '/erp'], function () {
             Route::delete('/{id}', [ExamRegistrationController::class, 'destroy'])->name('admin.exam-registrations.destroy');
             Route::post('/bulk-approve', [ExamRegistrationController::class, 'bulkApprove'])->name('admin.exam-registrations.bulk-approve');
             Route::post('/bulk-reject', [ExamRegistrationController::class, 'bulkReject'])->name('admin.exam-registrations.bulk-reject');
+            Route::post('/check-clearances', [ExamRegistrationController::class, 'checkClearances'])->name('admin.exam-registrations.check-clearances');
+            Route::post('/{id}/update-clearance', [ExamRegistrationController::class, 'updateClearance'])->name('admin.exam-registrations.update-clearance');
             Route::get('/export', [ExamRegistrationController::class, 'export'])->name('admin.exam-registrations.export');
         });
 
@@ -382,6 +390,7 @@ Route::group(['prefix' => '/erp'], function () {
             Route::get('/{id}/edit', [InvigilationDutyController::class, 'edit'])->name('admin.invigilation-duties.edit');
             Route::put('/{id}', [InvigilationDutyController::class, 'update'])->name('admin.invigilation-duties.update');
             Route::delete('/{id}', [InvigilationDutyController::class, 'destroy'])->name('admin.invigilation-duties.destroy');
+            Route::post('/{id}/mark-completed', [InvigilationDutyController::class, 'markCompleted'])->name('admin.invigilation-duties.mark-completed');
             Route::post('/auto-assign', [InvigilationDutyController::class, 'autoAssign'])->name('admin.invigilation-duties.auto-assign');
             Route::get('/export', [InvigilationDutyController::class, 'export'])->name('admin.invigilation-duties.export');
         });
@@ -391,10 +400,13 @@ Route::group(['prefix' => '/erp'], function () {
             Route::get('/', [EvaluationDutyController::class, 'index'])->name('admin.evaluation-duties.index');
             Route::get('/create', [EvaluationDutyController::class, 'create'])->name('admin.evaluation-duties.create');
             Route::post('/', [EvaluationDutyController::class, 'store'])->name('admin.evaluation-duties.store');
+            Route::get('/subjects-by-exam/{examId}', [EvaluationDutyController::class, 'getSubjectsByExam'])->name('admin.evaluation-duties.subjects-by-exam');
             Route::get('/{id}', [EvaluationDutyController::class, 'show'])->name('admin.evaluation-duties.show');
             Route::get('/{id}/edit', [EvaluationDutyController::class, 'edit'])->name('admin.evaluation-duties.edit');
             Route::put('/{id}', [EvaluationDutyController::class, 'update'])->name('admin.evaluation-duties.update');
             Route::delete('/{id}', [EvaluationDutyController::class, 'destroy'])->name('admin.evaluation-duties.destroy');
+            Route::post('/{id}/mark-completed', [EvaluationDutyController::class, 'markCompleted'])->name('admin.evaluation-duties.mark-completed');
+            Route::post('/{id}/update-progress', [EvaluationDutyController::class, 'updateProgress'])->name('admin.evaluation-duties.update-progress');
             Route::post('/auto-assign', [EvaluationDutyController::class, 'autoAssign'])->name('admin.evaluation-duties.auto-assign');
             Route::get('/export', [EvaluationDutyController::class, 'export'])->name('admin.evaluation-duties.export');
         });
@@ -404,52 +416,54 @@ Route::group(['prefix' => '/erp'], function () {
             Route::get('/', [ModerationDutyController::class, 'index'])->name('admin.moderation-duties.index');
             Route::get('/create', [ModerationDutyController::class, 'create'])->name('admin.moderation-duties.create');
             Route::post('/', [ModerationDutyController::class, 'store'])->name('admin.moderation-duties.store');
+            Route::get('/compare', [ModerationDutyController::class, 'compare'])->name('admin.moderation-duties.compare');
+            Route::post('/import-marks', [ModerationDutyController::class, 'importMarks'])->name('admin.moderation-duties.import-marks');
+            Route::post('/bulk-adjust', [ModerationDutyController::class, 'bulkAdjust'])->name('admin.moderation-duties.bulk-adjust');
+            Route::post('/finalize', [ModerationDutyController::class, 'finalize'])->name('admin.moderation-duties.finalize');
+            Route::get('/subjects-by-exam/{examId}', [ModerationDutyController::class, 'getSubjectsByExam'])->name('admin.moderation-duties.subjects-by-exam');
+            Route::get('/export', [ModerationDutyController::class, 'export'])->name('admin.moderation-duties.export');
+            Route::post('/auto-assign', [ModerationDutyController::class, 'autoAssign'])->name('admin.moderation-duties.auto-assign');
             Route::get('/{id}', [ModerationDutyController::class, 'show'])->name('admin.moderation-duties.show');
             Route::get('/{id}/edit', [ModerationDutyController::class, 'edit'])->name('admin.moderation-duties.edit');
             Route::put('/{id}', [ModerationDutyController::class, 'update'])->name('admin.moderation-duties.update');
             Route::delete('/{id}', [ModerationDutyController::class, 'destroy'])->name('admin.moderation-duties.destroy');
-            Route::post('/auto-assign', [ModerationDutyController::class, 'autoAssign'])->name('admin.moderation-duties.auto-assign');
-            Route::get('/export', [ModerationDutyController::class, 'export'])->name('admin.moderation-duties.export');
+            Route::post('/{id}/mark-completed', [ModerationDutyController::class, 'markCompleted'])->name('admin.moderation-duties.mark-completed');
+            Route::post('/{id}/moderator-marks', [ModerationDutyController::class, 'storeModeratorMarks'])->name('admin.moderation-duties.moderator-marks');
+            Route::post('/{id}/adjust', [ModerationDutyController::class, 'adjustMarks'])->name('admin.moderation-duties.adjust');
         });
 
         // Exam Results Management
         Route::group(['prefix' => '/exam-results'], function () {
             Route::get('/', [ExamResultController::class, 'index'])->name('admin.exam-results.index');
-            Route::get('/create', [ExamResultController::class, 'create'])->name('admin.exam-results.create');
-            Route::post('/', [ExamResultController::class, 'store'])->name('admin.exam-results.store');
-            Route::get('/{id}', [ExamResultController::class, 'show'])->name('admin.exam-results.show');
-            Route::get('/{id}/edit', [ExamResultController::class, 'edit'])->name('admin.exam-results.edit');
-            Route::put('/{id}', [ExamResultController::class, 'update'])->name('admin.exam-results.update');
-            Route::delete('/{id}', [ExamResultController::class, 'destroy'])->name('admin.exam-results.destroy');
-            Route::post('/auto-generate', [ExamResultController::class, 'autoGenerate'])->name('admin.exam-results.auto-generate');
-            Route::post('/publish', [ExamResultController::class, 'publish'])->name('admin.exam-results.publish');
+            Route::get('/generate', [ExamResultController::class, 'generate'])->name('admin.exam-results.generate');
+            Route::post('/generate', [ExamResultController::class, 'doGenerate'])->name('admin.exam-results.do-generate');
             Route::get('/export', [ExamResultController::class, 'export'])->name('admin.exam-results.export');
+            Route::get('/semester-wise', [ExamResultController::class, 'semesterWise'])->name('admin.exam-results.semester-wise');
+            Route::post('/publish', [ExamResultController::class, 'publish'])->name('admin.exam-results.publish');
+            Route::post('/unpublish', [ExamResultController::class, 'unpublish'])->name('admin.exam-results.unpublish');
+            Route::post('/lock', [ExamResultController::class, 'lockResults'])->name('admin.exam-results.lock');
+            Route::post('/unlock', [ExamResultController::class, 'unlockResults'])->name('admin.exam-results.unlock');
+            Route::get('/{id}', [ExamResultController::class, 'show'])->name('admin.exam-results.show');
+            Route::delete('/{id}', [ExamResultController::class, 'destroy'])->name('admin.exam-results.destroy');
         });
         //Backlogs Management
         Route::group(['prefix' => '/backlogs'], function () {
             Route::get('/', [BacklogsController::class, 'index'])->name('coe.backlogs.index');
+            Route::get('/failed-subjects', [BacklogsController::class, 'failedSubjects'])->name('coe.backlogs.failed-subjects');
+            Route::post('/register', [BacklogsController::class, 'registerBacklog'])->name('coe.backlogs.register');
             Route::get('/report', [BacklogsController::class, 'report'])->name('coe.backlogs.report');
-            Route::get('/create', [BacklogsController::class, 'create'])->name('coe.backlogs.create');
-            Route::post('/', [BacklogsController::class, 'store'])->name('coe.backlogs.store');
-            Route::get('/{id}', [BacklogsController::class, 'show'])->name('coe.backlogs.show');
-            Route::get('/{id}/edit', [BacklogsController::class, 'edit'])->name('coe.backlogs.edit');
-            Route::put('/{id}', [BacklogsController::class, 'update'])->name('coe.backlogs.update');
-            Route::delete('/{id}', [BacklogsController::class, 'destroy'])->name('coe.backlogs.destroy');
             Route::get('/export', [BacklogsController::class, 'export'])->name('coe.backlogs.export');
+            Route::get('/{id}', [BacklogsController::class, 'show'])->name('coe.backlogs.show');
+            Route::post('/{id}/mark-cleared', [BacklogsController::class, 'markCleared'])->name('coe.backlogs.mark-cleared');
+            Route::delete('/{id}', [BacklogsController::class, 'destroy'])->name('coe.backlogs.destroy');
         });
 
         // 
-        // Student Promotions Management
+        // Student Promotions Management (NEP - auto-generated on result publish)
         Route::group(['prefix' => '/promotions'], function () {
-            Route::get('/', [PromotionController::class, 'index'])->name('admin.promotions.index');
-            Route::get('/create', [PromotionController::class, 'create'])->name('admin.promotions.create');
-            Route::post('/', [PromotionController::class, 'store'])->name('admin.promotions.store');
-            Route::get('/{id}', [PromotionController::class, 'show'])->name('admin.promotions.show');
-            Route::get('/{id}/edit', [PromotionController::class, 'edit'])->name('admin.promotions.edit');
-            Route::put('/{id}', [PromotionController::class, 'update'])->name('admin.promotions.update');
-            Route::delete('/{id}', [ExamResultController::class, 'destroy'])->name('admin.promotions.destroy');
-            Route::post('/bulk-promote', [PromotionController::class, 'bulkPromote'])->name('admin.promotions.bulk-promote');
             Route::get('/export', [PromotionController::class, 'export'])->name('admin.promotions.export');
+            Route::get('/', [PromotionController::class, 'index'])->name('admin.promotions.index');
+            Route::get('/{id}', [PromotionController::class, 'show'])->name('admin.promotions.show');
         });
 
         // Student Credits (ABC) Management
@@ -457,11 +471,13 @@ Route::group(['prefix' => '/erp'], function () {
             Route::get('/', [StudentCreditController::class, 'index'])->name('admin.student-credits.index');
             Route::get('/create', [StudentCreditController::class, 'create'])->name('admin.student-credits.create');
             Route::post('/', [StudentCreditController::class, 'store'])->name('admin.student-credits.store');
+            Route::get('/export', [StudentCreditController::class, 'export'])->name('admin.student-credits.export');
+            Route::get('/transcript/{studentId}', [StudentCreditController::class, 'transcript'])->name('admin.student-credits.transcript');
             Route::get('/{id}', [StudentCreditController::class, 'show'])->name('admin.student-credits.show');
             Route::get('/{id}/edit', [StudentCreditController::class, 'edit'])->name('admin.student-credits.edit');
             Route::put('/{id}', [StudentCreditController::class, 'update'])->name('admin.student-credits.update');
-            Route::delete('/{id}', [StudentCreditController::class, 'destroy'])->name('admin.student-credits.destroy');
-            Route::get('/export', [StudentCreditController::class, 'export'])->name('admin.student-credits.export');
+            Route::post('/{id}/verify', [StudentCreditController::class, 'verify'])->name('admin.student-credits.verify');
+            Route::post('/{id}/reject', [StudentCreditController::class, 'reject'])->name('admin.student-credits.reject');
         });
 
         // Exit Certification Management
@@ -470,11 +486,11 @@ Route::group(['prefix' => '/erp'], function () {
             Route::get('/create', [ExitCertificationController::class, 'create'])->name('admin.exit-certification.create');
             Route::post('/', [ExitCertificationController::class, 'store'])->name('admin.exit-certification.store');
             Route::get('/{id}', [ExitCertificationController::class, 'show'])->name('admin.exit-certification.show');
-            Route::get('/{id}/edit', [ExitCertificationController::class, 'edit'])->name('admin.exit-certification.edit');
-            Route::put('/{id}', [ExitCertificationController::class, 'update'])->name('admin.exit-certification.update');
+            Route::post('/{id}/approve', [ExitCertificationController::class, 'approve'])->name('admin.exit-certification.approve');
+            Route::post('/{id}/issue', [ExitCertificationController::class, 'issue'])->name('admin.exit-certification.issue');
+            Route::post('/{id}/revoke', [ExitCertificationController::class, 'revoke'])->name('admin.exit-certification.revoke');
+            Route::get('/{id}/download', [ExitCertificationController::class, 'downloadCertificate'])->name('admin.exit-certification.download');
             Route::delete('/{id}', [ExitCertificationController::class, 'destroy'])->name('admin.exit-certification.destroy');
-            Route::post('/approve', [ExitCertificationController::class, 'approve'])->name('admin.exit-certification.approve');
-            Route::get('/export', [ExitCertificationController::class, 'export'])->name('admin.exit-certification.export');
         });
 
         // Exam Remuneration Management
@@ -482,12 +498,11 @@ Route::group(['prefix' => '/erp'], function () {
             Route::get('/', [ExamRemunerationController::class, 'index'])->name('admin.exam-remuneration.index');
             Route::get('/create', [ExamRemunerationController::class, 'create'])->name('admin.exam-remuneration.create');
             Route::post('/', [ExamRemunerationController::class, 'store'])->name('admin.exam-remuneration.store');
-            Route::get('/{id}', [ExamRemunerationController::class, 'show'])->name('admin.exam-remuneration.show');
-            Route::get('/{id}/edit', [ExamRemunerationController::class, 'edit'])->name('admin.exam-remuneration.edit');
-            Route::put('/{id}', [ExamRemunerationController::class, 'update'])->name('admin.exam-remuneration.update');
-            Route::delete('/{id}', [ExamRemunerationController::class, 'destroy'])->name('admin.exam-remuneration.destroy');
             Route::post('/auto-calculate', [ExamRemunerationController::class, 'autoCalculate'])->name('admin.exam-remuneration.auto-calculate');
             Route::get('/export', [ExamRemunerationController::class, 'export'])->name('admin.exam-remuneration.export');
+            Route::get('/{id}', [ExamRemunerationController::class, 'show'])->name('admin.exam-remuneration.show');
+            Route::post('/{id}/approve', [ExamRemunerationController::class, 'approve'])->name('admin.exam-remuneration.approve');
+            Route::post('/{id}/mark-paid', [ExamRemunerationController::class, 'markPaid'])->name('admin.exam-remuneration.mark-paid');
         });
 
         // Payment Batches Management
@@ -496,11 +511,8 @@ Route::group(['prefix' => '/erp'], function () {
             Route::get('/create', [PaymentBatchController::class, 'create'])->name('admin.payment-batches.create');
             Route::post('/', [PaymentBatchController::class, 'store'])->name('admin.payment-batches.store');
             Route::get('/{id}', [PaymentBatchController::class, 'show'])->name('admin.payment-batches.show');
-            Route::get('/{id}/edit', [PaymentBatchController::class, 'edit'])->name('admin.payment-batches.edit');
-            Route::put('/{id}', [PaymentBatchController::class, 'update'])->name('admin.payment-batches.update');
-            Route::delete('/{id}', [PaymentBatchController::class, 'destroy'])->name('admin.payment-batches.destroy');
-            Route::post('/process', [PaymentBatchController::class, 'process'])->name('admin.payment-batches.process');
-            Route::get('/export', [PaymentBatchController::class, 'export'])->name('admin.payment-batches.export');
+            Route::post('/{id}/approve', [PaymentBatchController::class, 'approve'])->name('admin.payment-batches.approve');
+            Route::post('/{id}/mark-paid', [PaymentBatchController::class, 'markPaid'])->name('admin.payment-batches.mark-paid');
         });
 
         // Exam Reports
@@ -571,6 +583,10 @@ Route::group(['prefix' => '/erp'], function () {
 
     //student
     Route::group(['prefix' => 'student'], function () {
+        Route::get('results', [StudentResultController::class, 'lookup'])->name('student.results.lookup');
+        Route::post('results/search', [StudentResultController::class, 'search'])->name('student.results.search');
+        Route::get('results/{id}', [StudentResultController::class, 'detail'])->name('student.results.detail');
+
         Route::get('fee-payment', [FeePaymentController::class, 'studentValidation']);
         Route::post('fee-status', [FeePaymentController::class, 'studentFeeStatus']);
         Route::post('fee-payment', [FeePaymentController::class, 'createOrder']);
@@ -716,6 +732,12 @@ Route::group(['prefix' => '/erp'], function () {
         Route::put('leave/{id}', [FacultyLeaveController::class, 'update'])->name('faculty.leave.update');
         Route::post('leave/{id}/cancel', [FacultyLeaveController::class, 'cancel'])->name('faculty.leave.cancel');
         Route::delete('leave/{id}', [FacultyLeaveController::class, 'destroy'])->name('faculty.leave.destroy');
+
+        // Internal Marks (FA) Routes
+        Route::get('internal-marks', [InternalMarksController::class, 'index'])->name('faculty.internal-marks.index');
+        Route::get('internal-marks/enter', [InternalMarksController::class, 'enter'])->name('faculty.internal-marks.enter');
+        Route::post('internal-marks', [InternalMarksController::class, 'store'])->name('faculty.internal-marks.store');
+        Route::get('internal-marks/view', [InternalMarksController::class, 'view'])->name('faculty.internal-marks.view');
     });
 
 
@@ -778,11 +800,48 @@ Route::group(['prefix' => '/erp'], function () {
         Route::post('marks/store-single', [ExamMarksController::class, 'storeSingle'])->name('coe.marks.store-single')->middleware('check.device.access');
         Route::post('marks/bulk-entry', [ExamMarksController::class, 'bulkEntry'])->name('coe.marks.bulk-entry')->middleware('check.device.access');
 
+        // COE Marks Lock/Unlock Routes
+        Route::post('marks/lock', [ExamMarksController::class, 'lockMarks'])->name('coe.marks.lock');
+        Route::post('marks/unlock', [ExamMarksController::class, 'unlockMarks'])->name('coe.marks.unlock');
+        Route::post('marks/coe-override', [ExamMarksController::class, 'coeOverrideUpdate'])->name('coe.marks.coe-override');
+        Route::get('marks/audit-log', [ExamMarksController::class, 'auditLog'])->name('coe.marks.audit-log');
+        Route::get('marks/locks', [ExamMarksController::class, 'locksIndex'])->name('coe.marks.locks');
+
         // COE MAC Whitelist Routes
         Route::get('marks/whitelist', [ExamMarksController::class, 'whitelistIndex'])->name('coe.marks.whitelist');
         Route::post('marks/whitelist', [ExamMarksController::class, 'whitelistStore'])->name('coe.marks.whitelist.store');
         Route::delete('marks/whitelist/{id}', [ExamMarksController::class, 'whitelistDestroy'])->name('coe.marks.whitelist.destroy');
 
         Route::get('marks/{id}', [ExamMarksController::class, 'show'])->name('coe.marks.show');
+
+        // COE Packet Generation Routes
+        Route::get('packets', [ExamPacketController::class, 'index'])->name('coe.packets.index');
+        Route::get('packets/generate', [ExamPacketController::class, 'generate'])->name('coe.packets.generate');
+        Route::post('packets/generate', [ExamPacketController::class, 'store'])->name('coe.packets.store');
+        Route::post('packets/assign-evaluator', [ExamPacketController::class, 'assignEvaluator'])->name('coe.packets.assign-evaluator');
+        Route::post('packets/update-status', [ExamPacketController::class, 'updateStatus'])->name('coe.packets.update-status');
+        Route::get('packets/{id}', [ExamPacketController::class, 'show'])->name('coe.packets.show');
+
+        // COE Packet Barcode Tracking Routes
+        Route::post('packets/barcodes/generate', [ExamPacketBarcodeController::class, 'generateBarcodes'])->name('coe.packets.barcodes.generate');
+        Route::get('packets/barcodes/print', [ExamPacketBarcodeController::class, 'printLabels'])->name('coe.packets.barcodes.print');
+        Route::get('packets/barcodes/scanner', [ExamPacketBarcodeController::class, 'scanner'])->name('coe.packets.barcodes.scanner');
+        Route::post('packets/barcodes/scan', [ExamPacketBarcodeController::class, 'processScan'])->name('coe.packets.barcodes.scan');
+        Route::get('packets/barcodes/lookup', [ExamPacketBarcodeController::class, 'lookup'])->name('coe.packets.barcodes.lookup');
+        Route::get('packets/barcodes/tracking', [ExamPacketBarcodeController::class, 'tracking'])->name('coe.packets.barcodes.tracking');
+        Route::get('packets/barcodes/history/{packetId}', [ExamPacketBarcodeController::class, 'scanHistory'])->name('coe.packets.barcodes.history');
+
+        // COE Internal Marks Review (FA Change Log)
+        Route::get('internal-marks-review', [CoeInternalMarksReviewController::class, 'index'])->name('coe.internal-marks-review.index');
+
+        // D.COE Management Routes (COE only)
+        Route::group(['prefix' => 'dcoe-management'], function () {
+            Route::get('/', [DcoeManagementController::class, 'index'])->name('coe.dcoe.index');
+            Route::post('/', [DcoeManagementController::class, 'store'])->name('coe.dcoe.store');
+            Route::get('/{id}/edit', [DcoeManagementController::class, 'edit'])->name('coe.dcoe.edit');
+            Route::put('/{id}', [DcoeManagementController::class, 'update'])->name('coe.dcoe.update');
+            Route::post('/{id}/toggle-status', [DcoeManagementController::class, 'toggleStatus'])->name('coe.dcoe.toggle-status');
+            Route::delete('/{id}', [DcoeManagementController::class, 'destroy'])->name('coe.dcoe.destroy');
+        });
     });
 });

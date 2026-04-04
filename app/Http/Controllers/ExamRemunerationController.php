@@ -3,9 +3,15 @@
 namespace App\Http\Controllers;
 
 use App\Models\FacultyRemuneration;
-use App\Models\Faculty;
+use App\Models\ExamSystem\FacultyProfile;
+use App\Models\ExamSystem\InvigilationDuty;
+use App\Models\ExamSystem\EvaluationDuty;
+use App\Models\ExamSystem\ModerationDuty;
+use App\Services\RemunerationService;
+use App\Exports\FacultyRemunerationExport;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Maatwebsite\Excel\Facades\Excel;
 
 class ExamRemunerationController extends Controller
 {
@@ -13,84 +19,85 @@ class ExamRemunerationController extends Controller
   {
     $query = FacultyRemuneration::with(['faculty']);
 
-    if ($request->has('faculty_id') && $request->faculty_id != '') {
+    if ($request->filled('faculty_id')) {
       $query->where('faculty_id', $request->faculty_id);
     }
 
-    if ($request->has('type') && $request->type != '') {
-      $query->where('type', $request->type);
+    if ($request->filled('duty_type')) {
+      $query->where('duty_type', $request->duty_type);
     }
 
-    if ($request->has('status') && $request->status != '') {
+    if ($request->filled('status')) {
       $query->where('status', $request->status);
     }
 
     $remunerations = $query->orderBy('created_at', 'desc')->paginate(50);
-    $faculties = Faculty::all();
+    $faculties = FacultyProfile::orderBy('name')->get();
 
-    return view('coe.remuneration.index', compact('remunerations', 'faculties'));
+    // Statistics
+    $totalAmount = FacultyRemuneration::sum('total_amount');
+    $pendingAmount = FacultyRemuneration::pending()->sum('total_amount');
+    $approvedAmount = FacultyRemuneration::approved()->sum('total_amount');
+    $paidAmount = FacultyRemuneration::paid()->sum('total_amount');
+    $pendingCount = FacultyRemuneration::pending()->count();
+    $approvedCount = FacultyRemuneration::approved()->count();
+    $paidCount = FacultyRemuneration::paid()->count();
+
+    return view('coe.remuneration.index', compact(
+      'remunerations',
+      'faculties',
+      'totalAmount',
+      'pendingAmount',
+      'approvedAmount',
+      'paidAmount',
+      'pendingCount',
+      'approvedCount',
+      'paidCount'
+    ));
   }
 
   public function create()
   {
-    $faculties = Faculty::all();
-
+    $faculties = FacultyProfile::orderBy('name')->get();
     return view('coe.remuneration.create', compact('faculties'));
   }
 
   public function store(Request $request)
   {
     $request->validate([
-      'faculty_id' => 'required|exists:faculties,id',
-      'type' => 'required|in:invigilation,evaluation,moderation,other',
-      'amount' => 'required|numeric|min:0',
-      'description' => 'nullable|string',
+      'faculty_id' => 'required|exists:faculty_profiles,id',
+      'duty_type' => 'required|in:invigilation,evaluation,moderation',
+      'quantity' => 'required|integer|min:1',
+      'rate' => 'required|numeric|min:0',
     ]);
 
-    FacultyRemuneration::create(array_merge($request->all(), ['status' => 'pending']));
+    $totalAmount = $request->quantity * $request->rate;
 
-    return redirect()->route('coe.remuneration.index')
+    FacultyRemuneration::create([
+      'faculty_id' => $request->faculty_id,
+      'duty_type' => $request->duty_type,
+      'quantity' => $request->quantity,
+      'rate' => $request->rate,
+      'total_amount' => $totalAmount,
+      'status' => 'pending',
+      'generated_at' => now(),
+    ]);
+
+    return redirect()->route('admin.exam-remuneration.index')
       ->with('success', 'Remuneration entry created successfully');
   }
 
   public function show($id)
   {
     $remuneration = FacultyRemuneration::with(['faculty'])->findOrFail($id);
-    return view('coe.remuneration.show', compact('remuneration'));
-  }
 
-  public function edit($id)
-  {
-    $remuneration = FacultyRemuneration::findOrFail($id);
-    $faculties = Faculty::all();
+    // Get faculty earnings summary
+    $facultyEarnings = FacultyRemuneration::where('faculty_id', $remuneration->faculty_id)
+      ->selectRaw('duty_type, SUM(total_amount) as total, COUNT(*) as count, status')
+      ->groupBy('duty_type', 'status')
+      ->get();
 
-    return view('coe.remuneration.edit', compact('remuneration', 'faculties'));
-  }
-
-  public function update(Request $request, $id)
-  {
-    $request->validate([
-      'faculty_id' => 'required|exists:faculties,id',
-      'type' => 'required|in:invigilation,evaluation,moderation,other',
-      'amount' => 'required|numeric|min:0',
-      'description' => 'nullable|string',
-      'status' => 'nullable|in:pending,approved,paid',
-    ]);
-
-    $remuneration = FacultyRemuneration::findOrFail($id);
-    $remuneration->update($request->all());
-
-    return redirect()->route('coe.remuneration.index')
-      ->with('success', 'Remuneration updated successfully');
-  }
-
-  public function destroy($id)
-  {
-    $remuneration = FacultyRemuneration::findOrFail($id);
-    $remuneration->delete();
-
-    return redirect()->route('coe.remuneration.index')
-      ->with('success', 'Remuneration deleted successfully');
+    return view('coe.remuneration.show', compact('remuneration', 'facultyEarnings'));
   }
 
   public function approve($id)
@@ -98,47 +105,77 @@ class ExamRemunerationController extends Controller
     $remuneration = FacultyRemuneration::findOrFail($id);
     $remuneration->update(['status' => 'approved']);
 
-    return redirect()->back()->with('success', 'Remuneration approved');
+    return redirect()->back()->with('success', 'Remuneration approved successfully');
   }
 
   public function markPaid($id)
   {
     $remuneration = FacultyRemuneration::findOrFail($id);
-    $remuneration->update(['status' => 'paid', 'paid_at' => now()]);
+    $remuneration->update(['status' => 'paid']);
 
     return redirect()->back()->with('success', 'Remuneration marked as paid');
   }
 
   public function export(Request $request)
   {
-    $query = FacultyRemuneration::with(['faculty', 'exam']);
-
-    if ($request->has('exam_id') && $request->exam_id != '') {
-      $query->where('exam_id', $request->exam_id);
-    }
-
-    $remunerations = $query->get();
-    return response()->json($remunerations);
+    return Excel::download(new FacultyRemunerationExport($request->all()), 'remuneration_report.xlsx');
   }
 
   public function autoCalculate(Request $request)
   {
-    $request->validate([
-      'exam_id' => 'required|exists:exams,id',
-    ]);
-
     try {
       DB::beginTransaction();
+      $service = new RemunerationService();
+      $count = 0;
 
-      // Auto-calculate remuneration logic
-      // Get all duties (invigilation, evaluation, moderation) for the exam
-      // Apply rates based on duty type and duration
-      // Calculate total amount for each faculty
-      // Create remuneration records
+      // Process completed invigilation duties without existing remuneration
+      $invigilationDuties = InvigilationDuty::where('status', 'completed')
+        ->whereNotIn('id', FacultyRemuneration::where('duty_type', 'invigilation')->pluck('reference_id'))
+        ->get();
+
+      foreach ($invigilationDuties as $duty) {
+        $result = $service->generateRemuneration([
+          'faculty_id' => $duty->faculty_id,
+          'duty_type' => 'invigilation',
+          'reference_id' => $duty->id,
+          'quantity' => 1,
+        ]);
+        if ($result) $count++;
+      }
+
+      // Process completed evaluation duties without existing remuneration
+      $evaluationDuties = EvaluationDuty::where('status', 'completed')
+        ->whereNotIn('id', FacultyRemuneration::where('duty_type', 'evaluation')->pluck('reference_id'))
+        ->get();
+
+      foreach ($evaluationDuties as $duty) {
+        $result = $service->generateRemuneration([
+          'faculty_id' => $duty->faculty_id,
+          'duty_type' => 'evaluation',
+          'reference_id' => $duty->id,
+          'quantity' => $duty->copies_evaluated ?? 1,
+        ]);
+        if ($result) $count++;
+      }
+
+      // Process completed moderation duties without existing remuneration
+      $moderationDuties = ModerationDuty::where('status', 'completed')
+        ->whereNotIn('id', FacultyRemuneration::where('duty_type', 'moderation')->pluck('reference_id'))
+        ->get();
+
+      foreach ($moderationDuties as $duty) {
+        $result = $service->generateRemuneration([
+          'faculty_id' => $duty->faculty_id,
+          'duty_type' => 'moderation',
+          'reference_id' => $duty->id,
+          'quantity' => 1,
+        ]);
+        if ($result) $count++;
+      }
 
       DB::commit();
       return redirect()->route('admin.exam-remuneration.index')
-        ->with('success', 'Remuneration auto-calculated successfully');
+        ->with('success', "Remuneration auto-calculated successfully. {$count} new entries created.");
     } catch (\Exception $e) {
       DB::rollBack();
       return redirect()->back()

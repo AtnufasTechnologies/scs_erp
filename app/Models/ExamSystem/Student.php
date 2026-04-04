@@ -12,7 +12,9 @@ class Student extends Model
     'erp_student_id',
     'program_id',
     'enrollment_no',
-    'status'
+    'current_semester',
+    'status',
+    'promotion_status',
   ];
 
   public function registrations(): HasMany
@@ -28,5 +30,15 @@ class Student extends Model
   public function credits(): HasMany
   {
     return $this->hasMany(StudentCredit::class, 'exam_student_id');
+  }
+
+  public function promotionHistories(): HasMany
+  {
+    return $this->hasMany(StudentPromotionHistory::class, 'exam_student_id');
+  }
+
+  public function promotions(): HasMany
+  {
+    return $this->hasMany(Promotion::class, 'exam_student_id');
   }
 }

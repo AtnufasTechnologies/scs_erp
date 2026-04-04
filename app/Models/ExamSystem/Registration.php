@@ -16,11 +16,17 @@ class Registration extends Model
     'is_backlog',
     'status',
     'registered_at',
+    'attendance_clearance',
+    'library_clearance',
+    'fees_clearance',
+    'attendance_percentage',
+    'clearance_remarks',
   ];
 
   protected $casts = [
     'is_backlog' => 'boolean',
     'registered_at' => 'datetime',
+    'attendance_percentage' => 'decimal:2',
   ];
 
   public function student(): BelongsTo
@@ -60,6 +66,11 @@ class Registration extends Model
   public function examSubjects()
   {
     return $this->hasMany(ExamSubjectEntry::class, 'exam_session_id', 'exam_session_id');
+  }
+
+  public function registrationSubjects()
+  {
+    return $this->hasMany(ExamRegistrationSubject::class, 'exam_registration_id');
   }
 
   public function scopeApproved($query)

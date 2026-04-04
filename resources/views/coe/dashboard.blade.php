@@ -417,6 +417,12 @@
   <!--end page content-->
 </div>
 
+<!-- Hidden inputs for JS references -->
+<input type="hidden" id="jsAttendancePresent" value="{{ $attendancePresent ?? 0 }}">
+<input type="hidden" id="jsAttendanceAbsent" value="{{ $attendanceAbsent ?? 0 }}">
+<input type="hidden" id="jsEvaluationLabels" value="{{ json_encode($evaluationLabels ?? []) }}">
+<input type="hidden" id="jsEvaluationData" value="{{ json_encode($evaluationData ?? []) }}">
+
 <style>
   .gradient-coe {
     background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
@@ -463,15 +469,7 @@
     data: {
       labels: ['Present', 'Absent'],
       datasets: [{
-        data: [{
-          {
-            $attendancePresent ?? 0
-          }
-        }, {
-          {
-            $attendanceAbsent ?? 0
-          }
-        }],
+        data: [parseFloat(document.getElementById('jsAttendancePresent').value), parseFloat(document.getElementById('jsAttendanceAbsent').value)],
         backgroundColor: ['#198754', '#dc3545'],
         borderWidth: 2,
         borderColor: '#fff'
@@ -492,14 +490,10 @@
   const evaluationChart = new Chart(document.getElementById('evaluationChart'), {
     type: 'bar',
     data: {
-      labels: {
-        !!json_encode($evaluationLabels ?? []) !!
-      },
+      labels: JSON.parse(document.getElementById('jsEvaluationLabels').value),
       datasets: [{
         label: 'Evaluated Copies',
-        data: {
-          !!json_encode($evaluationData ?? []) !!
-        },
+        data: JSON.parse(document.getElementById('jsEvaluationData').value),
         backgroundColor: '#0d6efd',
         borderRadius: 5
       }]

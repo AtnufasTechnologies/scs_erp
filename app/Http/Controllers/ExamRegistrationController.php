@@ -2,8 +2,10 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\ExamSystem\Exam;
 use App\Models\ExamSystem\ExamSession;
 use App\Models\ExamSystem\Registration;
+use App\Models\Semester;
 use App\Models\StudentMaster;
 use App\Models\Campus;
 use Illuminate\Http\Request;
@@ -19,10 +21,11 @@ class ExamRegistrationController extends Controller
   public function index(Request $request)
   {
     $query = Registration::with([
-      'student:id,first_name,last_name,register_no,roll_no,campus_id',
+      'student:id,first_name,last_name,register_no,roll_no,campus_id,new_program_id',
       'student.campusmaster:id,name',
       'student.batchmaster:id,batch_name',
-      'examSession:id,name,academic_year,semester,program_type,start_date,end_date'
+      'examSession:id,name,academic_year,semester,program_type,start_date,end_date',
+      'registrationSubjects.examSubject.master',
     ]);
 
     // Apply filters
@@ -52,6 +55,19 @@ class ExamRegistrationController extends Controller
           ->orWhere('register_no', 'LIKE', "%{$search}%")
           ->orWhere('roll_no', 'LIKE', "%{$search}%");
       });
+    }
+
+    // Clearance filters
+    if ($request->has('attendance_clearance') && $request->attendance_clearance != '') {
+      $query->where('attendance_clearance', $request->attendance_clearance);
+    }
+
+    if ($request->has('library_clearance') && $request->library_clearance != '') {
+      $query->where('library_clearance', $request->library_clearance);
+    }
+
+    if ($request->has('fees_clearance') && $request->fees_clearance != '') {
+      $query->where('fees_clearance', $request->fees_clearance);
     }
 
     $registrations = $query->orderBy('created_at', 'desc')->paginate(50);
@@ -356,6 +372,118 @@ class ExamRegistrationController extends Controller
         'message' => 'Registration failed',
         'error' => $e->getMessage()
       ], 500);
+    }
+  }
+
+  /**
+   * Check and compute clearances for registrations
+   */
+  public function checkClearances(Request $request)
+  {
+    $validator = Validator::make($request->all(), [
+      'registration_ids' => 'required|array',
+      'registration_ids.*' => 'exists:exam_registrations,id'
+    ]);
+
+    if ($validator->fails()) {
+      return redirect()->back()->with('error', 'Invalid registration IDs');
+    }
+
+    try {
+      $registrations = Registration::with('student')->whereIn('id', $request->registration_ids)->get();
+
+      foreach ($registrations as $registration) {
+        $studentId = $registration->erp_student_id;
+
+        // Compute attendance clearance
+        $totalClasses = DB::table('student_attendances')
+          ->where('student_id', $studentId)
+          ->whereNull('deleted_at')
+          ->count();
+
+        $presentClasses = DB::table('student_attendances')
+          ->where('student_id', $studentId)
+          ->whereIn('status', ['present', 'late'])
+          ->whereNull('deleted_at')
+          ->count();
+
+        $attendancePercentage = $totalClasses > 0 ? round(($presentClasses / $totalClasses) * 100, 2) : 0;
+        $attendanceClearance = $attendancePercentage >= 75 ? 'cleared' : 'not_cleared';
+
+        // Compute fees clearance - compare paid vs total due from fee structures
+        $student = $registration->student;
+        $programId = $student->new_program_id ?? null;
+
+        $totalDue = 0;
+        if ($programId) {
+          $feeStructureIds = DB::table('fees_structures')
+            ->where('program_id', $programId)
+            ->where('is_payable', 1)
+            ->pluck('id');
+
+          if ($feeStructureIds->isNotEmpty()) {
+            $totalDue = DB::table('fee_structure_has_heads')
+              ->whereIn('fee_structure_id', $feeStructureIds)
+              ->sum('amount');
+          }
+        }
+
+        $totalPaid = DB::table('student_payments')
+          ->where('student_id', $studentId)
+          ->where('status', 'success')
+          ->sum(DB::raw('CAST(captured_amount AS DECIMAL(10,2))'));
+
+        if ($totalDue > 0) {
+          $feesClearance = $totalPaid >= $totalDue ? 'cleared' : 'not_cleared';
+        } else {
+          $feesClearance = $totalPaid > 0 ? 'cleared' : 'pending';
+        }
+
+        $registration->update([
+          'attendance_clearance' => $attendanceClearance,
+          'attendance_percentage' => $attendancePercentage,
+          'fees_clearance' => $feesClearance,
+        ]);
+      }
+
+      return redirect()->back()
+        ->with('success', 'Clearances checked for ' . count($request->registration_ids) . ' registration(s)');
+    } catch (\Exception $e) {
+      return redirect()->back()
+        ->with('error', 'Failed to check clearances: ' . $e->getMessage());
+    }
+  }
+
+  /**
+   * Update a single clearance field for a registration
+   */
+  public function updateClearance(Request $request, $id)
+  {
+    $validator = Validator::make($request->all(), [
+      'field' => 'required|in:attendance_clearance,library_clearance,fees_clearance',
+      'value' => 'required|in:cleared,not_cleared,pending',
+      'remarks' => 'nullable|string|max:500',
+    ]);
+
+    if ($validator->fails()) {
+      return response()->json(['success' => false, 'message' => 'Validation failed', 'errors' => $validator->errors()], 422);
+    }
+
+    try {
+      $registration = Registration::findOrFail($id);
+      $registration->{$request->field} = $request->value;
+
+      if ($request->has('remarks') && $request->remarks) {
+        $existingRemarks = $registration->clearance_remarks ?? '';
+        $newRemark = '[' . now()->format('d-M-Y H:i') . '] ' . ucfirst(str_replace('_', ' ', $request->field)) . ': ' . $request->remarks;
+        $registration->clearance_remarks = $existingRemarks ? $existingRemarks . "\n" . $newRemark : $newRemark;
+      }
+
+      $registration->save();
+
+      return response()->json(['success' => true, 'message' => 'Clearance updated successfully']);
+    } catch (\Exception $e) {
+      return response()->json(['success' => false, 'message' => 'Failed to update clearance: ' . $e->getMessage()], 500);
     }
   }
 

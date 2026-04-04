@@ -42,4 +42,9 @@ class ExamMarksEntry extends Model
   {
     return $this->belongsTo(\App\Models\User::class, 'entered_by');
   }
+
+  public function auditLogs()
+  {
+    return $this->hasMany(ExamMarksAuditLog::class, 'exam_marks_entry_id');
+  }
 }

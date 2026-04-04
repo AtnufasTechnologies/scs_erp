@@ -110,6 +110,62 @@
               </table>
             </div>
           </div>
+
+          <!-- Audit Trail for this entry -->
+          @if($auditLogs && $auditLogs->count() > 0)
+          <hr>
+          <div class="row">
+            <div class="col-12">
+              <h6 class="text-muted text-uppercase mb-3"><i class="fas fa-history me-2"></i>Change History (Audit Trail)</h6>
+              <div class="table-responsive">
+                <table class="table table-sm table-bordered">
+                  <thead class="table-light">
+                    <tr>
+                      <th>#</th>
+                      <th>Old Marks</th>
+                      <th>New Marks</th>
+                      <th>Action</th>
+                      <th>Changed By</th>
+                      <th>MAC Address</th>
+                      <th>Remarks</th>
+                      <th>Date</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    @foreach($auditLogs as $index => $log)
+                    <tr class="{{ $log->action === 'coe_override' ? 'table-warning' : '' }}">
+                      <td>{{ $index + 1 }}</td>
+                      <td>
+                        @if($log->old_marks !== null)
+                        <span class="badge bg-secondary">{{ $log->old_marks }}</span>
+                        @else
+                        <span class="text-muted">—</span>
+                        @endif
+                      </td>
+                      <td><span class="badge bg-primary">{{ $log->new_marks }}</span></td>
+                      <td>
+                        @if($log->action === 'created')
+                        <span class="badge bg-success">Created</span>
+                        @elseif($log->action === 'updated')
+                        <span class="badge bg-info">Updated</span>
+                        @elseif($log->action === 'coe_override')
+                        <span class="badge bg-warning text-dark"><i class="fas fa-user-shield me-1"></i>COE Override</span>
+                        @else
+                        <span class="badge bg-secondary">{{ $log->action }}</span>
+                        @endif
+                      </td>
+                      <td>{{ $log->changedByUser->name ?? 'N/A' }}</td>
+                      <td><code>{{ $log->mac_address ?? 'N/A' }}</code></td>
+                      <td>{{ $log->remarks ?? '—' }}</td>
+                      <td>{{ $log->created_at ? $log->created_at->format('d M Y, h:i:s A') : '-' }}</td>
+                    </tr>
+                    @endforeach
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+          @endif
         </div>
       </div>
 

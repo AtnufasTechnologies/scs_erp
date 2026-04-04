@@ -17,12 +17,17 @@ class ModerationDuty extends Model
 
   public function faculty(): BelongsTo
   {
-    return $this->belongsTo(FacultyProfile::class, 'faculty_id');
+    return $this->belongsTo(\App\Models\Faculty::class, 'faculty_id');
   }
 
   public function exam(): BelongsTo
   {
     return $this->belongsTo(Exam::class, 'exam_id');
+  }
+
+  public function subject(): BelongsTo
+  {
+    return $this->belongsTo(ExamSubjectMaster::class, 'subject_id');
   }
 
   public function scopePending($query)

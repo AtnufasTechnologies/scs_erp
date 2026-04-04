@@ -3,8 +3,9 @@
 namespace App\Http\Controllers;
 
 use App\Models\ExamSystem\StudentCredit;
+use App\Models\ExamSystem\Student;
+use App\Models\ExamSystem\ExamSubjectMaster;
 use App\Models\StudentMaster;
-use App\Models\ProgramCourseMaster;
 use Illuminate\Http\Request;
 
 class StudentCreditController extends Controller
@@ -13,105 +14,240 @@ class StudentCreditController extends Controller
   {
     $query = StudentCredit::with(['student', 'subject']);
 
-    if ($request->has('student_id') && $request->student_id != '') {
+    if ($request->filled('student_id')) {
       $query->where('exam_student_id', $request->student_id);
     }
 
-    if ($request->has('semester') && $request->semester != '') {
+    if ($request->filled('credit_type')) {
+      $query->where('credit_type', $request->credit_type);
+    }
+
+    if ($request->filled('semester')) {
       $query->where('semester', $request->semester);
     }
 
-    $credits = $query->orderBy('created_at', 'desc')->paginate(50);
-    $students = StudentMaster::where('is_deleted', 0)->where('is_left', 0)->get();
+    if ($request->filled('status')) {
+      $query->where('status', $request->status);
+    }
 
-    return view('coe.student-credits.index', compact('credits', 'students'));
+    if ($request->filled('search')) {
+      $search = $request->search;
+      $query->where(function ($q) use ($search) {
+        $q->whereHas('student', function ($sq) use ($search) {
+          $sq->where('enrollment_no', 'like', "%{$search}%");
+        })
+          ->orWhereHas('subject', function ($sq) use ($search) {
+            $sq->where('subject_code', 'like', "%{$search}%")
+              ->orWhere('name', 'like', "%{$search}%");
+          })
+          ->orWhere('source_institution', 'like', "%{$search}%")
+          ->orWhere('source_subject_name', 'like', "%{$search}%");
+      });
+    }
+
+    $credits = $query->orderBy('created_at', 'desc')->paginate(50);
+
+    // Stats
+    $totalCredits = StudentCredit::count();
+    $earnedCount = StudentCredit::earned()->count();
+    $transferredCount = StudentCredit::transferred()->count();
+    $totalEarnedCredits = StudentCredit::earned()->sum('credits_earned');
+    $totalTransferredCredits = StudentCredit::transferred()->sum('credits_earned');
+
+    $students = Student::orderBy('enrollment_no')->get();
+
+    return view('coe.student-credits.index', compact(
+      'credits',
+      'students',
+      'totalCredits',
+      'earnedCount',
+      'transferredCount',
+      'totalEarnedCredits',
+      'totalTransferredCredits'
+    ));
   }
 
-  public function create()
+  public function create(Request $request)
   {
-    $students = StudentMaster::where('is_deleted', 0)->where('is_left', 0)->get();
-    $subjects = ProgramCourseMaster::all();
+    $students = Student::orderBy('enrollment_no')->get();
+    $subjects = ExamSubjectMaster::orderBy('subject_code')->get();
+    $creditType = $request->get('type', 'earned');
 
-    return view('coe.student-credits.create', compact('students', 'subjects'));
+    $studentCredits = null;
+    if ($request->filled('student_id')) {
+      $studentCredits = StudentCredit::with('subject')
+        ->where('exam_student_id', $request->student_id)
+        ->orderBy('semester')
+        ->orderBy('credit_type')
+        ->get();
+    }
+
+    return view('coe.student-credits.create', compact('students', 'subjects', 'creditType', 'studentCredits'));
   }
 
   public function store(Request $request)
   {
-    $request->validate([
-      'exam_student_id' => 'required|exists:student_masters,id',
-      'subject_id' => 'required',
-      'semester' => 'required|integer',
-      'credits_earned' => 'required|numeric',
-      'grade' => 'nullable|string',
-    ]);
+    $rules = [
+      'exam_student_id' => 'required|exists:exam_students,id',
+      'credits_earned' => 'required|numeric|min:0.5|max:30',
+      'credit_type' => 'required|in:earned,transferred',
+      'semester' => 'required|integer|min:1|max:12',
+      'grade' => 'nullable|string|max:5',
+      'grade_point' => 'nullable|numeric|min:0|max:10',
+      'remarks' => 'nullable|string|max:500',
+    ];
 
-    StudentCredit::create($request->all());
+    if ($request->credit_type === 'earned') {
+      $rules['exam_subject_id'] = 'required|exists:exam_subject_masters,id';
+    } else {
+      $rules['source_institution'] = 'required|string|max:255';
+      $rules['source_subject_code'] = 'nullable|string|max:50';
+      $rules['source_subject_name'] = 'required|string|max:255';
+      $rules['transfer_date'] = 'required|date';
+      $rules['transfer_reference'] = 'nullable|string|max:255';
+      $rules['exam_subject_id'] = 'nullable|exists:exam_subject_masters,id';
+    }
 
-    return redirect()->route('coe.student-credits.index')
-      ->with('success', 'Student credit entry created successfully');
+    $validated = $request->validate($rules);
+
+    // Set initial status
+    if ($request->credit_type === 'transferred') {
+      $validated['status'] = 'under_review';
+    } else {
+      $validated['status'] = 'active';
+    }
+
+    StudentCredit::create($validated);
+
+    return redirect()->route('admin.student-credits.index')
+      ->with('success', ucfirst($request->credit_type) . ' credit entry created successfully.');
   }
 
   public function show($id)
   {
-    $credit = StudentCredit::with(['student', 'subject'])->findOrFail($id);
-    return view('coe.student-credits.show', compact('credit'));
+    $credit = StudentCredit::with(['student', 'subject', 'verifier'])->findOrFail($id);
+
+    // Get all credits for the same student for summary
+    $studentCredits = StudentCredit::with('subject')
+      ->where('exam_student_id', $credit->exam_student_id)
+      ->orderBy('semester')
+      ->orderBy('credit_type')
+      ->get();
+
+    $totalEarned = $studentCredits->where('credit_type', 'earned')->sum('credits_earned');
+    $totalTransferred = $studentCredits->where('credit_type', 'transferred')
+      ->whereIn('status', ['active', 'verified'])->sum('credits_earned');
+    $grandTotal = $totalEarned + $totalTransferred;
+
+    return view('coe.student-credits.show', compact('credit', 'studentCredits', 'totalEarned', 'totalTransferred', 'grandTotal'));
   }
 
   public function edit($id)
   {
     $credit = StudentCredit::findOrFail($id);
-    $students = StudentMaster::where('is_deleted', 0)->where('is_left', 0)->get();
-    $subjects = ProgramCourseMaster::all();
+    $students = Student::orderBy('enrollment_no')->get();
+    $subjects = ExamSubjectMaster::orderBy('subject_code')->get();
 
     return view('coe.student-credits.edit', compact('credit', 'students', 'subjects'));
   }
 
   public function update(Request $request, $id)
   {
-    $request->validate([
-      'exam_student_id' => 'required|exists:student_masters,id',
-      'subject_id' => 'required',
-      'semester' => 'required|integer',
-      'credits_earned' => 'required|numeric',
-      'grade' => 'nullable|string',
-    ]);
-
     $credit = StudentCredit::findOrFail($id);
-    $credit->update($request->all());
 
-    return redirect()->route('coe.student-credits.index')
-      ->with('success', 'Student credit updated successfully');
+    $rules = [
+      'credits_earned' => 'required|numeric|min:0.5|max:30',
+      'semester' => 'required|integer|min:1|max:12',
+      'grade' => 'nullable|string|max:5',
+      'grade_point' => 'nullable|numeric|min:0|max:10',
+      'remarks' => 'nullable|string|max:500',
+    ];
+
+    if ($credit->isEarned()) {
+      $rules['exam_subject_id'] = 'required|exists:exam_subject_masters,id';
+    } else {
+      $rules['source_institution'] = 'required|string|max:255';
+      $rules['source_subject_code'] = 'nullable|string|max:50';
+      $rules['source_subject_name'] = 'required|string|max:255';
+      $rules['transfer_date'] = 'required|date';
+      $rules['transfer_reference'] = 'nullable|string|max:255';
+      $rules['exam_subject_id'] = 'nullable|exists:exam_subject_masters,id';
+    }
+
+    $validated = $request->validate($rules);
+    $credit->update($validated);
+
+    return redirect()->route('admin.student-credits.show', $credit->id)
+      ->with('success', 'Credit entry updated successfully.');
   }
 
-  public function destroy($id)
+  public function verify(Request $request, $id)
   {
     $credit = StudentCredit::findOrFail($id);
-    $credit->delete();
 
-    return redirect()->route('coe.student-credits.index')
-      ->with('success', 'Student credit deleted successfully');
+    if (!$credit->isTransferred()) {
+      return back()->with('error', 'Only transferred credits can be verified.');
+    }
+
+    $credit->update([
+      'status' => 'verified',
+      'verified_by' => auth()->id(),
+      'verified_at' => now(),
+    ]);
+
+    return back()->with('success', 'Transferred credit verified successfully.');
+  }
+
+  public function reject(Request $request, $id)
+  {
+    $credit = StudentCredit::findOrFail($id);
+
+    if (!$credit->isTransferred()) {
+      return back()->with('error', 'Only transferred credits can be rejected.');
+    }
+
+    $request->validate(['remarks' => 'required|string|max:500']);
+
+    $credit->update([
+      'status' => 'rejected',
+      'verified_by' => auth()->id(),
+      'verified_at' => now(),
+      'remarks' => $request->remarks,
+    ]);
+
+    return back()->with('success', 'Transferred credit rejected.');
   }
 
   public function transcript($studentId)
   {
-    $student = StudentMaster::findOrFail($studentId);
+    $student = Student::findOrFail($studentId);
     $credits = StudentCredit::with('subject')
       ->where('exam_student_id', $studentId)
+      ->whereIn('status', ['active', 'verified'])
       ->orderBy('semester')
+      ->orderBy('credit_type')
       ->get();
 
-    return view('coe.student-credits.transcript', compact('student', 'credits'));
+    $semesterCredits = $credits->groupBy('semester');
+    $totalEarned = $credits->where('credit_type', 'earned')->sum('credits_earned');
+    $totalTransferred = $credits->where('credit_type', 'transferred')->sum('credits_earned');
+
+    return view('coe.student-credits.transcript', compact('student', 'credits', 'semesterCredits', 'totalEarned', 'totalTransferred'));
   }
 
   public function export(Request $request)
   {
-    $query = StudentCredit::with(['student', 'subject', 'semester']);
+    $query = StudentCredit::with(['student', 'subject']);
 
-    if ($request->has('student_id') && $request->student_id != '') {
+    if ($request->filled('student_id')) {
       $query->where('exam_student_id', $request->student_id);
     }
 
-    $credits = $query->get();
+    if ($request->filled('credit_type')) {
+      $query->where('credit_type', $request->credit_type);
+    }
+
+    $credits = $query->orderBy('exam_student_id')->orderBy('semester')->get();
     return response()->json($credits);
   }
 }

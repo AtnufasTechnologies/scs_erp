@@ -73,4 +73,9 @@ class User extends Authenticatable
     {
         return $this->hasMany(UserActivityLog::class, 'user_id')->latest('id');
     }
+
+    public function dcoeMenuPermissions()
+    {
+        return $this->hasMany(DcoeMenuPermission::class, 'user_id', 'id');
+    }
 }
