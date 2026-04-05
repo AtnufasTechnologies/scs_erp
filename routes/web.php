@@ -33,6 +33,7 @@ use App\Http\Controllers\ExamReportsController;
 use App\Http\Controllers\ExamResultController;
 use App\Http\Controllers\ExitCertificationController;
 use App\Http\Controllers\FeePaymentController;
+use App\Http\Controllers\StudentDashboardController;
 use App\Http\Controllers\StudentResultController;
 use App\Http\Controllers\InvigilationDutyController;
 use App\Http\Controllers\LoginController;
@@ -78,7 +79,12 @@ Route::group(['prefix' => '/erp'], function () {
         Route::get('std-master-sonada', [AdminController::class, 'stdMasterSonada']);
         Route::get('std-master-siliguri', [AdminController::class, 'stdMasterSiliguri']);
         Route::get('faculty-master', [AdminController::class, 'facultyMaster']);
-        Route::get('{id}/std-profile/{rollno}', [AdminController::class, 'stdprofile']);
+        Route::get('{id}/std-profile/{rollno}', [AdminController::class, 'stdprofile'])->name('admin.student.profile');
+        Route::put('{id}/std-update', [AdminController::class, 'stdUpdate'])->name('admin.student.update');
+        Route::post('{studentId}/courses', [AdminController::class, 'stdCourseStore'])->name('admin.student.courses.store');
+        Route::put('{studentId}/courses/{sciId}', [AdminController::class, 'stdCourseUpdate'])->name('admin.student.courses.update');
+        Route::delete('{studentId}/courses/{sciId}', [AdminController::class, 'stdCourseDestroy'])->name('admin.student.courses.destroy');
+        Route::post('student/{studentId}/create-access', [AdminController::class, 'createStudentAccess'])->name('admin.student.create-access');
         Route::post('update/faculty', [AdminController::class, 'updateFaculty']);
 
         //master
@@ -741,6 +747,15 @@ Route::group(['prefix' => '/erp'], function () {
     });
 
 
+    // Student routes
+    Route::group(['prefix' => 'student', 'middleware' => ['auth', 'check.student.access']], function () {
+        Route::get('dashboard', [StudentDashboardController::class, 'profile'])->name('student.dashboard');
+        Route::get('my-profile', [StudentDashboardController::class, 'profile'])->name('student.profile');
+        Route::get('feedback', [StudentDashboardController::class, 'feedbackList'])->name('student.feedback.list');
+        Route::post('feedback/{id}', [StudentDashboardController::class, 'submitFeedback'])->name('student.feedback.submit');
+    });
+
+
     //Testing route
     Route::group(['prefix' => '/test'], function () {
         //   Route::get('dept-campus-mapping', [TestController::class, 'DeptCampusMapping']);
@@ -753,6 +768,9 @@ Route::group(['prefix' => '/erp'], function () {
         Route::get('dashboard', [CoeDashboardController::class, 'index'])->name('coe.dashboard');
         // AJAX filter route for COE Dashboard
         Route::get('dashboard/filter', [CoeDashboardController::class, 'filter'])->name('coe.dashboard.filter');
+
+        // COE Student Master
+        Route::get('students', [CoeDashboardController::class, 'studentMaster'])->name('coe.students.index');
 
         // COE Attendance Routes
         Route::get('attendance', [CoeAttendanceController::class, 'index'])->name('coe.attendance.index');

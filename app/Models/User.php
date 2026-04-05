@@ -20,9 +20,13 @@ class User extends Authenticatable
      * @var array<int, string>
      */
     protected $fillable = [
+        'student_id',
         'name',
         'email',
+        'phone',
         'password',
+        'decrypted_password',
+        'status',
     ];
 
     /**
@@ -54,6 +58,11 @@ class User extends Authenticatable
     function userroletype()
     {
         return $this->hasOne(UserHasRole::class, 'user_id', 'id');
+    }
+
+    function hasRole()
+    {
+        return $this->hasOne(UserHasRole::class, 'user_id', 'id')->with('role');
     }
 
 

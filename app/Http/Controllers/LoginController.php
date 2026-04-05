@@ -53,6 +53,7 @@ class LoginController extends Controller
                     return redirect()->route('coe.dashboard')->with('success', 'Login Success');
                 } else if ($roleType == 'student') {
                     //Student Dashboard
+                    return redirect()->route('student.dashboard')->with('success', 'Login Success');
                 } else {
                     //for all Super Admin| Office assistane| Admin
                     return redirect('erp/admin/dashboard')->with('success', 'Login Success');

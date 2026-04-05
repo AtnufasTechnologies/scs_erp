@@ -22,6 +22,15 @@ use App\Http\Controllers\StaticController;
       </a>
     </li>
 
+    <li>
+      <a href="{{ route('coe.students.index') }}">
+        <div class="parent-icon">
+          <i class="fas fa-users"></i>
+        </div>
+        <div class="menu-title">Student Master</div>
+      </a>
+    </li>
+
     @if(StaticController::coeMenuAccess('exam-management'))
     <li>
       <a href="javascript:;" class="has-arrow">

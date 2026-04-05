@@ -11,6 +11,8 @@ use App\Models\ExamSystem\ModerationDuty;
 use App\Models\ExamSystem\Backlog;
 use App\Models\FacultyRemuneration;
 use App\Models\ExamSystem\InvigilationDuty;
+use App\Models\Campus;
+use App\Models\StudentMaster;
 use Illuminate\Support\Facades\DB;
 
 class CoeDashboardController extends Controller
@@ -84,5 +86,33 @@ class CoeDashboardController extends Controller
       'html' => $html,
       'count' => $filteredExams->count(),
     ]);
+  }
+
+  /**
+   * Student Master listing for COE - shows students from both campuses.
+   */
+  public function studentMaster(Request $request)
+  {
+    $campuses = Campus::all();
+
+    $query = StudentMaster::with([
+      'religionmaster:id,name',
+      'deptmaster:id,department_code,name',
+      'campusmaster:id,slug,name',
+      'nationalitymaster:id,name',
+      'usertype:id,name',
+      'bloodgroup',
+      'batchmaster:id,batch_name',
+      'programgroup.programInfo'
+    ]);
+
+    if ($request->filled('campus_id')) {
+      $query->where('campus_id', $request->campus_id);
+    }
+
+    $data = $query->get();
+    $selectedCampus = $request->campus_id;
+
+    return view('coe.students.student-master', compact('data', 'campuses', 'selectedCampus'));
   }
 }

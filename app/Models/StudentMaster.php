@@ -10,6 +10,44 @@ class StudentMaster extends Model
 {
     use HasFactory;
 
+    protected $fillable = [
+        'first_name',
+        'last_name',
+        'gender',
+        'dob',
+        'mobile_no',
+        'mail_id',
+        'address',
+        'father_name',
+        'mother_name',
+        'guardian_name',
+        'fr_mobile_no',
+        'mr_mobile_no',
+        'guardian_mobile_no',
+        'fr_occupation',
+        'mr_occupation',
+        'department',
+        'batch',
+        'campus_id',
+        'roll_no',
+        'register_no',
+        'university_register_no',
+        'current_year',
+        'admission_date',
+        'graduation_year',
+        'status',
+        'nationality',
+        'religion',
+        'community',
+        'caste',
+        'blood_group_id',
+        'mother_tongue',
+        'aadhar_no',
+        'annual_income',
+        'is_roman_catholic',
+        'remarks',
+    ];
+
     function religionmaster()
     {
         return $this->hasOne(ReligionMaster::class, 'id', 'religion');
@@ -74,5 +112,10 @@ class StudentMaster extends Model
     function studentsyllabusinfo()
     {
         return $this->hasMany(StudentSyllabusInfo::class, 'student_id', 'id');
+    }
+
+    function address()
+    {
+        return $this->hasOne(StudentAddress::class, 'student_id', 'id');
     }
 }
