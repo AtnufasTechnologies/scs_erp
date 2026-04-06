@@ -457,6 +457,14 @@ $roleType = UserHasRole::where('user_id', $userId)->value('role_name');
         </li>
         @endif
         <li>
+          <a href="{{route('admin.subject-combination-master')}}">
+            <div class="parent-icon">
+              <i class="fas fa-arrow-alt-circle-right"></i>
+            </div>
+            <div class="menu-title">Subject Combination Master</div>
+          </a>
+        </li>
+        <li>
           <a href="{{route('department.substitution.history.page')}}">
             <div class="parent-icon">
               <i class="fas fa-arrow-alt-circle-right"></i>

@@ -39,6 +39,7 @@ use App\Http\Controllers\InvigilationDutyController;
 use App\Http\Controllers\LoginController;
 use App\Http\Controllers\ModerationDutyController;
 use App\Http\Controllers\PaymentBatchController;
+use App\Http\Controllers\PrincipalController;
 use App\Http\Controllers\PromotionController;
 use App\Http\Controllers\SeatingAllocationController;
 use App\Http\Controllers\StudentCreditController;
@@ -149,6 +150,11 @@ Route::group(['prefix' => '/erp'], function () {
             Route::get('academic-dept', [AdminController::class, 'academicDept']);
             Route::post('academic-dept', [AdminController::class, 'addAcademicDept']);
             Route::post('connect-academic-dept', [AdminController::class, 'connectAcademicToDept']);
+
+            // Subject Combination Master
+            Route::get('subject-combination-master', [SubjectController::class, 'subjectCombinationMaster'])->name('admin.subject-combination-master');
+            Route::post('subject-combination', [SubjectController::class, 'storeSubjectCombination'])->name('admin.subject-combination.store');
+            Route::get('delete-subject-combination/{id}', [SubjectController::class, 'deleteSubjectCombination'])->name('admin.subject-combination.delete');
         });
 
         //account
@@ -621,6 +627,7 @@ Route::group(['prefix' => '/erp'], function () {
 
     Route::group(['prefix' => '/deptartment'], function () {
         Route::get('dashboard', [SubjectController::class, 'departmentDashboard'])->name('department.dashboard');
+        Route::get('combo-master', [SubjectController::class, 'comboMaster'])->name('department.combo.master');
         Route::delete('combination/{id}/delete', [SubjectController::class, 'deleteCombination'])->name('department.combination.delete');
         Route::get('course-master/{id}/{slug}', [SubjectController::class, 'courseMaster'])->name('department.course.master');
         Route::post('my-course-master', [SubjectController::class, 'addCourseMaster'])->name('department.add.course.master');
@@ -861,5 +868,42 @@ Route::group(['prefix' => '/erp'], function () {
             Route::post('/{id}/toggle-status', [DcoeManagementController::class, 'toggleStatus'])->name('coe.dcoe.toggle-status');
             Route::delete('/{id}', [DcoeManagementController::class, 'destroy'])->name('coe.dcoe.destroy');
         });
+    });
+
+    // Principal Module Routes
+    Route::group(['prefix' => '/principal'], function () {
+        Route::get('dashboard', [PrincipalController::class, 'dashboard'])->name('principal.dashboard');
+        Route::get('students', [PrincipalController::class, 'students'])->name('principal.students.index');
+        Route::get('{id}/student-profile/{rollno}', [PrincipalController::class, 'studentProfile'])->name('principal.student.profile');
+        Route::get('faculty', [PrincipalController::class, 'faculty'])->name('principal.faculty.index');
+        Route::get('faculty/{id}', [PrincipalController::class, 'facultyDetail'])->name('principal.faculty.detail');
+        Route::get('faculty/{id}/timetable', [PrincipalController::class, 'facultyTimetable'])->name('principal.faculty.timetable');
+        Route::get('faculty/{id}/work-diary', [PrincipalController::class, 'facultyWorkDiary'])->name('principal.faculty.work-diary');
+        Route::get('courses', [PrincipalController::class, 'courses'])->name('principal.courses.index');
+        Route::get('courses/{id}', [PrincipalController::class, 'courseDetail'])->name('principal.courses.detail');
+        Route::get('syllabus', [PrincipalController::class, 'subjectSyllabus'])->name('principal.syllabus.index');
+        Route::get('syllabus/{id}', [PrincipalController::class, 'subjectSyllabusDetail'])->name('principal.syllabus.detail');
+        Route::get('classes', [PrincipalController::class, 'classes'])->name('principal.classes.index');
+        Route::get('admissions', [PrincipalController::class, 'admissions'])->name('principal.admissions.index');
+
+        // Fee Management
+        Route::get('fees', [PrincipalController::class, 'studentFees'])->name('principal.fees.index');
+        Route::get('fees/defaulters', [PrincipalController::class, 'feeDefaulters'])->name('principal.fees.defaulters');
+
+        // Leave Management
+        Route::get('leaves', [PrincipalController::class, 'leaves'])->name('principal.leaves.index');
+        Route::post('leaves/{id}/action', [PrincipalController::class, 'leaveAction'])->name('principal.leaves.action');
+
+        // Work Diary
+        Route::get('work-diary', [PrincipalController::class, 'workDiaryOverview'])->name('principal.work-diary.overview');
+        Route::post('work-diary/{id}/approve', [PrincipalController::class, 'approveWorkDiary'])->name('principal.work-diary.approve');
+        Route::post('work-diary/bulk-approve', [PrincipalController::class, 'bulkApproveWorkDiary'])->name('principal.work-diary.bulk-approve');
+
+        // Vice-Principal Management (Principal only)
+        Route::get('vp-management', [PrincipalController::class, 'vpIndex'])->name('principal.vp.index');
+        Route::post('vp-management', [PrincipalController::class, 'vpStore'])->name('principal.vp.store');
+        Route::put('vp-management/{id}', [PrincipalController::class, 'vpUpdate'])->name('principal.vp.update');
+        Route::post('vp-management/{id}/toggle-status', [PrincipalController::class, 'vpToggleStatus'])->name('principal.vp.toggle-status');
+        Route::delete('vp-management/{id}', [PrincipalController::class, 'vpDestroy'])->name('principal.vp.destroy');
     });
 });

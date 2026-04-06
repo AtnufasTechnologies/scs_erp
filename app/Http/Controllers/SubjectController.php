@@ -20,6 +20,7 @@ use App\Models\Semester;
 use App\Models\StudentMaster;
 use App\Models\StudentProgram;
 use App\Models\Subject;
+use App\Models\SubjectCombinationMaster;
 use App\Models\SubjectCourseMaster;
 use App\Models\SubjectFacultyMaster;
 use App\Models\SubjectHasCombination;
@@ -407,6 +408,20 @@ class SubjectController extends Controller
             'total' => DepartmentActivity::where('subject_id', $subjectId)->count(),
             'upcoming' => DepartmentActivity::where('subject_id', $subjectId)->upcoming()->count(),
         ];
+        // Subject Combination Master for this department
+        $subjectCombinationRows = SubjectCombinationMaster::with(['batch', 'campus', 'mainSubject', 'comboSubject'])
+            ->where('main_subject_id', $subjectId)
+            ->orWhere('combo_subject_id', $subjectId)
+            ->latest()
+            ->get();
+        $subjectCombinationsGrouped = SubjectCombinationMaster::with(['batch', 'campus', 'mainSubject', 'comboSubject'])
+            ->where('main_subject_id', $subjectId)
+            ->latest()
+            ->get()
+            ->groupBy(fn($r) => $r->batch_id . '-' . $r->campus_id . '-' . $r->main_subject_id);
+        $allSubjects = Subject::orderBy('title')->get();
+        $allCampuses = Campus::all();
+
         return view('admin.subject.department-dashboard', [
             'data' => $courseMaster,
             'students_count' => $studentsCount,
@@ -418,7 +433,10 @@ class SubjectController extends Controller
             'syllabusCount' => $syllabusCount,
             'upcomingActivities' => $upcomingActivities,
             'activityStats' => $activityStats,
-
+            'subjectCombinationsGrouped' => $subjectCombinationsGrouped,
+            'allSubjects' => $allSubjects,
+            'allCampuses' => $allCampuses,
+            'allBatches' => $batches,
         ]);
     }
 
@@ -994,5 +1012,115 @@ class SubjectController extends Controller
             'data' => $faculties,
             'subject' => $subject,
         ]);
+    }
+
+    // ─── Dept Admin: Combo Master page (dedicated) ───────────────────────────
+
+    function comboMaster(Request $request)
+    {
+        $userId    = Auth::user()->id;
+        $subjectId = SubjectHasDeptAdmin::where('user_id', $userId)->value('subject_id');
+        $subject   = Subject::find($subjectId);
+
+        if (!$subject) {
+            return redirect()->route('department.dashboard')->with('info', 'Subject not found.');
+        }
+
+        $batches  = BatchMaster::all();
+        $campuses = Campus::all();
+        $subjects = Subject::where('campus_id', $subject->campus_id)
+            ->orderBy('title')
+            ->get();
+
+        $query = SubjectCombinationMaster::with(['batch', 'campus', 'mainSubject', 'comboSubject'])
+            ->where('main_subject_id', $subjectId);
+
+        if ($request->filled('batch_id')) {
+            $query->where('batch_id', $request->batch_id);
+        }
+
+        $grouped = $query->latest()
+            ->get()
+            ->groupBy(fn($r) => $r->batch_id . '-' . $r->campus_id . '-' . $r->main_subject_id);
+
+        return view('admin.subject.combo-master', compact(
+            'subject',
+            'grouped',
+            'batches',
+            'campuses',
+            'subjects'
+        ));
+    }
+
+    // ─── Subject Combination Master ──────────────────────────────────────────
+
+    function subjectCombinationMaster(Request $request)
+    {
+        // Group all rows by batch + campus + main_subject for cleaner display
+        $rows = SubjectCombinationMaster::with(['batch', 'campus', 'mainSubject', 'comboSubject'])
+            ->latest()
+            ->get();
+
+        // Group: [batch_id-campus_id-main_subject_id] => collection of rows
+        $grouped = $rows->groupBy(function ($r) {
+            return $r->batch_id . '-' . $r->campus_id . '-' . $r->main_subject_id;
+        });
+
+        $batches  = BatchMaster::all();
+        $campuses = Campus::all();
+        $subjects = Subject::orderBy('title')->get();
+
+        return view('admin.master.subject-combination-master', compact('grouped', 'rows', 'batches', 'campuses', 'subjects'));
+    }
+
+    function storeSubjectCombination(Request $request)
+    {
+        $request->validate([
+            'batch_id'          => 'required|exists:batch_masters,id',
+            'main_subject_id'   => 'required|exists:subjects,id',
+            'combo_subject_ids' => 'required|array|min:1',
+            'combo_subject_ids.*' => 'exists:subjects,id',
+        ]);
+
+        $inserted = 0;
+        $skipped  = 0;
+        $mainSubjectRecord = Subject::find($request->main_subject_id);
+        $campus_id = $mainSubjectRecord->campus_id;
+        foreach ($request->combo_subject_ids as $comboId) {
+            if ($comboId == $request->main_subject_id) {
+                $skipped++;
+                continue;
+            }
+
+            $exists = SubjectCombinationMaster::where([
+                'batch_id'        => $request->batch_id,
+                'campus_id'       => $campus_id,
+                'main_subject_id' => $request->main_subject_id,
+                'combo_subject_id' => $comboId,
+            ])->exists();
+
+            if ($exists) {
+                $skipped++;
+                continue;
+            }
+
+            SubjectCombinationMaster::create([
+                'batch_id'        => $request->batch_id,
+                'campus_id'       => $campus_id,
+                'main_subject_id' => $request->main_subject_id,
+                'combo_subject_id' => $comboId,
+            ]);
+            $inserted++;
+        }
+
+        $msg = "$inserted combination(s) added.";
+        if ($skipped) $msg .= " $skipped skipped (duplicate or same subject).";
+        return back()->with('success', $msg);
+    }
+
+    function deleteSubjectCombination($id)
+    {
+        SubjectCombinationMaster::findOrFail($id)->delete();
+        return back()->with('success', 'Subject combination deleted.');
     }
 }

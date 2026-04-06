@@ -438,6 +438,14 @@ class StaticController extends Controller
   }
 
   /**
+   * Check if current user is the Principal.
+   */
+  static function isPrincipal()
+  {
+    return self::fetchUserRole() === 'principal';
+  }
+
+  /**
    * Get the campus ID for DCOE users. Returns null for COE (sees all campuses).
    */
   static function getDcoeCampusId()

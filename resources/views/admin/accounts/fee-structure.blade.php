@@ -19,56 +19,44 @@ $latefee = LateFee::find(1);
 @include('includes.header')
 @include('admin.sidebar')
 
-<h3><span class="text-uppercase">Fee Structure </span></h3>
-<div class="row">
-  <div class="col-lg-2">
-    <button class="cst-button mb-3" style="--clr: #21d9c7ff;" data-bs-toggle="modal" data-bs-target="#add">
-      <span class="button-decor"></span>
-      <div class="button-content">
-        <div class="button__icon">
-          <i class="fa fa-plus-circle"></i>
-        </div>
-        <span class="button__text">Add New</span>
-      </div>
-    </button>
+<!-- Page Header -->
+<div class="d-flex align-items-center justify-content-between mb-3">
+  <div>
+    <h4 class="fw-bold mb-0"><i class="fa fa-layer-group text-primary me-2"></i>Fee Structure</h4>
+    <small class="text-muted">Manage all fee structures</small>
   </div>
+  <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#add">
+    <i class="fa fa-plus-circle me-1"></i> Add New Structure
+  </button>
+</div>
 
-  <div class="col-lg-4 offset-3">
-    <div class="card shadow p-2">
-      <form action="" method="post">
-        <div class="row">
-
-          <div class="col-lg-6">
-
-            <div class="input-group">
-              <span class="input-group-text">Late Fee</span>
-              <input type="text" class="form-control" value="{{$latefee->late_fee_amount}}">
-            </div>
+<!-- Toolbar -->
+<div class="card shadow-sm mb-3">
+  <div class="card-body py-2">
+    <div class="row g-2 align-items-center">
+      <div class="col-md-5">
+        <form action="{{url('erp/admin/accounts/fee-structure')}}" method="get" class="d-flex gap-2">
+          <input type="text" name="keyword" placeholder="Search by program, batch, course..." class="form-control form-control-sm" value="{{ request('keyword') }}">
+          <button class="btn btn-sm btn-primary px-3"><i class="fa fa-search"></i></button>
+          <a href="{{url('erp/admin/accounts/fee-structure')}}" class="btn btn-sm btn-outline-secondary"><i class="fa fa-redo-alt"></i></a>
+        </form>
+      </div>
+      <div class="col-md-7 d-flex justify-content-end">
+        <form action="" method="post" class="d-flex align-items-center gap-2">
+          @csrf
+          <span class="text-muted small fw-semibold"><i class="fa fa-clock me-1"></i>Late Fee:</span>
+          <div class="input-group input-group-sm" style="max-width:280px">
+            <span class="input-group-text bg-white"><i class="fa fa-rupee-sign text-secondary"></i></span>
+            <input type="number" name="late_fee_amount" class="form-control" value="{{$latefee->late_fee_amount}}" placeholder="Amount">
+            <select name="status" class="form-select">
+              <option value="1" {{$latefee->status == '1' ? 'selected' : ''}}>Active</option>
+              <option value="0" {{$latefee->status == '0' ? 'selected' : ''}}>Inactive</option>
+            </select>
+            <button type="submit" class="btn btn-success">Update</button>
           </div>
-          <div class="col-lg-6">
-            <div class="input-group">
-              <select name="" class="form-select">
-                <option value="1 " {{$latefee->status == '1' ? 'selected' : ''}}>Active</option>
-                <option value="0 " {{$latefee->status == '0' ? 'selected' : ''}}>Inactive</option>
-              </select>
-              <button type="submit" class="btn btn-success">Update</button>
-
-            </div>
-          </div>
-
-        </div>
-      </form>
+        </form>
+      </div>
     </div>
-
-  </div>
-  <div class="col-lg-3 ">
-    <form action="{{url('erp/admin/accounts/fee-structure')}}" method="get">
-      <div class="input-group">
-        <a href="{{url('erp/admin/accounts/fee-structure')}}"><span class="input-group-text btn btn-outline-success"><i class="fa fa-redo-alt"></i></span></a>
-        <input type="text" name="keyword" placeholder="Search..." class="form-control">
-        <button class="btn btn-outline-primary"><i class="fa fa-search"></i></button>
-      </div>
-    </form>
   </div>
 </div>
 
@@ -210,8 +198,8 @@ $latefee = LateFee::find(1);
             {{$item->batch->batch_name}}
           </div>
 
-          <h4>{{$item->program->name}} - {{$item->program->campus->name}}</h2>
-            <p>{{$item->feecoursemaster->name}}</p>
+          <h4>{{$item->program->name ?? '-'}} - {{$item->program->campus->name ?? '-'}}</h2>
+            <p>{{$item->feecoursemaster->name ?? '-'}}</p>
             <div class="row mb-2">
               <div class="col-6">
                 <small class="text-info">Activation Date</small>
@@ -316,10 +304,14 @@ $latefee = LateFee::find(1);
                     <div class="col-lg-6">
                       <label for="">Select Program *</label>
                       <select name="program" class="form-control mb-3">
-
+                        @if(count($programs))
+                        <option value="">--Select--</option>
                         @foreach ($programs as $program)
-                        <option value="{{$program->id}}" {{$item->program->id == $program->id ? 'selected' : ''}}>{{$program->name}} - {{$program->campus->name}}</option>
+                        <option value="{{$program->id}}" {{ (isset($item->program) && $item->program && $item->program->id == $program->id) ? 'selected' : '' }}>{{$program->name}} - {{$program->campus->name}}</option>
                         @endforeach
+                        @else
+                        <option value="">No Program Found</option>
+                        @endif
                       </select>
                     </div>
                     <div class="col-lg-6">

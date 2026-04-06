@@ -45,17 +45,20 @@ class LoginController extends Controller
                 } else if ($roleType == 'faculty') {
                     //Faculty Dashboard
                     return redirect()->route('faculty.dashboard')->with('success', 'Login Success');
-                } else if ($roleType == 'coe') {
+                } else if ($roleType == 'coe' || $roleType == 'dcoe') {
                     //COE    Dashboard
                     return redirect()->route('coe.dashboard')->with('success', 'Login Success');
-                } else if ($roleType == 'dcoe') {
-                    //Deputy COE Dashboard
-                    return redirect()->route('coe.dashboard')->with('success', 'Login Success');
+                } else if ($roleType == 'principal' || $roleType == 'vice-principal' || $roleType == 'bursar' || $roleType == 'rector') {
+                    //Top Level Dashboard for Principal, Vice Principal, Bursar, Rector
+                    return redirect()->route('principal.dashboard')->with('success', 'Login Success');
+                } else if ($roleType == 'HR') {
+                    //HR Dashboard
+                    return redirect()->route('hr.dashboard')->with('success', 'Login Success');
                 } else if ($roleType == 'student') {
                     //Student Dashboard
                     return redirect()->route('student.dashboard')->with('success', 'Login Success');
                 } else {
-                    //for all Super Admin| Office assistane| Admin
+                    //for all Super Admin| Office assistane| Admin | IT CEll
                     return redirect('erp/admin/dashboard')->with('success', 'Login Success');
                 }
             } else {

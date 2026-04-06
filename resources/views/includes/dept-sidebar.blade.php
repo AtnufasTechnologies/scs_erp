@@ -43,11 +43,11 @@ $data = $subject;
     </div>
   </a>
 
-  <div class="sidebar-icon" title="Students">
-    <i class="fas fa-user-graduate fa-lg"></i>
-  </div>
-
-
+  <a href="{{route('department.combo.master',[$data->id,$data->slug])}}">
+    <div class="sidebar-icon" title="Combination Master">
+      <i class="fas fa-list fa-lg"></i>
+    </div>
+  </a>
 
   <a href="{{route('department.faculty.access',[$data->id,$data->slug])}}">
     <div class="sidebar-icon" title="Settings">

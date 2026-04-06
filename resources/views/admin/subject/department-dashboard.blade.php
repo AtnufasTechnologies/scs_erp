@@ -410,6 +410,146 @@ $mainStreams = ProgramMaster::all();
     </div>
   </div>
 
+  <!-- Subject Combinations Section -->
+  <div class="table-modern mt-4">
+    <div class="p-4">
+      <div class="d-flex justify-content-between align-items-center mb-4">
+        <h5 style="color: #1a1a1a; font-weight: 700; margin: 0;">
+          <i class="fas fa-layer-group me-2" style="color: #5b4cdb;"></i>Subject Combinations
+        </h5>
+        <button class="btn btn-modern" style="background: #5b4cdb; color: white;" data-bs-toggle="modal" data-bs-target="#addSubjectCombination">
+          <i class="fas fa-plus-circle me-2"></i>Add Combination
+        </button>
+      </div>
+
+      @if($subjectCombinationsGrouped->count() > 0)
+      <div class="row g-3">
+        @foreach($subjectCombinationsGrouped as $key => $rows)
+        @php $first = $rows->first(); @endphp
+        <div class="col-md-6 col-lg-4">
+          <div class="card h-100 shadow-sm" style="border-radius: 16px; border: 1px solid #e5e7eb; overflow: hidden;">
+            <div style="background: linear-gradient(135deg, #5b4cdb 0%, #7c3aed 100%); padding: 16px 20px;">
+              <div style="font-size: 12px; color: rgba(255,255,255,0.75); font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 4px;">
+                {{ $first->batch->batch_name ?? '–' }} &bull; {{ $first->campus->name ?? '–' }}
+              </div>
+              <div style="font-size: 15px; color: white; font-weight: 700;">
+                <i class="fas fa-book me-1"></i>{{ $first->mainSubject->title ?? '–' }}
+              </div>
+            </div>
+            <div class="p-3">
+              <p style="font-size: 12px; color: #6b7280; font-weight: 600; margin-bottom: 8px; text-transform: uppercase; letter-spacing: 0.5px;">Combo Subjects</p>
+              @foreach($rows as $row)
+              <div class="d-flex justify-content-between align-items-center mb-2" style="background: #f9fafb; border-radius: 8px; padding: 8px 12px;">
+                <span style="font-size: 13px; color: #374151;">{{ $row->comboSubject->title ?? '–' }}</span>
+                <a href="{{ url('erp/admin/master/delete-subject-combination/' . $row->id) }}"
+                  onclick="return confirm('Remove this combo subject?')"
+                  style="color: #dc2626; font-size: 12px; text-decoration: none; flex-shrink: 0; margin-left: 8px;">
+                  <i class="fas fa-times-circle"></i>
+                </a>
+              </div>
+              @endforeach
+              <button class="btn btn-sm w-100 mt-2 btn-modern"
+                style="background: #ede9fe; color: #5b4cdb; font-size: 12px;"
+                data-bs-toggle="modal"
+                data-bs-target="#addMoreCombos_{{ $first->batch_id }}_{{ $first->campus_id }}_{{ $first->main_subject_id }}">
+                <i class="fas fa-plus me-1"></i>Add More Combos
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Per-card Add More Combos Modal -->
+        <div class="modal fade" id="addMoreCombos_{{ $first->batch_id }}_{{ $first->campus_id }}_{{ $first->main_subject_id }}" tabindex="-1" aria-hidden="true">
+          <div class="modal-dialog modal-md">
+            <div class="modal-content" style="border-radius: 20px; border: none;">
+              <div class="modal-header" style="border-bottom: 1px solid #f0f0f0; padding: 24px; background: linear-gradient(135deg, #5b4cdb 0%, #7c3aed 100%); border-radius: 20px 20px 0 0;">
+                <h5 class="modal-title" style="color: white; font-weight: 700;">
+                  Add More Combos — {{ $first->mainSubject->title ?? '' }}
+                </h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+              </div>
+              <form action="{{ url('erp/admin/master/subject-combination') }}" method="POST">
+                @csrf
+                <input type="hidden" name="batch_id" value="{{ $first->batch_id }}">
+                <input type="hidden" name="campus_id" value="{{ $first->campus_id }}">
+                <input type="hidden" name="main_subject_id" value="{{ $first->main_subject_id }}">
+                <div class="modal-body" style="padding: 24px;">
+                  <label style="color: #1a1a1a; font-weight: 600; margin-bottom: 8px; display: block;">Select Combo Subject(s)</label>
+                  <select name="combo_subject_ids[]" class="form-select select-multiple" style="border-radius: 12px; border: 1px solid #e5e7eb; padding: 10px;" multiple required>
+                    @foreach($allSubjects as $subj)
+                    <option value="{{ $subj->id }}">{{ $subj->title }}</option>
+                    @endforeach
+                  </select>
+                </div>
+                <div class="modal-footer" style="border-top: 1px solid #f0f0f0; padding: 24px;">
+                  <button type="button" class="btn btn-modern" style="background: #f5f7fa; color: #6b7280;" data-bs-dismiss="modal">Cancel</button>
+                  <button type="submit" class="btn btn-modern" style="background: #5b4cdb; color: white;">Add</button>
+                </div>
+              </form>
+            </div>
+          </div>
+        </div>
+        @endforeach
+      </div>
+      @else
+      <div class="text-center py-5">
+        <i class="fas fa-layer-group fa-3x mb-3" style="color: #e5e7eb;"></i>
+        <p style="color: #6b7280;">No subject combinations defined yet.</p>
+      </div>
+      @endif
+    </div>
+  </div>
+
+  <!-- Add Subject Combination Modal -->
+  <div class="modal fade" id="addSubjectCombination" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-lg">
+      <div class="modal-content" style="border-radius: 20px; border: none;">
+        <div class="modal-header" style="border-bottom: 1px solid #f0f0f0; padding: 24px; background: linear-gradient(135deg, #5b4cdb 0%, #7c3aed 100%); border-radius: 20px 20px 0 0;">
+          <h5 class="modal-title" style="color: white; font-weight: 700;">
+            <i class="fas fa-layer-group me-2"></i>New Subject Combination
+          </h5>
+          <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+        </div>
+        <form action="{{ url('erp/admin/master/subject-combination') }}" method="POST">
+          @csrf
+          <input type="hidden" name="main_subject_id" value="{{ $data->id }}">
+          <div class="modal-body" style="padding: 24px;">
+            <div class="row g-3 mb-3">
+              <div class="col-6">
+                <label style="color: #1a1a1a; font-weight: 600; margin-bottom: 8px; display: block;">Academic Batch</label>
+                <select name="batch_id" class="form-select" style="border-radius: 12px; border: 1px solid #e5e7eb; padding: 12px;" required>
+                  <option value="">-- Select Batch --</option>
+                  @foreach($allBatches as $batch)
+                  <option value="{{ $batch->id }}">{{ $batch->batch_name }}</option>
+                  @endforeach
+                </select>
+              </div>
+              <div class="col-6">
+                <label style="color: #1a1a1a; font-weight: 600; margin-bottom: 8px; display: block;">Campus</label>
+                <select name="campus_id" class="form-select" style="border-radius: 12px; border: 1px solid #e5e7eb; padding: 12px;" required>
+                  <option value="">-- Select Campus --</option>
+                  @foreach($allCampuses as $campus)
+                  <option value="{{ $campus->id }}">{{ $campus->name }}</option>
+                  @endforeach
+                </select>
+              </div>
+            </div>
+            <label style="color: #1a1a1a; font-weight: 600; margin-bottom: 8px; display: block;">Combo Subject(s)</label>
+            <select name="combo_subject_ids[]" class="form-select select-multiple" style="border-radius: 12px; border: 1px solid #e5e7eb; padding: 10px;" multiple required>
+              @foreach($allSubjects as $subj)
+              <option value="{{ $subj->id }}">{{ $subj->title }}</option>
+              @endforeach
+            </select>
+          </div>
+          <div class="modal-footer" style="border-top: 1px solid #f0f0f0; padding: 24px;">
+            <button type="button" class="btn btn-modern" style="background: #f5f7fa; color: #6b7280;" data-bs-dismiss="modal">Cancel</button>
+            <button type="submit" class="btn btn-modern" style="background: #5b4cdb; color: white;">Save Combination</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+
   <!-- Modals -->
   <!-- Add Program Modal -->
   <div class="modal fade" id="programConnect" tabindex="-1" aria-labelledby="exampleModalLabel" aria-hidden="true">
