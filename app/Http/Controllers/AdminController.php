@@ -26,6 +26,7 @@ use App\Models\LectureHallMaster;
 use App\Models\MainProgram;
 use App\Models\MenuMaster;
 use App\Models\NationalityMaster;
+use App\Models\PaperTypeMaster;
 use App\Models\ProgramCourseMaster;
 use App\Models\ProgramGroup;
 use App\Models\ProgramMaster;
@@ -537,6 +538,35 @@ class AdminController extends Controller
     {
         $data = Campus::get();
         return view('admin.master.campus', ['data' => $data]);
+    }
+
+    function paperTypeMaster()
+    {
+        $data = PaperTypeMaster::orderBy('name')->get();
+        return view('admin.master.paper-type', ['data' => $data]);
+    }
+
+    function addPaperType(Request $request)
+    {
+        $request->validate([
+            'name' => 'required',
+        ]);
+
+        $check = PaperTypeMaster::where('name', $request->name)->first();
+        if ($check == null) {
+            $rec = new PaperTypeMaster();
+            $rec->name = $request->name;
+            $rec->save();
+            return redirect()->back()->with('success', 'Done');
+        } else {
+            return redirect()->back()->with('success', 'Item already in list');
+        }
+    }
+
+    function delPaperType($id)
+    {
+        PaperTypeMaster::findOrFail($id)->delete();
+        return redirect()->back()->with('success', 'Deleted');
     }
 
     function cognitiveLvl()

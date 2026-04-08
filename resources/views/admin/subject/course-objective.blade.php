@@ -179,11 +179,19 @@ $taxonomylevels = CognitiveLevelMaster::all();
                   @if($cso->csosubunits && count($cso->csosubunits) > 0)
                   <ul class="list-group list-group-sm mb-2">
                     @foreach($cso->csosubunits as $subunit)
-                    <li class="list-group-item shadow">{{$loop->iteration}}. {{ $subunit->title }} - Taxonomy Level ({{$subunit->taxomonylevel->fullname}})
-                      @if($subunit->image_path != null)
-                      <br>
-                      <img src="{{Storage::disk('s3')->url($subunit->image_path)}}" alt="Subunit Image" class="img-fluid mt-2">
-                      @endif
+                    <li class="list-group-item shadow d-flex justify-content-between align-items-start">
+                      <div>
+                        {{$loop->iteration}}. {{ $subunit->title }} - Taxonomy Level ({{$subunit->taxomonylevel->fullname}})
+                        @if($subunit->image_path != null)
+                        <br>
+                        <img src="{{Storage::disk('s3')->url($subunit->image_path)}}" alt="Subunit Image" class="img-fluid mt-2">
+                        @endif
+                      </div>
+                      <a href="{{ route('department.delete.cso.subunit', $subunit->id) }}"
+                        class="btn btn-xs btn-danger ms-2"
+                        onclick="return confirm('Delete this subunit?')">
+                        <i class="fa fa-trash"></i>
+                      </a>
                     </li>
                     @endforeach
                   </ul>

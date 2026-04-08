@@ -18,6 +18,7 @@ use App\Models\ProgramCourseMaster;
 use App\Models\ProgramMaster;
 use App\Models\Semester;
 use App\Models\StudentMaster;
+use App\Models\StudentAttendance;
 use App\Models\StudentProgram;
 use App\Models\Subject;
 use App\Models\SubjectCombinationMaster;
@@ -751,7 +752,7 @@ class SubjectController extends Controller
         $courseMaster->external = $request->external;
         $courseMaster->total = $request->internal + $request->external;
         $courseMaster->total_alloted_hours = $request->total_alloted_hours;
-        $courseMaster->paper_type_id = $request->paper_type;
+        $courseMaster->paper_type = $request->paper_type;
         $courseMaster->save();
 
         return redirect()->back()->with('success', 'Course Master Updated');
@@ -776,9 +777,67 @@ class SubjectController extends Controller
     function deleteCourseSpecificObjective($id)
     {
         $cso = CoHasCso::findOrFail($id);
+
+        // Block deletion if any syllabus entry using this CSO has attendance or timetable
+        $syllabusRecords = SyllabusManager::where('cso_id', $id)->get();
+        foreach ($syllabusRecords as $syllabus) {
+            $coId    = $syllabus->co_id;
+            $batchId = $syllabus->batch_id;
+
+            $hasAttendance = StudentAttendance::where('course_id', $coId)->exists();
+            $hasTimetable  = SubjectHasRoutine::where('subject_course_id', $coId)
+                ->where('batch_id', $batchId)
+                ->exists();
+
+            if ($hasAttendance || $hasTimetable) {
+                $reasons = [];
+                if ($hasAttendance) $reasons[] = 'attendance records exist for this course';
+                if ($hasTimetable)  $reasons[] = 'a faculty timetable is assigned to this course';
+                return redirect()->back()->with(
+                    'error',
+                    'Cannot delete this CSO — ' . implode(' and ', $reasons) . '. Please clear those first.'
+                );
+            }
+        }
+
         $cso->delete();
-        //delete all cso subunit
         return redirect()->back()->with('success', 'CSO deleted successfully');
+    }
+
+    function deleteCsoSubunit($id)
+    {
+        $subunit = CsoSubunit::findOrFail($id);
+
+        // Block deletion if any syllabus subunit uses this and the course has attendance or timetable
+        $syllabusSubunits = SyllabusSubunit::with('syllabusManager')
+            ->where('unit_id', $id)
+            ->get();
+
+        foreach ($syllabusSubunits as $syllabusSubunit) {
+            $syllabusManager = $syllabusSubunit->syllabusManager;
+            if ($syllabusManager) {
+                $coId    = $syllabusManager->co_id;
+                $batchId = $syllabusManager->batch_id;
+
+                $hasAttendance = StudentAttendance::where('course_id', $coId)->exists();
+                $hasTimetable  = SubjectHasRoutine::where('subject_course_id', $coId)
+                    ->where('batch_id', $batchId)
+                    ->exists();
+
+                if ($hasAttendance || $hasTimetable) {
+                    $reasons = [];
+                    if ($hasAttendance) $reasons[] = 'attendance records exist for this course';
+                    if ($hasTimetable)  $reasons[] = 'a faculty timetable is assigned to this course';
+                    return redirect()->back()->with(
+                        'error',
+                        'Cannot delete this subunit — ' . implode(' and ', $reasons) . '. Please clear those first.'
+                    );
+                }
+            }
+        }
+
+        $subunit->delete();
+        return redirect()->back()->with('success', 'Subunit deleted successfully');
     }
 
     function addCsoSubunit(Request $request)
@@ -905,6 +964,66 @@ class SubjectController extends Controller
         }
 
         return redirect()->back()->with('success', 'Syllabus Created');
+    }
+
+    function deleteSyllabusSubunit($id)
+    {
+        $subunit = SyllabusSubunit::with('syllabusManager')->findOrFail($id);
+        $syllabusManager = $subunit->syllabusManager;
+
+        if ($syllabusManager) {
+            $coId    = $syllabusManager->co_id;
+            $batchId = $syllabusManager->batch_id;
+
+            $hasAttendance = StudentAttendance::where('course_id', $coId)->exists();
+            $hasTimetable  = SubjectHasRoutine::where('subject_course_id', $coId)
+                ->where('batch_id', $batchId)
+                ->exists();
+
+            if ($hasAttendance || $hasTimetable) {
+                $reasons = [];
+                if ($hasAttendance) $reasons[] = 'attendance records exist for this course';
+                if ($hasTimetable)  $reasons[] = 'a faculty timetable is assigned to this course';
+                return redirect()->back()->with(
+                    'error',
+                    'Cannot remove this subunit — ' . implode(' and ', $reasons) . '. Please clear those first.'
+                );
+            }
+        }
+
+        $subunit->delete();
+        return redirect()->back()->with('success', 'Subunit removed');
+    }
+
+    function deleteSyllabusCo($subjectId, $batchId, $semesterId, $coId)
+    {
+        $hasAttendance = StudentAttendance::where('course_id', $coId)->exists();
+        $hasTimetable  = SubjectHasRoutine::where('subject_course_id', $coId)
+            ->where('batch_id', $batchId)
+            ->exists();
+
+        if ($hasAttendance || $hasTimetable) {
+            $reasons = [];
+            if ($hasAttendance) $reasons[] = 'attendance records exist for this course';
+            if ($hasTimetable)  $reasons[] = 'a faculty timetable is assigned to this course';
+            return redirect()->back()->with(
+                'error',
+                'Cannot remove this course from the syllabus — ' . implode(' and ', $reasons) . '. Please clear those first before making changes.'
+            );
+        }
+
+        $records = SyllabusManager::where('subject_id', $subjectId)
+            ->where('batch_id', $batchId)
+            ->where('semester_id', $semesterId)
+            ->where('co_id', $coId)
+            ->get();
+
+        foreach ($records as $record) {
+            $record->syllabusSubunits()->delete();
+            $record->delete();
+        }
+
+        return redirect()->back()->with('success', 'Course and all its objectives removed from syllabus');
     }
 
     function downloadSyllabusPdf(Request $request)

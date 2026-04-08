@@ -30,6 +30,13 @@
     </li>
 
     <li>
+      <a href="{{ route('student.offerings.index') }}">
+        <div class="parent-icon"><i class="fas fa-ticket-alt"></i></div>
+        <div class="menu-title">Course Registration</div>
+      </a>
+    </li>
+
+    <li>
       <a href="{{ url('logout') }}">
         <div class="parent-icon"><i class="fas fa-sign-out-alt"></i></div>
         <div class="menu-title">Logout</div>

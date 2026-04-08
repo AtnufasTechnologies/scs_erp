@@ -197,6 +197,17 @@ $roleType = UserHasRole::where('user_id', $userId)->value('role_name');
           </a>
         </li>
         @endif
+
+        @if(StaticController::subMenuRights('paper-type-master'))
+        <li>
+          <a href="{{url('erp/admin/master/paper-type')}}">
+            <div class="parent-icon">
+              <i class="fas fa-arrow-alt-circle-right"></i>
+            </div>
+            <div class="menu-title">Paper Type</div>
+          </a>
+        </li>
+        @endif
       </ul>
     </li>
     @endif

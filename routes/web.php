@@ -43,6 +43,7 @@ use App\Http\Controllers\PrincipalController;
 use App\Http\Controllers\PromotionController;
 use App\Http\Controllers\SeatingAllocationController;
 use App\Http\Controllers\StudentCreditController;
+use App\Http\Controllers\CourseOfferingController;
 use App\Http\Controllers\SubjectController;
 use App\Http\Controllers\TestController;
 use App\Http\Controllers\TimetableController;
@@ -109,6 +110,10 @@ Route::group(['prefix' => '/erp'], function () {
 
             Route::get('blood-group', [AdminController::class, 'bloodGroupMaster']);
             Route::post('blood-group', [AdminController::class, 'addBloodGroup']);
+
+            Route::get('paper-type', [AdminController::class, 'paperTypeMaster']);
+            Route::post('paper-type', [AdminController::class, 'addPaperType']);
+            Route::get('del-paper-type/{id}', [AdminController::class, 'delPaperType']);
 
 
             Route::get('cognitive-lvl', [AdminController::class, 'cognitiveLvl']);
@@ -646,11 +651,23 @@ Route::group(['prefix' => '/erp'], function () {
         Route::get('cso/{id}/delete', [SubjectController::class, 'deleteCourseSpecificObjective'])->name('department.delete.cso');
 
         Route::post('add-cso-subunit', [SubjectController::class, 'addCsoSubunit'])->name('department.add.cso.subunit');
+        Route::get('cso-subunit/{id}/delete', [SubjectController::class, 'deleteCsoSubunit'])->name('department.delete.cso.subunit');
 
         Route::get('syllabus-manager', [SubjectController::class, 'syllabusManager'])->name('department.syllabus.manager');
         Route::get('course/{id}/cso-list', [SubjectController::class, 'getCsoListForCourse'])->name('department.get.cso.list');
         Route::post('create-syllabus', [SubjectController::class, 'createSyllabus'])->name('department.create.syllabus');
+        Route::delete('syllabus-subunit/{id}', [SubjectController::class, 'deleteSyllabusSubunit'])->name('department.syllabus.subunit.delete');
+        Route::delete('syllabus-co/{subjectId}/{batchId}/{semesterId}/{coId}', [SubjectController::class, 'deleteSyllabusCo'])->name('department.syllabus.co.delete');
         Route::get('syllabus-download-pdf', [SubjectController::class, 'downloadSyllabusPdf'])->name('department.syllabus.download.pdf');
+
+        // Course Offerings (FIFO registration module)
+        Route::get('course-offerings', [CourseOfferingController::class, 'index'])->name('department.offerings.index');
+        Route::post('course-offerings', [CourseOfferingController::class, 'store'])->name('department.offerings.store');
+        Route::put('course-offerings/{id}', [CourseOfferingController::class, 'update'])->name('department.offerings.update');
+        Route::delete('course-offerings/{id}', [CourseOfferingController::class, 'destroy'])->name('department.offerings.destroy');
+        Route::post('course-offerings/{id}/toggle', [CourseOfferingController::class, 'toggleRegistration'])->name('department.offerings.toggle');
+        Route::get('course-offerings/{id}/registrations', [CourseOfferingController::class, 'registrationList'])->name('department.offerings.registrations');
+        Route::post('course-offerings/cancel-registration/{id}', [CourseOfferingController::class, 'adminCancelRegistration'])->name('department.offerings.cancel-registration');
 
         // Faculty Timetable
 
@@ -760,6 +777,10 @@ Route::group(['prefix' => '/erp'], function () {
         Route::get('my-profile', [StudentDashboardController::class, 'profile'])->name('student.profile');
         Route::get('feedback', [StudentDashboardController::class, 'feedbackList'])->name('student.feedback.list');
         Route::post('feedback/{id}', [StudentDashboardController::class, 'submitFeedback'])->name('student.feedback.submit');
+        // Course Offerings (FIFO)
+        Route::get('course-offerings', [CourseOfferingController::class, 'studentView'])->name('student.offerings.index');
+        Route::post('course-offerings/register', [CourseOfferingController::class, 'studentRegister'])->name('student.offerings.register');
+        Route::post('course-offerings/cancel/{id}', [CourseOfferingController::class, 'studentCancel'])->name('student.offerings.cancel');
     });
 
 

@@ -55,6 +55,12 @@ $data = $subject;
     </div>
   </a>
 
+  <a href="{{route('department.offerings.index')}}">
+    <div class="sidebar-icon {{ request()->routeIs('department.offerings.*') ? 'active' : '' }}" title="Course Offerings">
+      <i class="fas fa-ticket-alt fa-lg"></i>
+    </div>
+  </a>
+
   <div class="mt-auto sidebar-icon" title="Logout">
     <a href="{{ StaticController::fetchUserRole() == 'dept-admin-erp' ? url('logout') : route('admin.dashboard') }}" style="color: inherit;">
       <i class="fas fa-sign-out-alt fa-lg"></i>
