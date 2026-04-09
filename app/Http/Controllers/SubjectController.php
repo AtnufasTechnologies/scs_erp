@@ -26,8 +26,13 @@ use App\Models\SubjectCourseMaster;
 use App\Models\SubjectFacultyMaster;
 use App\Models\SubjectHasCombination;
 use App\Models\SubjectHasDeptAdmin;
+use App\Models\InterMark;
+use App\Models\StudentCourseInfo;
 use App\Models\SubjectHasRoutine;
 use App\Models\SubjectHasSemester;
+use App\Models\ExamSystem\ExamStudent;
+use App\Models\ExamSystem\Registration;
+use App\Models\ExamSystem\Result;
 use App\Models\SubjectHasStudentProgam;
 use App\Models\SubjectHasSyllabus;
 use App\Models\SubjectTypeMaster;
@@ -1103,10 +1108,39 @@ class SubjectController extends Controller
         ]);
     }
 
+    function allStudents(Request $request)
+    {
+        $userId    = Auth::user()->id;
+        $subjectId = SubjectHasDeptAdmin::where('user_id', $userId)->value('subject_id');
+        $subject   = Subject::find($subjectId);
+
+        if (!$subject) {
+            return redirect()->route('department.dashboard')->with('info', 'Subject not found.');
+        }
+
+        $batches = BatchMaster::all();
+
+        $query = StudentMaster::with(['batchmaster', 'campusmaster']);
+
+        if ($request->filled('batch_id')) {
+            $query->where('batch', $request->batch_id);
+        }
+
+        $students = $query->orderby('id', 'desc')->get();
+
+        return view('admin.subject.all-students', [
+            'students'    => $students,
+            'subject'     => $subject,
+            'batches'     => $batches,
+            'activeBatch' => $request->batch_id,
+        ]);
+    }
+
     function studentProfile(Request $request)
     {
-        $id = $request->id;
+        $id     = $request->id;
         $rollno = $request->rollno;
+
         $data = StudentMaster::where('id', $id)->where('roll_no', $rollno)->with([
             'religionmaster:id,name',
             'deptmaster:id,department_code,name',
@@ -1116,11 +1150,102 @@ class SubjectController extends Controller
             'bloodgroup',
             'batchmaster:id,batch_name',
             'programgroup.programInfo',
-
-
+            'feepayment.feepaymentinfo:id,quarter_title',
+            'feepayment.gatewaytype',
         ])->firstOrFail();
 
-        return view('admin.subject.student-profile', ['data' => $data]);
+        $studentId = $data->id;
+
+        // Courses with semester and type
+        $studentCourses = StudentCourseInfo::with([
+            'coursemaster.semestermaster:id,title',
+            'coursemaster.coursetypemaster:id,title,description',
+        ])->where('student_id', $studentId)->get();
+
+        $coursesBySemester = $studentCourses
+            ->sortBy(fn($c) => $c->coursemaster?->semester_id ?? 999)
+            ->groupBy(fn($c) => $c->coursemaster?->semestermaster?->title ?? ('Sem ' . ($c->semester ?? '?')));
+
+        // Timetable
+        $timetable = SubjectHasRoutine::where('batch_id', $data->batch)
+            ->with([
+                'weekdaymaster:id,title',
+                'hourmaster:id,title',
+                'lecturehallmaster:id,title',
+                'faculty:id,FIRST_NAME,LAST_NAME',
+                'coursemaster:id,course_title,course_code',
+            ])
+            ->orderBy('weekday_id')
+            ->orderBy('hour_id')
+            ->get();
+
+        $timetableByDay = $timetable->groupBy(fn($r) => $r->weekdaymaster->title ?? 'Unknown');
+
+        // Attendance per course
+        $attendanceRaw = StudentAttendance::where('student_id', $studentId)
+            ->with('courseinfo:id,course_title,course_code')
+            ->get()
+            ->groupBy('course_id');
+
+        $attendanceSummary = $attendanceRaw->map(function ($records) {
+            $total   = $records->count();
+            $present = $records->where('status', 'present')->count();
+            return [
+                'course'     => $records->first()->courseinfo,
+                'total'      => $total,
+                'present'    => $present,
+                'absent'     => $total - $present,
+                'percentage' => $total > 0 ? round(($present / $total) * 100, 1) : 0,
+            ];
+        })->values();
+
+        // Internal marks
+        $internalMarks = InterMark::where('student_id', $studentId)
+            ->with(['course:id,course_title,course_code', 'semester:id,title'])
+            ->orderBy('semester')
+            ->get();
+
+        // Exam results
+        $examStudent       = ExamStudent::where('erp_student_id', $studentId)->first();
+        $examResults       = collect();
+        $resultsBySemester = collect();
+        if ($examStudent) {
+            $examResults = Result::where('exam_student_id', $examStudent->id)
+                ->where('is_published', true)
+                ->with(['examSession', 'resultSubjects'])
+                ->orderBy('exam_session_id')
+                ->get();
+
+            foreach ($examResults as $result) {
+                $semKey = 'Semester ' . ($result->examSession?->semester ?? '?') . ' — ' . ($result->examSession?->academic_year ?? '');
+                $resultsBySemester[$semKey] = [
+                    'result'    => $result,
+                    'qualified' => $result->resultSubjects->where('result_status', 'pass')->values(),
+                    'backlog'   => $result->resultSubjects->where('result_status', '!=', 'pass')->values(),
+                ];
+            }
+        }
+
+        // Exam registrations
+        $examRegistrations = Registration::where('erp_student_id', $studentId)
+            ->with(['examSession', 'registrationSubjects.examSubject.master'])
+            ->orderByDesc('registered_at')
+            ->get();
+
+        return view('student.profile', [
+            'data'               => $data,
+            'studentCourses'     => $studentCourses,
+            'coursesBySemester'  => $coursesBySemester,
+            'timetableByDay'     => $timetableByDay,
+            'attendanceSummary'  => $attendanceSummary,
+            'internalMarks'      => $internalMarks,
+            'examResults'        => $examResults,
+            'resultsBySemester'  => $resultsBySemester,
+            'examStudent'        => $examStudent,
+            'examRegistrations'  => $examRegistrations,
+            'latestRegistration' => $examRegistrations->first(),
+            'dept_view'          => true,
+        ]);
     }
 
     function deptFacultyList($subjectId)

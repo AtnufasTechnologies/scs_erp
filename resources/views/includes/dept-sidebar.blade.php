@@ -25,6 +25,14 @@ $data = $subject;
     </div>
   </a>
 
+  <a href="{{route('department.all.students')}}">
+    <div class="sidebar-icon {{ request()->routeIs('department.all.students') ? 'active' : '' }}" title="Students">
+      <i class="fas fa-users fa-lg"></i>
+    </div>
+  </a>
+
+
+
   <a href="{{route('department.course.master',[$data->id,$data->slug])}}">
     <div class="sidebar-icon {{ request()->routeIs('department.course.master') ? 'active' : '' }}" title="Courses">
       <i class="fas fa-book fa-lg"></i>

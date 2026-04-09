@@ -483,12 +483,18 @@
           </div>
         </div>
         <div>
+          @if(!isset($dept_view))
           <a href="{{ route('student.feedback.list') }}" class="btn btn-sm" style="background:rgba(255,255,255,.15);color:#fff;border:1px solid rgba(255,255,255,.3);">
             <i class="fas fa-star me-1"></i> Feedback
           </a>
-          <a href="{{ url('logout')  }}" class="btn btn-sm btn-danger">
+          <a href="{{ url('logout') }}" class="btn btn-sm btn-danger">
             <i class="fas fa-sign-out-alt me-1"></i> Logout
           </a>
+          @else
+          <a href="{{ url()->previous() }}" class="btn btn-sm" style="background:rgba(255,255,255,.15);color:#fff;border:1px solid rgba(255,255,255,.3);">
+            <i class="fas fa-arrow-left me-1"></i> Back to Students
+          </a>
+          @endif
         </div>
       </div>
     </div>
