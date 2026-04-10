@@ -116,6 +116,35 @@
             </div>
             @endif
 
+            {{-- Department Action Status --}}
+            @if($leaveApplication->dept_action === 'forwarded')
+            <div class="alert alert-info border-0">
+              <h6 class="alert-heading"><i class="fas fa-share me-2"></i>Forwarded by Department</h6>
+              <p class="mb-1">Forwarded to: <strong>
+                  @switch($leaveApplication->forwarded_to)
+                  @case('DeanOfStudentStudies') Dean of Student Studies @break
+                  @case('DCOE') DCOE @break
+                  @case('HR') HR @break
+                  @default {{ $leaveApplication->forwarded_to }}
+                  @endswitch
+                </strong></p>
+              @if($leaveApplication->forwarded_at)
+              <p class="mb-1">Forwarded on: <strong>{{ $leaveApplication->forwarded_at->format('d M Y, h:i A') }}</strong></p>
+              @endif
+              @if($leaveApplication->forwarded_remarks)
+              <hr>
+              <p class="mb-0"><strong>Remarks:</strong> {{ $leaveApplication->forwarded_remarks }}</p>
+              @endif
+            </div>
+            @elseif($leaveApplication->dept_action === 'rejected' && $leaveApplication->status !== 'rejected')
+            <div class="alert alert-danger border-0">
+              <h6 class="alert-heading"><i class="fas fa-times-circle me-2"></i>Rejected by Department</h6>
+              @if($leaveApplication->dept_action_at)
+              <p class="mb-1">Rejected on: <strong>{{ $leaveApplication->dept_action_at->format('d M Y, h:i A') }}</strong></p>
+              @endif
+            </div>
+            @endif
+
             <!-- Action Buttons -->
             <div class="d-flex gap-2 justify-content-between mt-4">
               <a href="{{ route('faculty.leave.index') }}" class="btn btn-secondary">

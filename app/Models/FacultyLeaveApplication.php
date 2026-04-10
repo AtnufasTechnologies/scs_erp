@@ -26,12 +26,21 @@ class FacultyLeaveApplication extends Model
     'approved_at',
     'rejection_reason',
     'admin_remarks',
+    'forwarded_to',
+    'forwarded_by',
+    'forwarded_at',
+    'forwarded_remarks',
+    'dept_action',
+    'dept_action_by',
+    'dept_action_at',
   ];
 
   protected $casts = [
     'start_date' => 'date',
     'end_date' => 'date',
     'approved_at' => 'datetime',
+    'forwarded_at' => 'datetime',
+    'dept_action_at' => 'datetime',
   ];
 
   /**
@@ -161,5 +170,34 @@ class FacultyLeaveApplication extends Model
 
     // Fallback for old records
     return ucfirst($this->leave_type);
+  }
+
+  public function forwarder()
+  {
+    return $this->belongsTo(User::class, 'forwarded_by');
+  }
+
+  public function deptActionUser()
+  {
+    return $this->belongsTo(User::class, 'dept_action_by');
+  }
+
+  public function scopeForwarded($query)
+  {
+    return $query->where('dept_action', 'forwarded');
+  }
+
+  public function scopeDeptRejected($query)
+  {
+    return $query->where('dept_action', 'rejected');
+  }
+
+  public function getDeptStatusLabelAttribute()
+  {
+    return match ($this->dept_action) {
+      'forwarded' => 'Forwarded to ' . $this->forwarded_to,
+      'rejected' => 'Rejected by Dept',
+      default => 'Pending Dept Review'
+    };
   }
 }

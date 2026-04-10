@@ -21,6 +21,7 @@ use App\Http\Controllers\CoeExamController;
 use App\Http\Controllers\DcoeManagementController;
 use App\Http\Controllers\CoeRegulationController;
 use App\Http\Controllers\DepartmentActivityController;
+use App\Http\Controllers\DeptLeaveController;
 use App\Http\Controllers\DummyNumberController;
 use App\Http\Controllers\EvaluationDutyController;
 use App\Http\Controllers\ExamAttendanceController;
@@ -709,6 +710,18 @@ Route::group(['prefix' => '/erp'], function () {
         Route::delete('activities/{id}', [DepartmentActivityController::class, 'destroy'])->name('department.activities.destroy');
         Route::post('activities/{id}/status', [DepartmentActivityController::class, 'updateStatus'])->name('department.activities.status');
         Route::get('activities/{subjectId}/by-type', [DepartmentActivityController::class, 'getByType'])->name('department.activities.by-type');
+
+        // Faculty Leave Sanction
+        Route::get('leave', [DeptLeaveController::class, 'index'])->name('department.leave.index');
+        Route::get('leave/{id}', [DeptLeaveController::class, 'show'])->name('department.leave.show');
+        Route::post('leave/{id}/reject', [DeptLeaveController::class, 'reject'])->name('department.leave.reject');
+        Route::post('leave/{id}/forward', [DeptLeaveController::class, 'forward'])->name('department.leave.forward');
+
+        // Leave Category Master
+        Route::get('leave-categories', [DeptLeaveController::class, 'categoryIndex'])->name('department.leave.categories');
+        Route::post('leave-categories', [DeptLeaveController::class, 'categoryStore'])->name('department.leave.categories.store');
+        Route::put('leave-categories/{id}', [DeptLeaveController::class, 'categoryUpdate'])->name('department.leave.categories.update');
+        Route::post('leave-categories/{id}/toggle', [DeptLeaveController::class, 'categoryToggle'])->name('department.leave.categories.toggle');
     });
 
 
