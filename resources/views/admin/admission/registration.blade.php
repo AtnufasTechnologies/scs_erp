@@ -20,6 +20,7 @@
         <th>Payment Status</th>
         <th>Account Status</th>
         <th>Created </th>
+        <th>Edit</th>
       </tr>
 
     </thead>
@@ -79,6 +80,16 @@
           @endif
         </td>
         <td>{{date('d-m-Y', strtotime($item->created_at))}}</td>
+        <td>
+          @if($item->applicationmaster)
+          <a href="{{ route('admission.edit.application', ['id' => $item->applicationmaster->id]) }}" class="btn btn-sm btn-outline-primary me-1">
+            <i class="fa fa-edit"></i> Application
+          </a>
+          @endif
+          <a href="{{ route('admin.registration.edit', ['id' => $item->id]) }}" class="btn btn-sm btn-outline-secondary">
+            <i class="fa fa-user-cog"></i> Details
+          </a>
+        </td>
       </tr>
       @endforeach
       @else

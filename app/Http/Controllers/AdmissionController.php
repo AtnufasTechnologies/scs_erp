@@ -1978,6 +1978,46 @@ class AdmissionController extends Controller
         return back()->with('success', 'Application updated successfully.');
     }
 
+    function editRegistration($id)
+    {
+        $registration = AdmissionRegistration::with(['campusmaster', 'countrymaster', 'applicationmaster'])->findOrFail($id);
+        $campuses = Campus::all();
+        $countries = Country::all();
+        return view('admin.admission.edit-registration', [
+            'registration' => $registration,
+            'campuses'     => $campuses,
+            'countries'    => $countries,
+        ]);
+    }
+
+    function updateRegistration(Request $request, $id)
+    {
+        $request->validate([
+            'first_name'       => 'required|string|max:255',
+            'last_name'        => 'required|string|max:255',
+            'mail_id'          => 'required|email|max:255|unique:admission_registrations,mail_id,' . $id,
+            'mobile_no'        => 'required|digits:10|unique:admission_registrations,mobile_no,' . $id,
+            'campus_id'        => 'required',
+            'application_type' => 'required',
+            'country'          => 'required',
+            'account_status'   => 'required',
+        ]);
+
+        AdmissionRegistration::where('id', $id)->update([
+            'first_name'       => $request->first_name,
+            'last_name'        => $request->last_name,
+            'mail_id'          => Str::lower($request->mail_id),
+            'mobile_no'        => trim($request->mobile_no),
+            'campus_id'        => $request->campus_id,
+            'application_type' => $request->application_type,
+            'country'          => $request->country,
+            'account_status'   => $request->account_status,
+            'otp_verification' => $request->otp_verification ?? 0,
+        ]);
+
+        return back()->with('success', 'Registration updated successfully.');
+    }
+
     function updateOtpStatus($id)
     {
         AdmissionRegistration::where('id', $id)->update([
@@ -2014,7 +2054,6 @@ class AdmissionController extends Controller
     function applicantCampusShift(Request $request)
     {
 
-
         $request->validate([
             'application_id' => 'required',
             'campus' => 'required',
@@ -2023,10 +2062,10 @@ class AdmissionController extends Controller
         ]);
 
         $data = AdmissionApplication::with('registrationmaster')->find($request->application_id);
-        $departmentData = Subject::find($request->department);
-        AdmissionRegistration::where('id', $data->registrationmaster->id)->update([
-            'campus_id' => $request->campus,
-            'application_type' => $departmentData->main_program_type,
+        $mainProgram = MainProgram::find($request->campus);
+        AdmissionRegistration::where('id', $data->registration_id)->update([
+            'campus_id' => $mainProgram->campus_id,
+            'application_type' => $mainProgram->name,
         ]);
 
         AdmissionApplication::where('id', $request->application_id)->update([
