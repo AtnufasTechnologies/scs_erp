@@ -732,9 +732,7 @@ class FeePaymentController extends Controller
 
         // OPTIONAL: Add late fee under a separate head
         if ($finalPayable > array_sum($split)) {
-
-            $split['SAL_ACFEES'] = $finalPayable - array_sum($split); //add Late Fee Label Siliguri
-
+            $split['SAL_ACFEES'] = $finalPayable - array_sum($split); //add Late Fee Label
         }
 
         $splitPayments = json_encode($split);
