@@ -9,6 +9,7 @@ use App\Faculty\Http\Controllers\InternalMarksController;
 use App\Faculty\Http\Controllers\PayrollController as FacultyPayrollController;
 use App\Faculty\Http\Controllers\RequestApplicationController as FacultyRequestApplicationController;
 use App\Http\Controllers\AccessController;
+use App\Http\Controllers\AccountOfficeController;
 use App\Http\Controllers\AdminController;
 use App\Http\Controllers\AdminPayrollController;
 use App\Http\Controllers\AdmissionController;
@@ -165,6 +166,13 @@ Route::group(['prefix' => '/erp'], function () {
 
         //account
         Route::group(['prefix' => '/accounts'], function () {
+            Route::get('dashboard', [AccountOfficeController::class, 'dashboard'])->name('account-office.dashboard');
+            Route::get('assistant-access', [AccountOfficeController::class, 'assistantAccess'])->name('account-office.assistant-access');
+            Route::post('create-assistant', [AccountOfficeController::class, 'createAssistant'])->name('account-office.create-assistant');
+            Route::post('update-permissions/{id}', [AccountOfficeController::class, 'updateAssistantPermissions'])->name('account-office.update-permissions');
+            Route::get('toggle-status/{id}', [AccountOfficeController::class, 'toggleAssistantStatus'])->name('account-office.toggle-status');
+            Route::get('delete-assistant/{id}', [AccountOfficeController::class, 'deleteAssistant'])->name('account-office.delete-assistant');
+            Route::get('remove-permission/{id}', [AccountOfficeController::class, 'removeAssistantPermission'])->name('account-office.remove-permission');
             // Late Fee Revenue Report
             Route::get('late-fee-revenue-report', [FeePaymentController::class, 'lateFeeRevenueReport'])->name('late-fee-revenue-report');
             Route::get('bankinfo', [AdminController::class, 'bankAccounts']);
@@ -277,6 +285,12 @@ Route::group(['prefix' => '/erp'], function () {
 
             Route::get('menu-access-types', [AdminController::class, 'menuAccessTypes'])->name('admin.menu-access-types');
             Route::post('add-menu-access-type', [AdminController::class, 'addMenuAccessType'])->name('admin.add.menu-access-type');
+
+            Route::get('role-master', [AdminController::class, 'roleMaster'])->name('admin.role-master');
+            Route::post('add-role', [AdminController::class, 'addRole'])->name('admin.add.role');
+            Route::post('update-role/{id}', [AdminController::class, 'updateRole'])->name('admin.update.role');
+            Route::get('delete-role/{id}', [AdminController::class, 'deleteRole'])->name('admin.delete.role');
+
             Route::get('revoke-access/{id}', [AccessController::class, 'revokeDeptAccess'])->name('dept.erp.revoke-access');
             //impersonate user
             Route::get('impersonate/{id}', [AccessController::class, 'impersonateUser'])->name('impersonate.user');

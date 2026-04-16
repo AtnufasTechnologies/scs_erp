@@ -31,6 +31,7 @@ use App\Models\ProgramCourseMaster;
 use App\Models\ProgramGroup;
 use App\Models\ProgramMaster;
 use App\Models\ReligionMaster;
+use App\Models\RoleMaster;
 use App\Models\RoomMaster;
 use App\Models\Semester;
 use App\Models\InterMark;
@@ -1439,6 +1440,64 @@ class AdminController extends Controller
         }
 
         return redirect()->back()->with('success', 'Done');
+    }
+
+    function roleMaster()
+    {
+        $data = RoleMaster::latest()->get();
+        return view('admin.user-manager.role-master', ['data' => $data]);
+    }
+
+    function addRole(Request $request)
+    {
+        $request->validate([
+            'role_name' => 'required|string|max:255',
+            'description' => 'nullable|string|max:255',
+        ]);
+
+        $slug = Str::slug($request->role_name);
+        $check = RoleMaster::where('slug', $slug)->first();
+        if ($check !== null) {
+            return redirect()->back()->with('error', 'Role already exists');
+        }
+
+        $rec = new RoleMaster();
+        $rec->role_name = $request->role_name;
+        $rec->slug = $slug;
+        $rec->description = $request->description;
+        $rec->is_active = 1;
+        $rec->save();
+
+        return redirect()->back()->with('success', 'Role added successfully');
+    }
+
+    function updateRole(Request $request, $id)
+    {
+        $request->validate([
+            'role_name' => 'required|string|max:255',
+            'description' => 'nullable|string|max:255',
+        ]);
+
+        $role = RoleMaster::findOrFail($id);
+        $slug = Str::slug($request->role_name);
+        $check = RoleMaster::where('slug', $slug)->where('id', '!=', $id)->first();
+        if ($check !== null) {
+            return redirect()->back()->with('error', 'Role name already exists');
+        }
+
+        $role->role_name = $request->role_name;
+        $role->slug = $slug;
+        $role->description = $request->description;
+        $role->is_active = $request->is_active ?? 1;
+        $role->save();
+
+        return redirect()->back()->with('success', 'Role updated successfully');
+    }
+
+    function deleteRole($id)
+    {
+        RoleMaster::findOrFail($id)->delete();
+        return redirect()->back()->with('success', 'Role deleted successfully');
     }
 
     function menuAccessTypes()

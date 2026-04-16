@@ -17,7 +17,7 @@ $programgroups = ProgramGroup::with(['programInfo'])->get();
 $latefee = LateFee::find(1);
 ?>
 @include('includes.header')
-@include('admin.sidebar')
+@include('admin.accounts.sidebar')
 
 <!-- Page Header -->
 <div class="d-flex align-items-center justify-content-between mb-3">

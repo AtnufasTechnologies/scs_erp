@@ -12,7 +12,7 @@ $roleType = UserHasRole::where('user_id', $userId)->value('role_name');
   <div class="sidebar-header">
 
     <div class="logo-text">
-      SCMS
+      {{Auth::user()->name}}
     </div>
     <div class=" toggle-icon ms-auto">
       <ion-icon name="menu-sharp"></ion-icon>
@@ -212,7 +212,6 @@ $roleType = UserHasRole::where('user_id', $userId)->value('role_name');
     </li>
     @endif
 
-
     <!-- Admission Portal -->
     @if (StaticController::mainMenuRights('admission-pg') || StaticController::mainMenuRights('admission-ug'))
     <li>
@@ -354,9 +353,6 @@ $roleType = UserHasRole::where('user_id', $userId)->value('role_name');
       </ul>
     </li>
     @endif
-
-
-
 
     <!--Faculty Master -->
     @if (StaticController::subMenuRights('student-master-sonada') || StaticController::subMenuRights('student-master-siliguri') )
@@ -567,6 +563,16 @@ $roleType = UserHasRole::where('user_id', $userId)->value('role_name');
         <div class="menu-title">Accounts Office</div>
       </a>
       <ul>
+        @if (StaticController::fetchUserRole() == 'account-office-incharge')
+        <li>
+          <a href="{{route('account-office.dashboard')}}">
+            <div class="parent-icon">
+              <i class="fas fa-tachometer-alt"></i>
+            </div>
+            <div class="menu-title">Dashboard</div>
+          </a>
+        </li>
+        @endif
         <li>
           <a href="{{url('erp/admin/accounts/late-fee-exemptions')}}">
             <div class="parent-icon">
@@ -701,9 +707,23 @@ $roleType = UserHasRole::where('user_id', $userId)->value('role_name');
         </li>
         @endif
 
+        <!--Account Office Incharge -->
+        @if (StaticController::fetchUserRole() == 'account-office-incharge')
+
+        <li>
+          <a href="{{route('account-office.assistant-access')}}">
+            <div class="parent-icon">
+              <i class="fas fa-user-plus"></i>
+            </div>
+            <div class="menu-title">Manage Assistants</div>
+          </a>
+        </li>
+        @endif
+
       </ul>
     </li>
     @endif
+
 
 
     <!--HR Master -->
@@ -1085,6 +1105,17 @@ $roleType = UserHasRole::where('user_id', $userId)->value('role_name');
               <i class="fas fa-arrow-alt-circle-right"></i>
             </div>
             <div class="menu-title">User Types </div>
+          </a>
+        </li>
+        @endif
+
+        @if (StaticController::subMenuRights('role-master-auth') )
+        <li>
+          <a href="{{route('admin.role-master')}}">
+            <div class="parent-icon">
+              <i class="fas fa-user-shield"></i>
+            </div>
+            <div class="menu-title">Role Master </div>
           </a>
         </li>
         @endif

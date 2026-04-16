@@ -1,5 +1,5 @@
 @include('includes.header')
-@include('admin.sidebar')
+@include('admin.accounts.sidebar')
 
 <h3><span class="text-uppercase">EaseBuzz Payment Verification </span></h3>
 

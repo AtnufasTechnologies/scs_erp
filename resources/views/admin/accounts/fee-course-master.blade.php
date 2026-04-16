@@ -6,7 +6,7 @@ $fetchPrograms = StaticController::fetchProgramGroupNew();
 
 ?>
 @include('includes.header')
-@include('admin.sidebar')
+@include('admin.accounts.sidebar')
 
 <h3><span class="text-uppercase">Fee Course Master</span></h3>
 

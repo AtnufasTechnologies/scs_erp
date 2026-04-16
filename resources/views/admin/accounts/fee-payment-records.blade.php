@@ -10,7 +10,7 @@ $programgroups = ProgramGroup::with(['programInfo', 'campus'])->where('campus_id
 
 ?>
 @include('includes.header')
-@include('admin.sidebar')
+@include('admin.accounts.sidebar')
 
 <h3 class="mt-3"><strong>Fee Payments</strong></h3>
 <p>Total Students: {{ $data->total() }}</p>

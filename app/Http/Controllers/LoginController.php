@@ -42,6 +42,12 @@ class LoginController extends Controller
                         Auth::logout();
                         return redirect('/')->with('error', 'No Department Assigned. Please contact Admin');
                     }
+                } else if ($roleType == 'account-office-incharge') {
+                    //Account Office Incharge Dashboard
+                    return redirect()->route('account-office.dashboard')->with('success', 'Login Success');
+                } else if ($roleType == 'account-office-assistant') {
+                    //Account Office Assistant - goes to admin dashboard with limited modules
+                    return redirect('erp/admin/dashboard')->with('success', 'Login Success');
                 } else if ($roleType == 'faculty') {
                     //Faculty Dashboard
                     return redirect()->route('faculty.dashboard')->with('success', 'Login Success');
