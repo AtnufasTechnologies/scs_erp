@@ -229,7 +229,7 @@ class AdmissionController extends Controller
             $usermail = $user->mail_id;
             $this->sendOTPEmail($otp, $usermail);
         }
-        return view('admission. otp-verification', [
+        return view('admission.otp-verification', [
             'userId' => $userId,
         ]);
     }
