@@ -923,29 +923,30 @@ class AdminController extends Controller
 
     function feeStructure(Request $request)
     {
+        $query = FeesStructure::with([
+            'program.campus',
+            'batch',
+            'feepvthead.head.bankmaster',
+            'feepvthead.head:id,head_name,bank_acc_id',
+            'feecoursemaster:id,name',
+            'programspivot.programgroupinfo.programInfo',
+        ]);
+
         if (!empty($request->keyword)) {
             $keyword = $request->keyword;
             $searchValues = preg_split('/\s+/', $keyword, -1, PREG_SPLIT_NO_EMPTY);
-            $data = FeesStructure::with([
-                'program.campus',
-                'batch',
-                'feepvthead.head:id,head_name',
-                'feecoursemaster:id,name',
-                'programspivot.programgroupinfo.programInfo',
-            ])->whereHas('feecoursemaster', function ($q) use ($searchValues) {
+            $query->whereHas('feecoursemaster', function ($q) use ($searchValues) {
                 foreach ($searchValues as $value) {
                     $q->where('name', 'LIKE', "%$value%");
                 }
-            })->latest()->get();
-        } else {
-            $data = FeesStructure::with([
-                'program.campus',
-                'batch',
-                'feepvthead.head:id,head_name',
-                'feecoursemaster:id,name',
-                'programspivot.programgroupinfo.programInfo',
-            ])->latest()->get();
+            });
         }
+
+        if (!empty($request->batch_id)) {
+            $query->where('batch_id', $request->batch_id);
+        }
+
+        $data = $query->latest()->get();
 
 
         return view('admin.accounts.fee-structure', ['data' => $data]);
@@ -1003,6 +1004,91 @@ class AdminController extends Controller
         }
 
         return redirect()->back()->with('success', 'Done');
+    }
+
+    function cloneFeeStructure(Request $request, $id)
+    {
+        $request->validate([
+            'batch_id'      => 'required|integer',
+            'reminder_date' => 'required|date',
+            'due_date'      => 'required|date',
+        ]);
+
+        $original = FeesStructure::with(['feepvthead', 'programspivot'])->findOrFail($id);
+
+        // Clone the fee structure with new batch and dates
+        $clone = $original->replicate();
+        $clone->batch_id      = $request->batch_id;
+        $clone->reminder_date = $request->reminder_date;
+        $clone->due_date      = $request->due_date;
+        $clone->is_payable    = 0;
+        $clone->save();
+
+        // Clone fee heads
+        foreach ($original->feepvthead as $head) {
+            FeeStructureHasHead::create([
+                'fee_structure_id' => $clone->id,
+                'fee_head_id'      => $head->fee_head_id,
+                'amount'           => $head->amount,
+            ]);
+        }
+
+        // Clone linked programs
+        foreach ($original->programspivot as $prog) {
+            FeeStructureHasManyProgram::create([
+                'fee_structure_id' => $clone->id,
+                'std_program_id'   => $prog->std_program_id,
+            ]);
+        }
+
+        return redirect()->back()->with('success', 'Fee structure cloned successfully for the new batch.');
+    }
+
+    function cloneAllFeeStructures(Request $request)
+    {
+        $request->validate([
+            'source_batch_id' => 'required|integer',
+            'batch_id'        => 'required|integer|different:source_batch_id',
+            'reminder_date'   => 'required|date',
+            'due_date'        => 'required|date|after_or_equal:reminder_date',
+        ]);
+
+        $structures = FeesStructure::with(['feepvthead', 'programspivot'])
+            ->where('batch_id', $request->source_batch_id)
+            ->get();
+
+        if ($structures->isEmpty()) {
+            return redirect()->back()->with('error', 'No fee structures found for the selected source batch.');
+        }
+
+        $count = 0;
+        foreach ($structures as $original) {
+            $clone                = $original->replicate();
+            $clone->batch_id      = $request->batch_id;
+            $clone->reminder_date = $request->reminder_date;
+            $clone->due_date      = $request->due_date;
+            $clone->is_payable    = 0;
+            $clone->save();
+
+            foreach ($original->feepvthead as $head) {
+                FeeStructureHasHead::create([
+                    'fee_structure_id' => $clone->id,
+                    'fee_head_id'      => $head->fee_head_id,
+                    'amount'           => $head->amount,
+                ]);
+            }
+
+            foreach ($original->programspivot as $prog) {
+                FeeStructureHasManyProgram::create([
+                    'fee_structure_id' => $clone->id,
+                    'std_program_id'   => $prog->std_program_id,
+                ]);
+            }
+
+            $count++;
+        }
+
+        return redirect()->back()->with('success', "{$count} fee structure(s) cloned successfully to the new batch.");
     }
 
     function unlinkStdProgram($id)

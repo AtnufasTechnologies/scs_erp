@@ -194,6 +194,8 @@ Route::group(['prefix' => '/erp'], function () {
             Route::post('fee-course-master', [AdminController::class, 'addCourseFeeMaster']);
             Route::post('update-fee-course-master', [AdminController::class, 'updateCourseFeeMaster']);
             Route::get('delete-feestructure/{id}', [AdminController::class, 'deleteFeeStructure']);
+            Route::post('clone-feestructure/{id}', [AdminController::class, 'cloneFeeStructure'])->name('fee-structure.clone');
+            Route::post('clone-all-feestructures', [AdminController::class, 'cloneAllFeeStructures'])->name('fee-structure.clone-all');
 
             Route::get('fee-heads', [AdminController::class, 'feeHeads']);
             Route::post('fee-heads', [AdminController::class, 'addFeeHead']);
@@ -583,8 +585,8 @@ Route::group(['prefix' => '/erp'], function () {
         });
     });
 
-    //admission student routes
-    Route::group(['prefix' => '/new-admission', 'middleware' => 'auth'], function () {
+    //new admission routes
+    Route::group(['prefix' => '/new-admission'], function () {
         Route::get('login', [AdmissionController::class, 'login'])->name('new.admission.login');
         Route::get('registration', [AdmissionController::class, 'index'])->name('new.admission.registration');
         // Route::get('login', [AdmissionController::class, 'technicalMode'])->name('new.admission.login');
@@ -621,9 +623,7 @@ Route::group(['prefix' => '/erp'], function () {
         Route::post('submit-pg-application-form', [AdmissionController::class, 'pgApplicationSubmit'])->name('submit.pg.application.form');
     });
 
-
-
-    //student
+    //existing student
     Route::group(['prefix' => 'student'], function () {
         Route::get('results', [StudentResultController::class, 'lookup'])->name('student.results.lookup');
         Route::post('results/search', [StudentResultController::class, 'search'])->name('student.results.search');
@@ -748,7 +748,6 @@ Route::group(['prefix' => '/erp'], function () {
         Route::post('leave-categories/{id}/toggle', [DeptLeaveController::class, 'categoryToggle'])->name('department.leave.categories.toggle');
     });
 
-
     // Faculty routes
     Route::group(['prefix' => 'faculty', 'middleware' => 'auth'], function () {
         Route::get('dashboard', [FacultyDashboardController::class, 'index'])->name('faculty.dashboard');
@@ -808,7 +807,6 @@ Route::group(['prefix' => '/erp'], function () {
         Route::get('internal-marks/view', [InternalMarksController::class, 'view'])->name('faculty.internal-marks.view');
     });
 
-
     // Student routes
     Route::group(['prefix' => 'student', 'middleware' => ['auth', 'check.student.access']], function () {
         Route::get('dashboard', [StudentDashboardController::class, 'profile'])->name('student.dashboard');
@@ -820,7 +818,6 @@ Route::group(['prefix' => '/erp'], function () {
         Route::post('course-offerings/register', [CourseOfferingController::class, 'studentRegister'])->name('student.offerings.register');
         Route::post('course-offerings/cancel/{id}', [CourseOfferingController::class, 'studentCancel'])->name('student.offerings.cancel');
     });
-
 
     //Testing route
     Route::group(['prefix' => '/test', 'middleware' => 'auth'], function () {

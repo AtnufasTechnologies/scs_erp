@@ -410,21 +410,180 @@ footer {
 
 .fee-card {
     position: relative;
-    max-width: 100%;
-    height: auto;
-    background: linear-gradient(-45deg, #82cbf9, #5f6498);
-    border-radius: 15px;
-    margin: 0 auto;
-    padding: 10px 10px;
-    -webkit-box-shadow: 0 10px 15px rgba(0, 0, 0, 0.1);
-    box-shadow: 0 10px 15px rgba(0, 0, 0, 0.1);
-    -webkit-transition: 0.5s;
-    transition: 0.5s;
-
-    /* &:hover {
-        -webkit-transform: scale(1.1);
-        transform: scale(1.1);
-    } */
+    background: #fff;
+    border-radius: 14px;
+    border: 1px solid #e2e8f0;
+    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.07);
+    transition:
+        box-shadow 0.2s,
+        transform 0.2s;
+    overflow: hidden;
+}
+/* .fee-card:hover {
+    box-shadow: 0 6px 22px rgba(0, 0, 0, 0.13);
+    transform: translateY(-2px);
+} */
+.fee-card .fc-accent {
+    height: 6px;
+    width: 100%;
+}
+.fee-card .fc-body {
+    padding: 14px 16px 8px;
+}
+.fee-card .fc-batch-badge {
+    display: inline-block;
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 0.6px;
+    text-transform: uppercase;
+    padding: 2px 10px;
+    border-radius: 20px;
+    color: #fff;
+    margin-bottom: 8px;
+}
+.fee-card .fc-title {
+    font-size: 15px;
+    font-weight: 700;
+    color: #1a202c;
+    line-height: 1.3;
+    margin-bottom: 2px;
+}
+.fee-card .fc-subtitle {
+    font-size: 12px;
+    color: #64748b;
+    margin-bottom: 10px;
+}
+.fee-card .fc-dates {
+    display: flex;
+    gap: 8px;
+    margin-bottom: 10px;
+}
+.fee-card .fc-date-chip {
+    flex: 1;
+    border-radius: 8px;
+    padding: 5px 8px;
+    font-size: 11px;
+    font-weight: 600;
+}
+.fee-card .fc-date-chip .label {
+    font-size: 9px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    opacity: 0.75;
+    display: block;
+}
+.fee-card .fc-meta-row {
+    display: flex;
+    gap: 6px;
+    flex-wrap: wrap;
+    margin-bottom: 10px;
+}
+.fee-card .fc-meta-chip {
+    background: #f1f5f9;
+    border: 1px solid #e2e8f0;
+    border-radius: 20px;
+    font-size: 10px;
+    font-weight: 600;
+    color: #475569;
+    padding: 3px 10px;
+}
+.fee-card .fc-heads {
+    margin-bottom: 8px;
+}
+.fee-card .fc-head-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 5px 0;
+    border-bottom: 1px dashed #e2e8f0;
+    font-size: 12px;
+    color: #334155;
+}
+.fee-card .fc-head-row:last-child {
+    border-bottom: none;
+}
+.fee-card .fc-head-name {
+    font-weight: 500;
+    flex: 1;
+}
+.fee-card .fc-head-amount {
+    font-weight: 700;
+    color: #1e40af;
+    min-width: 64px;
+    text-align: right;
+}
+.fee-card .fc-head-actions {
+    display: flex;
+    gap: 6px;
+    margin-left: 8px;
+}
+.fee-card .fc-bank-subtotals {
+    border: 1px dashed #cbd5e1;
+    border-radius: 8px;
+    overflow: hidden;
+    margin-bottom: 8px;
+}
+.fee-card .fc-subtotal-header {
+    background: #f1f5f9;
+    color: #475569;
+    font-size: 10px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    padding: 4px 10px;
+    border-bottom: 1px dashed #cbd5e1;
+}
+.fee-card .fc-subtotal-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 5px 10px;
+    border-bottom: 1px dashed #e2e8f0;
+    font-size: 11px;
+    background: #fff;
+}
+.fee-card .fc-subtotal-row:last-child {
+    border-bottom: none;
+}
+.fee-card .fc-subtotal-name {
+    flex: 1;
+    color: #334155;
+}
+.fee-card .fc-subtotal-amt {
+    font-weight: 800;
+    color: #1e40af;
+    font-size: 12px;
+}
+.fee-card .fc-total {
+    background: linear-gradient(90deg, #1e40af 0%, #3b82f6 100%);
+    color: #fff;
+    border-radius: 8px;
+    padding: 8px 14px;
+    font-size: 15px;
+    font-weight: 800;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-top: 4px;
+}
+.fee-card .fc-footer {
+    padding: 8px 16px;
+    background: #f8fafc;
+    border-top: 1px solid #e2e8f0;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    align-items: center;
+}
+.fee-card .fc-status {
+    position: absolute;
+    top: 14px;
+    right: 14px;
+}
+.fee-card .fc-status .badge {
+    font-size: 10px;
+    padding: 4px 10px;
 }
 
 /* .col-lg-4:nth-child(1) .fee-card,
@@ -480,14 +639,7 @@ footer {
 }
 
 .fee-card .btn-total {
-    background-color: #ffdb8d;
-    color: #2b2b2b;
-    width: 100%;
-    height: 40px;
-    font-size: 18px;
-    border-radius: 5px;
-    border: none;
-    font-weight: 800;
+    display: none; /* replaced by fc-total */
 }
 
 /* Fee Card */

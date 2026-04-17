@@ -65,7 +65,8 @@ class FeePaymentController extends Controller
         // ---- TRANSFORM EACH RECORD USING through() ----
         $students = $data->through(function ($student) {
 
-            $applicableFS = FeesStructure::where('batch_id', $student->batch)
+            $applicableFS = FeesStructure::with(['feeHeads.head.bankmaster'])
+                ->where('batch_id', $student->batch)
                 ->whereHas('programspivot', function ($q) use ($student) {
                     $q->where('std_program_id', $student->programme);
                 })
@@ -99,6 +100,19 @@ class FeePaymentController extends Controller
                     }
                 }
 
+                $bankAccounts = $fs->feeHeads
+                    ->map(fn($h) => ($h->head && $h->head->bankmaster) ? [
+                        'acc_label' => $h->head->bankmaster->acc_label,
+                        'acc_name'  => $h->head->bankmaster->acc_name,
+                        'acc_no'    => $h->head->bankmaster->acc_no,
+                        'bank_name' => $h->head->bankmaster->bank_name,
+                        'branch'    => $h->head->bankmaster->branch,
+                    ] : null)
+                    ->filter()
+                    ->unique('acc_no')
+                    ->values()
+                    ->toArray();
+
                 return [
                     'paymentinfo' => $payment,
                     'fee_structure_id' => $fs->id,
@@ -111,6 +125,7 @@ class FeePaymentController extends Controller
                     'paid' => $payment ? true : false,
                     'paid_amount' => $payment->amount ?? 0,
                     'status' => $payment ? 'success' : ($lateFee > 0 ? 'late' : 'due'),
+                    'bank_accounts' => $bankAccounts,
                 ];
             });
 
@@ -830,6 +845,7 @@ class FeePaymentController extends Controller
             'status' => $data[0]['status'],
             'gatewayType' => $data[0]['gateway_type_id'],
             'fixedLateFee' => $fixedLateFee,
+            'downloadPdfUrl' => url('erp/student/transaction-success/' . $txnId . '/download-pdf'),
         ]);
     }
 
