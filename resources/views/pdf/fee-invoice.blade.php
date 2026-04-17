@@ -128,10 +128,10 @@ $timestamp = Carbon::now()
         <th>Paid On</th>
         <th>Invoice #</th>
         <th>Quarter</th>
-        <th>Amount</th>
+        <th>Fee Amount</th>
+        <th>Late Fee</th>
+        <th>Grand Amount</th>
         <th>Status</th>
-
-
       </tr>
     </thead>
     <tbody>
@@ -141,9 +141,9 @@ $timestamp = Carbon::now()
         <td>{{ $row['inv_id'] }}</td>
         <td>{{ $row['quarter'] }}</td>
         <td>₹{{ number_format($row['payable_amount']) }}</td>
+        <td>{{ $row['late_fee'] > 0 ? '₹'.number_format($row['late_fee']) : '—' }}</td>
+        <td><strong>₹{{ number_format($row['grand_amount']) }}</strong></td>
         <td>{{ $row['status'] }}</td>
-
-
       </tr>
       @endforeach
     </tbody>

@@ -1,15 +1,12 @@
 <?php
 
 use App\Models\BatchMaster;
-use Illuminate\Bus\Batch;
 
 $batch = BatchMaster::where('admission_active_batch', 1)->first();
 ?>
 @include('includes.header')
-@include('admin.sidebar')
+@include('admin.admission.sidebar')
 <h3>Admission Settings </h3>
-
-
 
 <div class="container-fluid py-4">
   <div class="row justify-content-center">

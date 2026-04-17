@@ -312,6 +312,8 @@ Route::group(['prefix' => '/erp'], function () {
         //admission routes Admin
         Route::group(['prefix' => '/admission'], function () {
 
+            Route::get('dashboard', [AdmissionController::class, 'dashboard'])->name('admission.dashboard');
+
             Route::get('registrations/{type}', [AdmissionController::class, 'admissionRegistrations'])->name('admission.registration');
             //UG 
             Route::get('ug-applications', [AdmissionController::class, 'ugApplications'])->name('admission.ug.applications');

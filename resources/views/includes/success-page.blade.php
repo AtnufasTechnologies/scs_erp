@@ -135,6 +135,8 @@ $userInfo = User::select('name')->find($userId);
     $structure = $txn['feepaymentinfo'];
     $courseFee = 0;
     $otherFees = 0;
+    $txnLateFee = (float)($txn['late_fee_amount'] ?? 0);
+    $txnLateDays = (int)($txn['late_days'] ?? 0);
     @endphp
 
     {{-- CALCULATE --}}
@@ -168,20 +170,35 @@ $userInfo = User::select('name')->find($userId);
 
         <tr class="subtotal">
           <td>Subtotal</td>
-          <td class="amount">
-            ₹{{ number_format($courseFee + $otherFees, 2) }}
-          </td>
+          <td class="amount">₹{{ number_format($courseFee + $otherFees, 2) }}</td>
         </tr>
-        @if(isset($fixedLateFee) && $fixedLateFee !== null)
+
+        @if($txnLateFee > 0)
         <tr>
-          <td><strong>Fixed Late Fee (Exemption)</strong></td>
+          <td>
+            <strong>Late Fee</strong>
+            @if($txnLateDays > 0)
+            <span style="font-size:11px; color:#888;"> ({{ $txnLateDays }} day{{ $txnLateDays > 1 ? 's' : '' }} overdue)</span>
+            @endif
+          </td>
+          <td class="amount" style="color:#c0392b; font-weight:700;">₹{{ number_format($txnLateFee, 2) }}</td>
+        </tr>
+        <tr class="subtotal">
+          <td>Quarter Total</td>
+          <td class="amount">₹{{ number_format($courseFee + $otherFees + $txnLateFee, 2) }}</td>
+        </tr>
+        @endif
+
+        @if(isset($fixedLateFee) && $fixedLateFee !== null && $txnLateFee == 0)
+        <tr>
+          <td><strong>Fixed Late Fee (Exemption Applied)</strong></td>
           <td class="amount">₹{{ number_format($fixedLateFee, 2) }}</td>
         </tr>
         @endif
       </table>
     </div>
 
-    @php $grandTotal += ($courseFee + $otherFees); @endphp
+    @php $grandTotal += ($courseFee + $otherFees + $txnLateFee); @endphp
     @endforeach
 
     {{-- GRAND TOTAL --}}
