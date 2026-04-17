@@ -33,18 +33,19 @@
           <div class="card-body">
             <div class="d-flex align-items-center justify-content-between">
               <div>
-                <p class="text-muted mb-2 text-uppercase" style="font-size: 0.75rem; font-weight: 600; letter-spacing: 0.5px;">Pending</p>
+                <p class="text-muted mb-2 text-uppercase d-flex align-items-center gap-1" style="font-size: 0.75rem; font-weight: 600; letter-spacing: 0.5px;"><i class="fas fa-clock text-warning"></i> Pending</p>
                 <h3 class="mb-0 fw-bold text-warning">{{ $stats['pending'] }}</h3>
                 <small class="text-muted mt-1 d-block">Awaiting approval</small>
               </div>
               <div class="icon-wrapper bg-warning bg-opacity-10 rounded-circle p-3" style="width: 60px; height: 60px; display: flex; align-items: center; justify-content: center;">
-                <i class="fas fa-clock text-warning" style="font-size: 1.75rem;"></i>
+                <i class="fas fa-clock text-warning"></i>
               </div>
             </div>
           </div>
           <div class="card-footer bg-transparent border-0 pt-0 pb-3 px-3">
             <div class="progress" style="height: 4px;">
-              <div class="progress-bar bg-warning" role="progressbar" style="width: {{ $stats['total'] > 0 ? ($stats['pending'] / $stats['total']) * 100 : 0 }}%"></div>
+              @php $pendingPercent = $stats['total'] > 0 ? ($stats['pending'] / $stats['total']) * 100 : 0; @endphp
+              <div class="progress-bar bg-warning" role="progressbar" style="width: {{ $pendingPercent }}%"></div>
             </div>
           </div>
         </div>
@@ -55,18 +56,19 @@
           <div class="card-body">
             <div class="d-flex align-items-center justify-content-between">
               <div>
-                <p class="text-muted mb-2 text-uppercase" style="font-size: 0.75rem; font-weight: 600; letter-spacing: 0.5px;">Approved</p>
+                <p class="text-muted mb-2 text-uppercase d-flex align-items-center gap-1" style="font-size: 0.75rem; font-weight: 600; letter-spacing: 0.5px;"><i class="fas fa-check-circle text-success"></i> Approved</p>
                 <h3 class="mb-0 fw-bold text-success">{{ $stats['approved'] }}</h3>
                 <small class="text-muted mt-1 d-block">This session</small>
               </div>
               <div class="icon-wrapper bg-success bg-opacity-10 rounded-circle p-3" style="width: 60px; height: 60px; display: flex; align-items: center; justify-content: center;">
-                <i class="fas fa-check-circle text-success" style="font-size: 1.75rem;"></i>
+                <i class="fas fa-check-circle text-success" style="font-size: 2.5rem;"></i>
               </div>
             </div>
           </div>
           <div class="card-footer bg-transparent border-0 pt-0 pb-3 px-3">
             <div class="progress" style="height: 4px;">
-              <div class="progress-bar bg-success" role="progressbar" style="width: {{ $stats['total'] > 0 ? ($stats['approved'] / $stats['total']) * 100 : 0 }}%"></div>
+              @php $approvedPercent = $stats['total'] > 0 ? ($stats['approved'] / $stats['total']) * 100 : 0; @endphp
+              <div class="progress-bar bg-success" role="progressbar" style="width: {{ $approvedPercent }}%"></div>
             </div>
           </div>
         </div>
@@ -77,18 +79,19 @@
           <div class="card-body">
             <div class="d-flex align-items-center justify-content-between">
               <div>
-                <p class="text-muted mb-2 text-uppercase" style="font-size: 0.75rem; font-weight: 600; letter-spacing: 0.5px;">Rejected</p>
+                <p class="text-muted mb-2 text-uppercase d-flex align-items-center gap-1" style="font-size: 0.75rem; font-weight: 600; letter-spacing: 0.5px;"><i class="fas fa-times-circle text-danger"></i> Rejected</p>
                 <h3 class="mb-0 fw-bold text-danger">{{ $stats['rejected'] }}</h3>
                 <small class="text-muted mt-1 d-block">Not approved</small>
               </div>
               <div class="icon-wrapper bg-danger bg-opacity-10 rounded-circle p-3" style="width: 60px; height: 60px; display: flex; align-items: center; justify-content: center;">
-                <i class="fas fa-times-circle text-danger" style="font-size: 1.75rem;"></i>
+                <i class="fas fa-times-circle text-danger" style="font-size: 2.5rem;"></i>
               </div>
             </div>
           </div>
           <div class="card-footer bg-transparent border-0 pt-0 pb-3 px-3">
             <div class="progress" style="height: 4px;">
-              <div class="progress-bar bg-danger" role="progressbar" style="width: {{ $stats['total'] > 0 ? ($stats['rejected'] / $stats['total']) * 100 : 0 }}%"></div>
+              @php $rejectedPercent = $stats['total'] > 0 ? ($stats['rejected'] / $stats['total']) * 100 : 0; @endphp
+              <div class="progress-bar bg-danger" role="progressbar" style="width: {{ $rejectedPercent }}%"></div>
             </div>
           </div>
         </div>
@@ -99,12 +102,12 @@
           <div class="card-body">
             <div class="d-flex align-items-center justify-content-between">
               <div>
-                <p class="text-muted mb-2 text-uppercase" style="font-size: 0.75rem; font-weight: 600; letter-spacing: 0.5px;">Total</p>
+                <p class="text-muted mb-2 text-uppercase d-flex align-items-center gap-1" style="font-size: 0.75rem; font-weight: 600; letter-spacing: 0.5px;"><i class="fas fa-file-alt text-primary"></i> Total</p>
                 <h3 class="mb-0 fw-bold text-primary">{{ $stats['total'] }}</h3>
                 <small class="text-muted mt-1 d-block">All applications</small>
               </div>
               <div class="icon-wrapper bg-primary bg-opacity-10 rounded-circle p-3" style="width: 60px; height: 60px; display: flex; align-items: center; justify-content: center;">
-                <i class="fas fa-file-alt text-primary" style="font-size: 1.75rem;"></i>
+                <i class="fas fa-file-alt text-primary" style="font-size: 2.5rem;"></i>
               </div>
             </div>
           </div>
@@ -352,6 +355,11 @@
                       <span class="badge bg-{{ $leave->status_badge }}">
                         {{ ucfirst($leave->status) }}
                       </span>
+                      @if($leave->dept_action === 'forwarded')
+                      <br><small class="badge bg-info mt-1">Forwarded to {{ $leave->forwarded_to }}</small>
+                      @elseif($leave->dept_action === 'rejected')
+                      <br><small class="badge bg-danger mt-1">Dept Rejected</small>
+                      @endif
                     </td>
                     <td>
                       <small>{{ $leave->created_at->format('d M Y') }}</small>

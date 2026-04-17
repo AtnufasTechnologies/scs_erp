@@ -11,6 +11,20 @@ $batches = BatchMaster::all();
 <div class="main-content">
   <h3 class="text-capitalize">Syllabus Manager - {{$data['slug']}}</h3>
 
+  @if(session('success'))
+  <div class="alert alert-success alert-dismissible fade show" role="alert">
+    <i class="fas fa-check-circle me-2"></i>{{ session('success') }}
+    <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+  </div>
+  @endif
+
+  @if(session('error'))
+  <div class="alert alert-danger alert-dismissible fade show" role="alert">
+    <i class="fas fa-exclamation-triangle me-2"></i>{{ session('error') }}
+    <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+  </div>
+  @endif
+
   <div class="row no-print">
     <div class="col-lg-2">
       <!-- Button trigger modal -->
@@ -29,9 +43,9 @@ $batches = BatchMaster::all();
 
     <div class="col-lg-2">
       <!-- PDF Download Button -->
-      <a href="{{ route('department.syllabus.download.pdf', ['id' => $data['id'], 'slug' => $data['slug'], 'filter_batch' => request('filter_batch')]) }}" class="btn btn-danger mb-3">
-        <i class="fa fa-file-pdf"></i> PDF
-      </a>
+      <button class="btn btn-danger mb-3" data-bs-toggle="modal" data-bs-target="#pdfBatchModal">
+        <i class="fa fa-file-pdf"></i> Download PDF
+      </button>
     </div>
 
     <div class="col-lg-3 offset-lg-3">
@@ -49,6 +63,36 @@ $batches = BatchMaster::all();
         </div>
 
       </form>
+    </div>
+  </div>
+
+  <!-- PDF Batch Select Modal -->
+  <div class="modal fade" id="pdfBatchModal" tabindex="-1" aria-labelledby="pdfBatchModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h5 class="modal-title" id="pdfBatchModalLabel"><i class="fa fa-file-pdf text-danger"></i> Generate Syllabus PDF</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+        </div>
+        <form action="{{ route('department.syllabus.download.pdf') }}" method="get" target="_blank">
+          <input type="hidden" name="id" value="{{ $data['id'] }}">
+          <input type="hidden" name="slug" value="{{ $data['slug'] }}">
+          <div class="modal-body">
+            <label for="pdf_filter_batch" class="form-label fw-semibold">Select Batch <span class="text-danger">*</span></label>
+            <select name="filter_batch" id="pdf_filter_batch" class="form-select" required>
+              <option value="">-- Select a Batch --</option>
+              @foreach ($batches as $batch)
+              <option value="{{ $batch->id }}">{{ $batch->batch_name }}</option>
+              @endforeach
+            </select>
+            <small class="text-muted mt-2 d-block">Only the selected batch's syllabus will be included in the PDF.</small>
+          </div>
+          <div class="modal-footer">
+            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+            <button type="submit" class="btn btn-danger"><i class="fa fa-file-pdf"></i> Generate PDF</button>
+          </div>
+        </form>
+      </div>
     </div>
   </div>
 
@@ -157,16 +201,28 @@ $batches = BatchMaster::all();
           </div>
           <div class="accordion" id="accordion{{ Str::slug($batchName . $semesterName) }}">
             @foreach ($courses as $courseKey => $courseData)
+            <?php $firstCso = $courseData['csos'][0] ?? null; ?>
             <div class="accordion-item">
-              <h2 class="accordion-header">
-                <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse"
+              <div class="accordion-header d-flex align-items-center">
+                <button class="accordion-button collapsed flex-grow-1" type="button" data-bs-toggle="collapse"
                   data-bs-target="#course{{ Str::slug($batchName . $semesterName . $courseKey) }}"
                   aria-expanded="false">
                   <strong>{{ $courseData['course']->course_code ?? 'N/A' }}</strong>
                   <span class="ms-2">{{ $courseData['course']->course_title ?? 'Unknown Course' }}</span>
                   <span class="badge bg-secondary ms-auto me-2">{{ $courseData['course']->credits ?? '0' }} Credits</span>
                 </button>
-              </h2>
+                @if($firstCso)
+                <form action="{{ route('department.syllabus.co.delete', [$data['id'], $firstCso->batch_id, $firstCso->semester_id, $firstCso->co_id]) }}"
+                  method="POST" class="no-print me-2"
+                  onsubmit="return confirm('Remove \'{{ addslashes($courseData['course']->course_title ?? 'this course') }}\' and ALL its CSOs & subunits from this batch/semester?')">
+                  @csrf
+                  @method('DELETE')
+                  <button type="submit" class="btn btn-sm btn-danger" title="Remove course from this batch & semester">
+                    <i class="fas fa-trash-alt"></i>
+                  </button>
+                </form>
+                @endif
+              </div>
               <div id="course{{ Str::slug($batchName . $semesterName . $courseKey) }}"
                 class="accordion-collapse collapse"
                 data-bs-parent="#accordion{{ Str::slug($batchName . $semesterName) }}">
@@ -212,7 +268,7 @@ $batches = BatchMaster::all();
                                 </span>
                               </small>
                             </div>
-                            <div>
+                            <div class="d-flex align-items-center gap-2">
                               @if ($syllabusSubunit->is_completed == 1)
                               <span class="badge bg-success" title="Completed">
                                 <i class="fa fa-check-circle"></i> Completed
@@ -222,6 +278,14 @@ $batches = BatchMaster::all();
                                 <i class="fa fa-clock"></i> Pending
                               </span>
                               @endif
+                              <form action="{{ route('department.syllabus.subunit.delete', $syllabusSubunit->id) }}" method="POST" class="no-print"
+                                onsubmit="return confirm('Remove this subunit from syllabus?')">
+                                @csrf
+                                @method('DELETE')
+                                <button type="submit" class="btn btn-sm btn-outline-danger" title="Remove">
+                                  <i class="fas fa-trash-alt"></i>
+                                </button>
+                              </form>
                             </div>
                           </div>
                         </div>

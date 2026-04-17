@@ -1,5 +1,5 @@
 @include('includes.header')
-@include('admin.sidebar')
+@include('admin.accounts.sidebar')
 
 <div class="container-fluid">
   <h3 class="mb-4">Late Fee Revenue Report</h3>

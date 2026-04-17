@@ -1,5 +1,5 @@
 @include('includes.header')
-@include('admin.sidebar')
+@include('admin.accounts.sidebar')
 
 <h3><span class="text-uppercase">Admission Fee Collection </span></h3>
 <h4>Total Fee Collected: <i class="fa fa-rupee-sign"></i> {{ $data->where('status', 'success')->sum('amount') }} /-</h4>

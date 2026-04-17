@@ -16,7 +16,7 @@ $semesters = Semester::all();
 $batches = BatchMaster::orderBy('batch_name')->get();
 ?>
 @include('includes.header')
-@include('admin.sidebar')
+@include('admin.accounts.sidebar')
 <h4 class="mb-0">Fee Defaulters List</h4>
 <div class="container-fluid py-4">
   <div class="row mb-3">

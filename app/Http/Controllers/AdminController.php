@@ -25,12 +25,22 @@ use App\Models\LateFee;
 use App\Models\LectureHallMaster;
 use App\Models\MainProgram;
 use App\Models\MenuMaster;
+use App\Models\NationalityMaster;
+use App\Models\PaperTypeMaster;
+use App\Models\ProgramCourseMaster;
 use App\Models\ProgramGroup;
 use App\Models\ProgramMaster;
 use App\Models\ReligionMaster;
+use App\Models\RoleMaster;
 use App\Models\RoomMaster;
 use App\Models\Semester;
+use App\Models\InterMark;
+use App\Models\StudentAttendance;
+use App\Models\StudentCourseInfo;
 use App\Models\StudentMaster;
+use App\Models\SubjectHasRoutine;
+use App\Models\ExamSystem\ExamStudent;
+use App\Models\ExamSystem\Result;
 use App\Models\User;
 use App\Models\UserCampusSetting;
 use App\Models\UserHasPermission;
@@ -38,6 +48,7 @@ use App\Models\UserHasRole;
 use App\Models\UserMenuPermission;
 use App\Models\UserType;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Str;
 use Illuminate\Testing\Fluent\Concerns\Has;
@@ -96,10 +107,330 @@ class AdminController extends Controller
             'programgroup.programInfo',
             'feepayment.feepaymentinfo:id,quarter_title',
             'feepayment.gatewaytype'
-
         ])->firstOrFail();
 
-        return view('admin.master.student-profile', ['data' => $data]);
+        // Fetch student's courses with semester and course-type relations
+        $studentCourses = StudentCourseInfo::with([
+            'coursemaster.semestermaster:id,title',
+            'coursemaster.coursetypemaster:id,title',
+        ])
+            ->where('student_id', $id)
+            ->whereNull('deleted_at')
+            ->get();
+
+        // Build semester ID → title map for grouping
+        $semesterMap = Semester::pluck('title', 'id')->toArray();
+
+        // Group courses by the semester stored in student_course_infos (set during enrollment)
+        $coursesBySemester = $studentCourses->sortBy(fn($c) => $c->semester ?? 999)
+            ->groupBy(fn($c) => $semesterMap[$c->semester] ?? ('Semester ' . ($c->semester ?? '?')));
+
+        // Course IDs that have FA marks — used to lock edit/delete
+        $faMarkedCourseIds = InterMark::where('student_id', $id)
+            ->pluck('course_id')
+            ->unique()
+            ->toArray();
+
+        // Course IDs that have SA marks (via exam_marks_entries)
+        $saMarkedCourseIds = DB::table('exam_marks_entries')
+            ->where('erp_student_id', $id)
+            ->pluck('erp_subject_id')
+            ->unique()
+            ->toArray();
+
+        $lockedCourseIds = array_unique(array_merge($faMarkedCourseIds, $saMarkedCourseIds));
+
+        // Available courses for enrollment modal — grouped by semester
+        $enrolledCourseIds = $studentCourses->pluck('course_id')->toArray();
+        $availableCourses  = ProgramCourseMaster::where('is_deleted', 0)
+            ->whereNotIn('id', $enrolledCourseIds)
+            ->with('semestermaster:id,title', 'coursetypemaster:id,title')
+            ->orderBy('semester_id')
+            ->orderBy('course_title')
+            ->get()
+            ->groupBy(fn($c) => $c->semester_id);
+
+        // All semesters for the modal filter tabs
+        $availableSemesters = Semester::orderBy('id')->get();
+
+        // Timetable: all routines for the student's batch
+        $timetable = SubjectHasRoutine::where('batch_id', $data->batch)
+            ->with([
+                'weekdaymaster:id,title',
+                'hourmaster:id,title',
+                'lecturehallmaster:id,title',
+                'faculty:id,FIRST_NAME,LAST_NAME',
+                'coursemaster:id,course_title,course_code',
+            ])
+            ->orderBy('weekday_id')
+            ->orderBy('hour_id')
+            ->get();
+
+        // Group timetable by weekday
+        $timetableByDay = $timetable->groupBy(fn($r) => $r->weekdaymaster->title ?? 'Unknown');
+
+        // Attendance: per-course summary for the student
+        $attendanceRaw = StudentAttendance::where('student_id', $id)
+            ->with('courseinfo:id,course_title,course_code')
+            ->get()
+            ->groupBy('course_id');
+
+        $attendanceSummary = $attendanceRaw->map(function ($records) {
+            $total   = $records->count();
+            $present = $records->where('status', 'present')->count();
+            $absent  = $total - $present;
+            return [
+                'course'     => $records->first()->courseinfo,
+                'total'      => $total,
+                'present'    => $present,
+                'absent'     => $absent,
+                'percentage' => $total > 0 ? round(($present / $total) * 100, 1) : 0,
+            ];
+        })->values();
+
+        // Internal Marks (FA)
+        $internalMarks = InterMark::where('student_id', $id)
+            ->with([
+                'course:id,course_title,course_code',
+                'semester:id,title',
+            ])
+            ->orderBy('semester')
+            ->get();
+
+        // Exam Results via ExamStudent bridge
+        $examStudent = ExamStudent::where('erp_student_id', $id)->first();
+        $examResults = collect();
+        if ($examStudent) {
+            $examResults = Result::where('exam_student_id', $examStudent->id)
+                ->where('is_published', true)
+                ->with(['examSession', 'resultSubjects'])
+                ->orderByDesc('created_at')
+                ->get();
+        }
+
+        return view('admin.master.student-profile', [
+            'data'               => $data,
+            'studentCourses'     => $studentCourses,
+            'coursesBySemester'  => $coursesBySemester,
+            'lockedCourseIds'    => $lockedCourseIds,
+            'availableCourses'   => $availableCourses,
+            'availableSemesters' => $availableSemesters,
+            'timetableByDay'     => $timetableByDay,
+            'attendanceSummary'  => $attendanceSummary,
+            'internalMarks'      => $internalMarks,
+            'examResults'        => $examResults,
+            'examStudent'        => $examStudent,
+            'batches'            => BatchMaster::orderBy('batch_name')->get(),
+            'departments'        => DepartmentMaster::orderBy('name')->get(),
+            'campuses'           => Campus::orderBy('name')->get(),
+            'religions'          => ReligionMaster::orderBy('name')->get(),
+            'nationalities'      => NationalityMaster::orderBy('name')->get(),
+            'bloodGroups'        => BloodGroupMaster::orderBy('name')->get(),
+        ]);
+    }
+
+    /**
+     * Update student details from admin profile edit form.
+     */
+    function stdUpdate(Request $request, $id)
+    {
+        $student = StudentMaster::findOrFail($id);
+
+        $validated = $request->validate([
+            'first_name'            => 'required|string|max:100',
+            'last_name'             => 'nullable|string|max:100',
+            'gender'                => 'required|in:1,2',
+            'dob'                   => 'nullable|date',
+            'mobile_no'             => 'nullable|string|max:15',
+            'mail_id'               => 'nullable|email|max:150',
+            'address'               => 'nullable|string|max:500',
+            'father_name'           => 'nullable|string|max:150',
+            'mother_name'           => 'nullable|string|max:150',
+            'guardian_name'         => 'nullable|string|max:150',
+            'fr_mobile_no'          => 'nullable|string|max:15',
+            'mr_mobile_no'          => 'nullable|string|max:15',
+            'guardian_mobile_no'    => 'nullable|string|max:15',
+            'fr_occupation'         => 'nullable|string|max:150',
+            'mr_occupation'         => 'nullable|string|max:150',
+            'department'            => 'nullable|integer|exists:department_masters,id',
+            'batch'                 => 'nullable|integer|exists:batch_masters,id',
+            'campus_id'             => 'nullable|integer|exists:campuses,id',
+            'roll_no'               => 'nullable|string|max:50',
+            'register_no'           => 'nullable|string|max:100',
+            'university_register_no' => 'nullable|string|max:100',
+            'current_year'          => 'nullable|integer|min:1|max:6',
+            'admission_date'        => 'nullable|date',
+            'graduation_year'       => 'nullable|integer',
+            'status'                => 'nullable|string|max:50',
+            'nationality'           => 'nullable|integer|exists:nationality_masters,id',
+            'religion'              => 'nullable|integer|exists:religion_masters,id',
+            'community'             => 'nullable|string|max:100',
+            'caste'                 => 'nullable|string|max:100',
+            'blood_group_id'        => 'nullable|integer|exists:blood_group_masters,id',
+            'mother_tongue'         => 'nullable|string|max:100',
+            'aadhar_no'             => 'nullable|string|max:20',
+            'annual_income'         => 'nullable|numeric',
+            'is_roman_catholic'     => 'nullable|boolean',
+            'remarks'               => 'nullable|string|max:500',
+        ]);
+
+        $validated['is_roman_catholic'] = $request->boolean('is_roman_catholic');
+
+        $student->update($validated);
+
+        return redirect()->route('admin.student.profile', ['id' => $id, 'rollno' => $student->roll_no])
+            ->with('success', 'Student details updated successfully.');
+    }
+
+    // ── Student Course CRUD ──────────────────────────────────────────────
+
+    function stdCourseStore(Request $request, $studentId)
+    {
+
+        $student = StudentMaster::findOrFail($studentId);
+
+        $request->validate([
+            'course_ids'    => 'required|array|min:1',
+            'course_ids.*'  => 'integer|exists:program_course_masters,id',
+            'academic_year' => 'required|string|max:20',
+            'semester_id'   => 'required|integer|exists:semesters,id',
+        ]);
+
+        $academicYear = $request->academic_year;
+        $semesterId   = $request->semester_id;
+        $enrolled = 0;
+        $skipped  = 0;
+        $course =   $request->course_ids;
+
+        for ($i = 0; $i < count($course); $i++) {
+            //check if course is already enrolled
+            $check = StudentCourseInfo::where('student_id', $studentId)
+                ->where('course_id', $course[$i])
+                ->where('semester', $semesterId)
+                ->where('academic_year', $academicYear)
+                ->first();
+
+            if ($check) {
+                $skipped++;
+                continue;
+            }
+
+            StudentCourseInfo::create([
+                'student_id'    => $studentId,
+                'course_id'     => $course[$i],
+                'semester'      => $semesterId,
+                'campus_id'     => $student->campus_id,
+                'is_active'     => 1,
+                'academic_year' => $academicYear,
+                'course_status' => 'EN',
+            ]);
+            $enrolled++;
+        }
+
+        $msg = "{$enrolled} course(s) enrolled successfully.";
+        if ($skipped) $msg .= " {$skipped} already enrolled (skipped).";
+
+        return redirect()->route('admin.student.profile', ['id' => $studentId, 'rollno' => $student->roll_no])
+            ->with('success', $msg)
+            ->withFragment('tab-courses');
+    }
+
+    function stdCourseUpdate(Request $request, $studentId, $sciId)
+    {
+        $sci = StudentCourseInfo::where('student_id', $studentId)->findOrFail($sciId);
+
+        // Check marks lock
+        $hasFA = InterMark::where('student_id', $studentId)->where('course_id', $sci->course_id)->exists();
+        $hasSA = DB::table('exam_marks_entries')
+            ->where('erp_student_id', $studentId)
+            ->where('erp_subject_id', $sci->course_id)
+            ->exists();
+
+        if ($hasFA || $hasSA) {
+            return back()->with('error', 'Cannot modify a course that has marks recorded.')->withFragment('tab-courses');
+        }
+
+        $sci->update(['is_active' => $sci->is_active ? 0 : 1]);
+
+        $student = StudentMaster::findOrFail($studentId);
+        return redirect()->route('admin.student.profile', ['id' => $studentId, 'rollno' => $student->roll_no])
+            ->with('success', 'Course status updated.')
+            ->withFragment('tab-courses');
+    }
+
+    function stdCourseDestroy(Request $request, $studentId, $sciId)
+    {
+        $sci = StudentCourseInfo::where('student_id', $studentId)->findOrFail($sciId);
+
+        // Check marks lock
+        $hasFA = InterMark::where('student_id', $studentId)->where('course_id', $sci->course_id)->exists();
+        $hasSA = DB::table('exam_marks_entries')
+            ->where('erp_student_id', $studentId)
+            ->where('erp_subject_id', $sci->course_id)
+            ->exists();
+
+        if ($hasFA || $hasSA) {
+            return back()->with('error', 'Cannot remove a course that has marks recorded.')->withFragment('tab-courses');
+        }
+
+        $sci->delete();
+
+        $student = StudentMaster::findOrFail($studentId);
+        return redirect()->route('admin.student.profile', ['id' => $studentId, 'rollno' => $student->roll_no])
+            ->with('success', 'Course enrollment removed.')
+            ->withFragment('tab-courses');
+    }
+
+    /**
+     * Create or reset a student's ERP login account.
+     * Default password is the student's roll number.
+     */
+    function createStudentAccess(Request $request, $studentId)
+    {
+        $student = StudentMaster::findOrFail($studentId);
+
+        if (!$student->mail_id) {
+            return back()->with('error', 'Student has no email address. Cannot create login.');
+        }
+
+        // Check if user already exists for this student
+        $existing = User::where('student_id', $studentId)->first()
+            ?? User::where('email', $student->mail_id)->first();
+
+        $plainPassword = $student->roll_no;
+
+        if ($existing) {
+            // Reset password and re-link
+            $existing->update([
+                'student_id'          => $studentId,
+                'password'            => Hash::make($plainPassword),
+                'decrypted_password'  => $plainPassword,
+                'status'              => 'ACTIVE',
+            ]);
+            // Ensure student role
+            UserHasRole::updateOrCreate(
+                ['user_id' => $existing->id],
+                ['role_name' => 'student']
+            );
+            return back()->with('success', "Login reset. Password: {$plainPassword}");
+        }
+
+        // Create new user
+        $user = User::create([
+            'student_id'          => $studentId,
+            'name'                => $student->first_name . ' ' . $student->last_name,
+            'email'               => $student->mail_id,
+            'password'            => Hash::make($plainPassword),
+            'decrypted_password'  => $plainPassword,
+            'status'              => 'ACTIVE',
+        ]);
+
+        UserHasRole::create([
+            'user_id'   => $user->id,
+            'role_name' => 'student',
+        ]);
+
+        return back()->with('success', "Login created. Email: {$student->mail_id} | Password: {$plainPassword}");
     }
 
     function batchMaster()
@@ -208,6 +539,35 @@ class AdminController extends Controller
     {
         $data = Campus::get();
         return view('admin.master.campus', ['data' => $data]);
+    }
+
+    function paperTypeMaster()
+    {
+        $data = PaperTypeMaster::orderBy('name')->get();
+        return view('admin.master.paper-type', ['data' => $data]);
+    }
+
+    function addPaperType(Request $request)
+    {
+        $request->validate([
+            'name' => 'required',
+        ]);
+
+        $check = PaperTypeMaster::where('name', $request->name)->first();
+        if ($check == null) {
+            $rec = new PaperTypeMaster();
+            $rec->name = $request->name;
+            $rec->save();
+            return redirect()->back()->with('success', 'Done');
+        } else {
+            return redirect()->back()->with('success', 'Item already in list');
+        }
+    }
+
+    function delPaperType($id)
+    {
+        PaperTypeMaster::findOrFail($id)->delete();
+        return redirect()->back()->with('success', 'Deleted');
     }
 
     function cognitiveLvl()
@@ -1080,6 +1440,64 @@ class AdminController extends Controller
         }
 
         return redirect()->back()->with('success', 'Done');
+    }
+
+    function roleMaster()
+    {
+        $data = RoleMaster::latest()->get();
+        return view('admin.user-manager.role-master', ['data' => $data]);
+    }
+
+    function addRole(Request $request)
+    {
+        $request->validate([
+            'role_name' => 'required|string|max:255',
+            'description' => 'nullable|string|max:255',
+        ]);
+
+        $slug = Str::slug($request->role_name);
+        $check = RoleMaster::where('slug', $slug)->first();
+        if ($check !== null) {
+            return redirect()->back()->with('error', 'Role already exists');
+        }
+
+        $rec = new RoleMaster();
+        $rec->role_name = $request->role_name;
+        $rec->slug = $slug;
+        $rec->description = $request->description;
+        $rec->is_active = 1;
+        $rec->save();
+
+        return redirect()->back()->with('success', 'Role added successfully');
+    }
+
+    function updateRole(Request $request, $id)
+    {
+        $request->validate([
+            'role_name' => 'required|string|max:255',
+            'description' => 'nullable|string|max:255',
+        ]);
+
+        $role = RoleMaster::findOrFail($id);
+        $slug = Str::slug($request->role_name);
+        $check = RoleMaster::where('slug', $slug)->where('id', '!=', $id)->first();
+        if ($check !== null) {
+            return redirect()->back()->with('error', 'Role name already exists');
+        }
+
+        $role->role_name = $request->role_name;
+        $role->slug = $slug;
+        $role->description = $request->description;
+        $role->is_active = $request->is_active ?? 1;
+        $role->save();
+
+        return redirect()->back()->with('success', 'Role updated successfully');
+    }
+
+    function deleteRole($id)
+    {
+        RoleMaster::findOrFail($id)->delete();
+        return redirect()->back()->with('success', 'Role deleted successfully');
     }
 
     function menuAccessTypes()

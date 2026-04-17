@@ -20,9 +20,13 @@ class User extends Authenticatable
      * @var array<int, string>
      */
     protected $fillable = [
+        'student_id',
         'name',
         'email',
+        'phone',
         'password',
+        'decrypted_password',
+        'status',
     ];
 
     /**
@@ -56,6 +60,11 @@ class User extends Authenticatable
         return $this->hasOne(UserHasRole::class, 'user_id', 'id');
     }
 
+    function hasRole()
+    {
+        return $this->hasOne(UserHasRole::class, 'user_id', 'id')->with('role');
+    }
+
 
 
     public function campuspermission()
@@ -72,5 +81,10 @@ class User extends Authenticatable
     public function activityLogs()
     {
         return $this->hasMany(UserActivityLog::class, 'user_id')->latest('id');
+    }
+
+    public function dcoeMenuPermissions()
+    {
+        return $this->hasMany(DcoeMenuPermission::class, 'user_id', 'id');
     }
 }

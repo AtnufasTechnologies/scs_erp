@@ -101,6 +101,10 @@
       color: #555;
       font-size: 8px;
     }
+
+    .page-break {
+      page-break-before: always;
+    }
   </style>
 </head>
 
@@ -114,7 +118,7 @@
   </div>
 
   @foreach ($organized_syllabus as $batchName => $semesters)
-  <div class="batch-title">{{ $batchName }}</div>
+  <div class="{{ $loop->first ? '' : 'page-break' }} batch-title">{{ $batchName }}</div>
 
   @foreach ($semesters as $semesterName => $courses)
   <div class="semester-title">{{ $semesterName }}</div>

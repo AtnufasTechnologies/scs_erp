@@ -1,5 +1,5 @@
 @include('includes.header')
-@include('admin.sidebar')
+@include('admin.accounts.sidebar')
 
 <div class="page-wrapper">
   <div class="page-content">

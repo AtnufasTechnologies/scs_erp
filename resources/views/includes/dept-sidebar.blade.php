@@ -3,27 +3,44 @@
 use App\Http\Controllers\StaticController;
 use Illuminate\Support\Facades\Auth;
 use App\Models\SubjectHasDeptAdmin;
+use App\Models\SubjectFacultyMaster;
+use App\Models\FacultyLeaveApplication;
 use App\Models\Subject;
 
 $userId = Auth::user()->id;
 $subjectId = SubjectHasDeptAdmin::where('user_id', $userId)->value('subject_id');
 $subject = Subject::with(['semesters', 'courseMasterPivot'])->find($subjectId);
 $data = $subject;
+
+$pendingLeaveCount = 0;
+if ($subjectId) {
+  $deptFacultyIds = SubjectFacultyMaster::where('subject_id', $subjectId)->pluck('faculty_id')->toArray();
+  $pendingLeaveCount = FacultyLeaveApplication::whereIn('faculty_id', $deptFacultyIds)
+    ->where('status', 'pending')
+    ->whereNull('dept_action')
+    ->count();
+}
 ?>
 <link href="{{ asset('admin/css/dashboard-modern.css') }}" rel="stylesheet">
 
 <!-- Sidebar -->
 <div class="modern-sidebar">
 
-  <div class="sidebar-logo">
-    <i class="fas fa-graduation-cap"></i>
-  </div>
+
 
   <a href="{{route('department.dashboard')}}">
-    <div class="sidebar-icon {{ request()->routeIs('department.dashboard') ? 'active' : '' }}">
+    <div class="sidebar-icon {{ request()->routeIs('department.dashboard') ? 'active' : '' }}" title="Dashboard">
       <i class="fas fa-th-large fa-lg"></i>
     </div>
   </a>
+
+  <a href="{{route('department.all.students')}}">
+    <div class="sidebar-icon {{ request()->routeIs('department.all.students') ? 'active' : '' }}" title="Students">
+      <i class="fas fa-users fa-lg"></i>
+    </div>
+  </a>
+
+
 
   <a href="{{route('department.course.master',[$data->id,$data->slug])}}">
     <div class="sidebar-icon {{ request()->routeIs('department.course.master') ? 'active' : '' }}" title="Courses">
@@ -43,15 +60,30 @@ $data = $subject;
     </div>
   </a>
 
-  <div class="sidebar-icon" title="Students">
-    <i class="fas fa-user-graduate fa-lg"></i>
-  </div>
-
-
+  <a href="{{route('department.combo.master',[$data->id,$data->slug])}}">
+    <div class="sidebar-icon" title="Combination Master">
+      <i class="fas fa-list fa-lg"></i>
+    </div>
+  </a>
 
   <a href="{{route('department.faculty.access',[$data->id,$data->slug])}}">
     <div class="sidebar-icon" title="Settings">
       <i class="fas fa-cog fa-lg"></i>
+    </div>
+  </a>
+
+  <a href="{{route('department.offerings.index')}}">
+    <div class="sidebar-icon {{ request()->routeIs('department.offerings.*') ? 'active' : '' }}" title="Course Offerings">
+      <i class="fas fa-ticket-alt fa-lg"></i>
+    </div>
+  </a>
+
+  <a href="{{route('department.leave.index')}}" style="position: relative;">
+    <div class="sidebar-icon {{ request()->routeIs('department.leave.*') ? 'active' : '' }}" title="Leave Sanction">
+      <i class="fas fa-clipboard-check fa-lg"></i>
+      @if($pendingLeaveCount > 0)
+      <span style="position: absolute; top: 2px; right: 2px; background: #ef4444; color: #fff; font-size: 10px; font-weight: 700; min-width: 18px; height: 18px; line-height: 18px; text-align: center; border-radius: 50%; padding: 0 4px; box-shadow: 0 2px 4px rgba(239,68,68,0.4);">{{ $pendingLeaveCount }}</span>
+      @endif
     </div>
   </a>
 

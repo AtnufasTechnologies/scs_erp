@@ -411,6 +411,53 @@ class StaticController extends Controller
     return $role_name;
   }
 
+  /**
+   * Check if the current user (COE or DCOE) can see a specific COE sidebar menu.
+   * COE can see everything. DCOE sees only assigned menus.
+   */
+  static function coeMenuAccess($slug)
+  {
+    $role = self::fetchUserRole();
+    if ($role === 'coe') {
+      return true;
+    }
+    if ($role === 'dcoe') {
+      return \App\Models\DcoeMenuPermission::where('user_id', Auth::id())
+        ->where('menu_slug', $slug)
+        ->exists();
+    }
+    return false;
+  }
+
+  /**
+   * Check if current user is COE (not DCOE). Used to show COE-only sections like DCOE management.
+   */
+  static function isCoe()
+  {
+    return self::fetchUserRole() === 'coe';
+  }
+
+  /**
+   * Check if current user is the Principal.
+   */
+  static function isPrincipal()
+  {
+    return self::fetchUserRole() === 'principal';
+  }
+
+  /**
+   * Get the campus ID for DCOE users. Returns null for COE (sees all campuses).
+   */
+  static function getDcoeCampusId()
+  {
+    $role = self::fetchUserRole();
+    if ($role === 'dcoe') {
+      $setting = \App\Models\UserCampusSetting::where('user_id', Auth::id())->first();
+      return $setting ? $setting->campus_id : null;
+    }
+    return null;
+  }
+
   static function fetchAdmissionRegistrationByMonths()
   {
     $data = AdmissionRegistration::selectRaw('MONTHNAME(created_at) as month, COUNT(*) as count')

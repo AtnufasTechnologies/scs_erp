@@ -5,15 +5,47 @@ use App\Faculty\Http\Controllers\TimetableController as FacultyTimetableControll
 use App\Faculty\Http\Controllers\AttendanceController as FacultyAttendanceController;
 use App\Faculty\Http\Controllers\WorkDiaryController as WorkDiaryController;
 use App\Faculty\Http\Controllers\FacultyLeaveController;
+use App\Faculty\Http\Controllers\InternalMarksController;
 use App\Faculty\Http\Controllers\PayrollController as FacultyPayrollController;
 use App\Faculty\Http\Controllers\RequestApplicationController as FacultyRequestApplicationController;
 use App\Http\Controllers\AccessController;
+use App\Http\Controllers\AccountOfficeController;
 use App\Http\Controllers\AdminController;
 use App\Http\Controllers\AdminPayrollController;
 use App\Http\Controllers\AdmissionController;
+use App\Http\Controllers\AdmitCardController;
+use App\Http\Controllers\BacklogsController;
+use App\Http\Controllers\CoeDashboardController;
+use App\Http\Controllers\CoeInternalMarksReviewController;
+use App\Http\Controllers\CoeAttendanceController;
+use App\Http\Controllers\CoeExamController;
+use App\Http\Controllers\DcoeManagementController;
+use App\Http\Controllers\CoeRegulationController;
 use App\Http\Controllers\DepartmentActivityController;
+use App\Http\Controllers\DeptLeaveController;
+use App\Http\Controllers\DummyNumberController;
+use App\Http\Controllers\EvaluationDutyController;
+use App\Http\Controllers\ExamAttendanceController;
+use App\Http\Controllers\ExamMarksController;
+use App\Http\Controllers\ExamPacketController;
+use App\Http\Controllers\ExamPacketBarcodeController;
+use App\Http\Controllers\ExamRegistrationController;
+use App\Http\Controllers\ExamRemunerationController;
+use App\Http\Controllers\ExamReportsController;
+use App\Http\Controllers\ExamResultController;
+use App\Http\Controllers\ExitCertificationController;
 use App\Http\Controllers\FeePaymentController;
+use App\Http\Controllers\StudentDashboardController;
+use App\Http\Controllers\StudentResultController;
+use App\Http\Controllers\InvigilationDutyController;
 use App\Http\Controllers\LoginController;
+use App\Http\Controllers\ModerationDutyController;
+use App\Http\Controllers\PaymentBatchController;
+use App\Http\Controllers\PrincipalController;
+use App\Http\Controllers\PromotionController;
+use App\Http\Controllers\SeatingAllocationController;
+use App\Http\Controllers\StudentCreditController;
+use App\Http\Controllers\CourseOfferingController;
 use App\Http\Controllers\SubjectController;
 use App\Http\Controllers\TestController;
 use App\Http\Controllers\TimetableController;
@@ -51,7 +83,12 @@ Route::group(['prefix' => '/erp'], function () {
         Route::get('std-master-sonada', [AdminController::class, 'stdMasterSonada']);
         Route::get('std-master-siliguri', [AdminController::class, 'stdMasterSiliguri']);
         Route::get('faculty-master', [AdminController::class, 'facultyMaster']);
-        Route::get('{id}/std-profile/{rollno}', [AdminController::class, 'stdprofile']);
+        Route::get('{id}/std-profile/{rollno}', [AdminController::class, 'stdprofile'])->name('admin.student.profile');
+        Route::put('{id}/std-update', [AdminController::class, 'stdUpdate'])->name('admin.student.update');
+        Route::post('{studentId}/courses', [AdminController::class, 'stdCourseStore'])->name('admin.student.courses.store');
+        Route::put('{studentId}/courses/{sciId}', [AdminController::class, 'stdCourseUpdate'])->name('admin.student.courses.update');
+        Route::delete('{studentId}/courses/{sciId}', [AdminController::class, 'stdCourseDestroy'])->name('admin.student.courses.destroy');
+        Route::post('student/{studentId}/create-access', [AdminController::class, 'createStudentAccess'])->name('admin.student.create-access');
         Route::post('update/faculty', [AdminController::class, 'updateFaculty']);
 
         //master
@@ -75,6 +112,10 @@ Route::group(['prefix' => '/erp'], function () {
 
             Route::get('blood-group', [AdminController::class, 'bloodGroupMaster']);
             Route::post('blood-group', [AdminController::class, 'addBloodGroup']);
+
+            Route::get('paper-type', [AdminController::class, 'paperTypeMaster']);
+            Route::post('paper-type', [AdminController::class, 'addPaperType']);
+            Route::get('del-paper-type/{id}', [AdminController::class, 'delPaperType']);
 
 
             Route::get('cognitive-lvl', [AdminController::class, 'cognitiveLvl']);
@@ -116,10 +157,22 @@ Route::group(['prefix' => '/erp'], function () {
             Route::get('academic-dept', [AdminController::class, 'academicDept']);
             Route::post('academic-dept', [AdminController::class, 'addAcademicDept']);
             Route::post('connect-academic-dept', [AdminController::class, 'connectAcademicToDept']);
+
+            // Subject Combination Master
+            Route::get('subject-combination-master', [SubjectController::class, 'subjectCombinationMaster'])->name('admin.subject-combination-master');
+            Route::post('subject-combination', [SubjectController::class, 'storeSubjectCombination'])->name('admin.subject-combination.store');
+            Route::get('delete-subject-combination/{id}', [SubjectController::class, 'deleteSubjectCombination'])->name('admin.subject-combination.delete');
         });
 
         //account
         Route::group(['prefix' => '/accounts'], function () {
+            Route::get('dashboard', [AccountOfficeController::class, 'dashboard'])->name('account-office.dashboard');
+            Route::get('assistant-access', [AccountOfficeController::class, 'assistantAccess'])->name('account-office.assistant-access');
+            Route::post('create-assistant', [AccountOfficeController::class, 'createAssistant'])->name('account-office.create-assistant');
+            Route::post('update-permissions/{id}', [AccountOfficeController::class, 'updateAssistantPermissions'])->name('account-office.update-permissions');
+            Route::get('toggle-status/{id}', [AccountOfficeController::class, 'toggleAssistantStatus'])->name('account-office.toggle-status');
+            Route::get('delete-assistant/{id}', [AccountOfficeController::class, 'deleteAssistant'])->name('account-office.delete-assistant');
+            Route::get('remove-permission/{id}', [AccountOfficeController::class, 'removeAssistantPermission'])->name('account-office.remove-permission');
             // Late Fee Revenue Report
             Route::get('late-fee-revenue-report', [FeePaymentController::class, 'lateFeeRevenueReport'])->name('late-fee-revenue-report');
             Route::get('bankinfo', [AdminController::class, 'bankAccounts']);
@@ -232,6 +285,12 @@ Route::group(['prefix' => '/erp'], function () {
 
             Route::get('menu-access-types', [AdminController::class, 'menuAccessTypes'])->name('admin.menu-access-types');
             Route::post('add-menu-access-type', [AdminController::class, 'addMenuAccessType'])->name('admin.add.menu-access-type');
+
+            Route::get('role-master', [AdminController::class, 'roleMaster'])->name('admin.role-master');
+            Route::post('add-role', [AdminController::class, 'addRole'])->name('admin.add.role');
+            Route::post('update-role/{id}', [AdminController::class, 'updateRole'])->name('admin.update.role');
+            Route::get('delete-role/{id}', [AdminController::class, 'deleteRole'])->name('admin.delete.role');
+
             Route::get('revoke-access/{id}', [AccessController::class, 'revokeDeptAccess'])->name('dept.erp.revoke-access');
             //impersonate user
             Route::get('impersonate/{id}', [AccessController::class, 'impersonateUser'])->name('impersonate.user');
@@ -287,6 +346,235 @@ Route::group(['prefix' => '/erp'], function () {
             Route::get('admin-show-student-application-ug/{id}', [AdmissionController::class, 'adminFillStudentApplicationUg'])->name('admin.fill.student.application.ug');
             Route::post('admin-apply-student-application-ug', [AdmissionController::class, 'adminSubmitStudentApplicationUg'])->name('admin.submit.student.application.ug');
         });
+
+        // Exam Registrations Management
+        Route::group(['prefix' => '/exam-registrations'], function () {
+            Route::get('/', [ExamRegistrationController::class, 'index'])->name('admin.exam-registrations.index');
+            Route::get('/create', [ExamRegistrationController::class, 'create'])->name('admin.exam-registrations.create');
+            Route::post('/', [ExamRegistrationController::class, 'store'])->name('admin.exam-registrations.store');
+            Route::get('/{id}', [ExamRegistrationController::class, 'show'])->name('admin.exam-registrations.show');
+            Route::get('/{id}/edit', [ExamRegistrationController::class, 'edit'])->name('admin.exam-registrations.edit');
+            Route::put('/{id}', [ExamRegistrationController::class, 'update'])->name('admin.exam-registrations.update');
+            Route::delete('/{id}', [ExamRegistrationController::class, 'destroy'])->name('admin.exam-registrations.destroy');
+            Route::post('/bulk-approve', [ExamRegistrationController::class, 'bulkApprove'])->name('admin.exam-registrations.bulk-approve');
+            Route::post('/bulk-reject', [ExamRegistrationController::class, 'bulkReject'])->name('admin.exam-registrations.bulk-reject');
+            Route::post('/check-clearances', [ExamRegistrationController::class, 'checkClearances'])->name('admin.exam-registrations.check-clearances');
+            Route::post('/{id}/update-clearance', [ExamRegistrationController::class, 'updateClearance'])->name('admin.exam-registrations.update-clearance');
+            Route::get('/export', [ExamRegistrationController::class, 'export'])->name('admin.exam-registrations.export');
+        });
+
+        // Seating Allocation Management
+        Route::group(['prefix' => '/seating-allocation'], function () {
+            Route::get('/', [SeatingAllocationController::class, 'index'])->name('admin.seating-allocation.index');
+            Route::get('/create', [SeatingAllocationController::class, 'create'])->name('admin.seating-allocation.create');
+            Route::post('/', [SeatingAllocationController::class, 'store'])->name('admin.seating-allocation.store');
+            Route::get('/{id}', [SeatingAllocationController::class, 'show'])->name('admin.seating-allocation.show');
+            Route::get('/{id}/edit', [SeatingAllocationController::class, 'edit'])->name('admin.seating-allocation.edit');
+            Route::put('/{id}', [SeatingAllocationController::class, 'update'])->name('admin.seating-allocation.update');
+            Route::delete('/{id}', [SeatingAllocationController::class, 'destroy'])->name('admin.seating-allocation.destroy');
+            Route::post('/auto-allocate', [SeatingAllocationController::class, 'autoAllocate'])->name('admin.seating-allocation.auto-allocate');
+            Route::get('/export', [SeatingAllocationController::class, 'export'])->name('admin.seating-allocation.export');
+        });
+
+        // Dummy Numbers Management
+        Route::group(['prefix' => '/dummy-numbers'], function () {
+            Route::get('/', [DummyNumberController::class, 'index'])->name('admin.dummy-numbers.index');
+            Route::get('/create', [DummyNumberController::class, 'create'])->name('admin.dummy-numbers.create');
+            Route::post('/', [DummyNumberController::class, 'store'])->name('admin.dummy-numbers.store');
+            Route::get('/{id}', [DummyNumberController::class, 'show'])->name('admin.dummy-numbers.show');
+            Route::get('/{id}/edit', [DummyNumberController::class, 'edit'])->name('admin.dummy-numbers.edit');
+            Route::put('/{id}', [DummyNumberController::class, 'update'])->name('admin.dummy-numbers.update');
+            Route::delete('/{id}', [DummyNumberController::class, 'destroy'])->name('admin.dummy-numbers.destroy');
+            Route::post('/auto-generate', [DummyNumberController::class, 'autoGenerate'])->name('admin.dummy-numbers.auto-generate');
+            Route::post('/lock', [DummyNumberController::class, 'lock'])->name('admin.dummy-numbers.lock');
+            Route::post('/unlock', [DummyNumberController::class, 'unlock'])->name('admin.dummy-numbers.unlock');
+            Route::get('/export', [DummyNumberController::class, 'export'])->name('admin.dummy-numbers.export');
+        });
+
+        // Exam Attendance Management
+        Route::group(['prefix' => '/exam-attendance'], function () {
+            Route::get('/', [ExamAttendanceController::class, 'index'])->name('admin.exam-attendance.index');
+            Route::get('/create', [ExamAttendanceController::class, 'create'])->name('admin.exam-attendance.create');
+            Route::post('/', [ExamAttendanceController::class, 'store'])->name('admin.exam-attendance.store');
+            Route::get('/{id}', [ExamAttendanceController::class, 'show'])->name('admin.exam-attendance.show');
+            Route::get('/{id}/edit', [ExamAttendanceController::class, 'edit'])->name('admin.exam-attendance.edit');
+            Route::put('/{id}', [ExamAttendanceController::class, 'update'])->name('admin.exam-attendance.update');
+            Route::delete('/{id}', [ExamAttendanceController::class, 'destroy'])->name('admin.exam-attendance.destroy');
+            Route::post('/bulk-mark', [ExamAttendanceController::class, 'bulkMark'])->name('admin.exam-attendance.bulk-mark');
+            Route::get('/export', [ExamAttendanceController::class, 'export'])->name('admin.exam-attendance.export');
+        });
+
+        // Exam Marks Management
+        Route::group(['prefix' => '/exam-marks'], function () {
+            Route::get('/', [ExamMarksController::class, 'index'])->name('admin.exam-marks.index');
+            Route::get('/create', [ExamMarksController::class, 'create'])->name('admin.exam-marks.create');
+            Route::post('/', [ExamMarksController::class, 'store'])->name('admin.exam-marks.store');
+            Route::get('/{id}', [ExamMarksController::class, 'show'])->name('admin.exam-marks.show');
+            Route::get('/{id}/edit', [ExamMarksController::class, 'edit'])->name('admin.exam-marks.edit');
+            Route::put('/{id}', [ExamMarksController::class, 'update'])->name('admin.exam-marks.update');
+            Route::delete('/{id}', [ExamMarksController::class, 'destroy'])->name('admin.exam-marks.destroy');
+            Route::post('/bulk-entry', [ExamMarksController::class, 'bulkEntry'])->name('admin.exam-marks.bulk-entry');
+            Route::get('/export', [ExamMarksController::class, 'export'])->name('admin.exam-marks.export');
+        });
+
+        // Invigilation Duties Management
+        Route::group(['prefix' => '/invigilation-duties'], function () {
+            Route::get('/', [InvigilationDutyController::class, 'index'])->name('admin.invigilation-duties.index');
+            Route::get('/create', [InvigilationDutyController::class, 'create'])->name('admin.invigilation-duties.create');
+            Route::post('/', [InvigilationDutyController::class, 'store'])->name('admin.invigilation-duties.store');
+            Route::get('/{id}', [InvigilationDutyController::class, 'show'])->name('admin.invigilation-duties.show');
+            Route::get('/{id}/edit', [InvigilationDutyController::class, 'edit'])->name('admin.invigilation-duties.edit');
+            Route::put('/{id}', [InvigilationDutyController::class, 'update'])->name('admin.invigilation-duties.update');
+            Route::delete('/{id}', [InvigilationDutyController::class, 'destroy'])->name('admin.invigilation-duties.destroy');
+            Route::post('/{id}/mark-completed', [InvigilationDutyController::class, 'markCompleted'])->name('admin.invigilation-duties.mark-completed');
+            Route::post('/auto-assign', [InvigilationDutyController::class, 'autoAssign'])->name('admin.invigilation-duties.auto-assign');
+            Route::get('/export', [InvigilationDutyController::class, 'export'])->name('admin.invigilation-duties.export');
+        });
+
+        // Evaluation Duties Management
+        Route::group(['prefix' => '/evaluation-duties'], function () {
+            Route::get('/', [EvaluationDutyController::class, 'index'])->name('admin.evaluation-duties.index');
+            Route::get('/create', [EvaluationDutyController::class, 'create'])->name('admin.evaluation-duties.create');
+            Route::post('/', [EvaluationDutyController::class, 'store'])->name('admin.evaluation-duties.store');
+            Route::get('/subjects-by-exam/{examId}', [EvaluationDutyController::class, 'getSubjectsByExam'])->name('admin.evaluation-duties.subjects-by-exam');
+            Route::get('/{id}', [EvaluationDutyController::class, 'show'])->name('admin.evaluation-duties.show');
+            Route::get('/{id}/edit', [EvaluationDutyController::class, 'edit'])->name('admin.evaluation-duties.edit');
+            Route::put('/{id}', [EvaluationDutyController::class, 'update'])->name('admin.evaluation-duties.update');
+            Route::delete('/{id}', [EvaluationDutyController::class, 'destroy'])->name('admin.evaluation-duties.destroy');
+            Route::post('/{id}/mark-completed', [EvaluationDutyController::class, 'markCompleted'])->name('admin.evaluation-duties.mark-completed');
+            Route::post('/{id}/update-progress', [EvaluationDutyController::class, 'updateProgress'])->name('admin.evaluation-duties.update-progress');
+            Route::post('/auto-assign', [EvaluationDutyController::class, 'autoAssign'])->name('admin.evaluation-duties.auto-assign');
+            Route::get('/export', [EvaluationDutyController::class, 'export'])->name('admin.evaluation-duties.export');
+        });
+
+        // Moderation Duties Management
+        Route::group(['prefix' => '/moderation-duties'], function () {
+            Route::get('/', [ModerationDutyController::class, 'index'])->name('admin.moderation-duties.index');
+            Route::get('/create', [ModerationDutyController::class, 'create'])->name('admin.moderation-duties.create');
+            Route::post('/', [ModerationDutyController::class, 'store'])->name('admin.moderation-duties.store');
+            Route::get('/compare', [ModerationDutyController::class, 'compare'])->name('admin.moderation-duties.compare');
+            Route::post('/import-marks', [ModerationDutyController::class, 'importMarks'])->name('admin.moderation-duties.import-marks');
+            Route::post('/bulk-adjust', [ModerationDutyController::class, 'bulkAdjust'])->name('admin.moderation-duties.bulk-adjust');
+            Route::post('/finalize', [ModerationDutyController::class, 'finalize'])->name('admin.moderation-duties.finalize');
+            Route::get('/subjects-by-exam/{examId}', [ModerationDutyController::class, 'getSubjectsByExam'])->name('admin.moderation-duties.subjects-by-exam');
+            Route::get('/export', [ModerationDutyController::class, 'export'])->name('admin.moderation-duties.export');
+            Route::post('/auto-assign', [ModerationDutyController::class, 'autoAssign'])->name('admin.moderation-duties.auto-assign');
+            Route::get('/{id}', [ModerationDutyController::class, 'show'])->name('admin.moderation-duties.show');
+            Route::get('/{id}/edit', [ModerationDutyController::class, 'edit'])->name('admin.moderation-duties.edit');
+            Route::put('/{id}', [ModerationDutyController::class, 'update'])->name('admin.moderation-duties.update');
+            Route::delete('/{id}', [ModerationDutyController::class, 'destroy'])->name('admin.moderation-duties.destroy');
+            Route::post('/{id}/mark-completed', [ModerationDutyController::class, 'markCompleted'])->name('admin.moderation-duties.mark-completed');
+            Route::post('/{id}/moderator-marks', [ModerationDutyController::class, 'storeModeratorMarks'])->name('admin.moderation-duties.moderator-marks');
+            Route::post('/{id}/adjust', [ModerationDutyController::class, 'adjustMarks'])->name('admin.moderation-duties.adjust');
+        });
+
+        // Exam Results Management
+        Route::group(['prefix' => '/exam-results'], function () {
+            Route::get('/', [ExamResultController::class, 'index'])->name('admin.exam-results.index');
+            Route::get('/generate', [ExamResultController::class, 'generate'])->name('admin.exam-results.generate');
+            Route::post('/generate', [ExamResultController::class, 'doGenerate'])->name('admin.exam-results.do-generate');
+            Route::get('/export', [ExamResultController::class, 'export'])->name('admin.exam-results.export');
+            Route::get('/semester-wise', [ExamResultController::class, 'semesterWise'])->name('admin.exam-results.semester-wise');
+            Route::post('/publish', [ExamResultController::class, 'publish'])->name('admin.exam-results.publish');
+            Route::post('/unpublish', [ExamResultController::class, 'unpublish'])->name('admin.exam-results.unpublish');
+            Route::post('/lock', [ExamResultController::class, 'lockResults'])->name('admin.exam-results.lock');
+            Route::post('/unlock', [ExamResultController::class, 'unlockResults'])->name('admin.exam-results.unlock');
+            Route::get('/{id}', [ExamResultController::class, 'show'])->name('admin.exam-results.show');
+            Route::delete('/{id}', [ExamResultController::class, 'destroy'])->name('admin.exam-results.destroy');
+        });
+        //Backlogs Management
+        Route::group(['prefix' => '/backlogs'], function () {
+            Route::get('/', [BacklogsController::class, 'index'])->name('coe.backlogs.index');
+            Route::get('/failed-subjects', [BacklogsController::class, 'failedSubjects'])->name('coe.backlogs.failed-subjects');
+            Route::post('/register', [BacklogsController::class, 'registerBacklog'])->name('coe.backlogs.register');
+            Route::get('/report', [BacklogsController::class, 'report'])->name('coe.backlogs.report');
+            Route::get('/export', [BacklogsController::class, 'export'])->name('coe.backlogs.export');
+            Route::get('/{id}', [BacklogsController::class, 'show'])->name('coe.backlogs.show');
+            Route::post('/{id}/mark-cleared', [BacklogsController::class, 'markCleared'])->name('coe.backlogs.mark-cleared');
+            Route::delete('/{id}', [BacklogsController::class, 'destroy'])->name('coe.backlogs.destroy');
+        });
+
+        // 
+        // Student Promotions Management (NEP - auto-generated on result publish)
+        Route::group(['prefix' => '/promotions'], function () {
+            Route::get('/export', [PromotionController::class, 'export'])->name('admin.promotions.export');
+            Route::get('/', [PromotionController::class, 'index'])->name('admin.promotions.index');
+            Route::get('/{id}', [PromotionController::class, 'show'])->name('admin.promotions.show');
+        });
+
+        // Student Credits (ABC) Management
+        Route::group(['prefix' => '/student-credits'], function () {
+            Route::get('/', [StudentCreditController::class, 'index'])->name('admin.student-credits.index');
+            Route::get('/create', [StudentCreditController::class, 'create'])->name('admin.student-credits.create');
+            Route::post('/', [StudentCreditController::class, 'store'])->name('admin.student-credits.store');
+            Route::get('/export', [StudentCreditController::class, 'export'])->name('admin.student-credits.export');
+            Route::get('/transcript/{studentId}', [StudentCreditController::class, 'transcript'])->name('admin.student-credits.transcript');
+            Route::get('/{id}', [StudentCreditController::class, 'show'])->name('admin.student-credits.show');
+            Route::get('/{id}/edit', [StudentCreditController::class, 'edit'])->name('admin.student-credits.edit');
+            Route::put('/{id}', [StudentCreditController::class, 'update'])->name('admin.student-credits.update');
+            Route::post('/{id}/verify', [StudentCreditController::class, 'verify'])->name('admin.student-credits.verify');
+            Route::post('/{id}/reject', [StudentCreditController::class, 'reject'])->name('admin.student-credits.reject');
+        });
+
+        // Exit Certification Management
+        Route::group(['prefix' => '/exit-certification'], function () {
+            Route::get('/', [ExitCertificationController::class, 'index'])->name('admin.exit-certification.index');
+            Route::get('/create', [ExitCertificationController::class, 'create'])->name('admin.exit-certification.create');
+            Route::post('/', [ExitCertificationController::class, 'store'])->name('admin.exit-certification.store');
+            Route::get('/{id}', [ExitCertificationController::class, 'show'])->name('admin.exit-certification.show');
+            Route::post('/{id}/approve', [ExitCertificationController::class, 'approve'])->name('admin.exit-certification.approve');
+            Route::post('/{id}/issue', [ExitCertificationController::class, 'issue'])->name('admin.exit-certification.issue');
+            Route::post('/{id}/revoke', [ExitCertificationController::class, 'revoke'])->name('admin.exit-certification.revoke');
+            Route::get('/{id}/download', [ExitCertificationController::class, 'downloadCertificate'])->name('admin.exit-certification.download');
+            Route::delete('/{id}', [ExitCertificationController::class, 'destroy'])->name('admin.exit-certification.destroy');
+        });
+
+        // Exam Remuneration Management
+        Route::group(['prefix' => '/exam-remuneration'], function () {
+            Route::get('/', [ExamRemunerationController::class, 'index'])->name('admin.exam-remuneration.index');
+            Route::get('/create', [ExamRemunerationController::class, 'create'])->name('admin.exam-remuneration.create');
+            Route::post('/', [ExamRemunerationController::class, 'store'])->name('admin.exam-remuneration.store');
+            Route::post('/auto-calculate', [ExamRemunerationController::class, 'autoCalculate'])->name('admin.exam-remuneration.auto-calculate');
+            Route::get('/export', [ExamRemunerationController::class, 'export'])->name('admin.exam-remuneration.export');
+            Route::get('/{id}', [ExamRemunerationController::class, 'show'])->name('admin.exam-remuneration.show');
+            Route::post('/{id}/approve', [ExamRemunerationController::class, 'approve'])->name('admin.exam-remuneration.approve');
+            Route::post('/{id}/mark-paid', [ExamRemunerationController::class, 'markPaid'])->name('admin.exam-remuneration.mark-paid');
+        });
+
+        // Payment Batches Management
+        Route::group(['prefix' => '/payment-batches'], function () {
+            Route::get('/', [PaymentBatchController::class, 'index'])->name('admin.payment-batches.index');
+            Route::get('/create', [PaymentBatchController::class, 'create'])->name('admin.payment-batches.create');
+            Route::post('/', [PaymentBatchController::class, 'store'])->name('admin.payment-batches.store');
+            Route::get('/{id}', [PaymentBatchController::class, 'show'])->name('admin.payment-batches.show');
+            Route::post('/{id}/approve', [PaymentBatchController::class, 'approve'])->name('admin.payment-batches.approve');
+            Route::post('/{id}/mark-paid', [PaymentBatchController::class, 'markPaid'])->name('admin.payment-batches.mark-paid');
+        });
+
+        // Exam Reports
+        Route::group(['prefix' => '/exam-reports'], function () {
+            Route::get('/', [ExamReportsController::class, 'index'])->name('admin.exam-reports.index');
+            Route::get('/dashboard', [ExamReportsController::class, 'dashboard'])->name('admin.exam-reports.dashboard');
+            Route::get('/registrations', [ExamReportsController::class, 'registrationReport'])->name('admin.exam-reports.registrations');
+            Route::get('/attendance', [ExamReportsController::class, 'attendanceReport'])->name('admin.exam-reports.attendance');
+            Route::get('/marks', [ExamReportsController::class, 'marksReport'])->name('admin.exam-reports.marks');
+            Route::get('/results', [ExamReportsController::class, 'resultsReport'])->name('admin.exam-reports.results');
+            Route::get('/backlogs', [ExamReportsController::class, 'backlogReport'])->name('admin.exam-reports.backlogs');
+            Route::get('/remuneration', [ExamReportsController::class, 'remunerationReport'])->name('admin.exam-reports.remuneration');
+            Route::get('/duties', [ExamReportsController::class, 'dutyReport'])->name('admin.exam-reports.duties');
+            Route::get('/student-progress', [ExamReportsController::class, 'studentProgressReport'])->name('admin.exam-reports.student-progress');
+            Route::post('/export-pdf', [ExamReportsController::class, 'exportPdf'])->name('admin.exam-reports.export-pdf');
+            Route::post('/export-excel', [ExamReportsController::class, 'exportExcel'])->name('admin.exam-reports.export-excel');
+
+            // Admit Cards Management
+            Route::group(['prefix' => '/admit-cards'], function () {
+                Route::get('/', [AdmitCardController::class, 'index'])->name('coe.admit-cards.index');
+                Route::get('/generate', [AdmitCardController::class, 'generate'])->name('coe.admit-cards.generate');
+                Route::post('/bulk-download', [AdmitCardController::class, 'bulkDownload'])->name('coe.admit-cards.bulk-download');
+                Route::get('/{id}', [AdmitCardController::class, 'show'])->name('coe.admit-cards.show');
+                Route::get('/{id}/download', [AdmitCardController::class, 'downloadPdf'])->name('coe.admit-cards.download');
+            });
+        });
     });
 
     //admission student routes
@@ -331,6 +619,10 @@ Route::group(['prefix' => '/erp'], function () {
 
     //student
     Route::group(['prefix' => 'student'], function () {
+        Route::get('results', [StudentResultController::class, 'lookup'])->name('student.results.lookup');
+        Route::post('results/search', [StudentResultController::class, 'search'])->name('student.results.search');
+        Route::get('results/{id}', [StudentResultController::class, 'detail'])->name('student.results.detail');
+
         Route::get('fee-payment', [FeePaymentController::class, 'studentValidation']);
         Route::post('fee-status', [FeePaymentController::class, 'studentFeeStatus']);
         Route::post('fee-payment', [FeePaymentController::class, 'createOrder']);
@@ -359,6 +651,7 @@ Route::group(['prefix' => '/erp'], function () {
 
     Route::group(['prefix' => '/deptartment'], function () {
         Route::get('dashboard', [SubjectController::class, 'departmentDashboard'])->name('department.dashboard');
+        Route::get('combo-master', [SubjectController::class, 'comboMaster'])->name('department.combo.master');
         Route::delete('combination/{id}/delete', [SubjectController::class, 'deleteCombination'])->name('department.combination.delete');
         Route::get('course-master/{id}/{slug}', [SubjectController::class, 'courseMaster'])->name('department.course.master');
         Route::post('my-course-master', [SubjectController::class, 'addCourseMaster'])->name('department.add.course.master');
@@ -377,11 +670,23 @@ Route::group(['prefix' => '/erp'], function () {
         Route::get('cso/{id}/delete', [SubjectController::class, 'deleteCourseSpecificObjective'])->name('department.delete.cso');
 
         Route::post('add-cso-subunit', [SubjectController::class, 'addCsoSubunit'])->name('department.add.cso.subunit');
+        Route::get('cso-subunit/{id}/delete', [SubjectController::class, 'deleteCsoSubunit'])->name('department.delete.cso.subunit');
 
         Route::get('syllabus-manager', [SubjectController::class, 'syllabusManager'])->name('department.syllabus.manager');
         Route::get('course/{id}/cso-list', [SubjectController::class, 'getCsoListForCourse'])->name('department.get.cso.list');
         Route::post('create-syllabus', [SubjectController::class, 'createSyllabus'])->name('department.create.syllabus');
+        Route::delete('syllabus-subunit/{id}', [SubjectController::class, 'deleteSyllabusSubunit'])->name('department.syllabus.subunit.delete');
+        Route::delete('syllabus-co/{subjectId}/{batchId}/{semesterId}/{coId}', [SubjectController::class, 'deleteSyllabusCo'])->name('department.syllabus.co.delete');
         Route::get('syllabus-download-pdf', [SubjectController::class, 'downloadSyllabusPdf'])->name('department.syllabus.download.pdf');
+
+        // Course Offerings (FIFO registration module)
+        Route::get('course-offerings', [CourseOfferingController::class, 'index'])->name('department.offerings.index');
+        Route::post('course-offerings', [CourseOfferingController::class, 'store'])->name('department.offerings.store');
+        Route::put('course-offerings/{id}', [CourseOfferingController::class, 'update'])->name('department.offerings.update');
+        Route::delete('course-offerings/{id}', [CourseOfferingController::class, 'destroy'])->name('department.offerings.destroy');
+        Route::post('course-offerings/{id}/toggle', [CourseOfferingController::class, 'toggleRegistration'])->name('department.offerings.toggle');
+        Route::get('course-offerings/{id}/registrations', [CourseOfferingController::class, 'registrationList'])->name('department.offerings.registrations');
+        Route::post('course-offerings/cancel-registration/{id}', [CourseOfferingController::class, 'adminCancelRegistration'])->name('department.offerings.cancel-registration');
 
         // Faculty Timetable
 
@@ -412,6 +717,7 @@ Route::group(['prefix' => '/erp'], function () {
         Route::post('faculty-access', [AccessController::class, 'grantFacultyAccess'])->name('department.faculty.grant-access');
         Route::get('faculty-access-revoke/{id}', [AccessController::class, 'revokeFacultyAccess'])->name('department.faculty.revoke-access');
         Route::get('show-student-list', [SubjectController::class, 'showStudentList'])->name('department.show.student.list');
+        Route::get('all-students', [SubjectController::class, 'allStudents'])->name('department.all.students');
         Route::get('student-profile', [SubjectController::class, 'studentProfile'])->name('department.student.profile');
         Route::get('faculty-list/{subjectId}', [SubjectController::class, 'deptFacultyList'])->name('department.faculty.list');
         // Department Activities
@@ -422,6 +728,18 @@ Route::group(['prefix' => '/erp'], function () {
         Route::delete('activities/{id}', [DepartmentActivityController::class, 'destroy'])->name('department.activities.destroy');
         Route::post('activities/{id}/status', [DepartmentActivityController::class, 'updateStatus'])->name('department.activities.status');
         Route::get('activities/{subjectId}/by-type', [DepartmentActivityController::class, 'getByType'])->name('department.activities.by-type');
+
+        // Faculty Leave Sanction
+        Route::get('leave', [DeptLeaveController::class, 'index'])->name('department.leave.index');
+        Route::get('leave/{id}', [DeptLeaveController::class, 'show'])->name('department.leave.show');
+        Route::post('leave/{id}/reject', [DeptLeaveController::class, 'reject'])->name('department.leave.reject');
+        Route::post('leave/{id}/forward', [DeptLeaveController::class, 'forward'])->name('department.leave.forward');
+
+        // Leave Category Master
+        Route::get('leave-categories', [DeptLeaveController::class, 'categoryIndex'])->name('department.leave.categories');
+        Route::post('leave-categories', [DeptLeaveController::class, 'categoryStore'])->name('department.leave.categories.store');
+        Route::put('leave-categories/{id}', [DeptLeaveController::class, 'categoryUpdate'])->name('department.leave.categories.update');
+        Route::post('leave-categories/{id}/toggle', [DeptLeaveController::class, 'categoryToggle'])->name('department.leave.categories.toggle');
     });
 
 
@@ -476,6 +794,25 @@ Route::group(['prefix' => '/erp'], function () {
         Route::put('leave/{id}', [FacultyLeaveController::class, 'update'])->name('faculty.leave.update');
         Route::post('leave/{id}/cancel', [FacultyLeaveController::class, 'cancel'])->name('faculty.leave.cancel');
         Route::delete('leave/{id}', [FacultyLeaveController::class, 'destroy'])->name('faculty.leave.destroy');
+
+        // Internal Marks (FA) Routes
+        Route::get('internal-marks', [InternalMarksController::class, 'index'])->name('faculty.internal-marks.index');
+        Route::get('internal-marks/enter', [InternalMarksController::class, 'enter'])->name('faculty.internal-marks.enter');
+        Route::post('internal-marks', [InternalMarksController::class, 'store'])->name('faculty.internal-marks.store');
+        Route::get('internal-marks/view', [InternalMarksController::class, 'view'])->name('faculty.internal-marks.view');
+    });
+
+
+    // Student routes
+    Route::group(['prefix' => 'student', 'middleware' => ['auth', 'check.student.access']], function () {
+        Route::get('dashboard', [StudentDashboardController::class, 'profile'])->name('student.dashboard');
+        Route::get('my-profile', [StudentDashboardController::class, 'profile'])->name('student.profile');
+        Route::get('feedback', [StudentDashboardController::class, 'feedbackList'])->name('student.feedback.list');
+        Route::post('feedback/{id}', [StudentDashboardController::class, 'submitFeedback'])->name('student.feedback.submit');
+        // Course Offerings (FIFO)
+        Route::get('course-offerings', [CourseOfferingController::class, 'studentView'])->name('student.offerings.index');
+        Route::post('course-offerings/register', [CourseOfferingController::class, 'studentRegister'])->name('student.offerings.register');
+        Route::post('course-offerings/cancel/{id}', [CourseOfferingController::class, 'studentCancel'])->name('student.offerings.cancel');
     });
 
 
@@ -485,5 +822,141 @@ Route::group(['prefix' => '/erp'], function () {
         Route::get('mailing', [TestController::class, 'mailTest']);
         Route::get('sms', [TestController::class, 'smsTest']);
         Route::get('install-new-programid', [TestController::class, 'studentMasterProgramFixing']);
+    });
+
+    Route::group(['prefix' => '/coe'], function () {
+        Route::get('dashboard', [CoeDashboardController::class, 'index'])->name('coe.dashboard');
+        // AJAX filter route for COE Dashboard
+        Route::get('dashboard/filter', [CoeDashboardController::class, 'filter'])->name('coe.dashboard.filter');
+
+        // COE Student Master
+        Route::get('students', [CoeDashboardController::class, 'studentMaster'])->name('coe.students.index');
+
+        // COE Attendance Routes
+        Route::get('attendance', [CoeAttendanceController::class, 'index'])->name('coe.attendance.index');
+        Route::get('attendance/take', [CoeAttendanceController::class, 'take'])->name('coe.attendance.take');
+        Route::post('attendance/store', [CoeAttendanceController::class, 'store'])->name('coe.attendance.store');
+        Route::get('attendance/view', [CoeAttendanceController::class, 'view'])->name('coe.attendance.view');
+        Route::delete('attendance/delete/{id}', [CoeAttendanceController::class, 'delete'])->name('coe.attendance.delete');
+        Route::get('attendance/room-wise/{examId}', [CoeAttendanceController::class, 'roomWise'])->name('coe.attendance.room-wise');
+        Route::post('attendance/update-status', [CoeAttendanceController::class, 'updateStatus'])->name('coe.attendance.update-status');
+
+        // COE Exam Management Routes
+        Route::get('exams', [CoeExamController::class, 'index'])->name('coe.exams.index');
+        Route::get('exams/create', [CoeExamController::class, 'create'])->name('coe.exams.create');
+        Route::post('exams', [CoeExamController::class, 'store'])->name('coe.exams.store');
+        Route::get('exams/{id}', [CoeExamController::class, 'show'])->name('coe.exams.show');
+        Route::get('exams/{id}/edit', [CoeExamController::class, 'edit'])->name('coe.exams.edit');
+        Route::put('exams/{id}', [CoeExamController::class, 'update'])->name('coe.exams.update');
+        Route::delete('exams/{id}', [CoeExamController::class, 'destroy'])->name('coe.exams.destroy');
+
+        // COE Dummy Numbers Routes
+        Route::get('dummy-numbers', [DummyNumberController::class, 'index'])->name('coe.dummy-numbers.index');
+        Route::get('dummy-numbers/create', [DummyNumberController::class, 'create'])->name('coe.dummy-numbers.create');
+        Route::get('dummy-numbers/export', [DummyNumberController::class, 'export'])->name('coe.dummy-numbers.export');
+        Route::post('dummy-numbers', [DummyNumberController::class, 'store'])->name('coe.dummy-numbers.store');
+        Route::post('dummy-numbers/auto-generate', [DummyNumberController::class, 'autoGenerate'])->name('coe.dummy-numbers.auto-generate');
+        Route::post('dummy-numbers/lock', [DummyNumberController::class, 'lock'])->name('coe.dummy-numbers.lock');
+        Route::post('dummy-numbers/unlock', [DummyNumberController::class, 'unlock'])->name('coe.dummy-numbers.unlock');
+        Route::get('dummy-numbers/{id}', [DummyNumberController::class, 'show'])->name('coe.dummy-numbers.show');
+        Route::get('dummy-numbers/{id}/edit', [DummyNumberController::class, 'edit'])->name('coe.dummy-numbers.edit');
+        Route::put('dummy-numbers/{id}', [DummyNumberController::class, 'update'])->name('coe.dummy-numbers.update');
+        Route::delete('dummy-numbers/{id}', [DummyNumberController::class, 'destroy'])->name('coe.dummy-numbers.destroy');
+
+        // COE Regulation Management Routes
+        Route::get('regulations', [CoeRegulationController::class, 'index'])->name('coe.regulations.index');
+        Route::get('regulations/create', [CoeRegulationController::class, 'create'])->name('coe.regulations.create');
+        Route::post('regulations', [CoeRegulationController::class, 'store'])->name('coe.regulations.store');
+        Route::get('regulations/{id}', [CoeRegulationController::class, 'show'])->name('coe.regulations.show');
+        Route::get('regulations/{id}/edit', [CoeRegulationController::class, 'edit'])->name('coe.regulations.edit');
+        Route::put('regulations/{id}', [CoeRegulationController::class, 'update'])->name('coe.regulations.update');
+        Route::delete('regulations/{id}', [CoeRegulationController::class, 'destroy'])->name('coe.regulations.destroy');
+
+        // COE Marks Entry Routes
+        Route::get('marks', [ExamMarksController::class, 'index'])->name('coe.marks.index');
+        Route::get('marks/entry', [ExamMarksController::class, 'entry'])->name('coe.marks.entry');
+        Route::post('marks/store-single', [ExamMarksController::class, 'storeSingle'])->name('coe.marks.store-single')->middleware('check.device.access');
+        Route::post('marks/bulk-entry', [ExamMarksController::class, 'bulkEntry'])->name('coe.marks.bulk-entry')->middleware('check.device.access');
+
+        // COE Marks Lock/Unlock Routes
+        Route::post('marks/lock', [ExamMarksController::class, 'lockMarks'])->name('coe.marks.lock');
+        Route::post('marks/unlock', [ExamMarksController::class, 'unlockMarks'])->name('coe.marks.unlock');
+        Route::post('marks/coe-override', [ExamMarksController::class, 'coeOverrideUpdate'])->name('coe.marks.coe-override');
+        Route::get('marks/audit-log', [ExamMarksController::class, 'auditLog'])->name('coe.marks.audit-log');
+        Route::get('marks/locks', [ExamMarksController::class, 'locksIndex'])->name('coe.marks.locks');
+
+        // COE MAC Whitelist Routes
+        Route::get('marks/whitelist', [ExamMarksController::class, 'whitelistIndex'])->name('coe.marks.whitelist');
+        Route::post('marks/whitelist', [ExamMarksController::class, 'whitelistStore'])->name('coe.marks.whitelist.store');
+        Route::delete('marks/whitelist/{id}', [ExamMarksController::class, 'whitelistDestroy'])->name('coe.marks.whitelist.destroy');
+
+        Route::get('marks/{id}', [ExamMarksController::class, 'show'])->name('coe.marks.show');
+
+        // COE Packet Generation Routes
+        Route::get('packets', [ExamPacketController::class, 'index'])->name('coe.packets.index');
+        Route::get('packets/generate', [ExamPacketController::class, 'generate'])->name('coe.packets.generate');
+        Route::post('packets/generate', [ExamPacketController::class, 'store'])->name('coe.packets.store');
+        Route::post('packets/assign-evaluator', [ExamPacketController::class, 'assignEvaluator'])->name('coe.packets.assign-evaluator');
+        Route::post('packets/update-status', [ExamPacketController::class, 'updateStatus'])->name('coe.packets.update-status');
+        Route::get('packets/{id}', [ExamPacketController::class, 'show'])->name('coe.packets.show');
+
+        // COE Packet Barcode Tracking Routes
+        Route::post('packets/barcodes/generate', [ExamPacketBarcodeController::class, 'generateBarcodes'])->name('coe.packets.barcodes.generate');
+        Route::get('packets/barcodes/print', [ExamPacketBarcodeController::class, 'printLabels'])->name('coe.packets.barcodes.print');
+        Route::get('packets/barcodes/scanner', [ExamPacketBarcodeController::class, 'scanner'])->name('coe.packets.barcodes.scanner');
+        Route::post('packets/barcodes/scan', [ExamPacketBarcodeController::class, 'processScan'])->name('coe.packets.barcodes.scan');
+        Route::get('packets/barcodes/lookup', [ExamPacketBarcodeController::class, 'lookup'])->name('coe.packets.barcodes.lookup');
+        Route::get('packets/barcodes/tracking', [ExamPacketBarcodeController::class, 'tracking'])->name('coe.packets.barcodes.tracking');
+        Route::get('packets/barcodes/history/{packetId}', [ExamPacketBarcodeController::class, 'scanHistory'])->name('coe.packets.barcodes.history');
+
+        // COE Internal Marks Review (FA Change Log)
+        Route::get('internal-marks-review', [CoeInternalMarksReviewController::class, 'index'])->name('coe.internal-marks-review.index');
+
+        // D.COE Management Routes (COE only)
+        Route::group(['prefix' => 'dcoe-management'], function () {
+            Route::get('/', [DcoeManagementController::class, 'index'])->name('coe.dcoe.index');
+            Route::post('/', [DcoeManagementController::class, 'store'])->name('coe.dcoe.store');
+            Route::get('/{id}/edit', [DcoeManagementController::class, 'edit'])->name('coe.dcoe.edit');
+            Route::put('/{id}', [DcoeManagementController::class, 'update'])->name('coe.dcoe.update');
+            Route::post('/{id}/toggle-status', [DcoeManagementController::class, 'toggleStatus'])->name('coe.dcoe.toggle-status');
+            Route::delete('/{id}', [DcoeManagementController::class, 'destroy'])->name('coe.dcoe.destroy');
+        });
+    });
+
+    // Principal Module Routes
+    Route::group(['prefix' => '/principal'], function () {
+        Route::get('dashboard', [PrincipalController::class, 'dashboard'])->name('principal.dashboard');
+        Route::get('students', [PrincipalController::class, 'students'])->name('principal.students.index');
+        Route::get('{id}/student-profile/{rollno}', [PrincipalController::class, 'studentProfile'])->name('principal.student.profile');
+        Route::get('faculty', [PrincipalController::class, 'faculty'])->name('principal.faculty.index');
+        Route::get('faculty/{id}', [PrincipalController::class, 'facultyDetail'])->name('principal.faculty.detail');
+        Route::get('faculty/{id}/timetable', [PrincipalController::class, 'facultyTimetable'])->name('principal.faculty.timetable');
+        Route::get('faculty/{id}/work-diary', [PrincipalController::class, 'facultyWorkDiary'])->name('principal.faculty.work-diary');
+        Route::get('courses', [PrincipalController::class, 'courses'])->name('principal.courses.index');
+        Route::get('courses/{id}', [PrincipalController::class, 'courseDetail'])->name('principal.courses.detail');
+        Route::get('syllabus', [PrincipalController::class, 'subjectSyllabus'])->name('principal.syllabus.index');
+        Route::get('syllabus/{id}', [PrincipalController::class, 'subjectSyllabusDetail'])->name('principal.syllabus.detail');
+        Route::get('classes', [PrincipalController::class, 'classes'])->name('principal.classes.index');
+        Route::get('admissions', [PrincipalController::class, 'admissions'])->name('principal.admissions.index');
+
+        // Fee Management
+        Route::get('fees', [PrincipalController::class, 'studentFees'])->name('principal.fees.index');
+        Route::get('fees/defaulters', [PrincipalController::class, 'feeDefaulters'])->name('principal.fees.defaulters');
+
+        // Leave Management
+        Route::get('leaves', [PrincipalController::class, 'leaves'])->name('principal.leaves.index');
+        Route::post('leaves/{id}/action', [PrincipalController::class, 'leaveAction'])->name('principal.leaves.action');
+
+        // Work Diary
+        Route::get('work-diary', [PrincipalController::class, 'workDiaryOverview'])->name('principal.work-diary.overview');
+        Route::post('work-diary/{id}/approve', [PrincipalController::class, 'approveWorkDiary'])->name('principal.work-diary.approve');
+        Route::post('work-diary/bulk-approve', [PrincipalController::class, 'bulkApproveWorkDiary'])->name('principal.work-diary.bulk-approve');
+
+        // Vice-Principal Management (Principal only)
+        Route::get('vp-management', [PrincipalController::class, 'vpIndex'])->name('principal.vp.index');
+        Route::post('vp-management', [PrincipalController::class, 'vpStore'])->name('principal.vp.store');
+        Route::put('vp-management/{id}', [PrincipalController::class, 'vpUpdate'])->name('principal.vp.update');
+        Route::post('vp-management/{id}/toggle-status', [PrincipalController::class, 'vpToggleStatus'])->name('principal.vp.toggle-status');
+        Route::delete('vp-management/{id}', [PrincipalController::class, 'vpDestroy'])->name('principal.vp.destroy');
     });
 });

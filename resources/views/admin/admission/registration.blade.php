@@ -1,5 +1,18 @@
+<?php
+
+use App\Http\Controllers\StaticController;
+use Illuminate\Support\Facades\Auth;
+
+$userId = Auth::user()->id;
+$userRole = StaticController::fetchUserRole($userId);
+
+?>
 @include('includes.header')
+@if($userRole == 'principal' || $userRole == 'vice-principal' || $userRole == 'bursar' || $userRole == 'rector')
+@include('principal.sidebar')
+@else
 @include('admin.sidebar')
+@endif
 <h3>New Registrations </h3>
 
 <div class="container-fluid ">

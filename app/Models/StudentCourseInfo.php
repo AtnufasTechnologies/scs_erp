@@ -4,10 +4,25 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\SoftDeletes;
 
 class StudentCourseInfo extends Model
 {
-    use HasFactory;
+    use HasFactory, SoftDeletes;
+
+    protected $fillable = [
+        'student_id',
+        'course_id',
+        'semester',
+        'campus_id',
+        'is_active',
+        'academic_year',
+        'class_id',
+        's_class_id',
+        'is_elective',
+        'paper_code_id',
+        'staff_id',
+    ];
 
     function coursemaster()
     {

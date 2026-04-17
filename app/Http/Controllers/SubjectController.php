@@ -18,14 +18,21 @@ use App\Models\ProgramCourseMaster;
 use App\Models\ProgramMaster;
 use App\Models\Semester;
 use App\Models\StudentMaster;
+use App\Models\StudentAttendance;
 use App\Models\StudentProgram;
 use App\Models\Subject;
+use App\Models\SubjectCombinationMaster;
 use App\Models\SubjectCourseMaster;
 use App\Models\SubjectFacultyMaster;
 use App\Models\SubjectHasCombination;
 use App\Models\SubjectHasDeptAdmin;
+use App\Models\InterMark;
+use App\Models\StudentCourseInfo;
 use App\Models\SubjectHasRoutine;
 use App\Models\SubjectHasSemester;
+use App\Models\ExamSystem\ExamStudent;
+use App\Models\ExamSystem\Registration;
+use App\Models\ExamSystem\Result;
 use App\Models\SubjectHasStudentProgam;
 use App\Models\SubjectHasSyllabus;
 use App\Models\SubjectTypeMaster;
@@ -407,6 +414,20 @@ class SubjectController extends Controller
             'total' => DepartmentActivity::where('subject_id', $subjectId)->count(),
             'upcoming' => DepartmentActivity::where('subject_id', $subjectId)->upcoming()->count(),
         ];
+        // Subject Combination Master for this department
+        $subjectCombinationRows = SubjectCombinationMaster::with(['batch', 'campus', 'mainSubject', 'comboSubject'])
+            ->where('main_subject_id', $subjectId)
+            ->orWhere('combo_subject_id', $subjectId)
+            ->latest()
+            ->get();
+        $subjectCombinationsGrouped = SubjectCombinationMaster::with(['batch', 'campus', 'mainSubject', 'comboSubject'])
+            ->where('main_subject_id', $subjectId)
+            ->latest()
+            ->get()
+            ->groupBy(fn($r) => $r->batch_id . '-' . $r->campus_id . '-' . $r->main_subject_id);
+        $allSubjects = Subject::orderBy('title')->get();
+        $allCampuses = Campus::all();
+
         return view('admin.subject.department-dashboard', [
             'data' => $courseMaster,
             'students_count' => $studentsCount,
@@ -418,7 +439,10 @@ class SubjectController extends Controller
             'syllabusCount' => $syllabusCount,
             'upcomingActivities' => $upcomingActivities,
             'activityStats' => $activityStats,
-
+            'subjectCombinationsGrouped' => $subjectCombinationsGrouped,
+            'allSubjects' => $allSubjects,
+            'allCampuses' => $allCampuses,
+            'allBatches' => $batches,
         ]);
     }
 
@@ -733,7 +757,7 @@ class SubjectController extends Controller
         $courseMaster->external = $request->external;
         $courseMaster->total = $request->internal + $request->external;
         $courseMaster->total_alloted_hours = $request->total_alloted_hours;
-        $courseMaster->paper_type_id = $request->paper_type;
+        $courseMaster->paper_type = $request->paper_type;
         $courseMaster->save();
 
         return redirect()->back()->with('success', 'Course Master Updated');
@@ -758,9 +782,67 @@ class SubjectController extends Controller
     function deleteCourseSpecificObjective($id)
     {
         $cso = CoHasCso::findOrFail($id);
+
+        // Block deletion if any syllabus entry using this CSO has attendance or timetable
+        $syllabusRecords = SyllabusManager::where('cso_id', $id)->get();
+        foreach ($syllabusRecords as $syllabus) {
+            $coId    = $syllabus->co_id;
+            $batchId = $syllabus->batch_id;
+
+            $hasAttendance = StudentAttendance::where('course_id', $coId)->exists();
+            $hasTimetable  = SubjectHasRoutine::where('subject_course_id', $coId)
+                ->where('batch_id', $batchId)
+                ->exists();
+
+            if ($hasAttendance || $hasTimetable) {
+                $reasons = [];
+                if ($hasAttendance) $reasons[] = 'attendance records exist for this course';
+                if ($hasTimetable)  $reasons[] = 'a faculty timetable is assigned to this course';
+                return redirect()->back()->with(
+                    'error',
+                    'Cannot delete this CSO — ' . implode(' and ', $reasons) . '. Please clear those first.'
+                );
+            }
+        }
+
         $cso->delete();
-        //delete all cso subunit
         return redirect()->back()->with('success', 'CSO deleted successfully');
+    }
+
+    function deleteCsoSubunit($id)
+    {
+        $subunit = CsoSubunit::findOrFail($id);
+
+        // Block deletion if any syllabus subunit uses this and the course has attendance or timetable
+        $syllabusSubunits = SyllabusSubunit::with('syllabusManager')
+            ->where('unit_id', $id)
+            ->get();
+
+        foreach ($syllabusSubunits as $syllabusSubunit) {
+            $syllabusManager = $syllabusSubunit->syllabusManager;
+            if ($syllabusManager) {
+                $coId    = $syllabusManager->co_id;
+                $batchId = $syllabusManager->batch_id;
+
+                $hasAttendance = StudentAttendance::where('course_id', $coId)->exists();
+                $hasTimetable  = SubjectHasRoutine::where('subject_course_id', $coId)
+                    ->where('batch_id', $batchId)
+                    ->exists();
+
+                if ($hasAttendance || $hasTimetable) {
+                    $reasons = [];
+                    if ($hasAttendance) $reasons[] = 'attendance records exist for this course';
+                    if ($hasTimetable)  $reasons[] = 'a faculty timetable is assigned to this course';
+                    return redirect()->back()->with(
+                        'error',
+                        'Cannot delete this subunit — ' . implode(' and ', $reasons) . '. Please clear those first.'
+                    );
+                }
+            }
+        }
+
+        $subunit->delete();
+        return redirect()->back()->with('success', 'Subunit deleted successfully');
     }
 
     function addCsoSubunit(Request $request)
@@ -889,6 +971,66 @@ class SubjectController extends Controller
         return redirect()->back()->with('success', 'Syllabus Created');
     }
 
+    function deleteSyllabusSubunit($id)
+    {
+        $subunit = SyllabusSubunit::with('syllabusManager')->findOrFail($id);
+        $syllabusManager = $subunit->syllabusManager;
+
+        if ($syllabusManager) {
+            $coId    = $syllabusManager->co_id;
+            $batchId = $syllabusManager->batch_id;
+
+            $hasAttendance = StudentAttendance::where('course_id', $coId)->exists();
+            $hasTimetable  = SubjectHasRoutine::where('subject_course_id', $coId)
+                ->where('batch_id', $batchId)
+                ->exists();
+
+            if ($hasAttendance || $hasTimetable) {
+                $reasons = [];
+                if ($hasAttendance) $reasons[] = 'attendance records exist for this course';
+                if ($hasTimetable)  $reasons[] = 'a faculty timetable is assigned to this course';
+                return redirect()->back()->with(
+                    'error',
+                    'Cannot remove this subunit — ' . implode(' and ', $reasons) . '. Please clear those first.'
+                );
+            }
+        }
+
+        $subunit->delete();
+        return redirect()->back()->with('success', 'Subunit removed');
+    }
+
+    function deleteSyllabusCo($subjectId, $batchId, $semesterId, $coId)
+    {
+        $hasAttendance = StudentAttendance::where('course_id', $coId)->exists();
+        $hasTimetable  = SubjectHasRoutine::where('subject_course_id', $coId)
+            ->where('batch_id', $batchId)
+            ->exists();
+
+        if ($hasAttendance || $hasTimetable) {
+            $reasons = [];
+            if ($hasAttendance) $reasons[] = 'attendance records exist for this course';
+            if ($hasTimetable)  $reasons[] = 'a faculty timetable is assigned to this course';
+            return redirect()->back()->with(
+                'error',
+                'Cannot remove this course from the syllabus — ' . implode(' and ', $reasons) . '. Please clear those first before making changes.'
+            );
+        }
+
+        $records = SyllabusManager::where('subject_id', $subjectId)
+            ->where('batch_id', $batchId)
+            ->where('semester_id', $semesterId)
+            ->where('co_id', $coId)
+            ->get();
+
+        foreach ($records as $record) {
+            $record->syllabusSubunits()->delete();
+            $record->delete();
+        }
+
+        return redirect()->back()->with('success', 'Course and all its objectives removed from syllabus');
+    }
+
     function downloadSyllabusPdf(Request $request)
     {
         $id = $request->id;
@@ -966,10 +1108,39 @@ class SubjectController extends Controller
         ]);
     }
 
+    function allStudents(Request $request)
+    {
+        $userId    = Auth::user()->id;
+        $subjectId = SubjectHasDeptAdmin::where('user_id', $userId)->value('subject_id');
+        $subject   = Subject::find($subjectId);
+
+        if (!$subject) {
+            return redirect()->route('department.dashboard')->with('info', 'Subject not found.');
+        }
+
+        $batches = BatchMaster::all();
+
+        $query = StudentMaster::with(['batchmaster', 'campusmaster']);
+
+        if ($request->filled('batch_id')) {
+            $query->where('batch', $request->batch_id);
+        }
+
+        $students = $query->orderby('id', 'desc')->get();
+
+        return view('admin.subject.all-students', [
+            'students'    => $students,
+            'subject'     => $subject,
+            'batches'     => $batches,
+            'activeBatch' => $request->batch_id,
+        ]);
+    }
+
     function studentProfile(Request $request)
     {
-        $id = $request->id;
+        $id     = $request->id;
         $rollno = $request->rollno;
+
         $data = StudentMaster::where('id', $id)->where('roll_no', $rollno)->with([
             'religionmaster:id,name',
             'deptmaster:id,department_code,name',
@@ -979,11 +1150,102 @@ class SubjectController extends Controller
             'bloodgroup',
             'batchmaster:id,batch_name',
             'programgroup.programInfo',
-
-
+            'feepayment.feepaymentinfo:id,quarter_title',
+            'feepayment.gatewaytype',
         ])->firstOrFail();
 
-        return view('admin.subject.student-profile', ['data' => $data]);
+        $studentId = $data->id;
+
+        // Courses with semester and type
+        $studentCourses = StudentCourseInfo::with([
+            'coursemaster.semestermaster:id,title',
+            'coursemaster.coursetypemaster:id,title,description',
+        ])->where('student_id', $studentId)->get();
+
+        $coursesBySemester = $studentCourses
+            ->sortBy(fn($c) => $c->coursemaster?->semester_id ?? 999)
+            ->groupBy(fn($c) => $c->coursemaster?->semestermaster?->title ?? ('Sem ' . ($c->semester ?? '?')));
+
+        // Timetable
+        $timetable = SubjectHasRoutine::where('batch_id', $data->batch)
+            ->with([
+                'weekdaymaster:id,title',
+                'hourmaster:id,title',
+                'lecturehallmaster:id,title',
+                'faculty:id,FIRST_NAME,LAST_NAME',
+                'coursemaster:id,course_title,course_code',
+            ])
+            ->orderBy('weekday_id')
+            ->orderBy('hour_id')
+            ->get();
+
+        $timetableByDay = $timetable->groupBy(fn($r) => $r->weekdaymaster->title ?? 'Unknown');
+
+        // Attendance per course
+        $attendanceRaw = StudentAttendance::where('student_id', $studentId)
+            ->with('courseinfo:id,course_title,course_code')
+            ->get()
+            ->groupBy('course_id');
+
+        $attendanceSummary = $attendanceRaw->map(function ($records) {
+            $total   = $records->count();
+            $present = $records->where('status', 'present')->count();
+            return [
+                'course'     => $records->first()->courseinfo,
+                'total'      => $total,
+                'present'    => $present,
+                'absent'     => $total - $present,
+                'percentage' => $total > 0 ? round(($present / $total) * 100, 1) : 0,
+            ];
+        })->values();
+
+        // Internal marks
+        $internalMarks = InterMark::where('student_id', $studentId)
+            ->with(['course:id,course_title,course_code', 'semester:id,title'])
+            ->orderBy('semester')
+            ->get();
+
+        // Exam results
+        $examStudent       = ExamStudent::where('erp_student_id', $studentId)->first();
+        $examResults       = collect();
+        $resultsBySemester = collect();
+        if ($examStudent) {
+            $examResults = Result::where('exam_student_id', $examStudent->id)
+                ->where('is_published', true)
+                ->with(['examSession', 'resultSubjects'])
+                ->orderBy('exam_session_id')
+                ->get();
+
+            foreach ($examResults as $result) {
+                $semKey = 'Semester ' . ($result->examSession?->semester ?? '?') . ' — ' . ($result->examSession?->academic_year ?? '');
+                $resultsBySemester[$semKey] = [
+                    'result'    => $result,
+                    'qualified' => $result->resultSubjects->where('result_status', 'pass')->values(),
+                    'backlog'   => $result->resultSubjects->where('result_status', '!=', 'pass')->values(),
+                ];
+            }
+        }
+
+        // Exam registrations
+        $examRegistrations = Registration::where('erp_student_id', $studentId)
+            ->with(['examSession', 'registrationSubjects.examSubject.master'])
+            ->orderByDesc('registered_at')
+            ->get();
+
+        return view('student.profile', [
+            'data'               => $data,
+            'studentCourses'     => $studentCourses,
+            'coursesBySemester'  => $coursesBySemester,
+            'timetableByDay'     => $timetableByDay,
+            'attendanceSummary'  => $attendanceSummary,
+            'internalMarks'      => $internalMarks,
+            'examResults'        => $examResults,
+            'resultsBySemester'  => $resultsBySemester,
+            'examStudent'        => $examStudent,
+            'examRegistrations'  => $examRegistrations,
+            'latestRegistration' => $examRegistrations->first(),
+            'dept_view'          => true,
+        ]);
     }
 
     function deptFacultyList($subjectId)
@@ -994,5 +1256,115 @@ class SubjectController extends Controller
             'data' => $faculties,
             'subject' => $subject,
         ]);
+    }
+
+    // ─── Dept Admin: Combo Master page (dedicated) ───────────────────────────
+
+    function comboMaster(Request $request)
+    {
+        $userId    = Auth::user()->id;
+        $subjectId = SubjectHasDeptAdmin::where('user_id', $userId)->value('subject_id');
+        $subject   = Subject::find($subjectId);
+
+        if (!$subject) {
+            return redirect()->route('department.dashboard')->with('info', 'Subject not found.');
+        }
+
+        $batches  = BatchMaster::all();
+        $campuses = Campus::all();
+        $subjects = Subject::where('campus_id', $subject->campus_id)
+            ->orderBy('title')
+            ->get();
+
+        $query = SubjectCombinationMaster::with(['batch', 'campus', 'mainSubject', 'comboSubject'])
+            ->where('main_subject_id', $subjectId);
+
+        if ($request->filled('batch_id')) {
+            $query->where('batch_id', $request->batch_id);
+        }
+
+        $grouped = $query->latest()
+            ->get()
+            ->groupBy(fn($r) => $r->batch_id . '-' . $r->campus_id . '-' . $r->main_subject_id);
+
+        return view('admin.subject.combo-master', compact(
+            'subject',
+            'grouped',
+            'batches',
+            'campuses',
+            'subjects'
+        ));
+    }
+
+    // ─── Subject Combination Master ──────────────────────────────────────────
+
+    function subjectCombinationMaster(Request $request)
+    {
+        // Group all rows by batch + campus + main_subject for cleaner display
+        $rows = SubjectCombinationMaster::with(['batch', 'campus', 'mainSubject', 'comboSubject'])
+            ->latest()
+            ->get();
+
+        // Group: [batch_id-campus_id-main_subject_id] => collection of rows
+        $grouped = $rows->groupBy(function ($r) {
+            return $r->batch_id . '-' . $r->campus_id . '-' . $r->main_subject_id;
+        });
+
+        $batches  = BatchMaster::all();
+        $campuses = Campus::all();
+        $subjects = Subject::orderBy('title')->get();
+
+        return view('admin.master.subject-combination-master', compact('grouped', 'rows', 'batches', 'campuses', 'subjects'));
+    }
+
+    function storeSubjectCombination(Request $request)
+    {
+        $request->validate([
+            'batch_id'          => 'required|exists:batch_masters,id',
+            'main_subject_id'   => 'required|exists:subjects,id',
+            'combo_subject_ids' => 'required|array|min:1',
+            'combo_subject_ids.*' => 'exists:subjects,id',
+        ]);
+
+        $inserted = 0;
+        $skipped  = 0;
+        $mainSubjectRecord = Subject::find($request->main_subject_id);
+        $campus_id = $mainSubjectRecord->campus_id;
+        foreach ($request->combo_subject_ids as $comboId) {
+            if ($comboId == $request->main_subject_id) {
+                $skipped++;
+                continue;
+            }
+
+            $exists = SubjectCombinationMaster::where([
+                'batch_id'        => $request->batch_id,
+                'campus_id'       => $campus_id,
+                'main_subject_id' => $request->main_subject_id,
+                'combo_subject_id' => $comboId,
+            ])->exists();
+
+            if ($exists) {
+                $skipped++;
+                continue;
+            }
+
+            SubjectCombinationMaster::create([
+                'batch_id'        => $request->batch_id,
+                'campus_id'       => $campus_id,
+                'main_subject_id' => $request->main_subject_id,
+                'combo_subject_id' => $comboId,
+            ]);
+            $inserted++;
+        }
+
+        $msg = "$inserted combination(s) added.";
+        if ($skipped) $msg .= " $skipped skipped (duplicate or same subject).";
+        return back()->with('success', $msg);
+    }
+
+    function deleteSubjectCombination($id)
+    {
+        SubjectCombinationMaster::findOrFail($id)->delete();
+        return back()->with('success', 'Subject combination deleted.');
     }
 }

@@ -39,6 +39,15 @@
     </li>
 
     <li>
+      <a href="{{route('faculty.internal-marks.index')}}">
+        <div class="parent-icon">
+          <i class="fas fa-pen-alt"></i>
+        </div>
+        <div class="menu-title">Internal Marks (FA) </div>
+      </a>
+    </li>
+
+    <li>
       <a href="{{route('faculty.workdiary')}}">
         <div class="parent-icon">
           <i class="fas fa-briefcase"></i>

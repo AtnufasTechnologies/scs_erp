@@ -31,4 +31,9 @@ return [
         'region' => env('AWS_DEFAULT_REGION', 'us-east-1'),
     ],
 
+    // ERP Faculty Sync
+    'erp' => [
+        'faculty_endpoint' => env('ERP_FACULTY_ENDPOINT', 'https://erp.example.com/api/faculty'),
+        'api_token' => env('ERP_API_TOKEN'),
+    ],
 ];

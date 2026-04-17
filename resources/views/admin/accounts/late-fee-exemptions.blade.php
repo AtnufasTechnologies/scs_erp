@@ -1,5 +1,5 @@
 @include('includes.header')
-@include('admin.sidebar')
+@include('admin.accounts.sidebar')
 
 <h3><span class="text-uppercase">Late Fee Exemptions Management</span></h3>
 
@@ -134,7 +134,7 @@
   <div class="tab-pane fade" id="exemptions" role="tabpanel">
     <div class="card">
       <div class="card-body">
-        <table class="table table-bordered table-hover">
+        <table class="table table-bordered table-hover" id="exportTable">
           <thead class="table-dark">
             <tr>
               <th>#</th>

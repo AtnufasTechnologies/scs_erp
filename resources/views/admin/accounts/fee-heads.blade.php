@@ -9,7 +9,7 @@ $programs = MainProgram::with('campus')->get();
 $banks = CollegeBankAccount::get();
 ?>
 @include('includes.header')
-@include('admin.sidebar')
+@include('admin.accounts.sidebar')
 
 <h3><span class="text-uppercase">Fee Heads</span></h3>
 <!-- Button trigger modal -->

@@ -84,4 +84,9 @@ class Faculty extends Model
     {
         return $this->hasMany(FacultySalaryMaster::class, 'faculty_id');
     }
+
+    public function facultyRemunerations()
+    {
+        return $this->hasMany(FacultyRemuneration::class, 'faculty_id');
+    }
 }
