@@ -159,6 +159,43 @@ $isAssistant = $roleType === 'account-office-assistant';
     </li>
     @endif
 
+    {{-- Payment Reports --}}
+    @if($isIncharge || StaticController::subMenuRights('fee-head-wise-report'))
+    <li>
+      <a href="{{ route('accounts.fee-head-wise-report') }}">
+        <div class="parent-icon"><i class="fas fa-layer-group"></i></div>
+        <div class="menu-title">Fee Head Wise Report</div>
+      </a>
+    </li>
+    @endif
+
+    @if($isIncharge || StaticController::subMenuRights('bank-account-wise-report'))
+    <li>
+      <a href="{{ route('accounts.bank-account-wise-report') }}">
+        <div class="parent-icon"><i class="fas fa-university"></i></div>
+        <div class="menu-title">Bank Account Wise Report</div>
+      </a>
+    </li>
+    @endif
+
+    @if($isIncharge || StaticController::subMenuRights('payment-report-by-date'))
+    <li>
+      <a href="{{ route('accounts.payment-report-by-date') }}">
+        <div class="parent-icon"><i class="fas fa-calendar-alt"></i></div>
+        <div class="menu-title">Payment Report by Date</div>
+      </a>
+    </li>
+    @endif
+
+    @if($isIncharge || StaticController::subMenuRights('payment-type-report'))
+    <li>
+      <a href="{{ route('accounts.payment-type-report') }}">
+        <div class="parent-icon"><i class="fas fa-exchange-alt"></i></div>
+        <div class="menu-title">Payment Type Report</div>
+      </a>
+    </li>
+    @endif
+
     {{-- Manage Assistants (Incharge Only) --}}
     @if($isIncharge)
     <li>
@@ -206,6 +243,13 @@ $isAssistant = $roleType === 'account-office-assistant';
           </a>
         </li>
 
+        <li class="nav-item">
+          <a class="nav-link dark-mode-icon" href="{{route('scms.logout')}}">
+            <div class="mode-icon text-light">
+              <i class="fas fa-sign-out-alt text-light"></i> Logout
+            </div>
+          </a>
+        </li>
 
 
       </ul>
