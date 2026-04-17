@@ -19,6 +19,10 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
 use Easebuzz\PayWithEasebuzzLaravel\Lib\EasebuzzLib\Easebuzz;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\DB;
+use App\Models\BatchMaster;
+use App\Models\FeeHead;
+use App\Models\CollegeBankAccount;
 
 class FeePaymentController extends Controller
 {
@@ -710,6 +714,7 @@ class FeePaymentController extends Controller
             $rec = new StudentPayment();
             $rec->invoice_id = $invoice;
             $rec->student_id = $studentId;
+            $rec->roll_no = $student->roll_no;
             $rec->fee_structure_id = $feeId;
             $rec->status = 'intiated';
             $rec->amount = $baseAmount;
@@ -745,10 +750,11 @@ class FeePaymentController extends Controller
         $txnid = $invoice;
         $mobile_no = $student->mobile_no;
         $mail_id = $student->mail_id;
-        $first_name = trim($student->first_name);
+        $first_name = trim($student->first_name) . ' ' . trim($student->last_name);
         $productinfo = 'Salesian College Autonomous - Fee Payment';
+        $roll_no = $student->roll_no;
 
-        $hashString = "$key|$txnid|$finalPayable|$productinfo|$first_name|$mail_id|$studentId||||||||||$salt";
+        $hashString = "$key|$txnid|$finalPayable|$productinfo|$first_name|$mail_id|$studentId|$roll_no|||||||||$salt";
 
         $hash = strtolower(hash('sha512', $hashString));
 
@@ -767,6 +773,7 @@ class FeePaymentController extends Controller
                 'furl' => route('payment.failure'),
                 'hash' => $hash,
                 'udf1' => $studentId,
+                'udf2' => $roll_no,
                 'split_payments' => $splitPayments
             ],
         ]);
@@ -1380,5 +1387,118 @@ class FeePaymentController extends Controller
         return view('admin.accounts.admission-fee-collection', [
             'data' => $data
         ]);
+    }
+
+    public function feeHeadWiseReport(Request $request)
+    {
+        $batches = BatchMaster::orderBy('batch_name')->get();
+
+        $query = DB::table('student_payments as sp')
+            ->join('fee_structure_has_heads as fshh', 'sp.fee_structure_id', '=', 'fshh.fee_structure_id')
+            ->join('fee_heads as fh', 'fshh.fee_head_id', '=', 'fh.id')
+            ->where('sp.status', 'success')
+            ->whereNull('fh.deleted_at')
+            ->select(
+                'fh.id',
+                'fh.head_name',
+                DB::raw('SUM(fshh.amount) as total_collected'),
+                DB::raw('COUNT(DISTINCT sp.id) as payment_count')
+            )
+            ->groupBy('fh.id', 'fh.head_name');
+
+        if ($request->filled('from_date')) {
+            $query->where('sp.transaction_date', '>=', $request->from_date);
+        }
+        if ($request->filled('to_date')) {
+            $query->where('sp.transaction_date', '<=', $request->to_date);
+        }
+        if ($request->filled('batch')) {
+            $query->join('student_masters as sm', 'sp.student_id', '=', 'sm.id')
+                ->where('sm.batch', $request->batch);
+        }
+
+        $report = $query->orderByDesc('total_collected')->get();
+        $totalCollected = $report->sum('total_collected');
+
+        return view('admin.accounts.fee-head-wise-report', compact('report', 'totalCollected', 'batches'));
+    }
+
+    public function bankAccountWiseReport(Request $request)
+    {
+        $query = DB::table('student_payments as sp')
+            ->join('fee_structure_has_heads as fshh', 'sp.fee_structure_id', '=', 'fshh.fee_structure_id')
+            ->join('fee_heads as fh', 'fshh.fee_head_id', '=', 'fh.id')
+            ->join('college_bank_accounts as cba', 'fh.bank_acc_id', '=', 'cba.id')
+            ->where('sp.status', 'success')
+            ->whereNull('fh.deleted_at')
+            ->whereNull('cba.deleted_at')
+            ->select(
+                'cba.id',
+                'cba.acc_label',
+                'cba.acc_name',
+                'cba.acc_no',
+                'cba.bank_name',
+                'cba.branch',
+                DB::raw('SUM(fshh.amount) as total_collected'),
+                DB::raw('COUNT(DISTINCT sp.id) as payment_count')
+            )
+            ->groupBy('cba.id', 'cba.acc_label', 'cba.acc_name', 'cba.acc_no', 'cba.bank_name', 'cba.branch');
+
+        if ($request->filled('from_date')) {
+            $query->where('sp.transaction_date', '>=', $request->from_date);
+        }
+        if ($request->filled('to_date')) {
+            $query->where('sp.transaction_date', '<=', $request->to_date);
+        }
+
+        $report = $query->orderByDesc('total_collected')->get();
+        $totalCollected = $report->sum('total_collected');
+
+        return view('admin.accounts.bank-account-wise-report', compact('report', 'totalCollected'));
+    }
+
+    public function paymentReportByDate(Request $request)
+    {
+        $query = StudentPayment::with(['studentmaster', 'feepaymentinfo', 'gatewaytype'])
+            ->where('status', 'success');
+
+        if ($request->filled('from_date')) {
+            $query->where('transaction_date', '>=', $request->from_date);
+        }
+        if ($request->filled('to_date')) {
+            $query->where('transaction_date', '<=', $request->to_date);
+        }
+
+        $payments = $query->orderByDesc('transaction_date')->get();
+        $totalAmount = $payments->sum('amount');
+
+        return view('admin.accounts.payment-report-by-date', compact('payments', 'totalAmount'));
+    }
+
+    public function paymentTypeReport(Request $request)
+    {
+        $query = StudentPayment::with(['studentmaster', 'feepaymentinfo', 'gatewaytype'])
+            ->where('status', 'success');
+
+        if ($request->filled('from_date')) {
+            $query->where('transaction_date', '>=', $request->from_date);
+        }
+        if ($request->filled('to_date')) {
+            $query->where('transaction_date', '<=', $request->to_date);
+        }
+        if ($request->filled('payment_type')) {
+            if ($request->payment_type === 'CASH') {
+                $query->whereIn('gateway_type_id', [3, 4]);
+            } elseif ($request->payment_type === 'ONLINE') {
+                $query->whereIn('gateway_type_id', [1, 2]);
+            }
+        }
+
+        $payments = $query->orderByDesc('transaction_date')->get();
+        $cashTotal    = $payments->whereIn('gateway_type_id', [3, 4])->sum('amount');
+        $onlineTotal  = $payments->whereIn('gateway_type_id', [1, 2])->sum('amount');
+        $grandTotal   = $payments->sum('amount');
+
+        return view('admin.accounts.payment-type-report', compact('payments', 'cashTotal', 'onlineTotal', 'grandTotal'));
     }
 }

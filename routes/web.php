@@ -73,12 +73,12 @@ Route::post('login', [LoginController::class, 'login']);
 Route::post('forgot-password', [LoginController::class, 'sendPasswordReset']);
 Route::get('verify-mail-reset-token/{id}', [LoginController::class, 'verifyResetToken']);
 Route::post('update-password', [LoginController::class, 'updatePassword'])->name('update.password');
-Route::get('logout', [LoginController::class, 'logout']);
+Route::get('logout', [LoginController::class, 'logout'])->name('scms.logout');
 
 Route::group(['prefix' => '/erp'], function () {
 
     //admin - superuser routes
-    Route::group(['prefix' => '/admin'], function () {
+    Route::group(['prefix' => '/admin', 'middleware' => 'auth'], function () {
         Route::get('dashboard', [AdminController::class, 'index'])->name('admin.dashboard');
         Route::get('std-master-sonada', [AdminController::class, 'stdMasterSonada']);
         Route::get('std-master-siliguri', [AdminController::class, 'stdMasterSiliguri']);
@@ -255,6 +255,12 @@ Route::group(['prefix' => '/erp'], function () {
             Route::get('delete-user-permission/{id}', [AdminController::class, 'deleteUserPermission'])->name('admin.user-access.delete-permission');
 
             Route::get('admission-application-fee', [FeePaymentController::class, 'admissionApplicationFee'])->name('admin.accounts.admission-application-fee');
+
+            // Payment Reports
+            Route::get('fee-head-wise-report', [FeePaymentController::class, 'feeHeadWiseReport'])->name('accounts.fee-head-wise-report');
+            Route::get('bank-account-wise-report', [FeePaymentController::class, 'bankAccountWiseReport'])->name('accounts.bank-account-wise-report');
+            Route::get('payment-report-by-date', [FeePaymentController::class, 'paymentReportByDate'])->name('accounts.payment-report-by-date');
+            Route::get('payment-type-report', [FeePaymentController::class, 'paymentTypeReport'])->name('accounts.payment-type-report');
         });
 
         //Academics
@@ -578,7 +584,7 @@ Route::group(['prefix' => '/erp'], function () {
     });
 
     //admission student routes
-    Route::group(['prefix' => '/new-admission'], function () {
+    Route::group(['prefix' => '/new-admission', 'middleware' => 'auth'], function () {
         Route::get('login', [AdmissionController::class, 'login'])->name('new.admission.login');
         Route::get('registration', [AdmissionController::class, 'index'])->name('new.admission.registration');
         // Route::get('login', [AdmissionController::class, 'technicalMode'])->name('new.admission.login');
@@ -649,7 +655,7 @@ Route::group(['prefix' => '/erp'], function () {
         Route::get('students/{rollno}/unpaid-fees', [FeePaymentController::class, 'getStudentUnpaidFees']);
     });
 
-    Route::group(['prefix' => '/deptartment'], function () {
+    Route::group(['prefix' => '/deptartment', 'middleware' => 'auth'], function () {
         Route::get('dashboard', [SubjectController::class, 'departmentDashboard'])->name('department.dashboard');
         Route::get('combo-master', [SubjectController::class, 'comboMaster'])->name('department.combo.master');
         Route::delete('combination/{id}/delete', [SubjectController::class, 'deleteCombination'])->name('department.combination.delete');
@@ -744,7 +750,7 @@ Route::group(['prefix' => '/erp'], function () {
 
 
     // Faculty routes
-    Route::group(['prefix' => 'faculty'], function () {
+    Route::group(['prefix' => 'faculty', 'middleware' => 'auth'], function () {
         Route::get('dashboard', [FacultyDashboardController::class, 'index'])->name('faculty.dashboard');
         Route::get('timetable', [FacultyDashboardController::class, 'facultyTimetable'])->name('faculty.timetable');
 
@@ -817,14 +823,15 @@ Route::group(['prefix' => '/erp'], function () {
 
 
     //Testing route
-    Route::group(['prefix' => '/test'], function () {
+    Route::group(['prefix' => '/test', 'middleware' => 'auth'], function () {
+        Route::get('fix', [TestController::class, 'rollnoFixStudentPayment']);
         //   Route::get('dept-campus-mapping', [TestController::class, 'DeptCampusMapping']);
         Route::get('mailing', [TestController::class, 'mailTest']);
         Route::get('sms', [TestController::class, 'smsTest']);
         Route::get('install-new-programid', [TestController::class, 'studentMasterProgramFixing']);
     });
 
-    Route::group(['prefix' => '/coe'], function () {
+    Route::group(['prefix' => '/coe', 'middleware' => 'auth'], function () {
         Route::get('dashboard', [CoeDashboardController::class, 'index'])->name('coe.dashboard');
         // AJAX filter route for COE Dashboard
         Route::get('dashboard/filter', [CoeDashboardController::class, 'filter'])->name('coe.dashboard.filter');
@@ -924,7 +931,7 @@ Route::group(['prefix' => '/erp'], function () {
     });
 
     // Principal Module Routes
-    Route::group(['prefix' => '/principal'], function () {
+    Route::group(['prefix' => '/principal', 'middleware' => 'auth'], function () {
         Route::get('dashboard', [PrincipalController::class, 'dashboard'])->name('principal.dashboard');
         Route::get('students', [PrincipalController::class, 'students'])->name('principal.students.index');
         Route::get('{id}/student-profile/{rollno}', [PrincipalController::class, 'studentProfile'])->name('principal.student.profile');

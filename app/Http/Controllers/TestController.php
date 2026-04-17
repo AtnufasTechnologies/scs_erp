@@ -7,6 +7,7 @@ use App\Mail\OtpMail;
 use App\Models\ProgramGroup;
 use App\Models\SmsTemplate;
 use App\Models\StudentMaster;
+use App\Models\StudentPayment;
 use App\Models\SubjectHasDeptAdmin;
 use App\Models\UserCampusSetting;
 use Illuminate\Http\Request;
@@ -92,5 +93,20 @@ class TestController extends Controller
         }
 
         dd('All student master records updated with new program id');
+    }
+
+    function rollnoFixStudentPayment()
+    {
+        $data = StudentPayment::all();
+        for ($i = 0; $i < $data->count(); $i++) {
+            $studentId = $data[$i]->student_id;
+            $rollNo =  StudentMaster::where('id', $studentId)->value('roll_no');
+
+            if ($rollNo) {
+                StudentPayment::where('id', $data[$i]->id)->update(['roll_no' => $rollNo]);
+            }
+        }
+
+        dd('All student payment records updated with roll no');
     }
 }
