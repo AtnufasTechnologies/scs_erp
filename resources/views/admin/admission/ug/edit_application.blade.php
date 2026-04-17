@@ -460,7 +460,11 @@ $countries = Country::all();
   @if ($application->adhaar_doc != null)
   <div class="col-md-4">
     <a href="{{Storage::disk('s3')->url($application->adhaar_doc) }}" target="_blank">
-      <button class="btn btn-success mt-4">View Adhaar</button></a>
+      <span class="text-success"> View Adhaar</span></a>
+  </div>
+  @else
+  <div class="col-md-4">
+    <span class="text-danger">Not Submitted</span>
   </div>
   @endif
   @if ($application->national_id_proof != null)
@@ -476,7 +480,7 @@ $countries = Country::all();
   <div class="col-md-4">
     <div class="mb-3">
       <label class="form-label">Baptism</label>
-      <a href="{{Storage::disk('s3')->url($application->national_id_proof) }}" target="_blank" class="text-primary">View</a>
+      <a href="{{Storage::disk('s3')->url($application->baptism) }}" target="_blank" class="text-primary">View</a>
     </div>
   </div>
   @endif
