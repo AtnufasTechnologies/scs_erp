@@ -11,7 +11,7 @@ $userRole = StaticController::fetchUserRole($userId);
 @if($userRole == 'principal' || $userRole == 'vice-principal' || $userRole == 'bursar' || $userRole == 'rector')
 @include('principal.sidebar')
 @else
-@include('admin.sidebar')
+@include('admin.admission.sidebar')
 @endif
 <h3>New Registrations </h3>
 

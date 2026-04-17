@@ -65,7 +65,8 @@ class FeePaymentController extends Controller
         // ---- TRANSFORM EACH RECORD USING through() ----
         $students = $data->through(function ($student) {
 
-            $applicableFS = FeesStructure::where('batch_id', $student->batch)
+            $applicableFS = FeesStructure::with(['feeHeads.head.bankmaster'])
+                ->where('batch_id', $student->batch)
                 ->whereHas('programspivot', function ($q) use ($student) {
                     $q->where('std_program_id', $student->programme);
                 })
@@ -78,7 +79,7 @@ class FeePaymentController extends Controller
                 $payment = $student->feepayment
                     ->where('fee_structure_id', $fs->id)
                     ->where('student_id', $student->id)
-                    ->whereIn('status', 'success')
+                    ->where('status', 'success')
                     ->first();
 
                 $totalAmount = $fs->feeHeads->sum('amount');
@@ -99,6 +100,19 @@ class FeePaymentController extends Controller
                     }
                 }
 
+                $bankAccounts = $fs->feeHeads
+                    ->map(fn($h) => ($h->head && $h->head->bankmaster) ? [
+                        'acc_label' => $h->head->bankmaster->acc_label,
+                        'acc_name'  => $h->head->bankmaster->acc_name,
+                        'acc_no'    => $h->head->bankmaster->acc_no,
+                        'bank_name' => $h->head->bankmaster->bank_name,
+                        'branch'    => $h->head->bankmaster->branch,
+                    ] : null)
+                    ->filter()
+                    ->unique('acc_no')
+                    ->values()
+                    ->toArray();
+
                 return [
                     'paymentinfo' => $payment,
                     'fee_structure_id' => $fs->id,
@@ -111,6 +125,7 @@ class FeePaymentController extends Controller
                     'paid' => $payment ? true : false,
                     'paid_amount' => $payment->amount ?? 0,
                     'status' => $payment ? 'success' : ($lateFee > 0 ? 'late' : 'due'),
+                    'bank_accounts' => $bankAccounts,
                 ];
             });
 
@@ -149,6 +164,8 @@ class FeePaymentController extends Controller
             'transaction_date' => 'required|date',
             'gateway_type_id' => 'required',
             'transaction_ref' => 'required',
+            'late_fee_amount' => 'nullable|numeric',
+            'late_days' => 'nullable|integer',
         ]);
 
         /** Payment Gateway Logic
@@ -181,14 +198,20 @@ class FeePaymentController extends Controller
         }
 
 
+        $student = StudentMaster::findOrFail($request->student_id);
+
         $rec = new StudentPayment();
         $rec->invoice_id = $invoice;
         $rec->student_id = $request->student_id;
+        $rec->roll_no = $student->roll_no;
         $rec->fee_structure_id = $request->fee_structure_id;
         $rec->status = 'success';
         $rec->amount = $request->amount;
         $rec->transaction_date = $request->transaction_date;
+        $rec->transaction_id = $request->transaction_ref;
         $rec->gateway_type_id = $request->gateway_type_id;
+        $rec->late_fee_amount = $request->late_fee_amount ?? 0;
+        $rec->late_days = $request->late_days ?? 0;
         $rec->message = "Manual Entry from Accounts Office";
         $rec->save();
         return redirect()->back()->with('success', 'Payment updated successfully!');
@@ -222,18 +245,20 @@ class FeePaymentController extends Controller
                     ->first();
 
                 if ($payment) {
-                    $amount = FeeStructureHasHead::where('fee_structure_id', $fee->id)->sum('amount');
+                    $amount   = FeeStructureHasHead::where('fee_structure_id', $fee->id)->sum('amount');
+                    $lateFee  = (float)($payment->late_fee_amount ?? 0);
 
                     $paidInvoices[] = [
-                        'quarter' => $fee->quarter_title,
+                        'quarter'        => $fee->quarter_title,
                         'payable_amount' => $amount,
-                        'status' => 'PAID',
-                        'paid_on' => $payment->transaction_date ?? 'N/A',
-                        'inv_id' => $payment->invoice_id ?? 'N/A',
-
+                        'late_fee'       => $lateFee,
+                        'grand_amount'   => $amount + $lateFee,
+                        'status'         => 'PAID',
+                        'paid_on'        => $payment->transaction_date ?? 'N/A',
+                        'inv_id'         => $payment->invoice_id ?? 'N/A',
                     ];
 
-                    $totalPaid += $amount;
+                    $totalPaid += $amount + $lateFee;
                 }
             }
         }
@@ -830,6 +855,7 @@ class FeePaymentController extends Controller
             'status' => $data[0]['status'],
             'gatewayType' => $data[0]['gateway_type_id'],
             'fixedLateFee' => $fixedLateFee,
+            'downloadPdfUrl' => url('erp/student/transaction-success/' . $txnId . '/download-pdf'),
         ]);
     }
 

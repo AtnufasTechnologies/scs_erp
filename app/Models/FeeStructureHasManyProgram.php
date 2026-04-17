@@ -9,6 +9,11 @@ class FeeStructureHasManyProgram extends Model
 {
     use HasFactory;
 
+    protected $fillable = [
+        'fee_structure_id',
+        'std_program_id',
+    ];
+
     function programgroupinfo()
     {
         return $this->hasOne(ProgramGroup::class, 'id', 'std_program_id');

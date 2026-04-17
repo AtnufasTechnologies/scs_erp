@@ -73,7 +73,7 @@ class AccountOfficeController extends Controller
     $recentAdmissionPayments = AdmissionApplicationPaymentLog::with('applicationmaster.registrationmaster')
       ->where('status', 'success')
       ->latest()
-      ->limit(5)
+      ->limit(10)
       ->get();
 
     return view('admin.accounts.incharge-dashboard', [

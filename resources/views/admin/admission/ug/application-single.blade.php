@@ -1,5 +1,5 @@
 @include('includes.header')
-@include('admin.sidebar')
+@include('admin.admission.sidebar')
 <h3>Applications #{{$data->application_id}}</h3>
 <div class="container mt-4">
   <div class="card shadow-sm">

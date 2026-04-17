@@ -13,7 +13,7 @@ $isAssistant = $roleType === 'account-office-assistant';
 <aside class="sidebar-wrapper" data-simplebar="true">
   <div class="sidebar-header">
     <div class="logo-text" style="font-size: 12px;">
-      {{Auth::user()->name}} ({{ $isIncharge ? 'Incharge' : ($isAssistant ? 'Assistant' : 'User') }})
+      {{Auth::user()->name}}
     </div>
     <div class="toggle-icon ms-auto">
       <ion-icon name="menu-sharp"></ion-icon>
@@ -244,7 +244,7 @@ $isAssistant = $roleType === 'account-office-assistant';
         </li>
 
         <li class="nav-item">
-          <a class="nav-link dark-mode-icon" href="{{route('scms.logout')}}">
+          <a class="nav-link" href="{{route('scms.logout')}}">
             <div class="mode-icon text-light">
               <i class="fas fa-sign-out-alt text-light"></i> Logout
             </div>

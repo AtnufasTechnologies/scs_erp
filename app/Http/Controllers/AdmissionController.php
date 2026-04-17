@@ -48,6 +48,72 @@ use Illuminate\Support\Str;
 
 class AdmissionController extends Controller
 {
+    function dashboard()
+    {
+        $campusId = StaticController::fetchCampusSettings();
+
+        $regQuery = AdmissionRegistration::query();
+        if ($campusId) {
+            $regQuery->where('campus_id', $campusId);
+        }
+
+        // Registration counts
+        $totalUgRegistrations  = (clone $regQuery)->where('application_type', 'UG')->count();
+        $totalPgRegistrations  = (clone $regQuery)->where('application_type', 'PG')->count();
+        $todayUgRegistrations  = (clone $regQuery)->where('application_type', 'UG')->whereDate('created_at', today())->count();
+        $todayPgRegistrations  = (clone $regQuery)->where('application_type', 'PG')->whereDate('created_at', today())->count();
+
+        // Applications submitted
+        $appQuery = AdmissionApplication::whereHas('registrationmaster', function ($q) use ($campusId) {
+            if ($campusId) {
+                $q->where('campus_id', $campusId);
+            }
+        });
+        $totalUgApplications = (clone $appQuery)->whereHas('registrationmaster', fn($q) => $q->where('application_type', 'UG'))->count();
+        $totalPgApplications = (clone $appQuery)->whereHas('registrationmaster', fn($q) => $q->where('application_type', 'PG'))->count();
+
+        // Phase 1 & Phase 2 (final) selections
+        $phase1Count  = AdmissionFirstPhase::count();
+        $phase2Count  = AdmissionFinalPhase::count();
+        $enrolledCount = AdmissionFinalPhase::where('enroll_status', 1)->count();
+
+        // Application fee collected
+        $totalAppFeeCollected = AdmissionApplicationPaymentLog::where('status', 'success')->sum('amount');
+        $todayAppFeeCollected = AdmissionApplicationPaymentLog::where('status', 'success')
+            ->whereDate('created_at', today())
+            ->sum('amount');
+
+        // Registration trend — last 14 days
+        $regTrend = AdmissionRegistration::where('created_at', '>=', now()->subDays(13))
+            ->selectRaw('DATE(created_at) as date, application_type, COUNT(*) as count')
+            ->groupBy('date', 'application_type')
+            ->orderBy('date')
+            ->get();
+
+        // Recent 10 registrations
+        $recentRegistrations = (clone $regQuery)
+            ->with('campusmaster')
+            ->latest()
+            ->limit(10)
+            ->get();
+
+        return view('admin.admission.dashboard', compact(
+            'totalUgRegistrations',
+            'totalPgRegistrations',
+            'todayUgRegistrations',
+            'todayPgRegistrations',
+            'totalUgApplications',
+            'totalPgApplications',
+            'phase1Count',
+            'phase2Count',
+            'enrolledCount',
+            'totalAppFeeCollected',
+            'todayAppFeeCollected',
+            'regTrend',
+            'recentRegistrations'
+        ));
+    }
+
     function index()
     {
 

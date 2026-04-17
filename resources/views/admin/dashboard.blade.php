@@ -14,54 +14,6 @@ $labels = HourMaster::pluck('title')->all();
 $batchId = BatchMaster::where('admission_active_batch', 1)->value('id');
 $batchName = BatchMaster::where('admission_active_batch', 1)->value('batch_name');
 $combinationCount = SubjectHasStudentProgam::with('batchmaster')->where('batch_id', $batchId)->count();
-// Example data structure for hourwiseAttendance
-$hourwiseAttendance = [
-  (object)[
-    'hour_label' => 'Hour 1',
-    'title' => 'Hour 1',
-    'class_name' => 'MAJOR ',
-    'subject' => 'Math',
-    'faculty' => 'Mr. Smith',
-    'present' => 45,
-    'absent' => 5
-  ],
-  (object)[
-    'hour_label' => 'Hour 2',
-    'title' => 'Hour 2',
-    'class_name' => 'MDC',
-    'subject' => 'Science',
-    'faculty' => 'Ms. Johnson',
-    'present' => 50,
-    'absent' => 10
-  ],
-  (object)[
-    'hour_label' => 'Hour 3',
-    'title' => 'Hour 3',
-    'class_name' => 'AEC',
-    'subject' => 'English',
-    'faculty' => 'Mr. Lee',
-    'present' => 40,
-    'absent' => 8
-  ],
-  (object)[
-    'hour_label' => 'Hour 4',
-    'title' => 'Hour 4',
-    'class_name' => 'Class D',
-    'subject' => 'History',
-    'faculty' => 'Ms. Brown',
-    'present' => 55,
-    'absent' => 5
-  ],
-  (object)[
-    'hour_label' => 'Hour 5',
-    'title' => 'Hour 5',
-    'class_name' => 'Class E',
-    'subject' => 'Geography',
-    'faculty' => 'Mr. White',
-    'present' => 48,
-    'absent' => 7
-  ]
-];
 ?>
 @include('includes.header')
 @include('admin.sidebar')
@@ -228,8 +180,6 @@ $hourwiseAttendance = [
     </div>
   </div>
 </div>
-
-
 
 <style>
   .dashboard-container {

@@ -1,6 +1,6 @@
 @include('includes.header')
 
-@include('admin.sidebar')
+@include('admin.admission.sidebar')
 
 
 <div class="container">

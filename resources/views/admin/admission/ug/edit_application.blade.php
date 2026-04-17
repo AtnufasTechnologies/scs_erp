@@ -12,7 +12,7 @@ $countries = Country::all();
 
 ?>
 @include('includes.header')
-@include('admin.sidebar')
+@include('admin.admission.sidebar')
 
 <div class="container mt-4">
   <div class="card">

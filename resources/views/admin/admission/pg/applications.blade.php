@@ -6,7 +6,7 @@ $programs = Qs::getPgProgramGroups();
 
 ?>
 @include('includes.header')
-@include('admin.sidebar')
+@include('admin.admission.sidebar')
 <h3>PG - Applications </h3>
 <div class="row">
 

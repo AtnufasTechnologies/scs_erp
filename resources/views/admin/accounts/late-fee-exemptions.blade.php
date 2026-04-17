@@ -88,7 +88,7 @@
             @forelse($students as $index => $student)
             <tr>
               <td>{{ ($students->currentPage() - 1) * $students->perPage() + $index + 1 }}</td>
-              <td>{{ $student->roll_no }}</td>
+              <td><span class="text-uppercase">{{ $student->roll_no }}</span></td>
               <td>{{ $student->first_name }} {{ $student->last_name }}</td>
               <td>{{ $student->batchmaster->batch_name ?? 'N/A' }}</td>
               <td>{{ $student->programgroup->program_code ?? 'N/A' }}</td>

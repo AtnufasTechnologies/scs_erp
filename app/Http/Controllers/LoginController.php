@@ -42,12 +42,9 @@ class LoginController extends Controller
                         Auth::logout();
                         return redirect('/')->with('error', 'No Department Assigned. Please contact Admin');
                     }
-                } else if ($roleType == 'account-office-incharge') {
-                    //Account Office Incharge Dashboard
+                } else if ($roleType == 'account-office-incharge' || $roleType == 'account-office-assistant') {
+                    //Account Office Dashboard
                     return redirect()->route('account-office.dashboard')->with('success', 'Login Success');
-                } else if ($roleType == 'account-office-assistant') {
-                    //Account Office Assistant - goes to admin dashboard with limited modules
-                    return redirect('erp/admin/dashboard')->with('success', 'Login Success');
                 } else if ($roleType == 'faculty') {
                     //Faculty Dashboard
                     return redirect()->route('faculty.dashboard')->with('success', 'Login Success');
@@ -63,6 +60,9 @@ class LoginController extends Controller
                 } else if ($roleType == 'student') {
                     //Student Dashboard
                     return redirect()->route('student.dashboard')->with('success', 'Login Success');
+                } else if ($roleType == 'admission-incharge') {
+                    //Admission Officer Dashboard
+                    return redirect()->route('admission.dashboard')->with('success', 'Login Success');
                 } else {
                     //for all Super Admin| Office assistane| Admin | IT CEll
                     return redirect('erp/admin/dashboard')->with('success', 'Login Success');

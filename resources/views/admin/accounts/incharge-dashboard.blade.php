@@ -93,6 +93,7 @@
             <thead class="table-light">
               <tr>
                 <th>#</th>
+                <th>RollNo</th>
                 <th>Student</th>
                 <th>Amount</th>
                 <th>Date</th>
@@ -103,6 +104,7 @@
               @forelse($recentTransactions as $idx => $txn)
               <tr>
                 <td>{{ $idx + 1 }}</td>
+                <td> <span class="text-uppercase">{{ $txn->studentmaster->roll_no ?? '' }}</span></td>
                 <td>{{ $txn->studentmaster->first_name ?? '' }} {{ $txn->studentmaster->last_name ?? '' }}</td>
                 <td><strong>₹ {{ number_format($txn->amount, 2) }}</strong></td>
                 <td>{{ $txn->transaction_date }}</td>
@@ -110,7 +112,7 @@
               </tr>
               @empty
               <tr>
-                <td colspan="5" class="text-center text-muted py-3">No transactions found</td>
+                <td colspan="6" class="text-center text-muted py-3">No transactions found</td>
               </tr>
               @endforelse
             </tbody>
@@ -133,6 +135,7 @@
             <thead class="table-light">
               <tr>
                 <th>#</th>
+                <th>Campus</th>
                 <th>Applicant</th>
                 <th>Amount</th>
                 <th>Date</th>
@@ -142,6 +145,7 @@
               @forelse($recentAdmissionPayments as $idx => $pay)
               <tr>
                 <td>{{ $idx + 1 }}</td>
+                <td>{{ $pay->applicationmaster->registrationmaster->campus_id == 1? 'Sonada' : 'Siliguri' }}</td>
                 <td>
                   {{ $pay->applicationmaster->registrationmaster->first_name ?? '' }}
                   {{ $pay->applicationmaster->registrationmaster->last_name ?? '' }}
@@ -151,7 +155,7 @@
               </tr>
               @empty
               <tr>
-                <td colspan="4" class="text-center text-muted py-3">No records found</td>
+                <td colspan="5" class="text-center text-muted py-3">No records found</td>
               </tr>
               @endforelse
             </tbody>

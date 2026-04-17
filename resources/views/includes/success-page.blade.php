@@ -12,15 +12,73 @@ $userInfo = User::select('name')->find($userId);
 <head>
   <title>Invoice {{ $invoiceId }}</title>
   <link rel="stylesheet" href="{{asset('admin/css/inv.css')}}">
+  <style>
+    .btn-download-pdf {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      background: #1976d2;
+      color: #fff;
+      font-weight: 700;
+      padding: 8px 18px;
+      border-radius: 6px;
+      text-decoration: none;
+      font-size: 14px;
+      border: none;
+      cursor: pointer;
+    }
+
+    .btn-download-pdf:hover {
+      background: #1565c0;
+      color: #fff;
+    }
+
+    .btn-print-link {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      background: #555;
+      color: #fff;
+      font-weight: 600;
+      padding: 8px 16px;
+      border-radius: 6px;
+      text-decoration: none;
+      font-size: 14px;
+      cursor: pointer;
+    }
+
+    .btn-print-link:hover {
+      background: #333;
+      color: #fff;
+    }
+
+    .action-bar {
+      display: flex;
+      gap: 10px;
+      align-items: center;
+      margin-bottom: 16px;
+      flex-wrap: wrap;
+    }
+  </style>
 </head>
 
 <body>
   <div class="container">
 
-    {{-- HEADER --}}
+    {{-- ACTION BAR --}}
+    <div class="action-bar">
+      <a onclick="window.print()" style="cursor:pointer" class="btn-print-link">
+        &#128438; Print
+      </a>
+      @if(isset($downloadPdfUrl))
+      <a href="{{ $downloadPdfUrl }}" class="btn-download-pdf" id="pdfDownloadBtn">
+        &#128196; Download PDF Invoice
+      </a>
+      @endif
+    </div>
+
     <div class="header">
       <div>
-        <a onclick="window.print()" style="cursor:pointer">Print</a>
         <div class="title">INVOICE</div>
         <p>
           <strong>Invoice No:</strong> {{ $invoiceId }}<br>
@@ -77,6 +135,8 @@ $userInfo = User::select('name')->find($userId);
     $structure = $txn['feepaymentinfo'];
     $courseFee = 0;
     $otherFees = 0;
+    $txnLateFee = (float)($txn['late_fee_amount'] ?? 0);
+    $txnLateDays = (int)($txn['late_days'] ?? 0);
     @endphp
 
     {{-- CALCULATE --}}
@@ -110,20 +170,35 @@ $userInfo = User::select('name')->find($userId);
 
         <tr class="subtotal">
           <td>Subtotal</td>
-          <td class="amount">
-            ₹{{ number_format($courseFee + $otherFees, 2) }}
-          </td>
+          <td class="amount">₹{{ number_format($courseFee + $otherFees, 2) }}</td>
         </tr>
-        @if(isset($fixedLateFee) && $fixedLateFee !== null)
+
+        @if($txnLateFee > 0)
         <tr>
-          <td><strong>Fixed Late Fee (Exemption)</strong></td>
+          <td>
+            <strong>Late Fee</strong>
+            @if($txnLateDays > 0)
+            <span style="font-size:11px; color:#888;"> ({{ $txnLateDays }} day{{ $txnLateDays > 1 ? 's' : '' }} overdue)</span>
+            @endif
+          </td>
+          <td class="amount" style="color:#c0392b; font-weight:700;">₹{{ number_format($txnLateFee, 2) }}</td>
+        </tr>
+        <tr class="subtotal">
+          <td>Quarter Total</td>
+          <td class="amount">₹{{ number_format($courseFee + $otherFees + $txnLateFee, 2) }}</td>
+        </tr>
+        @endif
+
+        @if(isset($fixedLateFee) && $fixedLateFee !== null && $txnLateFee == 0)
+        <tr>
+          <td><strong>Fixed Late Fee (Exemption Applied)</strong></td>
           <td class="amount">₹{{ number_format($fixedLateFee, 2) }}</td>
         </tr>
         @endif
       </table>
     </div>
 
-    @php $grandTotal += ($courseFee + $otherFees); @endphp
+    @php $grandTotal += ($courseFee + $otherFees + $txnLateFee); @endphp
     @endforeach
 
     {{-- GRAND TOTAL --}}
@@ -162,6 +237,25 @@ $userInfo = User::select('name')->find($userId);
     </div>
 
   </div>
+
+  @if(isset($downloadPdfUrl))
+  <script>
+    // Auto-trigger PDF download 2 seconds after page loads (only on success status)
+    @if(isset($status) && $status === 'success')
+    window.addEventListener('load', function() {
+      setTimeout(function() {
+        var link = document.createElement('a');
+        link.href = '{{ $downloadPdfUrl }}';
+        link.download = '';
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+      }, 2000);
+    });
+    @endif
+  </script>
+  @endif
+
 </body>
 
 </html>

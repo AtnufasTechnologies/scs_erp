@@ -12,6 +12,8 @@
 
         <input type="hidden" name="student_id" id="modal_student_id">
         <input type="hidden" name="fee_structure_id" id="modal_fee_id">
+        <input type="hidden" name="late_fee_amount" id="modal_late_fee_amount">
+        <input type="hidden" name="late_days" id="modal_late_days">
 
         <div class="modal-body">
 
@@ -80,6 +82,8 @@
         modal_student_name.value = btn.dataset.studentName;
         modal_quarter.value = btn.dataset.quarter;
         amount.value = btn.dataset.amount;
+        modal_late_fee_amount.value = btn.dataset.lateFee;
+        modal_late_days.value = btn.dataset.lateDays;
       });
     });
   });

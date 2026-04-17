@@ -29,7 +29,7 @@ $programs = Qs::getProgramGroups();
   </nav>
 </div>
 @else
-@include('admin.sidebar')
+@include('admin.admission.sidebar')
 @endif
 
 <div class="container-fluid">

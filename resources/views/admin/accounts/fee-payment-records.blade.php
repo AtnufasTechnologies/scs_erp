@@ -120,6 +120,8 @@ $programgroups = ProgramGroup::with(['programInfo', 'campus'])->where('campus_id
             data-fee-id="{{ $fee['fee_structure_id'] }}"
             data-quarter="{{ $fee['quarter'] }}"
             data-amount="{{ $fee['payable_amount'] }}"
+            data-late-fee="{{ $fee['late_fee'] }}"
+            data-late-days="{{ $fee['late_days'] }}"
             data-bs-toggle="modal"
             data-bs-target="#manualPayModal">
             PAY
