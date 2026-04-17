@@ -212,7 +212,7 @@
           </div>
 
           <div class="col-lg-4 col-sm-12">
-            <label for="">Adhaar Document ()<span class="text-danger">*</span></label><br>
+            <label for="">Adhaar Document (Accepted:JPG, JPEG, PNG | Max Size: 5MB)<span class="text-danger">*</span></label><br>
             <input type="file" class="form-control mb-3 radius-20 dark" name="adhaar_doc" accept=".pdf, .jpg, .jpeg, .png">
           </div>
 
@@ -515,7 +515,7 @@
               <div class="col-lg-12 col-sm-12">
                 <label for="">Institution Name <span class="text-danger">*</span></label>
                 @error('institution10') <span class="text-danger">{{ $message }}</span> @enderror
-                <input type="text" class="form-control mb-3 radius-20 dark" name="institution10" value="{{old('institution10')}}">
+                <input type="text" class="form-control mb-3 radius-20 dark" name="institution10" value="{{old('institution10')}}" required>
               </div>
             </div>
           </div>
@@ -524,7 +524,7 @@
               <div class="col-lg-12 col-sm-12">
                 <label for=""> RollNo / Unique Id<span class="text-danger">*</span></label>
                 @error('rollno10') <span class="text-danger">{{ $message }}</span> @enderror
-                <input type="text" class="form-control mb-3 radius-20 dark" name="rollno10" value="{{old('rollno10')}}">
+                <input type="text" class="form-control mb-3 radius-20 dark" name="rollno10" value="{{old('rollno10')}}" required>
               </div>
             </div>
           </div>
@@ -534,7 +534,7 @@
               <div class="col-lg-12 col-sm-12">
                 <label for="">Board<span class="text-danger">*</span></label>
                 @error('board') <span class="text-danger">{{ $message }}</span> @enderror
-                <select name="board10" class="form-control ">
+                <select name="board10" class="form-control" required>
                   <option value="">Select</option>
                   <option value="icse">ICSE</option>
                   <option value="madhyamik">Madhyamik</option>
@@ -552,7 +552,7 @@
               <div class="col-lg-12 col-sm-12">
                 <label for=""> Year of Passing<span class="text-danger">*</span></label>
                 @error('passingyear') <span class="text-danger">{{ $message }}</span> @enderror
-                <input type="number" class="form-control mb-3 radius-20 dark" name="passingyear10" value="{{old('passingyear10')}}" min="2000" max="{{date('Y')}}" placeholder="YYYY">
+                <input type="number" class="form-control mb-3 radius-20 dark" name="passingyear10" value="{{old('passingyear10')}}" min="2000" max="{{date('Y')}}" placeholder="YYYY" required>
               </div>
             </div>
           </div>
@@ -563,7 +563,7 @@
         <div class="col-lg-5 col-sm-12">
           <label for="">Class 10 Certificate (JPG,PDF - Max 5MB) <span class="text-danger">*</span></label>
           @error('certificate10') <span class="text-danger">{{ $message }}</span> @enderror
-          <input type="file" class="form-control mb-3 radius-20 dark" name="certificate10" value="{{old('certificate10')}}" id="certificate10">
+          <input type="file" class="form-control mb-3 radius-20 dark" name="certificate10" id="certificate10" required>
         </div>
 
 
@@ -585,48 +585,48 @@
 
 
                 <td>
-                  <input type="number" class="form-control" name="score10_1" placeholder="Score" value="{{old('score10_1')}}" min="0" max="100">
+                  <input type="number" class="form-control" name="score10_1" placeholder="Score" value="{{old('score10_1')}}" min="0" max="100" required>
                   @error('score10_1') <span class="text-danger">{{ $message }}</span> @enderror
                 </td>
               </tr>
               <tr>
                 <td>
-                  <input type="text" class="form-control" name="subject10_2" placeholder="Major 1" value="{{old('subject10_2')}}">
+                  <input type="text" class="form-control" name="subject10_2" placeholder="Major 1" value="{{old('subject10_2')}}" required>
                 </td>
 
 
                 <td>
-                  <input type="number" class="form-control" name="score10_2" placeholder="Score" value="{{old('score10_2')}}" min="0" max="100">
-                </td>
-              </tr>
-              <tr>
-                <td>
-                  <input type="text" class="form-control" name="subject10_3" placeholder="Major 2" value="{{old('subject10_3')}}">
-                </td>
-
-
-                <td>
-                  <input type="number" class="form-control" name="score10_3" placeholder="Score" value="{{old('score10_3')}}" min="0" max="100">
+                  <input type="number" class="form-control" name="score10_2" placeholder="Score" value="{{old('score10_2')}}" min="0" max="100" required>
                 </td>
               </tr>
               <tr>
                 <td>
-                  <input type="text" class="form-control" name="subject10_4" placeholder="Major 3" value="{{old('subject10_4')}}">
+                  <input type="text" class="form-control" name="subject10_3" placeholder="Major 2" value="{{old('subject10_3')}}" required>
                 </td>
 
 
                 <td>
-                  <input type="number" class="form-control" name="score10_4" placeholder="Score" value="{{old('score10_4')}}" min="0" max="100">
+                  <input type="number" class="form-control" name="score10_3" placeholder="Score" value="{{old('score10_3')}}" min="0" max="100" required>
                 </td>
               </tr>
               <tr>
                 <td>
-                  <input type="text" class="form-control" name="subject10_5" placeholder="Major 4" value="{{old('subject10_5')}}">
+                  <input type="text" class="form-control" name="subject10_4" placeholder="Major 3" value="{{old('subject10_4')}}" required>
                 </td>
 
 
                 <td>
-                  <input type="number" class="form-control" name="score10_5" placeholder="Score" value="{{old('score10_5')}}" min="0" max="100">
+                  <input type="number" class="form-control" name="score10_4" placeholder="Score" value="{{old('score10_4')}}" min="0" max="100" required>
+                </td>
+              </tr>
+              <tr>
+                <td>
+                  <input type="text" class="form-control" name="subject10_5" placeholder="Major 4" value="{{old('subject10_5')}}" required>
+                </td>
+
+
+                <td>
+                  <input type="number" class="form-control" name="score10_5" placeholder="Score" value="{{old('score10_5')}}" min="0" max="100" required>
                 </td>
               </tr>
             </tbody>
@@ -644,7 +644,7 @@
               <div class="col-lg-12 col-sm-12">
                 <label for="">Institution Name <span class="text-danger">*</span></label>
                 @error('institution12') <span class="text-danger">{{ $message }}</span> @enderror
-                <input type="text" class="form-control mb-3 radius-20 dark" name="institution12" value="{{old('institution12')}}">
+                <input type="text" class="form-control mb-3 radius-20 dark" name="institution12" value="{{old('institution12')}}" required>
               </div>
             </div>
           </div>
@@ -653,7 +653,7 @@
               <div class="col-lg-12 col-sm-12">
                 <label for=""> RollNo / Unique Id<span class="text-danger">*</span></label>
                 @error('rollno12') <span class="text-danger">{{ $message }}</span> @enderror
-                <input type="text" class="form-control mb-3 radius-20 dark" name="rollno12" value="{{old('rollno12')}}">
+                <input type="text" class="form-control mb-3 radius-20 dark" name="rollno12" value="{{old('rollno12')}}" required>
               </div>
             </div>
           </div>
@@ -663,7 +663,7 @@
               <div class="col-lg-12 col-sm-12">
                 <label for="">Board<span class="text-danger">*</span></label>
                 @error('board12') <span class="text-danger">{{ $message }}</span> @enderror
-                <select name="board12" class="form-control ">
+                <select name="board12" class="form-control" required>
                   <option value="">Select</option>
                   <option value="isc">ISC</option>
                   <option value="hs">Higher Secondary</option>
@@ -681,15 +681,15 @@
               <div class="col-lg-12 col-sm-12">
                 <label for=""> Year of Passing<span class="text-danger">*</span></label>
                 @error('passingyear12') <span class="text-danger">{{ $message }}</span> @enderror
-                <input type="number" class="form-control mb-3 radius-20 dark" name="passingyear12" value="{{old('passingyear12')}}" min="2000" max="{{date('Y')}}" placeholder="YYYY">
+                <input type="number" class="form-control mb-3 radius-20 dark" name="passingyear12" value="{{old('passingyear12')}}" min="2000" max="{{date('Y')}}" placeholder="YYYY" required>
               </div>
             </div>
           </div>
 
           <div class="col-lg-5 col-sm-12">
-            <label for="">Class 12 Certificate <span class="text-danger">*</span></label>
+            <label for="">Class 12 Certificate (Accepted:JPG, JPEG, PNG | Max Size: 5MB)<span class="text-danger">*</span></label>
             @error('certificate12') <span class="text-danger">{{ $message }}</span> @enderror
-            <input type="file" class="form-control mb-3 radius-20 dark" name="certificate12" value="{{old('certificate12')}}">
+            <input type="file" class="form-control mb-3 radius-20 dark" name="certificate12" required>
           </div>
 
 
@@ -711,38 +711,38 @@
 
 
                   <td>
-                    <input type="number" class="form-control" name="score12_1" placeholder="Score" value="{{old('score12_1')}}" min="0" max="100">
+                    <input type="number" class="form-control" name="score12_1" placeholder="Score" value="{{old('score12_1')}}" min="0" max="100" required>
                     @error('score12_1') <span class="text-danger">{{ $message }}</span> @enderror
                   </td>
                 </tr>
                 <tr>
                   <td>
-                    <input type="text" class="form-control" name="subject12_2" placeholder="Major 1" value="{{old('subject12_2')}}">
+                    <input type="text" class="form-control" name="subject12_2" placeholder="Major 1" value="{{old('subject12_2')}}" required>
                   </td>
 
 
                   <td>
-                    <input type="number" class="form-control" name="score12_2" placeholder="Score" value="{{old('score12_2')}}" min="0" max="100">
-                  </td>
-                </tr>
-                <tr>
-                  <td>
-                    <input type="text" class="form-control" name="subject12_3" placeholder="Major 2" value="{{old('subject12_3')}}">
-                  </td>
-
-
-                  <td>
-                    <input type="number" class="form-control" name="score12_3" placeholder="Score" value="{{old('score12_3')}}" min="0" max="100">
+                    <input type="number" class="form-control" name="score12_2" placeholder="Score" value="{{old('score12_2')}}" min="0" max="100" required>
                   </td>
                 </tr>
                 <tr>
                   <td>
-                    <input type="text" class="form-control" name="subject12_4" placeholder="Major 3" value="{{old('subject12_4')}}">
+                    <input type="text" class="form-control" name="subject12_3" placeholder="Major 2" value="{{old('subject12_3')}}" required>
                   </td>
 
 
                   <td>
-                    <input type="number" class="form-control" name="score12_4" placeholder="Score" value="{{old('score12_4')}}" min="0" max="100">
+                    <input type="number" class="form-control" name="score12_3" placeholder="Score" value="{{old('score12_3')}}" min="0" max="100" required>
+                  </td>
+                </tr>
+                <tr>
+                  <td>
+                    <input type="text" class="form-control" name="subject12_4" placeholder="Major 3" value="{{old('subject12_4')}}" required>
+                  </td>
+
+
+                  <td>
+                    <input type="number" class="form-control" name="score12_4" placeholder="Score" value="{{old('score12_4')}}" min="0" max="100" required>
                   </td>
                 </tr>
 

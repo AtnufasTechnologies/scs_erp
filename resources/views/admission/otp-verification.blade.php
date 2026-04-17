@@ -64,9 +64,11 @@
     @csrf
     <button type="submit" id="resendBtn" class="btn btn-link w-100" disabled>Resend OTP <span id="timer">(02:00)</span></button>
   </form>
-  <a href="{{route('admission.apply.logout')}}">
-    <button class="mb-3 btn btn-dark">Logout</button>
-  </a>
+  <div class="d-flex justify-content-center mt-3">
+    <a href="{{route('admission.apply.logout')}}">
+      <button class="mb-3 btn btn-dark">Logout</button>
+    </a>
+  </div>
 </div>
 
 <script>

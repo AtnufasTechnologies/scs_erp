@@ -118,7 +118,7 @@ class AdmissionController extends Controller
             return redirect()->route('new.admission.login')->withErrors(['registered_no' => 'Registration failed. Please try again.']);
         }
         Auth::login($user, true);
-        return redirect()->route('otp.verification.page', ['id' => $rec->id])->with('success', 'Registration successful. Please verify OTP sent to your registered email and mobile number.');
+        return redirect()->route('otp.verification.page')->with('success', 'Registration successful. Please verify OTP sent to your registered email and mobile number.');
     }
 
 
@@ -163,7 +163,9 @@ class AdmissionController extends Controller
             $usermail = $user->mail_id;
             $this->sendOTPEmail($otp, $usermail);
         }
-        return view('admission.otp-verification');
+        return view('admission. otp-verification', [
+            'userId' => $userId,
+        ]);
     }
 
     public function sendOTPEmail($otp, $email)
@@ -228,7 +230,7 @@ class AdmissionController extends Controller
                 if ($user->otp_verification == 0) {
                     return redirect()->route('otp.verification.page', ['id' => $user->id])->with('info', 'Please verify OTP sent to your registered email and mobile number.');
                 } else {
-                    return redirect()->route('admission.apply.application', ['id' => $user->id, 'name' => Str::slug($name)]);
+                    return redirect()->route('admission.apply.application');
                 }
             } else {
                 return back()->withErrors(['registered_no' => 'Invalid credentials.']);
@@ -279,7 +281,7 @@ class AdmissionController extends Controller
             ]);
 
             $name = Str::slug(trim($user->first_name . ' ' . $user->last_name));
-            return redirect()->route('admission.apply.application', ['id' => $userId, 'name' => $name]);
+            return redirect()->route('admission.apply.application');
         } else {
             return back()->withErrors(['otp' => 'Invalid OTP. Please try again.']);
         }
@@ -919,97 +921,141 @@ class AdmissionController extends Controller
             'local_city' => 'required|string|max:255',
             'local_pincode' => 'required',
             //Class 10 Details
-            // 'institution10' => 'required',
-            // 'rollno10' => 'required|string|max:255',
-            // 'board10' => 'required|string|max:255',
-            // 'passingyear10' => 'required',
-            // 'certificate10' => 'required',
-            // 'percentage10' => 'required',
-            // 'passmark10' => 'required',
+            'institution10' => 'required|string|max:255',
+            'rollno10' => 'required|string|max:255',
+            'board10' => 'required|string|max:255',
+            'passingyear10' => 'required|integer|min:2000|max:' . date('Y'),
+            'certificate10' => 'required|file|max:5120',
             //Class 10th Subjects
-            // 'subject10_1' => 'required|string|max:255',
-            // 'score10_1' => 'required',
-
-            // 'subject10_2' => 'required|string|max:255',
-            // 'score10_2' => 'required',
-
-            // 'subject10_3' => 'required|string|max:255',
-            // 'score10_3' => 'required',
-
-            // 'subject10_4' => 'required|string|max:255',
-            // 'score10_4' => 'required',
-
-            // 'subject10_5' => 'required|string|max:255',
-            // 'score10_5' => 'required',
-
+            'subject10_1' => 'required|string|max:255',
+            'score10_1' => 'required|integer|min:0|max:100',
+            'subject10_2' => 'required|string|max:255',
+            'score10_2' => 'required|integer|min:0|max:100',
+            'subject10_3' => 'required|string|max:255',
+            'score10_3' => 'required|integer|min:0|max:100',
+            'subject10_4' => 'required|string|max:255',
+            'score10_4' => 'required|integer|min:0|max:100',
+            'subject10_5' => 'required|string|max:255',
+            'score10_5' => 'required|integer|min:0|max:100',
 
             //Class 12 Details
-            // 'institution12' => 'required',
-            // 'rollno12' => 'required|string|max:255',
-            // 'board12' => 'required|string|max:255',
-            // 'passingyear12' => 'required',
-            // 'certificate12' => 'required',
-            // 'percentage12' => 'required',
-            // 'passmark12' => 'required',
+            'institution12' => 'required|string|max:255',
+            'rollno12' => 'required|string|max:255',
+            'board12' => 'required|string|max:255',
+            'passingyear12' => 'required|integer|min:2000|max:' . date('Y'),
+            'certificate12' => 'required|file|max:5120',
             //Class 12th Subjects
-            // 'subject12_1' => 'required|string|max:255',
-            // 'score12_1' => 'required',
-
-            // 'subject12_2' => 'required|string|max:255',
-            // 'score12_2' => 'required',
-
-            // 'subject12_3' => 'required|string|max:255',
-            // 'score12_3' => 'required',
-
-            // 'subject12_4' => 'required|string|max:255',
-            // 'score12_4' => 'required',
-
-            // 'subject12_5' => 'required|string|max:255',
-            // 'score12_5' => 'required',
+            'subject12_1' => 'required|string|max:255',
+            'score12_1' => 'required|integer|min:0|max:100',
+            'subject12_2' => 'required|string|max:255',
+            'score12_2' => 'required|integer|min:0|max:100',
+            'subject12_3' => 'required|string|max:255',
+            'score12_3' => 'required|integer|min:0|max:100',
+            'subject12_4' => 'required|string|max:255',
+            'score12_4' => 'required|integer|min:0|max:100',
 
             //Baptism Certificate
         ]);
 
 
 
-        if ($request->religion == 10) {
-            $request->validate([
-                'baptism' => 'required',
-            ]);
-            $baptism =  $request->baptism;
-            $baptismFilename = StaticController::s3_file_uploader($baptism, 'admission_baptisms');
-        }
+        // Robust file upload handling
+        try {
+            if ($request->religion == 10) {
+                $request->validate([
+                    'baptism' => 'required',
+                ]);
+                $baptism =  $request->baptism;
+                if ($baptism && $baptism->isValid()) {
+                    $baptismFilename = StaticController::s3_file_uploader($baptism, 'admission_baptisms');
+                } else {
+                    return back()->withErrors(['baptism' => 'Invalid or missing baptism certificate file.'])->withInput();
+                }
+            }
 
-        // Save application
-        $id = $request->id ?? Auth::id();
-        $user = $id ? AdmissionRegistration::find($id) : null;
-        $userId = $user ? $user->id : null;
-        if (!$userId) {
-            return redirect()->route('new.admission.login')->withErrors(['registered_no' => 'User not found. Please login again.']);
-        }
-        $registrationId = AdmissionRegistration::where('id', $userId)->value('id');
-        $generatedNo = $userId  . rand(1000, 9999);
-        $application = new AdmissionApplication();
+            // Save application
+            $id = $request->id ?? Auth::id();
+            $user = $id ? AdmissionRegistration::find($id) : null;
+            $userId = $user ? $user->id : null;
+            if (!$userId) {
+                return redirect()->route('new.admission.login')->withErrors(['registered_no' => 'User not found. Please login again.']);
+            }
+            $registrationId = AdmissionRegistration::where('id', $userId)->value('id');
+            $generatedNo = $userId  . rand(1000, 9999);
+            $application = new AdmissionApplication();
 
-        $application->user_id = $userId;
-        $application->application_code = $generatedNo;
-        $application->registration_id = $registrationId;
-        $application->department = $request->department;
-        $application->course = $request->course;
-        $application->dob = $request->dob;
-        $application->bloodgroup = $request->bloodgroup;
-        $application->gender = $request->gender;
-        $application->religion = $request->religion;
-        $application->mothertongue = $request->mothertongue;
-        $application->phychallenged = $request->phychallenged;
-        $application->caste = $request->caste;
-        $application->father_name = $request->father_name;
-        $application->mother_name = $request->mother_name;
-        $application->father_contact = $request->father_contact;
-        $application->mother_contact = $request->mother_contact;
-        $application->father_occupation = $request->father_occupation;
-        $application->mother_occupation = $request->mother_occupation;
-        $application->father_qualification = $request->father_qualification;
+            $application->user_id = $userId;
+            $application->application_code = $generatedNo;
+            $application->registration_id = $registrationId;
+            $application->department = $request->department;
+            $application->course = $request->course;
+            $application->dob = $request->dob;
+            $application->bloodgroup = $request->bloodgroup;
+            $application->gender = $request->gender;
+            $application->religion = $request->religion;
+            $application->mothertongue = $request->mothertongue;
+            $application->phychallenged = $request->phychallenged;
+            $application->caste = $request->caste;
+            $application->father_name = $request->father_name;
+            $application->mother_name = $request->mother_name;
+            $application->father_contact = $request->father_contact;
+            $application->mother_contact = $request->mother_contact;
+            $application->father_occupation = $request->father_occupation;
+            $application->mother_occupation = $request->mother_occupation;
+            $application->father_qualification = $request->father_qualification;
+
+            // Handle file uploads with checks
+            $photoFilename = null;
+            $certificate10Filename = null;
+            $certificate12Filename = null;
+            $adhaarFilename = null;
+            $national_id_proofFilename = null;
+
+            if ($request->hasFile('photo') && $request->file('photo')->isValid()) {
+                $photo = $request->file('photo');
+                $photoFilename = StaticController::s3_resize_image_uploader($photo, 'admission_photos', 300, 300);
+            } else {
+                return back()->withErrors(['photo' => 'Invalid or missing photo file.'])->withInput();
+            }
+
+            if ($request->hasFile('certificate10') && $request->file('certificate10')->isValid()) {
+                $certificate10 = $request->file('certificate10');
+                $certificate10Filename = StaticController::s3_file_uploader($certificate10, 'admission_cerificates10');
+            } else {
+                return back()->withErrors(['certificate10' => 'Invalid or missing Class 10 certificate file.'])->withInput();
+            }
+
+            if ($request->hasFile('certificate12') && $request->file('certificate12')->isValid()) {
+                $certificate12 = $request->file('certificate12');
+                $certificate12Filename = StaticController::s3_file_uploader($certificate12, 'admission_cerificates12');
+            } else {
+                return back()->withErrors(['certificate12' => 'Invalid or missing Class 12 certificate file.'])->withInput();
+            }
+
+            if ($request->hasFile('adhaar_doc') && $request->file('adhaar_doc')->isValid()) {
+                $adhaarDoc = $request->file('adhaar_doc');
+                $adhaarFilename = StaticController::s3_file_uploader($adhaarDoc, 'admission_adhaar_docs');
+            }
+
+            if ($request->hasFile('national_id_proof') && $request->file('national_id_proof')->isValid()) {
+                $national_id_proof = $request->file('national_id_proof');
+                $national_id_proofFilename = StaticController::s3_file_uploader($national_id_proof, 'admission_national_id_proofs');
+            }
+
+            $application->photo = $photoFilename;
+            $application->certificate10 = $certificate10Filename;
+            $application->certificate12 = $certificate12Filename;
+            $application->adhaar_doc = $adhaarFilename;
+            $application->national_id_proof = $national_id_proofFilename;
+            if (isset($baptismFilename)) {
+                $application->baptism = $baptismFilename;
+            } else {
+                $application->baptism = null;
+            }
+        } catch (\Exception $e) {
+            \Log::error('File upload error: ' . $e->getMessage());
+            return back()->withErrors(['file_upload' => 'There was a problem uploading your documents. Please try again or contact support.'])->withInput();
+        }
         $application->mother_qualification = $request->mother_qualification;
         $application->guardian_name = $request->guardian_name;
         $application->guardian_contact = $request->guardian_contact;
@@ -1978,6 +2024,46 @@ class AdmissionController extends Controller
         return back()->with('success', 'Application updated successfully.');
     }
 
+    function editRegistration($id)
+    {
+        $registration = AdmissionRegistration::with(['campusmaster', 'countrymaster', 'applicationmaster'])->findOrFail($id);
+        $campuses = Campus::all();
+        $countries = Country::all();
+        return view('admin.admission.edit-registration', [
+            'registration' => $registration,
+            'campuses'     => $campuses,
+            'countries'    => $countries,
+        ]);
+    }
+
+    function updateRegistration(Request $request, $id)
+    {
+        $request->validate([
+            'first_name'       => 'required|string|max:255',
+            'last_name'        => 'required|string|max:255',
+            'mail_id'          => 'required|email|max:255|unique:admission_registrations,mail_id,' . $id,
+            'mobile_no'        => 'required|digits:10|unique:admission_registrations,mobile_no,' . $id,
+            'campus_id'        => 'required',
+            'application_type' => 'required',
+            'country'          => 'required',
+            'account_status'   => 'required',
+        ]);
+
+        AdmissionRegistration::where('id', $id)->update([
+            'first_name'       => $request->first_name,
+            'last_name'        => $request->last_name,
+            'mail_id'          => Str::lower($request->mail_id),
+            'mobile_no'        => trim($request->mobile_no),
+            'campus_id'        => $request->campus_id,
+            'application_type' => $request->application_type,
+            'country'          => $request->country,
+            'account_status'   => $request->account_status,
+            'otp_verification' => $request->otp_verification ?? 0,
+        ]);
+
+        return back()->with('success', 'Registration updated successfully.');
+    }
+
     function updateOtpStatus($id)
     {
         AdmissionRegistration::where('id', $id)->update([
@@ -2014,7 +2100,6 @@ class AdmissionController extends Controller
     function applicantCampusShift(Request $request)
     {
 
-
         $request->validate([
             'application_id' => 'required',
             'campus' => 'required',
@@ -2023,10 +2108,10 @@ class AdmissionController extends Controller
         ]);
 
         $data = AdmissionApplication::with('registrationmaster')->find($request->application_id);
-        $departmentData = Subject::find($request->department);
-        AdmissionRegistration::where('id', $data->registrationmaster->id)->update([
-            'campus_id' => $request->campus,
-            'application_type' => $departmentData->main_program_type,
+        $mainProgram = MainProgram::find($request->campus);
+        AdmissionRegistration::where('id', $data->registration_id)->update([
+            'campus_id' => $mainProgram->campus_id,
+            'application_type' => $mainProgram->name,
         ]);
 
         AdmissionApplication::where('id', $request->application_id)->update([
