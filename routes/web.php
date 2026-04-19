@@ -306,7 +306,7 @@ Route::group(['prefix' => '/erp'], function () {
             Route::post('sms-templates', [AccessController::class, 'smsTemplateStore'])->name('sms.template.store');
             Route::get('sms-template/delete/{id}', [AccessController::class, 'smsTemplateDelete'])->name('sms.template.delete');
             Route::get('activity-logs-dashboard', [AccessController::class, 'activityLogsDashboard'])->name('admin.activity-logs.dashboard');
-            Route::get('activity-logs', [AccessController::class, 'userActivityLogs'])->name('admin.user.activity-logs');
+            Route::get('activity-logs', [AccessController::class, 'userActivityLogs'])->name('admin.user.activityapplication-single-logs');
         });
 
         //admission routes Admin
@@ -355,6 +355,9 @@ Route::group(['prefix' => '/erp'], function () {
 
             Route::get('admin-show-student-application-ug/{id}', [AdmissionController::class, 'adminFillStudentApplicationUg'])->name('admin.fill.student.application.ug');
             Route::post('admin-apply-student-application-ug', [AdmissionController::class, 'adminSubmitStudentApplicationUg'])->name('admin.submit.student.application.ug');
+
+            //Test Incharge Dashboard
+            Route::get('test-incharge/dashboard', [AdmissionController::class, 'testInchargeDashboard'])->name('admission.testincharge.dashboard');
         });
 
         // Exam Registrations Management
@@ -718,6 +721,7 @@ Route::group(['prefix' => '/erp'], function () {
 
         //dept-admission-console
         Route::get('application-list', [AdmissionController::class, 'deptApplicationList'])->name('department.admission.list');
+        Route::get('application-single/{id}', [AdmissionController::class, 'deptApplicationSingle'])->name('department.admission.application-single');
         Route::get('interview-list', [AdmissionController::class, 'deptInterviewList'])->name('department.admission.interview-list');
 
         //Faculty Access

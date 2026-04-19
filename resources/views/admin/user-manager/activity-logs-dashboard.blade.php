@@ -14,7 +14,7 @@ use Illuminate\Support\Str;
         <h4 class="mb-0" style="color: #1a1a1a; font-weight: 700;">Activity Logs Dashboard</h4>
         <small style="color: #6b7280;">Real-time system audit & monitoring</small>
       </div>
-      <a href="{{ route('admin.user.activity-logs') }}" class="btn btn-primary">
+      <a href="{{ route('admin.user.activityapplication-single-logs') }}" class="btn btn-primary">
         <i class="fas fa-list"></i> View All Logs
       </a>
     </div>

@@ -553,8 +553,6 @@ class AdmissionController extends Controller
                 ])->latest()->get();
             }
         } else {
-
-
             if (!empty($request->search)) {
                 $search = $request->search;
                 $data =   AdmissionFirstPhase::with([
@@ -567,11 +565,12 @@ class AdmissionController extends Controller
                         $query->where('campus_id', $campusId);
                     })->latest()->get();
             } else {
-                $data =  AdmissionFirstPhase::with([
+
+                $data = AdmissionFirstPhase::with([
                     'registrationmaster',
                     'applicationinfo',
-                ])->whereHas('registrationmaster.programinfo.campus', function ($query) use ($campusId) {
-                    $query->where('id', $campusId);
+                ])->whereHas('registrationmaster', function ($query) use ($campusId) {
+                    $query->where('campus_id', $campusId);
                 })->latest()->get();
             }
         }
@@ -1573,6 +1572,31 @@ class AdmissionController extends Controller
 
 
     //Adding Dept Console Functions
+    function deptApplicationSingle($id)
+    {
+        $userId = Auth::user()->id;
+        if (StaticController::fetchUserRole() !== 'dept-admin-erp') {
+            return back()->with('info', 'Unauthorized access.');
+        }
+
+        $campusId = UserCampusSetting::where('user_id', $userId)->value('campus_id');
+        $departId = SubjectHasDeptAdmin::where('user_id', $userId)->value('subject_id');
+
+        $data = AdmissionApplication::with([
+            'registrationmaster.countrymaster',
+        ])->where('id', $id)
+            ->where('department', $departId)
+            ->whereHas('registrationmaster', function ($query) use ($campusId) {
+                $query->when($campusId, fn($q) => $q->where('campus_id', $campusId));
+            })
+            ->whereHas('registrationmaster.programinfo', function ($query) {
+                $query->where('name', 'UG');
+            })
+            ->firstOrFail();
+
+        return view('admin.admission.ug.application-single', ['data' => $data]);
+    }
+
     function deptApplicationList()
     {
 
@@ -1585,7 +1609,6 @@ class AdmissionController extends Controller
             } else {
 
                 $data = AdmissionApplication::whereHas('registrationmaster', function ($query) use ($campusId) {
-                    $query->where('application_type', 'UG');
                     $query->where('campus_id', $campusId);
                 })->with([
                     'registrationmaster.countrymaster',
@@ -1632,11 +1655,10 @@ class AdmissionController extends Controller
                         'registrationmaster',
                         'applicationinfo',
                     ])->whereHas('applicationinfo', function ($query) use ($departId) {
-
                         $query->where('department', $departId);
                     })
-                        ->whereHas('registrationmaster.programinfo.campus', function ($query) use ($campusId) {
-                            $query->where('id', $campusId);
+                        ->whereHas('registrationmaster', function ($query) use ($campusId) {
+                            $query->where('campus_id', $campusId);
                         })->latest()->get();
                 }
             }
@@ -2280,5 +2302,22 @@ class AdmissionController extends Controller
     function technicalMode()
     {
         return view('admission.technical-mode');
+    }
+
+    function testInchargeDashboard()
+    {
+        $campusId =  StaticController::fetchCampusSettings();
+        $batch = BatchMaster::where('admission_active_batch', 1)->value('batch_name');
+
+        $data = AdmissionFirstPhase::with([
+            'registrationmaster',
+            'applicationinfo',
+        ])->whereHas('registrationmaster', function ($query) use ($campusId, $batch) {
+            $query->where('batch', $batch);
+            $query->where('campus_id', $campusId);
+        })->latest()->get();
+
+
+        return view('admin.admission.test-incharge.dashboard', ['data' => $data]);
     }
 }

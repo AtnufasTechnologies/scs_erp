@@ -10,33 +10,23 @@ $programs = Qs::getProgramGroups();
 ?>
 
 @include('includes.header')
-@if($userRoleType == 'dept-admin-erp')
+
 
 <div class="container-fluid">
   <nav class="navbar navbar-expand-lg navbar-dark mb-4 custom-navbar"
     style="background: linear-gradient(135deg, #17472f 0%, #8931f6 100%); border-radius: 0.75rem;">
     <div class=" container-fluid">
       <img src="{{ asset('admin/images/logo.png') }}" alt="Logo" style="max-height: 50px;" class="me-2">
-      <h3><span class="text-light">Interview List</span></h3>
-      <div class="d-flex">
-
-
-        <a href="{{ route('department.dashboard') }}" class="btn btn-light">
-          << Back
-            </a>
-      </div>
+      <h3><span class="text-light">Interview | Selection First Phase</span></h3>
     </div>
   </nav>
 </div>
-@else
-@include('admin.admission.sidebar')
-@endif
+
 
 <div class="container-fluid">
   <div class="row">
     <div class="col-lg-4">
-      <h3>Interview | Selection First Phase </h3>
-      Records Found - {{ $data->count() }}
+      <h3> Records Found - {{ $data->count() }}</h3>
     </div>
 
     <div class="col-lg-3 offset-lg-5">
@@ -95,7 +85,7 @@ $programs = Qs::getProgramGroups();
               </span></label>
 
           </div>
-          <a href="{{route('admin.admission.ug.application-single', ['id' => $item->applicationinfo->id])}}"><button class="cta-button">View Application# {{$item->applicationinfo->application_id}}</button></a>
+          <a href="{{ route('download.admission.application-form', $item->applicationinfo->application_code) }}"><button class="cta-button">View Application# {{$item->applicationinfo->application_code}}</button></a>
           <div class="stats">
             <div class="stat-item">
               <div class="stat-value"> {{$item->proficiency_test_remarks ?? 'No Result'}} </div>
@@ -139,13 +129,14 @@ $programs = Qs::getProgramGroups();
           <div class="modal-dialog">
             <div class="modal-content">
               <div class="modal-header">
-                <h5 class="modal-title" id="updateStatusModalLabel{{ $item->id }}">Update Status - {{ $item->applicationinfo->application_id }}</h5>
+                <h5 class="modal-title" id="updateStatusModalLabel{{ $item->id }}">Update Status - {{ $item->applicationinfo->application_code }}</h5>
                 <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
               </div>
               <form action="{{ route('admission.ug.phase1.update-status', $item->id) }}" method="POST">
                 @csrf
                 @method('PUT')
                 <div class="modal-body">
+                  @if($userRoleType == 'admission-incharge')
                   <div class="mb-3">
                     <label for="document_verified{{ $item->id }}" class="form-label">Document Verified</label>
                     <select class="form-select" id="document_verified{{ $item->id }}" name="document_verified">
@@ -153,17 +144,22 @@ $programs = Qs::getProgramGroups();
                       <option value="1" {{ $item->document_verified == 1 ? 'selected' : '' }}>Verified</option>
                     </select>
                   </div>
-                  <div class="mp-3">
+                  @endif
+                  @if($userRoleType == 'admission-test-incharge')
+                  <div class="mb-3">
                     <label for="proficiency_test_status{{ $item->id }}" class="form-label">English Proficiency Test Status</label>
                     <select class="form-select" id="proficiency_test_status{{ $item->id }}" name="proficiency_test_status">
                       <option value="0" {{ $item->proficiency_test_status == 0 ? 'selected' : '' }}>Pending</option>
                       <option value="1" {{ $item->proficiency_test_status == 1 ? 'selected' : '' }}>Done</option>
                     </select>
                   </div>
+
                   <div class="mb-3">
                     <label for="proficiency_test_remarks{{ $item->id }}" class="form-label">English Proficiency Test Remarks</label>
                     <input class="form-control" id="proficiency_test_remarks{{ $item->id }}" name="proficiency_test_remarks" value="{{ $item->proficiency_test_remarks }}">
                   </div>
+                  @endif
+                  @if($userRoleType == 'dept-admin-erp')
                   <div class="mb-3">
                     <label for="dept_interview{{ $item->id }}" class="form-label">Department Interview</label>
                     <select class="form-select" id="dept_interview{{ $item->id }}" name="dept_interview">
@@ -171,6 +167,9 @@ $programs = Qs::getProgramGroups();
                       <option value="1" {{ $item->dept_interview == 1 ? 'selected' : '' }}>Completed</option>
                     </select>
                   </div>
+                  @endif
+
+                  @if($userRoleType == 'principal' || $userRoleType == 'vice-principal')
                   <div class="mb-3">
                     <label for="mgt_interview_status{{ $item->id }}" class="form-label">Management Interview</label>
                     <select class="form-select" id="mgt_interview_status{{ $item->id }}" name="mgt_interview_status">
@@ -178,20 +177,26 @@ $programs = Qs::getProgramGroups();
                       <option value="1" {{ $item->mgt_interview_status == 1 ? 'selected' : '' }}>Completed</option>
                     </select>
                   </div>
+                  @endif
+                  @if($userRoleType == 'dept-admin-erp')
                   <div class="mb-3">
                     <label for="dept_interview_remark{{ $item->id }}" class="form-label">Department Remark</label>
                     <textarea class="form-control" id="dept_interview_remark{{ $item->id }}" name="dept_interview_remark" rows="2">{{ $item->dept_interview_remark }}</textarea>
                   </div>
+                  @endif
+                  @if($userRoleType == 'principal' || $userRoleType == 'vice-principal')
                   <div class="mb-3">
                     <label for="mgt_interview_remark{{ $item->id }}" class="form-label">Management Remark</label>
                     <textarea class="form-control" id="mgt_interview_remark{{ $item->id }}" name="mgt_interview_remark" rows="2">{{ $item->mgt_interview_remark }}</textarea>
                   </div>
+
                   <div class="mb-3">
                     <select class="form-select" id="final_status{{ $item->id }}" name="final_status">
                       <option value="0" {{ $item->final_status == 0 ? 'selected' : '' }}>Pending</option>
                       <option value="1" {{ $item->final_status == 1 ? 'selected' : '' }}>Selected</option>
                     </select>
                   </div>
+                  @endif
                 </div>
                 <div class="modal-footer">
                   <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>

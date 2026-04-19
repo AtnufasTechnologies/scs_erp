@@ -1161,7 +1161,7 @@ $roleType = UserHasRole::where('user_id', $userId)->value('role_name');
           </a>
         </li>
         <li>
-          <a href="{{route('admin.user.activity-logs')}}">
+          <a href="{{route('admin.user.activityapplication-single-logs')}}">
             <div class="parent-icon">
               <i class="fas fa-history"></i>
             </div>

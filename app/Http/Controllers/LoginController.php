@@ -63,6 +63,9 @@ class LoginController extends Controller
                 } else if ($roleType == 'admission-incharge') {
                     //Admission Officer Dashboard
                     return redirect()->route('admission.dashboard')->with('success', 'Login Success');
+                } else if ($roleType == 'admission-test-incharge') {
+                    //Admission Test Incharge Dashboard
+                    return redirect()->route('admission.testincharge.dashboard')->with('success', 'Login Success');
                 } else {
                     //for all Super Admin| Office assistane| Admin | IT CEll
                     return redirect('erp/admin/dashboard')->with('success', 'Login Success');
