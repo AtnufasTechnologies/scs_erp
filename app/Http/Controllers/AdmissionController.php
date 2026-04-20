@@ -44,6 +44,8 @@ use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\View;
 use Mews\Captcha\Captcha;
 use Illuminate\Support\Str;
+use Maatwebsite\Excel\Facades\Excel;
+use App\Exports\GenericExport;
 
 
 class AdmissionController extends Controller
@@ -575,6 +577,51 @@ class AdmissionController extends Controller
             }
         }
         return view('admin.admission.ug.phase1', ['data' => $data]);
+    }
+
+    public function exportPhase1AllApplicants()
+    {
+        $campusId = StaticController::fetchCampusSettings();
+
+        if ($campusId == null) {
+            $data = AdmissionFirstPhase::with([
+                'registrationmaster',
+                'applicationinfo.stdprogramMaster',
+            ])->latest()->get();
+        } else {
+            $data = AdmissionFirstPhase::with([
+                'registrationmaster',
+                'applicationinfo.stdprogramMaster',
+            ])->whereHas('registrationmaster', function ($query) use ($campusId) {
+                $query->where('campus_id', $campusId);
+            })->latest()->get();
+        }
+
+        $export = new GenericExport($data, 'admin.admission.ug.phase1-export');
+        return Excel::download($export, 'phase1-all-applicants-' . date('Y-m-d') . '.xlsx');
+    }
+
+    public function exportPhase1SelectedApplicants()
+    {
+        $campusId = StaticController::fetchCampusSettings();
+
+        if ($campusId == null) {
+            $data = AdmissionFirstPhase::with([
+                'registrationmaster',
+                'applicationinfo.stdprogramMaster',
+            ])->where('final_status', 1)->latest()->get();
+        } else {
+            $data = AdmissionFirstPhase::with([
+                'registrationmaster',
+                'applicationinfo.stdprogramMaster',
+            ])->where('final_status', 1)
+                ->whereHas('registrationmaster', function ($query) use ($campusId) {
+                    $query->where('campus_id', $campusId);
+                })->latest()->get();
+        }
+
+        $export = new GenericExport($data, 'admin.admission.ug.phase1-export');
+        return Excel::download($export, 'phase1-selected-applicants-' . date('Y-m-d') . '.xlsx');
     }
 
 
@@ -1642,7 +1689,7 @@ class AdmissionController extends Controller
                     $search = $request->search;
                     $data =   AdmissionFirstPhase::with([
                         'registrationmaster',
-                        'applicationinfo',
+                        'applicationinfo.stdCourseMaster',
                     ])->whereHas('applicationinfo', function ($query) use ($search, $departId) {
                         $query->where('application_id', 'like', '%' . $search . '%');
                         $query->where('department', $departId);
@@ -1653,7 +1700,7 @@ class AdmissionController extends Controller
                 } else {
                     $data =  AdmissionFirstPhase::with([
                         'registrationmaster',
-                        'applicationinfo',
+                        'applicationinfo.stdCourseMaster',
                     ])->whereHas('applicationinfo', function ($query) use ($departId) {
                         $query->where('department', $departId);
                     })
@@ -1662,6 +1709,7 @@ class AdmissionController extends Controller
                         })->latest()->get();
                 }
             }
+
             return view('admin.admission.ug.phase1', ['data' => $data]);
         } else {
             return back()->with('info', 'Unauthorized access.');

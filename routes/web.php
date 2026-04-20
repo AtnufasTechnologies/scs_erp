@@ -319,6 +319,8 @@ Route::group(['prefix' => '/erp'], function () {
             Route::get('ug-applications', [AdmissionController::class, 'ugApplications'])->name('admission.ug.applications');
             Route::get('application-single/{id}', [AdmissionController::class, 'ugApplicationSingle'])->name('admin.admission.ug.application-single');
             Route::get('phase1', [AdmissionController::class, 'ugPhase1Registrations'])->name('admission.ug.phase1');
+            Route::get('phase1/export-all', [AdmissionController::class, 'exportPhase1AllApplicants'])->name('admission.ug.phase1.export-all');
+            Route::get('phase1/export-selected', [AdmissionController::class, 'exportPhase1SelectedApplicants'])->name('admission.ug.phase1.export-selected');
             Route::get('phase2', [AdmissionController::class, 'ugPhase2Registrations'])->name('admission.ug.phase2');
             Route::put('phase2/update-status/{id}', [AdmissionController::class, 'updateUgPhase2Status'])->name('admission.ug.phase2.update-status');
             //controls

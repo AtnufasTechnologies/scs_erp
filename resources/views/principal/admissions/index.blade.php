@@ -18,6 +18,7 @@
 
     <!--summary stats-->
     <div class="row mt-3">
+      <a href="{{route('admission.ug.phase1')}}"><button class="btn btn-success mb-3">Phase I Interview</button></a>
       @foreach($campuses as $campus)
       <div class="col-xl-6 col-md-6">
         <div class="card border-0 shadow-sm">
@@ -38,6 +39,7 @@
           </div>
         </div>
       </div>
+
       @endforeach
     </div>
 

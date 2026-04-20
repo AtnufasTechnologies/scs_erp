@@ -4,7 +4,9 @@ namespace App\Helpers;
 
 use App\Models\AdmissionFinalPhase;
 use App\Models\AdmissionFirstPhase;
+use App\Models\BatchMaster;
 use App\Models\StudentProgram;
+use App\Models\SubjectHasStudentProgam;
 use App\Models\UserCampusSetting;
 use Illuminate\Support\Facades\Auth;
 
@@ -217,5 +219,19 @@ class Qs
     $onesDigit = $number % 10;
 
     return trim($tens[$tensDigit] . ' ' . $ones[$onesDigit]);
+  }
+
+
+  static function getAvailableCourseSeats($campusId)
+  {
+    $batchnfo = BatchMaster::where('admission_active_batch', 1)->first();
+    $batch_id = $batchnfo->id;
+    $data = SubjectHasStudentProgam::where('campus_id', $campusId)
+      ->where('batch_id', $batch_id)
+      ->where('total_seats', '!=', null)
+      ->where('total_available_seats', '!=', 0)
+      ->with('studentprograminfo')
+      ->get();
+    return $data;
   }
 }
