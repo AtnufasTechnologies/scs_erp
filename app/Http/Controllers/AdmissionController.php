@@ -46,7 +46,7 @@ use Mews\Captcha\Captcha;
 use Illuminate\Support\Str;
 use Maatwebsite\Excel\Facades\Excel;
 use App\Exports\GenericExport;
-
+use App\Models\ApplicantProgramChangeInfo;
 
 class AdmissionController extends Controller
 {
@@ -545,6 +545,8 @@ class AdmissionController extends Controller
                 $data =   AdmissionFirstPhase::with([
                     'registrationmaster',
                     'applicationinfo',
+                    'programChangeInfo.oldProgram',
+                    'programChangeInfo.newProgram',
                 ])->whereHas('applicationinfo', function ($query) use ($search) {
                     $query->where('application_code', 'like', '%' . $search . '%');
                 })->latest()->get();
@@ -552,6 +554,8 @@ class AdmissionController extends Controller
                 $data =   AdmissionFirstPhase::with([
                     'registrationmaster',
                     'applicationinfo',
+                    'programChangeInfo.oldProgram',
+                    'programChangeInfo.newProgram',
                 ])->latest()->get();
             }
         } else {
@@ -560,6 +564,8 @@ class AdmissionController extends Controller
                 $data =   AdmissionFirstPhase::with([
                     'registrationmaster',
                     'applicationinfo',
+                    'programChangeInfo.oldProgram',
+                    'programChangeInfo.newProgram',
                 ])->whereHas('applicationinfo', function ($query) use ($search) {
                     $query->where('application_code', 'like', '%' . $search . '%');
                 })
@@ -571,12 +577,29 @@ class AdmissionController extends Controller
                 $data = AdmissionFirstPhase::with([
                     'registrationmaster',
                     'applicationinfo',
+                    'programChangeInfo.oldProgram',
+                    'programChangeInfo.newProgram',
                 ])->whereHas('registrationmaster', function ($query) use ($campusId) {
                     $query->where('campus_id', $campusId);
                 })->latest()->get();
             }
         }
-        return view('admin.admission.ug.phase1', ['data' => $data]);
+
+        // Separate transferred applicants
+        $transferredApplicants = $data->filter(function ($item) {
+            return $item->programChangeInfo !== null;
+        });
+
+        // Get transferred applicants with pending department interviews
+        $transferredPendingInterview = $transferredApplicants->filter(function ($item) {
+            return $item->dept_interview == 0;
+        });
+
+        return view('admin.admission.ug.phase1', [
+            'data' => $data,
+            'transferredApplicants' => $transferredApplicants,
+            'transferredPendingInterview' => $transferredPendingInterview
+        ]);
     }
 
     public function exportPhase1AllApplicants()
@@ -823,8 +846,6 @@ class AdmissionController extends Controller
         $phase1Record->save();
 
 
-
-
         if (($request->final_status == 1)) {
             $checkExistingRecord =  AdmissionFinalPhase::where('reg_id', $phase1Record->reg_id)->first();
             if ($checkExistingRecord == null) {
@@ -844,17 +865,28 @@ class AdmissionController extends Controller
         ]);
         //Find Student Program Groupd
         $new_program = $request->new_program;
-        $programGroupId = ProgramGroup::where('program_id', $new_program)->value('id');
+        $comboInfo =  SubjectHasStudentProgam::where('student_program_id', $new_program)->firstOrFail();
 
         $phase1Record = AdmissionFirstPhase::findOrFail($id);
         $application = AdmissionApplication::findOrFail($phase1Record->application_id);
+        $old_program_id = $application->course;;
 
         // Update the programme_id in the application
-        $application->program_group_id = $programGroupId;
-        $application->programme_id = $request->new_program;
+        $application->department = $comboInfo->subject_id;
+        $application->course = $new_program;
         $application->save();
 
-        return back()->with('success', 'Applicant program shifted successfully.');
+        //Add Program Change 
+        ApplicantProgramChangeInfo::create([
+            'registration_id' => $request->registration_id,
+            'application_id' => $request->application_id,
+            'old_program_id' => $old_program_id,
+            'new_program_id' => $new_program,
+            'changed_by' => Auth::user()->id,
+            'reason' => $request->reason ?? 'Not specified',
+        ]);
+
+        return back()->with('success', 'Applicant Program Shifted Successfully.');
     }
 
 

@@ -14,6 +14,8 @@ class AdmissionApplication extends Model
     protected $table = 'admission_applications';
 
     protected $fillable = [
+        'department',
+        'course',
         'application_code',
         'payment_gateway_ref',
         'payment_gateway_status',
@@ -133,5 +135,10 @@ class AdmissionApplication extends Model
     function bloodgroupmaster()
     {
         return $this->hasOne(BloodGroupMaster::class, 'id', 'bloodgroup');
+    }
+
+    function programChangeInfo()
+    {
+        return $this->hasOne(ApplicantProgramChangeInfo::class, 'application_id', 'id');
     }
 }
