@@ -901,14 +901,14 @@ class AdmissionController extends Controller
                 $search = $request->search;
                 $data =   AdmissionFinalPhase::with([
                     'registrationmaster',
-                    'applicationinfo',
+                    'applicationinfo.stdCourseMaster',
                 ])->whereHas('applicationinfo', function ($query) use ($search) {
                     $query->where('application_id', 'like', '%' . $search . '%');
                 })->latest()->get();
             } else {
                 $data =   AdmissionFinalPhase::with([
                     'registrationmaster',
-                    'applicationinfo',
+                    'applicationinfo.stdCourseMaster',
                 ])->latest()->get();
             }
         } else {
@@ -918,19 +918,19 @@ class AdmissionController extends Controller
                 $search = $request->search;
                 $data =   AdmissionFinalPhase::with([
                     'registrationmaster',
-                    'applicationinfo',
+                    'applicationinfo.stdCourseMaster',
                 ])->whereHas('applicationinfo', function ($query) use ($search) {
                     $query->where('application_id', 'like', '%' . $search . '%');
                 })
-                    ->whereHas('registrationmaster.programinfo.campus', function ($query) use ($campusId) {
-                        $query->where('id', $campusId);
+                    ->whereHas('registrationmaster', function ($query) use ($campusId) {
+                        $query->where('campus_id', $campusId);
                     })->latest()->get();
             } else {
                 $data =  AdmissionFinalPhase::with([
                     'registrationmaster',
-                    'applicationinfo',
-                ])->whereHas('registrationmaster.programinfo.campus', function ($query) use ($campusId) {
-                    $query->where('id', $campusId);
+                    'applicationinfo.stdCourseMaster',
+                ])->whereHas('registrationmaster', function ($query) use ($campusId) {
+                    $query->where('campus_id', $campusId);
                 })->latest()->get();
             }
         }
@@ -1617,6 +1617,8 @@ class AdmissionController extends Controller
                 'close_date_ug' => $request->close_date_ug,
                 'instructions_ug' => $request->instructions_ug,
                 'application_fee_ug' => $request->application_fee_ug,
+                'phase1_inst_ug' => $request->phase1_inst_ug,
+                'phase2_inst_ug' => $request->phase2_inst_ug,
 
             ]
         );
@@ -1634,6 +1636,8 @@ class AdmissionController extends Controller
                 'close_date_pg' => $request->close_date_pg,
                 'instructions_pg' => $request->instructions_pg,
                 'application_fee_pg' => $request->application_fee_pg,
+                'phase1_inst_pg' => $request->phase1_inst_pg,
+                'phase2_inst_pg' => $request->phase2_inst_pg,
             ]
         );
 
@@ -2399,5 +2403,29 @@ class AdmissionController extends Controller
 
 
         return view('admin.admission.test-incharge.dashboard', ['data' => $data]);
+    }
+
+    function overrideUgPhase1Status($id)
+    {
+
+        $data = AdmissionFirstPhase::find($id);
+        if (!$data) {
+            return back()->with('error', 'Record not found.');
+        }
+        AdmissionFirstPhase::where('id', $id)->update([
+            'document_verified' => 1,
+            'proficiency_test_status' => 1,
+            'dept_interview' => 1,
+            'mgt_interview_status' => 1,
+            'final_status' => 1,
+        ]);
+
+        //shift candidate to Phase 2 table
+        AdmissionFinalPhase::create([
+            'application_id' => $data->application_id,
+            'reg_id' => $data->reg_id,
+        ]);
+
+        return back()->with('success', 'UG Phase 1 status updated successfully.');
     }
 }

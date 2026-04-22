@@ -59,11 +59,10 @@ $programs = Qs::getProgramGroups();
 
 <div class="row">
   @foreach ($data as $item)
-  <div class="col-lg-3">
-
+  <div class="col-lg-4">
     <div class="profile-card">
       <div class="profile-image">
-        <img src="{{asset('admin/images/logo.png')}}" alt="proile picture" />
+        <img src="{{Storage::disk('s3')->url($item->applicationinfo->photo)}}" alt="proile picture" />
       </div>
       <div class="profile-info">
         @if(Qs::fetchPhase1FinalStatus($item->reg_id) == 1)
@@ -81,7 +80,7 @@ $programs = Qs::getProgramGroups();
         <div class="profile-title">{{ $item->registrationmaster->mobile_no  }}</div>
         <div class="profile-title">{{ $item->registrationmaster->mail_id  }}</div>
         <div class="profile-bio">
-          {{ $item->applicationinfo->stdprogramMaster->code }} - {{ $item->applicationinfo->stdprogramMaster->name }}
+          {{ $item->applicationinfo->stdCourseMaster->code ?? '-' }} - {{ $item->applicationinfo->stdCourseMaster->name ?? '-' }}
         </div>
         <label for="">Interview Slot: {{$item->interview_datetime}}</label>
 
@@ -137,12 +136,7 @@ $programs = Qs::getProgramGroups();
 
       </div>
     </div>
-
-
-
   </div>
-
-
   <!-- Modal for Update Status -->
   <div class="modal fade" id="updateStatusModal{{ $item->id }}" tabindex="-1" aria-labelledby="updateStatusModalLabel{{ $item->id }}" aria-hidden="true">
     <div class="modal-dialog">

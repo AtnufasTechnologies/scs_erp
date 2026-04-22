@@ -143,6 +143,7 @@
               <th>Exemption Type</th>
               <th>Fee Structure</th>
               <th>Fixed Late Fee (₹)</th>
+              <th>Payment Status</th>
               <th>Reason</th>
               <th>Approved By</th>
               <th>Approved Date</th>
@@ -154,7 +155,7 @@
             @forelse($exemptions as $index => $exemption)
             <tr>
               <td>{{ $index + 1 }}</td>
-              <td>{{ $exemption->student->roll_no ?? 'N/A' }}</td>
+              <td><span class="text-uppercase">{{ $exemption->student->roll_no ?? 'N/A' }}</span></td>
               <td>{{ ($exemption->student->first_name ?? '') . ' ' . ($exemption->student->last_name ?? '') }}</td>
               <td>
                 @if(is_null($exemption->fee_structure_id))
@@ -169,6 +170,27 @@
                 ₹{{ number_format($exemption->fixed_late_fee, 2) }}
                 @else
                 <span class="text-muted">N/A</span>
+                @endif
+              </td>
+              <td>
+                @if(is_null($exemption->fee_structure_id))
+                <span class="text-muted">N/A (Blanket)</span>
+                @else
+                @php
+                $isPaid = false;
+                if($exemption->student && $exemption->fee_structure_id) {
+                $payment = \App\Models\StudentPayment::where('roll_no', $exemption->student->roll_no)
+                ->where('fee_structure_id', $exemption->fee_structure_id)
+                ->where('status', 'success')
+                ->first();
+                $isPaid = !is_null($payment);
+                }
+                @endphp
+                @if($isPaid)
+                <span class="badge bg-success"><i class="fa fa-check-circle"></i> Paid</span>
+                @else
+                <span class="badge bg-danger"><i class="fa fa-times-circle"></i> Unpaid</span>
+                @endif
                 @endif
               </td>
               <td>{{ $exemption->reason }}</td>

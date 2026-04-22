@@ -1,3 +1,9 @@
+<?php
+
+use App\Models\AdmissionSetting;
+
+$admissioninfo = AdmissionSetting::find(1);
+?>
 @include('includes.header')
 
 <header class="profile-header">
@@ -67,7 +73,96 @@
             <strong>Salesian College {{ $data->registrationmaster->campusmaster->name }}</strong>.
           </p>
           <p>Please be prepared and bring all necessary documents.</p>
-          <a href="" class="btn btn-primary">Instructions for Interview</a><br>
+
+          @php
+          $needsUpdate = false;
+          $updateMessages = [];
+
+          // Check document verification status
+          if($data->phaseoneinfo->document_verified == 0) {
+          $needsUpdate = true;
+          $updateMessages[] = 'Document verification is pending. Please ensure all documents are accurate and complete.';
+          }
+
+          // Check if there are remarks from department
+          if(!empty($data->phaseoneinfo->dept_interview_remark)) {
+          $needsUpdate = true;
+          $updateMessages[] = 'Department Remark: ' . $data->phaseoneinfo->dept_interview_remark;
+          }
+
+          // Check if there are remarks from management
+          if(!empty($data->phaseoneinfo->mgt_interview_remark)) {
+          $needsUpdate = true;
+          $updateMessages[] = 'Management Remark: ' . $data->phaseoneinfo->mgt_interview_remark;
+          }
+
+          // Check proficiency test remarks
+          if(!empty($data->phaseoneinfo->proficiency_test_remarks)) {
+          $needsUpdate = true;
+          $updateMessages[] = 'Proficiency Test Remark: ' . $data->phaseoneinfo->proficiency_test_remarks;
+          }
+          @endphp
+
+          @if($needsUpdate)
+          <div class="alert alert-warning mt-3" role="alert">
+            <h5 class="alert-heading"><i class="fa fa-exclamation-triangle"></i> Updates</h5>
+            <hr>
+            <ul class="text-start mb-0">
+
+              <li>Document Verified
+                @if($data->phaseoneinfo->document_verified == 1)
+                <i class="fa fa-check-circle text-success fa-lg"></i>
+                @else
+                <i class="fa fa-times-circle text-danger fa-lg"></i>
+                @endif
+              </li>
+              <li>Proficiency Test
+                @if($data->phaseoneinfo->proficiency_test_status == 1)
+                <i class="fa fa-check-circle text-success fa-lg"></i>
+                @else
+                <i class="fa fa-times-circle text-danger fa-lg"></i>
+                @endif
+              </li>
+              <li>Proficiency Test Marks - {{ $data->phaseoneinfo->proficiency_test_remarks ?? 'Pending...' }}</li>
+
+              </li>
+              <li>
+                Departmental Interview
+                @if($data->phaseoneinfo->dept_interview == 1)
+                <i class="fa fa-check-circle text-success fa-lg"></i>
+                @else
+                <i class="fa fa-times-circle text-danger fa-lg"></i>
+                @endif
+              </li>
+              <li>
+                Management Interview
+                @if($data->phaseoneinfo->mgt_interview_status == 1)
+                <i class="fa fa-check-circle text-success fa-lg"></i>
+                @else
+                <i class="fa fa-times-circle text-danger fa-lg"></i>
+                @endif
+              </li>
+            </ul>
+            <hr>
+            <button class="btn {{ $data->phaseoneinfo->final_status  == 1 ? 'btn-success': 'btn-dark' }}"> Final Status: {{ $data->phaseoneinfo->final_status  == 1 ? 'Selected ': 'Pending...' }}</span>
+          </div>
+          @endif
+
+
+          <button class="btn btn-warning mt-3" data-bs-toggle="modal" data-bs-target="#phase1Instruction">Instructions</button><br>
+          <div class="modal fade" id="phase1Instruction" tabindex="-1" role="dialog" aria-labelledby="phase1InstructionLabel" aria-hidden="true">
+            <div class="modal-dialog modal-lg" role="document">
+              <div class="modal-content">
+                <div class="modal-header">
+                  <h5 class="modal-title" id="phase1InstructionLabel">Instructions for Interview</h5>
+                  <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                  <?php echo $admissioninfo->phase1_inst_ug; ?>
+                </div>
+              </div>
+            </div>
+          </div>
         </div>
       </div>
     </div>
@@ -81,7 +176,20 @@
           <p>Visit College Office within 5 Days to Make Payment and Reserve Your Slot.
             <strong>Salesian College {{ $data->registrationmaster->campusmaster->name }}</strong>.
           </p>
-          <a href="" class="btn btn-primary">Instructions for Admission</a><br>
+          <button class="btn btn-warning" data-bs-toggle="modal" data-bs-target="#phase2Instruction">Instructions</button><br>
+          <div class="modal fade" id="phase2Instruction" tabindex="-1" role="dialog" aria-labelledby="phase2InstructionLabel" aria-hidden="true">
+            <div class="modal-dialog modal-lg" role="document">
+              <div class="modal-content">
+                <div class="modal-header">
+                  <h5 class="modal-title" id="phase2InstructionLabel">Instructions for Admission</h5>
+                  <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                  <?php echo $admissioninfo->phase2_inst_ug; ?>
+                </div>
+              </div>
+            </div>
+          </div>
         </div>
       </div>
     </div>
