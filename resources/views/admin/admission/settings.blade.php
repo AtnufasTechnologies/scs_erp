@@ -37,7 +37,18 @@ $batch = BatchMaster::where('admission_active_batch', 1)->first();
 
             <div class="mb-3">
               <h6 class="mb-0">Instructions for Candidate</h6>
-              <textarea name="instructions_ug" class="editor">{{$data->instructions_ug}}</textarea>
+              <textarea name="instructions_ug" class="phase1-ug"><?php echo $data->instructions_ug; ?></textarea>
+            </div>
+
+            <div class="mb-3">
+              <h6 class="mb-0">Phase 1 Selection - Instructions for Candidate</h6>
+              <textarea name="phase1_inst_ug" class="editor2"><?php echo $data->phase1_inst_ug; ?></textarea>
+            </div>
+
+
+            <div class="mb-3">
+              <h6 class="mb-0">Phase 2 Selection - Instructions for Candidate</h6>
+              <textarea name="phase2_inst_ug" class="editor2"><?php echo $data->phase2_inst_ug; ?></textarea>
             </div>
 
             <button type="submit" class="btn btn-success w-100">Update Settings</button>
@@ -75,7 +86,17 @@ $batch = BatchMaster::where('admission_active_batch', 1)->first();
 
             <div class="mb-3">
               <h6 class="mb-0">Instructions for Candidate</h6>
-              <textarea name="instructions_pg" class="editor2">{{$data->instructions_pg}}</textarea>
+              <textarea name="instructions_pg" class="editor2"><?php echo $data->instructions_pg; ?></textarea>
+            </div>
+
+            <div class="mb-3">
+              <h6 class="mb-0">Phase 1 Selection - Instructions for Candidate</h6>
+              <textarea name="phase1_inst_pg" class="editor2"><?php echo $data->phase1_inst_pg; ?></textarea>
+            </div>
+
+            <div class="mb-3">
+              <h6 class="mb-0">Phase 2 Selection - Instructions for Candidate</h6>
+              <textarea name="phase2_inst_pg" class="editor2"><?php echo $data->phase2_inst_pg; ?></textarea>
             </div>
             <button type="submit" class="btn btn-success w-100">Update Settings</button>
           </form>
@@ -87,4 +108,58 @@ $batch = BatchMaster::where('admission_active_batch', 1)->first();
   </div>
 
 </div>
+
 @include('includes.footer')
+
+<script>
+  document.addEventListener('DOMContentLoaded', function() {
+    // Check if ClassicEditor is available
+    if (typeof ClassicEditor === 'undefined') {
+      console.error('CKEditor ClassicEditor is not loaded!');
+      return;
+    }
+
+    // Configuration for CKEditor
+    const editorConfig = {
+      removePlugins: [
+        "CKFinderUploadAdapter",
+        "CKFinder",
+        "EasyImage",
+        "Image",
+        "ImageCaption",
+        "ImageStyle",
+        "ImageToolbar",
+        "ImageUpload",
+        "MediaEmbed",
+      ],
+    };
+
+    // Initialize CKEditor for phase1-ug
+    const phase1UgElement = document.querySelector(".phase1-ug");
+    if (phase1UgElement) {
+      ClassicEditor.create(phase1UgElement, editorConfig)
+        .then((editor) => {
+          console.log('Phase 1 UG editor initialized');
+        })
+        .catch((error) => {
+          console.error('Error initializing Phase 1 UG editor:', error);
+        });
+    }
+
+    // Initialize CKEditor for all editor2 textareas
+    const editor2Elements = document.querySelectorAll('.editor2');
+    if (editor2Elements.length > 0) {
+      editor2Elements.forEach((textarea, index) => {
+        ClassicEditor.create(textarea, editorConfig)
+          .then((editor) => {
+            console.log('Editor ' + (index + 1) + ' initialized');
+          })
+          .catch((error) => {
+            console.error('Error initializing editor ' + (index + 1) + ':', error);
+          });
+      });
+    } else {
+      console.warn('No .editor2 elements found');
+    }
+  });
+</script>

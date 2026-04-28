@@ -44,7 +44,11 @@ use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\View;
 use Mews\Captcha\Captcha;
 use Illuminate\Support\Str;
-
+use Maatwebsite\Excel\Facades\Excel;
+use App\Exports\GenericExport;
+use App\Models\ApplicantProgramChangeInfo;
+use App\Models\StudentMaster;
+use Illuminate\Bus\Batch;
 
 class AdmissionController extends Controller
 {
@@ -543,6 +547,8 @@ class AdmissionController extends Controller
                 $data =   AdmissionFirstPhase::with([
                     'registrationmaster',
                     'applicationinfo',
+                    'programChangeInfo.oldProgram',
+                    'programChangeInfo.newProgram',
                 ])->whereHas('applicationinfo', function ($query) use ($search) {
                     $query->where('application_code', 'like', '%' . $search . '%');
                 })->latest()->get();
@@ -550,16 +556,18 @@ class AdmissionController extends Controller
                 $data =   AdmissionFirstPhase::with([
                     'registrationmaster',
                     'applicationinfo',
+                    'programChangeInfo.oldProgram',
+                    'programChangeInfo.newProgram',
                 ])->latest()->get();
             }
         } else {
-
-
             if (!empty($request->search)) {
                 $search = $request->search;
                 $data =   AdmissionFirstPhase::with([
                     'registrationmaster',
                     'applicationinfo',
+                    'programChangeInfo.oldProgram',
+                    'programChangeInfo.newProgram',
                 ])->whereHas('applicationinfo', function ($query) use ($search) {
                     $query->where('application_code', 'like', '%' . $search . '%');
                 })
@@ -567,15 +575,78 @@ class AdmissionController extends Controller
                         $query->where('campus_id', $campusId);
                     })->latest()->get();
             } else {
-                $data =  AdmissionFirstPhase::with([
+
+                $data = AdmissionFirstPhase::with([
                     'registrationmaster',
                     'applicationinfo',
-                ])->whereHas('registrationmaster.programinfo.campus', function ($query) use ($campusId) {
-                    $query->where('id', $campusId);
+                    'programChangeInfo.oldProgram',
+                    'programChangeInfo.newProgram',
+                ])->whereHas('registrationmaster', function ($query) use ($campusId) {
+                    $query->where('campus_id', $campusId);
                 })->latest()->get();
             }
         }
-        return view('admin.admission.ug.phase1', ['data' => $data]);
+
+        // Separate transferred applicants
+        $transferredApplicants = $data->filter(function ($item) {
+            return $item->programChangeInfo !== null;
+        });
+
+        // Get transferred applicants with pending department interviews
+        $transferredPendingInterview = $transferredApplicants->filter(function ($item) {
+            return $item->dept_interview == 0;
+        });
+
+        return view('admin.admission.ug.phase1', [
+            'data' => $data,
+            'transferredApplicants' => $transferredApplicants,
+            'transferredPendingInterview' => $transferredPendingInterview
+        ]);
+    }
+
+    public function exportPhase1AllApplicants()
+    {
+        $campusId = StaticController::fetchCampusSettings();
+
+        if ($campusId == null) {
+            $data = AdmissionFirstPhase::with([
+                'registrationmaster',
+                'applicationinfo.stdprogramMaster',
+            ])->latest()->get();
+        } else {
+            $data = AdmissionFirstPhase::with([
+                'registrationmaster',
+                'applicationinfo.stdprogramMaster',
+            ])->whereHas('registrationmaster', function ($query) use ($campusId) {
+                $query->where('campus_id', $campusId);
+            })->latest()->get();
+        }
+
+        $export = new GenericExport($data, 'admin.admission.ug.phase1-export');
+        return Excel::download($export, 'phase1-all-applicants-' . date('Y-m-d') . '.xlsx');
+    }
+
+    public function exportPhase1SelectedApplicants()
+    {
+        $campusId = StaticController::fetchCampusSettings();
+
+        if ($campusId == null) {
+            $data = AdmissionFirstPhase::with([
+                'registrationmaster',
+                'applicationinfo.stdprogramMaster',
+            ])->where('final_status', 1)->latest()->get();
+        } else {
+            $data = AdmissionFirstPhase::with([
+                'registrationmaster',
+                'applicationinfo.stdprogramMaster',
+            ])->where('final_status', 1)
+                ->whereHas('registrationmaster', function ($query) use ($campusId) {
+                    $query->where('campus_id', $campusId);
+                })->latest()->get();
+        }
+
+        $export = new GenericExport($data, 'admin.admission.ug.phase1-export');
+        return Excel::download($export, 'phase1-selected-applicants-' . date('Y-m-d') . '.xlsx');
     }
 
 
@@ -777,8 +848,6 @@ class AdmissionController extends Controller
         $phase1Record->save();
 
 
-
-
         if (($request->final_status == 1)) {
             $checkExistingRecord =  AdmissionFinalPhase::where('reg_id', $phase1Record->reg_id)->first();
             if ($checkExistingRecord == null) {
@@ -798,17 +867,28 @@ class AdmissionController extends Controller
         ]);
         //Find Student Program Groupd
         $new_program = $request->new_program;
-        $programGroupId = ProgramGroup::where('program_id', $new_program)->value('id');
+        $comboInfo =  SubjectHasStudentProgam::where('student_program_id', $new_program)->firstOrFail();
 
         $phase1Record = AdmissionFirstPhase::findOrFail($id);
         $application = AdmissionApplication::findOrFail($phase1Record->application_id);
+        $old_program_id = $application->course;;
 
         // Update the programme_id in the application
-        $application->program_group_id = $programGroupId;
-        $application->programme_id = $request->new_program;
+        $application->department = $comboInfo->subject_id;
+        $application->course = $new_program;
         $application->save();
 
-        return back()->with('success', 'Applicant program shifted successfully.');
+        //Add Program Change 
+        ApplicantProgramChangeInfo::create([
+            'registration_id' => $request->registration_id,
+            'application_id' => $request->application_id,
+            'old_program_id' => $old_program_id,
+            'new_program_id' => $new_program,
+            'changed_by' => Auth::user()->id,
+            'reason' => $request->reason ?? 'Not specified',
+        ]);
+
+        return back()->with('success', 'Applicant Program Shifted Successfully.');
     }
 
 
@@ -823,14 +903,14 @@ class AdmissionController extends Controller
                 $search = $request->search;
                 $data =   AdmissionFinalPhase::with([
                     'registrationmaster',
-                    'applicationinfo',
+                    'applicationinfo.stdCourseMaster',
                 ])->whereHas('applicationinfo', function ($query) use ($search) {
                     $query->where('application_id', 'like', '%' . $search . '%');
                 })->latest()->get();
             } else {
                 $data =   AdmissionFinalPhase::with([
                     'registrationmaster',
-                    'applicationinfo',
+                    'applicationinfo.stdCourseMaster',
                 ])->latest()->get();
             }
         } else {
@@ -840,19 +920,19 @@ class AdmissionController extends Controller
                 $search = $request->search;
                 $data =   AdmissionFinalPhase::with([
                     'registrationmaster',
-                    'applicationinfo',
+                    'applicationinfo.stdCourseMaster',
                 ])->whereHas('applicationinfo', function ($query) use ($search) {
                     $query->where('application_id', 'like', '%' . $search . '%');
                 })
-                    ->whereHas('registrationmaster.programinfo.campus', function ($query) use ($campusId) {
-                        $query->where('id', $campusId);
+                    ->whereHas('registrationmaster', function ($query) use ($campusId) {
+                        $query->where('campus_id', $campusId);
                     })->latest()->get();
             } else {
                 $data =  AdmissionFinalPhase::with([
                     'registrationmaster',
-                    'applicationinfo',
-                ])->whereHas('registrationmaster.programinfo.campus', function ($query) use ($campusId) {
-                    $query->where('id', $campusId);
+                    'applicationinfo.stdCourseMaster',
+                ])->whereHas('registrationmaster', function ($query) use ($campusId) {
+                    $query->where('campus_id', $campusId);
                 })->latest()->get();
             }
         }
@@ -1539,6 +1619,8 @@ class AdmissionController extends Controller
                 'close_date_ug' => $request->close_date_ug,
                 'instructions_ug' => $request->instructions_ug,
                 'application_fee_ug' => $request->application_fee_ug,
+                'phase1_inst_ug' => $request->phase1_inst_ug,
+                'phase2_inst_ug' => $request->phase2_inst_ug,
 
             ]
         );
@@ -1556,6 +1638,8 @@ class AdmissionController extends Controller
                 'close_date_pg' => $request->close_date_pg,
                 'instructions_pg' => $request->instructions_pg,
                 'application_fee_pg' => $request->application_fee_pg,
+                'phase1_inst_pg' => $request->phase1_inst_pg,
+                'phase2_inst_pg' => $request->phase2_inst_pg,
             ]
         );
 
@@ -1573,6 +1657,31 @@ class AdmissionController extends Controller
 
 
     //Adding Dept Console Functions
+    function deptApplicationSingle($id)
+    {
+        $userId = Auth::user()->id;
+        if (StaticController::fetchUserRole() !== 'dept-admin-erp') {
+            return back()->with('info', 'Unauthorized access.');
+        }
+
+        $campusId = UserCampusSetting::where('user_id', $userId)->value('campus_id');
+        $departId = SubjectHasDeptAdmin::where('user_id', $userId)->value('subject_id');
+
+        $data = AdmissionApplication::with([
+            'registrationmaster.countrymaster',
+        ])->where('id', $id)
+            ->where('department', $departId)
+            ->whereHas('registrationmaster', function ($query) use ($campusId) {
+                $query->when($campusId, fn($q) => $q->where('campus_id', $campusId));
+            })
+            ->whereHas('registrationmaster.programinfo', function ($query) {
+                $query->where('name', 'UG');
+            })
+            ->firstOrFail();
+
+        return view('admin.admission.ug.application-single', ['data' => $data]);
+    }
+
     function deptApplicationList()
     {
 
@@ -1585,7 +1694,6 @@ class AdmissionController extends Controller
             } else {
 
                 $data = AdmissionApplication::whereHas('registrationmaster', function ($query) use ($campusId) {
-                    $query->where('application_type', 'UG');
                     $query->where('campus_id', $campusId);
                 })->with([
                     'registrationmaster.countrymaster',
@@ -1619,7 +1727,7 @@ class AdmissionController extends Controller
                     $search = $request->search;
                     $data =   AdmissionFirstPhase::with([
                         'registrationmaster',
-                        'applicationinfo',
+                        'applicationinfo.stdCourseMaster',
                     ])->whereHas('applicationinfo', function ($query) use ($search, $departId) {
                         $query->where('application_id', 'like', '%' . $search . '%');
                         $query->where('department', $departId);
@@ -1630,16 +1738,16 @@ class AdmissionController extends Controller
                 } else {
                     $data =  AdmissionFirstPhase::with([
                         'registrationmaster',
-                        'applicationinfo',
+                        'applicationinfo.stdCourseMaster',
                     ])->whereHas('applicationinfo', function ($query) use ($departId) {
-
                         $query->where('department', $departId);
                     })
-                        ->whereHas('registrationmaster.programinfo.campus', function ($query) use ($campusId) {
-                            $query->where('id', $campusId);
+                        ->whereHas('registrationmaster', function ($query) use ($campusId) {
+                            $query->where('campus_id', $campusId);
                         })->latest()->get();
                 }
             }
+
             return view('admin.admission.ug.phase1', ['data' => $data]);
         } else {
             return back()->with('info', 'Unauthorized access.');
@@ -2280,5 +2388,132 @@ class AdmissionController extends Controller
     function technicalMode()
     {
         return view('admission.technical-mode');
+    }
+
+    function testInchargeDashboard()
+    {
+        $campusId =  StaticController::fetchCampusSettings();
+        $batch = BatchMaster::where('admission_active_batch', 1)->value('batch_name');
+
+        $data = AdmissionFirstPhase::with([
+            'registrationmaster',
+            'applicationinfo',
+        ])->whereHas('registrationmaster', function ($query) use ($campusId, $batch) {
+            $query->where('batch', $batch);
+            $query->where('campus_id', $campusId);
+        })->latest()->get();
+
+
+        return view('admin.admission.test-incharge.dashboard', ['data' => $data]);
+    }
+
+    function overrideUgPhase1Status($id)
+    {
+
+        $data = AdmissionFirstPhase::find($id);
+        if (!$data) {
+            return back()->with('error', 'Record not found.');
+        }
+        AdmissionFirstPhase::where('id', $id)->update([
+            'document_verified' => 1,
+            'proficiency_test_status' => 1,
+            'dept_interview' => 1,
+            'mgt_interview_status' => 1,
+            'final_status' => 1,
+        ]);
+
+        //shift candidate to Phase 2 table
+        AdmissionFinalPhase::create([
+            'application_id' => $data->application_id,
+            'reg_id' => $data->reg_id,
+        ]);
+
+        return back()->with('success', 'UG Phase 1 status updated successfully.');
+    }
+
+    function activateApplicationPayment($id)
+    {
+
+        $studnetData = AdmissionRegistration::with('applicationmaster.stdCourseMaster')->find($id);
+        //add student to master table
+        $applicationData = $studnetData->applicationmaster;
+        if (!$applicationData) {
+            return back()->with('error', 'Application data not found for this student.');
+        }
+
+
+        //generate Rollno based on the last roll no of the department and course
+        if ($studnetData->campus_id == 1) {
+            $prefix = "USO";
+        } else {
+            $prefix = "USL";
+        }
+
+        $batch = $studnetData->batch;
+        $batch_id =  BatchMaster::where('batch_name', $batch)->value('id');
+        $programCode = $applicationData->stdCourseMaster->code;
+        //now fetch the last roll no for the same department and course
+        $lastRollNo = StudentMaster::where('academic_dept_id', $applicationData->department)
+            ->where('new_program_id', $applicationData->course)
+            ->whereHas('campusmaster', function ($query) use ($studnetData) {
+                $query->where('id', $studnetData->campus_id);
+            })
+            ->orderBy('roll_no', 'desc')
+            ->value('roll_no');
+        if ($lastRollNo == null) {
+            $newRollNo = $prefix . $batch . $programCode . '001';
+        } else {
+            $lastRollNoNumber = (int) substr($lastRollNo, -3);
+            $newRollNoNumber = $lastRollNoNumber + 1;
+            $newRollNo = $prefix . $batch . $programCode  . str_pad($newRollNoNumber, 3, '0', STR_PAD_LEFT);
+        }
+
+        StudentMaster::create([
+            'user_code' => $applicationData->application_code,
+            'first_name' => $studnetData->first_name,
+            'last_name' => $studnetData->last_name,
+            'gender' => $applicationData->gender == 'male' ? 1 : 2,
+            'dob' => date('d/m/Y', strtotime($applicationData->dob)),
+            'user_type' => 'student',
+            'nationality' => $applicationData->country,
+            'caste' => strtolower($applicationData->caste),
+            'religion' => $applicationData->religion,
+            'department' => $applicationData->department,
+            'academic_dept_id' => $applicationData->department,
+            'new_program_id' => $applicationData->course,
+            'batch' => $batch_id,
+            'mobile_no' => $studnetData->mobile_no,
+            'mail_id' => $studnetData->mail_id,
+            'aadhar_no' => $applicationData->adhaar,
+            'campus_id' => $studnetData->campus_id,
+            'photo_path' => $applicationData->photo,
+            'address' => $applicationData->permanent_address . ' ' . $applicationData->city . ' ' . $applicationData->state . ' ' . $applicationData->zip,
+            'admission_date' => now(),
+            'roll_no' => $newRollNo,
+            'father_name' =>  $applicationData->father_name,
+            'mother_name' => $applicationData->mother_name,
+            'guardian_name' => $applicationData->guardian_name,
+            'blood_group_id' => $applicationData->bloodgroup,
+            'is_physically_challenged' => $applicationData->phychallenged,
+            'mother_tongue' => $applicationData->mothertongue,
+            'fr_mobile_no' => $applicationData->father_contact,
+            'mr_mobile_no' => $applicationData->mother_contact,
+            'guardian_mobile_no' => $applicationData->guardian_contact,
+            'fr_occupation' => $applicationData->father_occupation,
+            'mr_occupation' => $applicationData->mother_occupation,
+            'annual_income' => $applicationData->income,
+            'is_roman_catholic' => $applicationData->religion == 10 ? 1 : 0,
+            'current_year' => 1,
+            'user_type' => 'student',
+
+        ]);
+
+        //update registration  status as is_enrolled
+        AdmissionRegistration::where('id', $id)->update([
+            'is_enrolled' => 1, //1 indicates enrolled, 0 indicates not enrolled
+        ]);
+
+
+        return back()->with('success', 'Application payment activated and student added to master table successfully.');
     }
 }

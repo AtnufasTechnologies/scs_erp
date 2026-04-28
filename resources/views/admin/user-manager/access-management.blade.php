@@ -3,10 +3,11 @@
 use App\Models\Campus;
 use App\Models\MenuMaster;
 use App\Models\PermissionMaster;
+use App\Models\RoleMaster;
 use App\Models\UserType;
 
 $permissionMaster = MenuMaster::all();
-$userTypes = UserType::all();
+$userTypes = RoleMaster::all();
 $campusMaster = Campus::all()
 ?>
 
@@ -54,11 +55,11 @@ $campusMaster = Campus::all()
           <label for="">Login Password * (min 6 characters)</label>
           <input type="text" name="password" class="form-control mb-3" placeholder="Type Here...">
 
-          <label for="">User Type <small>(For SuperAdmin and Principal all permissions are granted)</small></label>
+          <label for="">User Type </label>
           <select name="user_type" class=" mb-3 dselect-example">
             <option value="">Select User Type</option>
             @foreach ($userTypes as $ut)
-            <option value="{{ $ut->slug }}">{{ $ut->name }}</option>
+            <option value="{{ $ut->slug }}">{{ $ut->role_name }}</option>
             @endforeach
           </select>
 
@@ -70,12 +71,12 @@ $campusMaster = Campus::all()
             @endforeach
           </select>
 
-          <label for="">Access Permission *</label>
+          <!-- <label for="">Access Permission *</label>
           <select name="roles[]" class="form-control mb-3 select-multiple" multiple>
             @foreach ($permissionMaster as $pm)
             <option value="{{ $pm->id }}">{{ $pm->menu_name }} - {{ $pm->module_type }}</option>
             @endforeach
-          </select>
+          </select> -->
 
         </div>
 

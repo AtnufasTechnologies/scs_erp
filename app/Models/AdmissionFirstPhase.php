@@ -32,4 +32,9 @@ class AdmissionFirstPhase extends Model
     {
         return $this->belongsTo(AdmissionRegistration::class, 'reg_id', 'id');
     }
+
+    function programChangeInfo()
+    {
+        return $this->hasOne(ApplicantProgramChangeInfo::class, 'application_id', 'application_id');
+    }
 }

@@ -1374,6 +1374,7 @@ class AdminController extends Controller
             ->with('userroletype')
             ->with('campuspermission.campus:id,name')
             ->where('id', '!=', 1)
+            ->latest()
             ->get();
         return view('admin.user-manager.access-management', ['data' => $data]);
     }
@@ -1397,15 +1398,17 @@ class AdminController extends Controller
         $rec->save();
 
         $userId = $rec->id;
-        if ($request->user_type == 'super-admin' || $request->user_type == 'principal') {
+        if ($request->user_type == 'super-admin') {
             $roles = MenuMaster::pluck('id')->toArray();
+            for ($i = 0; $i < count($roles); $i++) {
+                $permission = new UserMenuPermission();
+                $permission->user_id = $userId;
+                $permission->menu_master_id = $roles[$i];
+                $record = MenuMaster::find($roles[$i]);
+                $permission->permission_name = $record->slug;
+                $permission->save();
+            }
         } else {
-
-            $request->validate([
-                'roles' => 'required|array|min:1'
-            ]);
-
-            $roles = $request->roles;
 
             //check CAMPUS ASSIGNMENT
             if (!empty($request->campus)) {
@@ -1415,25 +1418,12 @@ class AdminController extends Controller
                 $campus->save();
             }
         }
-        //adding permissions
-        for ($i = 0; $i < count($roles); $i++) {
-            $data = MenuMaster::find($roles[$i]);
-            if ($data) {
-                $permission = new UserMenuPermission();
-                $permission->user_id = $userId;
-                $permission->menu_master_id = $data->id;
-                $permission->permission_name = $data->slug;
-                $permission->save();
-            }
-        }
 
         //adding role_type
         $userType = new UserHasRole();
         $userType->user_id = $userId;
         $userType->role_name = $request->user_type; //default to admin
         $userType->save();
-
-
 
         return redirect()->back()->with('success', 'New User Created');
     }

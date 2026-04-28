@@ -59,90 +59,53 @@ $programs = Qs::getProgramGroups();
 
 <div class="row">
   @foreach ($data as $item)
-  <div class="col-lg-3">
-
+  <div class="col-lg-4">
     <div class="profile-card">
       <div class="profile-image">
-        <img src="{{asset('admin/images/logo.png')}}" alt="proile picture" />
+        <img src="{{Storage::disk('s3')->url($item->applicationinfo->photo)}}" alt="proile picture" />
       </div>
       <div class="profile-info">
-        @if(Qs::fetchPhase1FinalStatus($item->reg_id) == 1)
-        <span class="badge bg-success mb-2">Selected</span>
-        @else
-        <span class="badge bg-danger mb-2">Not Selected</span>
-        @endif
 
-        @if($item->enroll_status == 1)
+        @if($item->registrationmaster->is_enrolled == 1)
         <span class="badge bg-success mb-2">Enrolled</span>
         @else
-        <span class="badge bg-warning text-dark mb-2">Pending Enrollment</span>
+        <a href="{{ route('activate.admission.payment', ['id' => $item->registrationmaster->id]) }}" onclick="return confirm('Are you sure you want to activate payment for this applicant?')">
+          <button class="btn btn-success">Activate Payment</button>
+        </a>
         @endif
         <p class="profile-name text-capitalize">{{ $item->registrationmaster->first_name  }} {{ $item->registrationmaster->last_name  }}</p>
         <div class="profile-title">{{ $item->registrationmaster->mobile_no  }}</div>
         <div class="profile-title">{{ $item->registrationmaster->mail_id  }}</div>
         <div class="profile-bio">
-          {{ $item->applicationinfo->stdprogramMaster->code }} - {{ $item->applicationinfo->stdprogramMaster->name }}
+          {{ $item->applicationinfo->stdCourseMaster->code ?? '-' }} - {{ $item->applicationinfo->stdCourseMaster->name ?? '-' }}
         </div>
         <label for="">Interview Slot: {{$item->interview_datetime}}</label>
 
       </div>
-      <div class="social-links">
-        <label for="">Doc Validated</label>
-        <button class="social-btn ">
-          @if($item->is_doc_validated == 1 )
-          <i class="fa fa-check-circle text-success fa-2x"></i>
-          @else
-          <i class="fa fa-times-circle text-danger fa-2x"></i>
-          @endif
-        </button>
-        <label for="">Subject Selection </label>
-        <button class="social-btn ">
-          @if($item->is_subject_selected == 1 )
-          <i class="fa fa-check-circle text-success fa-2x"></i>
-          @else
-          <i class="fa fa-times-circle text-danger fa-2x"></i>
-          @endif
-        </button>
-        <label for="">Fee Payment </label>
-        <button class="social-btn ">
-          @if($item->fee_paid == 1 )
-          <i class="fa fa-check-circle text-success fa-2x"></i>
-          @else
-          <i class="fa fa-times-circle text-danger fa-2x"></i>
-          @endif
-        </button>
-      </div>
 
 
-      <a href="{{route('admin.admission.ug.application-single', ['id' => $item->applicationinfo->id])}}"><button class="cta-button">View Application# {{$item->applicationinfo->application_id}}</button></a>
       <div class="stats d-flex justify-content-around">
-        <div class="stat-item">
+        <!-- <div class="stat-item">
           <div class="stat-value">
             <i class="fa fa-id-card fa-2x {{$item->icard_generated == 1 ? 'text-success' : 'text-danger'}}"></i>
           </div>
-
         </div>
         <div class="stat-item">
           <div class="stat-value">
             <i class=" fal fa-file-signature fa-2x {{$item->contract_signed == 1 ? 'text-success' : 'text-danger'}}"></i>
           </div>
-        </div>
+        </div> -->
 
       </div>
 
       <div class="dropdown mt-3">
         <div class="row">
-          <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#updateStatusModal{{ $item->id }}">Action</button>
+          <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#updateStatusModal{{ $item->id }}">Take Action</button>
         </div>
 
       </div>
     </div>
-
-
-
   </div>
-
-
   <!-- Modal for Update Status -->
   <div class="modal fade" id="updateStatusModal{{ $item->id }}" tabindex="-1" aria-labelledby="updateStatusModalLabel{{ $item->id }}" aria-hidden="true">
     <div class="modal-dialog">
@@ -169,13 +132,7 @@ $programs = Qs::getProgramGroups();
                 <option value="1" {{ $item->is_subject_selected == 1 ? 'selected' : '' }}>Selected</option>
               </select>
             </div>
-            <div class="mb-3">
-              <label for="fee_paid{{ $item->id }}" class="form-label">Fee Payment</label>
-              <select class="form-select" id="fee_paid{{ $item->id }}" name="fee_paid">
-                <option value="0" {{ $item->fee_paid == 0 ? 'selected' : '' }}>Not Paid</option>
-                <option value="1" {{ $item->fee_paid == 1 ? 'selected' : '' }}>Paid</option>
-              </select>
-            </div>
+
             <div class="mb-3">
               <label for="icard_generated{{ $item->id }}" class="form-label">ID Card Generated</label>
               <select class="form-select" id="icard_generated{{ $item->id }}" name="icard_generated">
@@ -189,11 +146,12 @@ $programs = Qs::getProgramGroups();
                 <option value="0" {{ $item->contract_signed == 0 ? 'selected' : '' }}>No</option>
                 <option value="1" {{ $item->contract_signed == 1 ? 'selected' : '' }}>Yes</option>
               </select>
+
             </div>
             <div class="mb-3">
-              <label for="enroll_status{{ $item->id }}" class="form-label">Enrollment Status
-                <small>*This will Auto Add Applicant
-                  to Student Master
+              <label for="enroll_status{{ $item->id }}" class="form-label">Enrollment Status <br>
+                <small class="text-danger">*This will Auto Add Applicant
+                  to Student List and Activate RollNo
                 </small></label>
               <select class="form-select" id="enroll_status{{ $item->id }}" name="enroll_status">
                 <option value="0" {{ $item->enroll_status == 0 ? 'selected' : '' }}>Pending</option>

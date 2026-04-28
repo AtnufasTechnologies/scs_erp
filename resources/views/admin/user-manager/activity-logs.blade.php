@@ -15,7 +15,7 @@ use Illuminate\Support\Str;
       </div>
 
       <div class="card-body border-bottom">
-        <form method="GET" action="{{ route('admin.user.activity-logs') }}" class="row g-3">
+        <form method="GET" action="{{ route('admin.user.activityapplication-single-logs') }}" class="row g-3">
           <div class="col-md-3">
             <label class="form-label">User</label>
             <select name="user_id" class="form-select dselect-example">
@@ -55,7 +55,7 @@ use Illuminate\Support\Str;
 
           <div class="col-12 d-flex gap-2">
             <button type="submit" class="btn btn-primary">Apply Filters</button>
-            <a href="{{ route('admin.user.activity-logs') }}" class="btn btn-light border">Reset</a>
+            <a href="{{ route('admin.user.activityapplication-single-logs') }}" class="btn btn-light border">Reset</a>
           </div>
         </form>
       </div>

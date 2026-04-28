@@ -10,9 +10,6 @@ $campus = MainProgram::with('campus')->get();
 @include('includes.header')
 @include('admin.admission.sidebar')
 <h3>UG - Applications </h3>
-
-
-
 <div class="container-fluid">
   <div class="row">
     <div class="col-lg-8">
