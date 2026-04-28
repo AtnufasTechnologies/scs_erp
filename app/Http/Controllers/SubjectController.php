@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\AdmissionApplication;
 use App\Models\BatchMaster;
 use App\Models\Campus;
 use App\Models\CognitiveLevelMaster;
@@ -301,6 +302,7 @@ class SubjectController extends Controller
             'batch_id' => 'required',
             'programs' => 'required|array|min:1',
             'program_type' => 'required',
+            'total_seats' => 'required|integer|min:0',
         ]);
 
         $userId  = Auth::user()->id;
@@ -333,6 +335,8 @@ class SubjectController extends Controller
                 $subject->student_program_id = $programs[$i];
                 $subject->campus_id = $data->campus_id;
                 $subject->program_type = $request->program_type;
+                $subject->total_seats = $request->total_seats;
+                $subject->total_available_seats = $request->total_seats;
                 $subject->save();
             } else {
                 return redirect()->back()->with('success', 'Combinations Already Linked');
@@ -448,9 +452,49 @@ class SubjectController extends Controller
 
     function deleteCombination($id)
     {
+        $combination = SubjectHasStudentProgam::with('batchmaster')->findOrFail($id);
+        //batch Name
+        $batch = $combination->batchmaster->batch_name;
+        $campus_id = $combination->campus_id;
+        //check any application is using this combination
+        $applicationCheck =  AdmissionApplication::where('course', $combination->student_program_id)
+            ->whereHas('registrationmaster', function ($query) use ($batch, $campus_id) {
+                $query->where('batch', $batch)
+                    ->where('campus_id', $campus_id);
+            })->count();
+
+        if ($applicationCheck > 0) {
+            return redirect()->back()->with('info', 'Cannot delete combination. We have ' . $applicationCheck . ' application(s) using this combination');
+        } else {
+            $combination->delete();
+            return redirect()->back()->with('success', 'Combination Deleted');
+        }
+    }
+
+    function updateCombination(Request $request, $id)
+    {
+
         $combination = SubjectHasStudentProgam::findOrFail($id);
-        $combination->delete();
-        return redirect()->back()->with('success', 'Combination Deleted');
+        $activeBatch = $combination->batch_id;
+
+        $enrolledCount = SubjectHasStudentProgam::where('id', $combination->id)
+            ->withCount(['studentmaster' => function ($query) use ($activeBatch) {
+                $query->where('batch', $activeBatch);
+            }])
+            ->value('studentmaster_count');
+
+        //updating
+
+        $request->validate([
+            'total_seats' => 'required|integer|min:0',
+        ]);
+
+
+        $combination->total_seats = $request->total_seats;
+        $combination->total_available_seats = $request->total_seats - $enrolledCount;
+        $combination->save();
+
+        return redirect()->back()->with('success', 'Combination Updated');
     }
 
     function courseMaster($academicDeptId, $slug)

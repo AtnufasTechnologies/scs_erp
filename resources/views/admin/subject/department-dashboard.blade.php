@@ -69,23 +69,7 @@ $mainStreams = ProgramMaster::all();
     </div>
   </div>
 
-  <!-- Department Info Bar -->
-  <!-- <div class="d-flex align-items-center mb-4" style="background: white; padding: 16px 24px; border-radius: 16px; box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);">
-    <div class="d-flex align-items-center flex-grow-1">
-      <div style="width: 48px; height: 48px; background: linear-gradient(135deg, #5b4cdb 0%, #7c3aed 100%); border-radius: 12px; display: flex; align-items: center; justify-content: center; margin-right: 16px;">
-        <i class="fas fa-building" style="color: white; font-size: 20px;"></i>
-      </div>
-      <div>
-        <h5 class="mb-0" style="color: #1a1a1a; font-weight: 700;">{{ $data->code ?? '-' }}</h5>
-        <p class="mb-0" style="color: #6b7280; font-size: 14px;">{{ $data->title ?? '-' }}</p>
-      </div>
-    </div>
-    @if(Auth::user()->role == 'dept-admin-erp')
-    <a href="{{ url('logout') }}" class="btn btn-modern" style="background: #5b4cdb; color: white;">
-      <i class="fas fa-external-link-alt me-2"></i>Admin Console
-    </a>
-    @endif
-  </div> -->
+
 
   <div class="row g-4">
     <!-- Left Column: Today's Course -->
@@ -295,11 +279,15 @@ $mainStreams = ProgramMaster::all();
           <thead>
             <tr style="border-bottom: 2px solid #f0f0f0;">
               <th style="color: #e9ebef; font-weight: 600; padding: 16px;">#</th>
+              <th style="color: #e9ebef; font-weight: 600;">Tracking ID</th>
               <th style="color: #e9ebef; font-weight: 600;">Batch</th>
+              <th style="color: #e9ebef; font-weight: 600;">Code</th>
               <th style="color: #e9ebef; font-weight: 600;">Program</th>
               <th style="color: #e9ebef; font-weight: 600;">Program Type</th>
-              <th style="color: #e9ebef; font-weight: 600;">Students </th>
-              <th style="color: #e9ebef; font-weight: 600;">Details</th>
+              <th style="color: #e9ebef; font-weight: 600;">Total Seats</th>
+              <th style="color: #e9ebef; font-weight: 600;">Available Seats</th>
+              <th style="color: #e9ebef; font-weight: 600;">Enrolled </th>
+              <th style="color: #e9ebef; font-weight: 600;">Edit</th>
               <th style="color: #e9ebef; font-weight: 600;">Action</th>
             </tr>
           </thead>
@@ -307,7 +295,16 @@ $mainStreams = ProgramMaster::all();
             @forelse($combinations as $combination)
             <tr style="border-bottom: 1px solid #f5f5f5;">
               <td style="padding: 16px; color: #1a1a1a; font-weight: 500;">{{ $loop->iteration }}</td>
+              <td>
+                <span class="badge" style="background: #43cea2; padding: 6px 12px; border-radius: 8px;">ID: {{ $combination->studentprograminfo->id ?? '-' }}</span>
+              </td>
               <td style="color: #1a1a1a;">{{$combination->batchmaster->batch_name ?? '-'}}</td>
+              <td style="color: #1a1a1a;">
+                <a href="{{ route('department.show.student.list', ['program_id' => $combination->studentprograminfo->id,
+                 'slug' => $combination->studentprograminfo->name, 'batch_id' => $combination->batchmaster->id]) }}">
+                  {{ $combination->studentprograminfo->code ?? '-' }}
+                </a>
+              </td>
               <td style="color: #1a1a1a;">
                 <a href="{{ route('department.show.student.list', ['program_id' => $combination->studentprograminfo->id,
                  'slug' => $combination->studentprograminfo->name, 'batch_id' => $combination->batchmaster->id]) }}">
@@ -315,10 +312,44 @@ $mainStreams = ProgramMaster::all();
                 </a>
               </td>
               <td><span class="badge" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); padding: 6px 12px; border-radius: 8px;">{{$combination->program_type}}</span></td>
+              <td>{{ $combination->total_seats ?? '-' }}</td>
+              <td>{{ $combination->total_available_seats ?? '-' }}</td>
               <td>{{ $combination->studentmaster_count }}</td>
               <td>
-                <span class="badge" style="background: #43cea2; padding: 6px 12px; border-radius: 8px;">ID: {{ $combination->studentprograminfo->id ?? '-' }}</span>
+                <!-- Button trigger modal -->
+                <button type="button" class="btn-sm btn-primary" data-bs-toggle="modal" data-bs-target="#edit{{ $combination->id }}">
+                  <i class="fa fa-edit"></i>
+                </button>
+
+                <!-- Modal -->
+                <div class="modal fade" id="edit{{ $combination->id }}" tabindex="-1" aria-labelledby="exampleModalLabel" aria-hidden="true">
+                  <div class="modal-dialog">
+                    <div class="modal-content">
+                      <div class="modal-header">
+                        <h5 class="modal-title" id="exampleModalLabel">Edit {{$combination->batchmaster->batch_name ?? '-'}} - {{ $combination->studentprograminfo->name ?? '' }}</h5>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                      </div>
+                      <div class="modal-body">
+                        <form action="{{ route('department.combination.update', $combination->id) }}" method="POST">
+                          @csrf
+                          @method('PUT')
+                          <div class="mb-3">
+                            <label for="totalSeats{{ $combination->id }}" class="form-label">Total Seats</label>
+                            <input type="number" class="form-control" id="totalSeats{{ $combination->id }}" name="total_seats" value="{{ $combination->total_seats ?? '' }}" required>
+                          </div>
+
+                      </div>
+                      <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                        <button type="submit" class="btn btn-primary">Save changes</button>
+                      </div>
+                      </form>
+                    </div>
+                  </div>
+                </div>
+
               </td>
+
               <td>
                 <form action="{{ route('department.combination.delete', $combination->id) }}" method="POST" onsubmit="return confirm('Are you sure you want to delete this combination?');" style="display:inline;">
                   @csrf
@@ -563,7 +594,7 @@ $mainStreams = ProgramMaster::all();
           @csrf
           <div class="modal-body" style="padding: 24px;">
             <div class="row g-3 mb-3">
-              <div class="col-6">
+              <div class="col-5">
                 <label for="" style="color: #1a1a1a; font-weight: 600; margin-bottom: 8px;">Select Academic Batch</label>
                 <select name="batch_id" class="form-select" style="border-radius: 12px; border: 1px solid #e5e7eb; padding: 12px;">
                   @foreach ($batches as $batch)
@@ -571,7 +602,7 @@ $mainStreams = ProgramMaster::all();
                   @endforeach
                 </select>
               </div>
-              <div class="col-6">
+              <div class="col-5">
                 <label for="" style="color: #1a1a1a; font-weight: 600; margin-bottom: 8px;">Select Program Type</label>
                 <select name="program_type" class="form-select" style="border-radius: 12px; border: 1px solid #e5e7eb; padding: 12px;" required>
                   <option value="">-- Select Program Type --</option>
@@ -579,6 +610,11 @@ $mainStreams = ProgramMaster::all();
                   <option value="{{ $ms->title }}">{{ $ms->title }}</option>
                   @endforeach
                 </select>
+              </div>
+              <div class="col-2">
+                <label for="" style="color: #1a1a1a; font-weight: 600; margin-bottom: 8px;">Total Seats</label>
+                <input type=" number" name="total_seats" class="form-control mb-3" style="border-radius: 12px; border: 1px solid #e5e7eb; padding: 12px;" required>
+
               </div>
             </div>
 
@@ -588,6 +624,7 @@ $mainStreams = ProgramMaster::all();
               <option value="{{$prg->id}}">{{$prg->code}} - {{$prg->name}}</option>
               @endforeach
             </select>
+
 
             <input type="hidden" name="subject_id" value="{{$data->id}}">
           </div>
