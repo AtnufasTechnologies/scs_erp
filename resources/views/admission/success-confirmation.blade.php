@@ -1,6 +1,7 @@
 <?php
 
 use App\Models\AdmissionSetting;
+use App\Models\StudentMaster;
 
 $admissioninfo = AdmissionSetting::find(1);
 ?>
@@ -59,8 +60,6 @@ $admissioninfo = AdmissionSetting::find(1);
     </div>
   </div>
 </div>
-
-
 
 <div class="container mb-5">
   <div class="row ">
@@ -176,6 +175,18 @@ $admissioninfo = AdmissionSetting::find(1);
           <p>Visit College Office within 5 Days to Make Payment and Reserve Your Slot.
             <strong>Salesian College {{ $data->registrationmaster->campusmaster->name }}</strong>.
           </p>
+          @if ($data->registrationmaster->is_enrolled == 1)
+          <p class="alert alert-success"><i class="fa fa-check-circle"></i> You have completed the enrollment process.
+            Welcome to the Salesian College family!</p>
+          <?php $rollNo = StudentMaster::where('user_code', $data->application_code)->value('roll_no'); ?>
+          Roll Number Generated
+          <h1 class="alert alert-primary">{{$rollNo}}</h1>
+          @endif
+          <p>Login to the Student Portal with your roll number to <b>complete admission payment</b></p>
+          <a href="{{url('erp/student/fee-payment')}}" class="btn btn-success">Go to Student Portal</a>
+
+
+          @if ($data->registrationmaster->is_enrolled == 0)
           <button class="btn btn-warning" data-bs-toggle="modal" data-bs-target="#phase2Instruction">Instructions</button><br>
           <div class="modal fade" id="phase2Instruction" tabindex="-1" role="dialog" aria-labelledby="phase2InstructionLabel" aria-hidden="true">
             <div class="modal-dialog modal-lg" role="document">
@@ -190,6 +201,7 @@ $admissioninfo = AdmissionSetting::find(1);
               </div>
             </div>
           </div>
+          @endif
         </div>
       </div>
     </div>

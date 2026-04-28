@@ -1192,7 +1192,7 @@ class PrincipalController extends Controller
       $applicableFS = FeesStructure::with('feeHeads')
         ->where('batch_id', $student->batch)
         ->whereHas('programspivot', function ($q) use ($student) {
-          $q->where('std_program_id', $student->programme);
+          $q->where('std_program_id', $student->new_program_id);
         })
         ->whereIn('std_current_year', range(1, $student->current_year))
         ->orderBy('std_current_year')
@@ -1294,7 +1294,7 @@ class PrincipalController extends Controller
     foreach ($students as $student) {
       $applicableFS = FeesStructure::where('batch_id', $student->batch)
         ->whereHas('programspivot', function ($q) use ($student) {
-          $q->where('std_program_id', $student->programme);
+          $q->where('std_program_id', $student->new_program_id);
         })
         ->whereIn('std_current_year', range(1, $student->current_year))
         ->where('is_payable', 1)

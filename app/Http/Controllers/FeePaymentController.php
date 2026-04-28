@@ -68,7 +68,7 @@ class FeePaymentController extends Controller
             $applicableFS = FeesStructure::with(['feeHeads.head.bankmaster'])
                 ->where('batch_id', $student->batch)
                 ->whereHas('programspivot', function ($q) use ($student) {
-                    $q->where('std_program_id', $student->programme);
+                    $q->where('std_program_id', $student->new_program_id);
                 })
                 ->whereIn('std_current_year', range(1, $student->current_year))
                 ->get();
@@ -461,7 +461,7 @@ class FeePaymentController extends Controller
         $applicableFS = FeesStructure::with('feeHeads')
             ->where('batch_id', $student->batch)
             ->whereHas('programspivot', function ($q) use ($student) {
-                $q->where('std_program_id', $student->programme);
+                $q->where('std_program_id', $student->new_program_id);
             })
             ->whereIn('std_current_year', range(1, $student->current_year))
             ->orderBy('std_current_year')
@@ -1129,7 +1129,7 @@ class FeePaymentController extends Controller
 
         $feeStructures = FeesStructure::where('batch_id', $student->batch)
             ->whereHas('programspivot', function ($q) use ($student) {
-                $q->where('std_program_id', $student->programme);
+                $q->where('std_program_id', $student->new_program_id);
             })
             ->whereIn('std_current_year', range(1, $student->current_year))
             ->select('id', 'quarter_title', 'std_current_year', 'quarter_no')
@@ -1176,7 +1176,7 @@ class FeePaymentController extends Controller
         $applicableFS = FeesStructure::with('feeHeads')
             ->where('batch_id', $student->batch)
             ->whereHas('programspivot', function ($q) use ($student) {
-                $q->where('std_program_id', $student->programme);
+                $q->where('std_program_id', $student->new_program_id);
             })
             ->whereIn('std_current_year', range(1, $student->current_year))
             ->orderBy('std_current_year')
@@ -1368,7 +1368,7 @@ class FeePaymentController extends Controller
         foreach ($students as $student) {
             $applicableFS = FeesStructure::where('batch_id', $student->batch)
                 ->whereHas('programspivot', function ($q) use ($student) {
-                    $q->where('std_program_id', $student->programme);
+                    $q->where('std_program_id', $student->new_program_id);
                 })
                 ->whereIn('std_current_year', range(1, $student->current_year))
                 ->where('is_payable', 1)

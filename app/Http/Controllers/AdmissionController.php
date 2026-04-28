@@ -47,6 +47,8 @@ use Illuminate\Support\Str;
 use Maatwebsite\Excel\Facades\Excel;
 use App\Exports\GenericExport;
 use App\Models\ApplicantProgramChangeInfo;
+use App\Models\StudentMaster;
+use Illuminate\Bus\Batch;
 
 class AdmissionController extends Controller
 {
@@ -2427,5 +2429,91 @@ class AdmissionController extends Controller
         ]);
 
         return back()->with('success', 'UG Phase 1 status updated successfully.');
+    }
+
+    function activateApplicationPayment($id)
+    {
+
+        $studnetData = AdmissionRegistration::with('applicationmaster.stdCourseMaster')->find($id);
+        //add student to master table
+        $applicationData = $studnetData->applicationmaster;
+        if (!$applicationData) {
+            return back()->with('error', 'Application data not found for this student.');
+        }
+
+
+        //generate Rollno based on the last roll no of the department and course
+        if ($studnetData->campus_id == 1) {
+            $prefix = "USO";
+        } else {
+            $prefix = "USL";
+        }
+
+        $batch = $studnetData->batch;
+        $batch_id =  BatchMaster::where('batch_name', $batch)->value('id');
+        $programCode = $applicationData->stdCourseMaster->code;
+        //now fetch the last roll no for the same department and course
+        $lastRollNo = StudentMaster::where('academic_dept_id', $applicationData->department)
+            ->where('new_program_id', $applicationData->course)
+            ->whereHas('campusmaster', function ($query) use ($studnetData) {
+                $query->where('id', $studnetData->campus_id);
+            })
+            ->orderBy('roll_no', 'desc')
+            ->value('roll_no');
+        if ($lastRollNo == null) {
+            $newRollNo = $prefix . $batch . $programCode . '001';
+        } else {
+            $lastRollNoNumber = (int) substr($lastRollNo, -3);
+            $newRollNoNumber = $lastRollNoNumber + 1;
+            $newRollNo = $prefix . $batch . $programCode  . str_pad($newRollNoNumber, 3, '0', STR_PAD_LEFT);
+        }
+
+        StudentMaster::create([
+            'user_code' => $applicationData->application_code,
+            'first_name' => $studnetData->first_name,
+            'last_name' => $studnetData->last_name,
+            'gender' => $applicationData->gender == 'male' ? 1 : 2,
+            'dob' => date('d/m/Y', strtotime($applicationData->dob)),
+            'user_type' => 'student',
+            'nationality' => $applicationData->country,
+            'caste' => strtolower($applicationData->caste),
+            'religion' => $applicationData->religion,
+            'department' => $applicationData->department,
+            'academic_dept_id' => $applicationData->department,
+            'new_program_id' => $applicationData->course,
+            'batch' => $batch_id,
+            'mobile_no' => $studnetData->mobile_no,
+            'mail_id' => $studnetData->mail_id,
+            'aadhar_no' => $applicationData->adhaar,
+            'campus_id' => $studnetData->campus_id,
+            'photo_path' => $applicationData->photo,
+            'address' => $applicationData->permanent_address . ' ' . $applicationData->city . ' ' . $applicationData->state . ' ' . $applicationData->zip,
+            'admission_date' => now(),
+            'roll_no' => $newRollNo,
+            'father_name' =>  $applicationData->father_name,
+            'mother_name' => $applicationData->mother_name,
+            'guardian_name' => $applicationData->guardian_name,
+            'blood_group_id' => $applicationData->bloodgroup,
+            'is_physically_challenged' => $applicationData->phychallenged,
+            'mother_tongue' => $applicationData->mothertongue,
+            'fr_mobile_no' => $applicationData->father_contact,
+            'mr_mobile_no' => $applicationData->mother_contact,
+            'guardian_mobile_no' => $applicationData->guardian_contact,
+            'fr_occupation' => $applicationData->father_occupation,
+            'mr_occupation' => $applicationData->mother_occupation,
+            'annual_income' => $applicationData->income,
+            'is_roman_catholic' => $applicationData->religion == 10 ? 1 : 0,
+            'current_year' => 1,
+            'user_type' => 'student',
+
+        ]);
+
+        //update registration  status as is_enrolled
+        AdmissionRegistration::where('id', $id)->update([
+            'is_enrolled' => 1, //1 indicates enrolled, 0 indicates not enrolled
+        ]);
+
+
+        return back()->with('success', 'Application payment activated and student added to master table successfully.');
     }
 }

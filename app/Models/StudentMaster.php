@@ -11,6 +11,7 @@ class StudentMaster extends Model
     use HasFactory;
 
     protected $fillable = [
+        'user_code',
         'first_name',
         'last_name',
         'gender',
@@ -46,6 +47,11 @@ class StudentMaster extends Model
         'annual_income',
         'is_roman_catholic',
         'remarks',
+        'user_type',
+        'nationality',
+        'new_program_id',
+        'academic_dept_id',
+        'photo_path',
     ];
 
     function religionmaster()
