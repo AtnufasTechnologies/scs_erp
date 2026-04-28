@@ -24,7 +24,7 @@ if ($subjectId) {
 <link href="{{ asset('admin/css/dashboard-modern.css') }}" rel="stylesheet">
 
 <!-- Sidebar -->
-<div class="modern-sidebar">
+<div class="modern-sidebar" style="overflow-y: auto; max-height: 100vh;">
 
 
 
