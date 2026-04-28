@@ -281,6 +281,7 @@ $mainStreams = ProgramMaster::all();
               <th style="color: #e9ebef; font-weight: 600; padding: 16px;">#</th>
               <th style="color: #e9ebef; font-weight: 600;">Tracking ID</th>
               <th style="color: #e9ebef; font-weight: 600;">Batch</th>
+              <th style="color: #e9ebef; font-weight: 600;">Code</th>
               <th style="color: #e9ebef; font-weight: 600;">Program</th>
               <th style="color: #e9ebef; font-weight: 600;">Program Type</th>
               <th style="color: #e9ebef; font-weight: 600;">Total Seats</th>
@@ -298,6 +299,12 @@ $mainStreams = ProgramMaster::all();
                 <span class="badge" style="background: #43cea2; padding: 6px 12px; border-radius: 8px;">ID: {{ $combination->studentprograminfo->id ?? '-' }}</span>
               </td>
               <td style="color: #1a1a1a;">{{$combination->batchmaster->batch_name ?? '-'}}</td>
+              <td style="color: #1a1a1a;">
+                <a href="{{ route('department.show.student.list', ['program_id' => $combination->studentprograminfo->id,
+                 'slug' => $combination->studentprograminfo->name, 'batch_id' => $combination->batchmaster->id]) }}">
+                  {{ $combination->studentprograminfo->code ?? '-' }}
+                </a>
+              </td>
               <td style="color: #1a1a1a;">
                 <a href="{{ route('department.show.student.list', ['program_id' => $combination->studentprograminfo->id,
                  'slug' => $combination->studentprograminfo->name, 'batch_id' => $combination->batchmaster->id]) }}">
@@ -587,7 +594,7 @@ $mainStreams = ProgramMaster::all();
           @csrf
           <div class="modal-body" style="padding: 24px;">
             <div class="row g-3 mb-3">
-              <div class="col-6">
+              <div class="col-5">
                 <label for="" style="color: #1a1a1a; font-weight: 600; margin-bottom: 8px;">Select Academic Batch</label>
                 <select name="batch_id" class="form-select" style="border-radius: 12px; border: 1px solid #e5e7eb; padding: 12px;">
                   @foreach ($batches as $batch)
@@ -595,7 +602,7 @@ $mainStreams = ProgramMaster::all();
                   @endforeach
                 </select>
               </div>
-              <div class="col-6">
+              <div class="col-5">
                 <label for="" style="color: #1a1a1a; font-weight: 600; margin-bottom: 8px;">Select Program Type</label>
                 <select name="program_type" class="form-select" style="border-radius: 12px; border: 1px solid #e5e7eb; padding: 12px;" required>
                   <option value="">-- Select Program Type --</option>
@@ -603,6 +610,11 @@ $mainStreams = ProgramMaster::all();
                   <option value="{{ $ms->title }}">{{ $ms->title }}</option>
                   @endforeach
                 </select>
+              </div>
+              <div class="col-2">
+                <label for="" style="color: #1a1a1a; font-weight: 600; margin-bottom: 8px;">Total Seats</label>
+                <input type=" number" name="total_seats" class="form-control mb-3" style="border-radius: 12px; border: 1px solid #e5e7eb; padding: 12px;" required>
+
               </div>
             </div>
 
@@ -612,6 +624,7 @@ $mainStreams = ProgramMaster::all();
               <option value="{{$prg->id}}">{{$prg->code}} - {{$prg->name}}</option>
               @endforeach
             </select>
+
 
             <input type="hidden" name="subject_id" value="{{$data->id}}">
           </div>
