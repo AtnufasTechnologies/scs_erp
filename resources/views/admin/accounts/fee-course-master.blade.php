@@ -1,9 +1,9 @@
 <?php
 
 use App\Http\Controllers\StaticController;
+use App\Models\StudentProgram;
 
-$fetchPrograms = StaticController::fetchProgramGroupNew();
-
+$allprograms = StudentProgram::with('campusmaster')->orderby('code', 'ASC')->get();
 ?>
 @include('includes.header')
 @include('admin.accounts.sidebar')
@@ -63,95 +63,143 @@ $fetchPrograms = StaticController::fetchProgramGroupNew();
   </div>
 </div>
 
-<div id="coursesContainer" class="row g-4">
+<div id="coursesContainer">
   @if (count($data))
-  @foreach ($data as $item)
-  <?php $courseGroup = StaticController::fetchCourseMasterGroups($item->id); ?>
-
-  <div class="col-lg-4 col-md-6 " data-course-id="{{$item->id}}" data-course-name="{{$item->name}}">
-    <div class="card shadow h-100 hover-card">
-      <div class="card-header d-flex justify-content-between align-items-center">
-        <h5 class="mb-0"><i class="fa fa-graduation-cap me-2"></i>Course #{{$item->id}}</h5>
-        <a href="{{url('erp/admin/accounts/del-feecourse-master/'.$item->id)}}" id="citadel">
-          <button class="btn btn-sm btn-danger" title="Delete Course">
-            <i class="fa fa-trash-alt"></i>
-          </button>
-        </a>
-      </div>
-      <div class="card-body">
-        <h6 class="card-title text-dark fw-bold mb-3">{{$item->name}}</h6>
-
-        <div class="d-flex align-items-center mb-3">
-
-          @if(count($courseGroup))
-          <a data-bs-toggle="modal" data-bs-target="#viewProgs{{$item->id}}" class="btn btn-sm btn-outline-danger">
-            <i class="fa fa-eye"></i> View {{count($courseGroup)}}
-          </a>
-          @else
-          <span class="text-muted small">No associations</span>
-          @endif
-        </div>
-
-        <div class="d-grid gap-2">
-          <button class="btn btn-success btn-sm" data-bs-target="#linkAddModal{{$item->id}}" data-bs-toggle="modal">
-            <i class="fa fa-plus-circle"></i> Connect Programs
-          </button>
-          <button type="button" class="btn btn-primary btn-sm" data-bs-toggle="modal" data-bs-target="#edit{{$item->id}}">
-            <i class="fa fa-edit"></i> Edit Course Name
-          </button>
-        </div>
-      </div>
-    </div>
+  <div class="table-responsive">
+    <table class="table table-bordered table-hover align-middle small" id="courseTable">
+      <thead class="table-dark">
+        <tr>
+          <th style="width:60px">#</th>
+          <th>Course Name</th>
+          <th class="text-center" style="width:160px">Linked Programs</th>
+          <th class="text-center" style="width:280px">Actions</th>
+        </tr>
+      </thead>
+      <tbody>
+        @foreach ($data as $item)
+        <?php
+        $connectedPrograms = StaticController::fetchFeeStructurePrograms($item->id);
+        ?>
+        <tr data-course-id="{{$item->id}}" data-course-name="{{$item->name}}">
+          <td class="text-center fw-bold text-muted">{{ $item->id }}</td>
+          <td class="fw-semibold">{{ $item->name }}</td>
+          <td class="text-center">
+            @if(count($connectedPrograms))
+            <button class="btn btn-sm btn-outline-primary" data-bs-toggle="modal" data-bs-target="#viewProgs{{$item->id}}">
+              {{ count($connectedPrograms) }} Program(s)
+            </button>
+            @else
+            <span class="text-muted fst-italic small">None</span>
+            @endif
+          </td>
+          <td class="text-center">
+            <div class="d-flex justify-content-center gap-1">
+              <button class="btn btn-success btn-sm" data-bs-target="#linkAddModal{{$item->id}}" data-bs-toggle="modal" title="Connect Programs">
+                <i class="fa fa-plus-circle"></i> Connect
+              </button>
+              <button type="button" class="btn btn-primary btn-sm" data-bs-toggle="modal" data-bs-target="#edit{{$item->id}}" title="Edit Course Name">
+                <i class="fa fa-edit"></i> Edit
+              </button>
+              <a href="{{url('erp/admin/accounts/del-feecourse-master/'.$item->id)}}" id="citadel"
+                onclick="return confirm('Delete this course?')">
+                <button class="btn btn-sm btn-danger" title="Delete Course">
+                  <i class="fa fa-trash-alt"></i>
+                </button>
+              </a>
+            </div>
+          </td>
+        </tr>
+        @endforeach
+      </tbody>
+    </table>
   </div>
+
+  {{-- MODALS (outside table) --}}
+  @foreach ($data as $item)
+  <?php
+  $connectedPrograms = StaticController::fetchFeeStructurePrograms($item->id);
+  ?>
 
   <!-- View Programs Modal -->
-  @if(count($courseGroup))
-  <div class="modal fade" id="viewProgs{{$item->id}}" tabindex="-1" aria-labelledby="exampleModalLabel" aria-hidden="true">
-    <div class="modal-dialog modal-lg">
-      <div class="modal-content">
-        <div class="modal-header">
-          <h5 class="modal-title" id="exampleModalLabel">Linked Programs</h5>
-          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+  <div class="modal fade" id="viewProgs{{$item->id}}" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-lg modal-dialog-scrollable">
+      <div class="modal-content border-0 shadow">
+        <div class="modal-header bg-primary text-white">
+          <div>
+            <h5 class="modal-title mb-0"><i class="fa fa-link me-2"></i>Linked Programs</h5>
+            <small class="opacity-75">{{ $item->name }}</small>
+          </div>
+          <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
         </div>
-        <div class="modal-body editfeestructure">
-          <div class="mb-3">
-            <input type="text" class="form-control" placeholder="Search programs..." onkeyup="filterPrograms(this, 'programList{{$item->id}}')">
-          </div>
-          <div class="row" id="programList{{$item->id}}">
-            @foreach ($courseGroup as $s)
-            <div class="col-lg-6 mb-3 program-item" data-program-text="{{$s->programgroupinfo->programInfo->code}} {{$s->programgroupinfo->programInfo->name}} {{$s->programgroupinfo->campus->name}}">
-              <button type="button" class="btn-sm btn-outline-primary position-relative">
-                ({{$s->programgroupinfo->programInfo->code}}) {{$s->programgroupinfo->programInfo->name}} - {{$s->programgroupinfo->campus->name}}
-                <a href="{{url('erp/admin/accounts/unlink/fee-structure-group/'.$s->id)}}" id="citadel">
-                  <span class="position-absolute top-0 start-100 translate-middle badge rounded-pill bg-danger">
-                    <i class="fa fa-times"></i>
-                  </span>
-                </a>
-              </button>
+        <div class="modal-body p-0">
+          <div class="px-3 pt-3 pb-2 border-bottom bg-light">
+            <div class="input-group input-group-sm">
+              <span class="input-group-text bg-white"><i class="fa fa-search text-muted"></i></span>
+              <input type="text" class="form-control border-start-0" placeholder="Search by code, name or campus…"
+                onkeyup="filterPrograms(this, 'programList{{$item->id}}')">
             </div>
-            @endforeach
           </div>
+          <div class="px-3 py-2">
+            <span class="badge bg-primary bg-opacity-10 text-primary fw-semibold small">
+              {{ count($connectedPrograms) }} program(s) linked
+            </span>
+          </div>
+          <div class="table-responsive">
+            <table class="table table-hover align-middle small mb-0" id="programList{{$item->id}}">
+              <thead class="table-light">
+                <tr>
+                  <th style="width:90px">Code</th>
+                  <th>Program Name</th>
+                  <th style="width:140px">Campus</th>
+                  <th class="text-center" style="width:80px">Action</th>
+                </tr>
+              </thead>
+              <tbody>
+                @foreach ($connectedPrograms as $s)
+                <tr class="program-item" data-program-text="{{$s->studentprogram->code ?? ''}} {{$s->studentprogram->name ?? ''}} {{$s->studentprogram->campusmaster->name ?? ''}}">
+                  <td><span class="badge bg-secondary fw-normal">{{ $s->studentprogram->code ?? '-' }}</span></td>
+                  <td class="fw-semibold">{{ $s->studentprogram->name ?? '-' }}</td>
+                  <td class="text-muted">{{ $s->studentprogram->campusmaster->name ?? '-' }}</td>
+                  <td class="text-center">
+                    <a href="{{ url('erp/admin/accounts/unlink/fee-structure-group/'.$s->id) }}"
+                      onclick="return confirm('Remove this program from the course?')"
+                      class="btn btn-outline-danger btn-sm" title="Unlink">
+                      <i class="fa fa-unlink"></i>
+                    </a>
+                  </td>
+                </tr>
+                @endforeach
+              </tbody>
+            </table>
+          </div>
+        </div>
+        <div class="modal-footer bg-light border-top">
+          <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Close</button>
+          <button class="btn btn-success btn-sm" data-bs-dismiss="modal"
+            data-bs-toggle="modal" data-bs-target="#linkAddModal{{$item->id}}">
+            <i class="fa fa-plus-circle me-1"></i> Add More
+          </button>
         </div>
       </div>
     </div>
   </div>
-  @endif
+
 
   <!-- Link Add Modal -->
-  <div class="modal fade" id="linkAddModal{{$item->id}}" aria-hidden="true" aria-labelledby="exampleModalToggleLabel2" tabindex="-1">
+  <div class="modal fade" id="linkAddModal{{$item->id}}" aria-hidden="true" tabindex="-1">
     <div class="modal-dialog modal-lg">
       <div class="modal-content">
         <div class="modal-header">
-          <h5 class="modal-title" id="exampleModalToggleLabel2">Make Program Group</h5>
-          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+          <h5 class="modal-title"><i class="fa fa-plus-circle me-2"></i>Connect Programs — {{ $item->name }}</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
         </div>
         <form action="{{route('link.coursemaster.prggroup')}}" method="post">
           @csrf
           <div class="modal-body">
-            <label for="">Select Program Groups (atleast 1 required)</label>
+            <label for="">Select Programs (at least 1 required)</label>
             <select name="progs[]" class="select-multiple" multiple>
-              @foreach ($fetchPrograms as $p)
-              <option value="{{$p->id}}">{{$p->programInfo->code}} - {{$p->programInfo->name}} | {{$p->campus->name}}</option>
+              @foreach ($allprograms as $p)
+              <option value="{{$p->id}}">{{$p->code ?? '-'}} - {{$p->name ?? '-'}} | {{$p->campusmaster->name ?? ''}}</option>
               @endforeach
             </select>
             <input type="hidden" name="coursemasterId" value="{{$item->id}}">
@@ -165,12 +213,12 @@ $fetchPrograms = StaticController::fetchProgramGroupNew();
   </div>
 
   <!-- Edit Modal -->
-  <div class="modal fade" id="edit{{$item->id}}" tabindex="-1" aria-labelledby="exampleModalLabel" aria-hidden="true">
+  <div class="modal fade" id="edit{{$item->id}}" tabindex="-1" aria-hidden="true">
     <div class="modal-dialog">
       <div class="modal-content">
         <div class="modal-header">
-          <h5 class="modal-title" id="exampleModalLabel">Edit</h5>
-          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+          <h5 class="modal-title"><i class="fa fa-edit me-2"></i>Edit Course Name</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
         </div>
         <form action="{{url('erp/admin/accounts/update-fee-course-master')}}" method="post" enctype="multipart/form-data">
           @csrf
@@ -188,45 +236,20 @@ $fetchPrograms = StaticController::fetchProgramGroupNew();
   </div>
 
   @endforeach
+
   @else
-  <div class="col-12">
-    <div class="alert alert-info text-center py-5">
-      <i class="fa fa-info-circle fa-3x mb-3"></i>
-      <h4>No Course Records Found</h4>
-      <p class="mb-0">Click "Add New" to create your first fee course master.</p>
-    </div>
+  <div class="alert alert-info text-center py-5">
+    <i class="fa fa-info-circle fa-3x mb-3"></i>
+    <h4>No Course Records Found</h4>
+    <p class="mb-0">Click "Add New" to create your first fee course master.</p>
   </div>
   @endif
 </div>
 
 <style>
-  .bg-gradient-primary {
-    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-  }
-
-  .hover-card {
-    transition: all 0.3s ease;
-  }
-
-  .hover-card:hover {
-    transform: translateY(-5px);
-    box-shadow: 0 10px 25px rgba(0, 0, 0, 0.15) !important;
-  }
-
-  .card-header h5 {
-    font-size: 1rem;
-  }
-
-  .card-title {
-    font-size: 1.1rem;
-    min-height: 50px;
-    display: flex;
-    align-items: center;
-  }
-
   @media (max-width: 768px) {
-    .col-lg-4 {
-      margin-bottom: 1rem;
+    .table-responsive {
+      font-size: 0.8rem;
     }
   }
 </style>
@@ -234,43 +257,27 @@ $fetchPrograms = StaticController::fetchProgramGroupNew();
 @include('includes.footer')
 
 <script>
-  // Live search filter function for cards
+  // Live search — filter table rows
   document.addEventListener('DOMContentLoaded', function() {
     const searchInput = document.getElementById('liveSearchCards');
-
     if (searchInput) {
       searchInput.addEventListener('keyup', function() {
-        const searchTerm = this.value.toLowerCase().trim();
-        const courseCards = document.querySelectorAll('.course-card');
-
-        courseCards.forEach(card => {
-          const courseId = card.getAttribute('data-course-id').toLowerCase();
-          const courseName = card.getAttribute('data-course-name').toLowerCase();
-
-          if (courseId.includes(searchTerm) || courseName.includes(searchTerm)) {
-            card.style.display = '';
-          } else {
-            card.style.display = 'none';
-          }
+        const term = this.value.toLowerCase().trim();
+        document.querySelectorAll('#courseTable tbody tr').forEach(row => {
+          const id = (row.getAttribute('data-course-id') || '').toLowerCase();
+          const name = (row.getAttribute('data-course-name') || '').toLowerCase();
+          row.style.display = (id.includes(term) || name.includes(term)) ? '' : 'none';
         });
       });
     }
   });
 
   // Live search filter function for program lists in modals
-  function filterPrograms(input, listId) {
-    const searchTerm = input.value.toLowerCase().trim();
-    const programList = document.getElementById(listId);
-    const programItems = programList.querySelectorAll('.program-item');
-
-    programItems.forEach(item => {
-      const programText = item.getAttribute('data-program-text').toLowerCase();
-
-      if (programText.includes(searchTerm)) {
-        item.style.display = '';
-      } else {
-        item.style.display = 'none';
-      }
+  function filterPrograms(input, tableId) {
+    const term = input.value.toLowerCase().trim();
+    document.querySelectorAll('#' + tableId + ' tbody tr.program-item').forEach(row => {
+      const text = (row.getAttribute('data-program-text') || '').toLowerCase();
+      row.style.display = text.includes(term) ? '' : 'none';
     });
   }
 </script>

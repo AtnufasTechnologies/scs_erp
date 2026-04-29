@@ -127,6 +127,6 @@ class StudentMaster extends Model
 
     function stdprogramenrolled()
     {
-        return $this->hasMany(StudentProgram::class, 'id', 'new_program_id');
+        return $this->hasOne(StudentProgram::class, 'id', 'new_program_id');
     }
 }

@@ -929,7 +929,7 @@ class AdminController extends Controller
             'feepvthead.head.bankmaster',
             'feepvthead.head:id,head_name,bank_acc_id',
             'feecoursemaster:id,name',
-            'programspivot.programgroupinfo.programInfo',
+            'programspivot.studentprogram',
         ]);
 
         if (!empty($request->keyword)) {
@@ -999,7 +999,7 @@ class AdminController extends Controller
         for ($i = 0; $i < count($progs); $i++) {
             $pg = new FeeStructureHasManyProgram();
             $pg->fee_structure_id = $rec->id;
-            $pg->std_program_id = $progs[$i]->program_group_id;
+            $pg->std_program_id = $progs[$i]->student_program_id;
             $pg->save();
         }
 
@@ -1106,15 +1106,35 @@ class AdminController extends Controller
         ]);
         $courseMasterId =  $request->coursemasterId;
         $progs = $request->progs;
+
+        //link programs to fee structure 
+        /**New Logic Written 
+         * bypassing Program Groups
+         * 29/04/2026
+         * Reason: Program groups were adding unnecessary complexity and overhead in managing fee structures.
+         * Directly linking student programs to fee structures simplifies the architecture and improves performance.
+         */
+        for ($i = 0; $i < count($progs); $i++) {
+            if (FeeStructureHasManyProgram::where('fee_structure_id', $courseMasterId)->where('std_program_id', $progs[$i])->exists()) {
+                continue;
+            }
+            $pvt = new FeeStructureHasManyProgram();
+            $pvt->fee_structure_id = $courseMasterId;
+            $pvt->std_program_id = $progs[$i];
+            $pvt->save();
+        }
+
+
+        /*
         for ($i = 0; $i < count($progs); $i++) {
 
-            if (FeeStructureGroup::where('fee_course_master_id', $courseMasterId)->where('program_group_id', $progs[$i])->exists()) {
+            if (FeeStructureGroup::where('fee_course_master_id', $courseMasterId)->where('student_program_id', $progs[$i])->exists()) {
                 continue;
             }
 
             $rec = new FeeStructureGroup();
             $rec->fee_course_master_id = $courseMasterId;
-            $rec->program_group_id = $progs[$i];
+            $rec->student_program_id = $progs[$i];
             $rec->save();
         }
         //find if any fee structure exist
@@ -1131,9 +1151,10 @@ class AdminController extends Controller
                 $pvt->save();
             }
         }
+            */
 
 
-        return redirect()->back()->with('success', 'Group Created');
+        return redirect()->back()->with('success', 'New Programs Linked ');
     }
 
     function feeStructureGroupUnlink($id)

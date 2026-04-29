@@ -697,10 +697,6 @@ Route::group(['prefix' => '/erp'], function () {
         Route::delete('syllabus-co/{subjectId}/{batchId}/{semesterId}/{coId}', [SubjectController::class, 'deleteSyllabusCo'])->name('department.syllabus.co.delete');
         Route::get('syllabus-download-pdf', [SubjectController::class, 'downloadSyllabusPdf'])->name('department.syllabus.download.pdf');
 
-        // Syllabus Reference PDF uploads
-        Route::post('syllabus-pdf', [SyllabusPdfController::class, 'store'])->name('department.syllabus.pdf.store');
-        Route::delete('syllabus-pdf/{id}', [SyllabusPdfController::class, 'destroy'])->name('department.syllabus.pdf.destroy');
-
         // Course Seat Manager
         Route::get('course-seats', [CourseSeatController::class, 'index'])->name('department.seats.index');
         Route::post('course-seats', [CourseSeatController::class, 'store'])->name('department.seats.store');

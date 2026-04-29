@@ -9,8 +9,8 @@ class FeeStructureGroup extends Model
 {
     use HasFactory;
 
-    function programgroupinfo()
+    function programinfo()
     {
-        return $this->hasOne(ProgramGroup::class, 'id', 'program_group_id');
+        return $this->hasOne(StudentProgram::class, 'id', 'student_program_id');
     }
 }

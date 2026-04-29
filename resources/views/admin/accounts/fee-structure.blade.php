@@ -105,6 +105,8 @@ $yearGradients = [
   </div>
 </div>
 
+
+
 <!-- Toolbar -->
 <div class="card shadow-sm mb-3">
   <div class="card-body py-2">
@@ -120,7 +122,23 @@ $yearGradients = [
           </select>
         </form>
       </div>
-      <div class="col-md-7 d-flex justify-content-end">
+      <div class="col-md-3">
+
+        <input type="text" id="feeSearch" class="form-control form-control-sm" placeholder="Type to filter...">
+      </div>
+      <script>
+        document.addEventListener('DOMContentLoaded', function() {
+          const searchInput = document.getElementById('feeSearch');
+          searchInput.addEventListener('input', function() {
+            const query = this.value.toLowerCase();
+            document.querySelectorAll('.fee-card').forEach(function(card) {
+              const text = card.innerText.toLowerCase();
+              card.parentElement.style.display = text.includes(query) ? '' : 'none';
+            });
+          });
+        });
+      </script>
+      <div class="col-md-6 d-flex justify-content-end">
         <form action="" method="post" class="d-flex align-items-center gap-2">
           @csrf
           <span class="text-muted small fw-semibold"><i class="fa fa-clock me-1"></i>Late Fee:</span>
@@ -135,6 +153,7 @@ $yearGradients = [
           </div>
         </form>
       </div>
+
     </div>
   </div>
 </div>
@@ -427,17 +446,17 @@ $yearGradients = [
 
         <a data-bs-toggle="modal" data-bs-target="#editCard{{ $item->id }}"
           class="btn btn-sm btn-outline-secondary" title="Edit structure">
-          <i class="fa fa-edit me-1"></i>Edit
+          <i class="fa fa-edit me-1"></i>
         </a>
 
         <a data-bs-toggle="modal" data-bs-target="#viewProgs{{ $item->id }}"
           class="btn btn-sm btn-outline-primary" title="Linked programs">
-          <i class="fa fa-link me-1"></i>Programs
+          <i class="fa fa-link me-1"></i> {{ count($item->programspivot) }}
         </a>
 
         <a data-bs-toggle="modal" data-bs-target="#cloneCard{{ $item->id }}"
           class="btn btn-sm btn-outline-success" title="Clone to new batch">
-          <i class="fa fa-copy me-1"></i>Clone
+          <i class="fa fa-copy me-1"></i>
         </a>
 
         <a href="{{ url('erp/admin/accounts/delete-feestructure/'.$item->id) }}"
@@ -547,7 +566,7 @@ $yearGradients = [
               <div class="d-flex flex-wrap gap-2">
                 @foreach($item->programspivot as $s)
                 <span class="badge bg-primary-subtle text-primary border border-primary-subtle px-3 py-2" style="font-size:12px;">
-                  {{ $s->programgroupinfo->program_code }} – {{ $s->programgroupinfo->programInfo->name }}
+                  {{ $s->studentprogram->code ?? ''}} – {{ $s->studentprogram->name ?? '' }}
                 </span>
                 @endforeach
               </div>
