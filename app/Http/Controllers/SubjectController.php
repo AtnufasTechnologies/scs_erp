@@ -38,6 +38,8 @@ use App\Models\SubjectHasStudentProgam;
 use App\Models\SubjectHasSyllabus;
 use App\Models\SubjectTypeMaster;
 use App\Models\SyllabusHasFaculty;
+use App\Models\CourseSeatAllocation;
+use App\Models\SyllabusPdfUpload;
 use App\Models\SyllabusManager;
 use App\Models\SyllabusSubunit;
 use App\Models\User;
@@ -971,11 +973,23 @@ class SubjectController extends Controller
 
         $data['organized_syllabus'] = $organized;
 
+        // Seat allocations keyed by "batch_id_semester_id_course_master_id" for quick lookup
+        $seatAllocations = CourseSeatAllocation::where('subject_id', $id)
+            ->get()
+            ->keyBy(fn($a) => "{$a->batch_id}_{$a->semester_id}_{$a->course_master_id}");
+
+        // Reference PDFs keyed the same way
+        $syllabuspdfs = SyllabusPdfUpload::where('subject_id', $id)
+            ->get()
+            ->keyBy(fn($p) => "{$p->batch_id}_{$p->semester_id}_{$p->course_master_id}");
+
         return view('admin.subject.syllabus-manager', [
-            'batches' => $batches,
-            'semesters' => $semesters,
-            'cos' => $cos,
-            'data' => $data
+            'batches'        => $batches,
+            'semesters'      => $semesters,
+            'cos'            => $cos,
+            'data'           => $data,
+            'seatAllocations' => $seatAllocations,
+            'syllabuspdfs'   => $syllabuspdfs,
         ]);
     }
 
@@ -1164,7 +1178,7 @@ class SubjectController extends Controller
 
         $batches = BatchMaster::all();
 
-        $query = StudentMaster::with(['batchmaster', 'campusmaster']);
+        $query = StudentMaster::where('is_left', '0')->with(['batchmaster', 'campusmaster']);
 
         if ($request->filled('batch_id')) {
             $query->where('batch', $request->batch_id);

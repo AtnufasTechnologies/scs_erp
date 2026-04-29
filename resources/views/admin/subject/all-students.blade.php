@@ -100,8 +100,8 @@
                   {{ $student->first_name }} {{ $student->last_name }}
                 </td>
                 <td style="font-size: 13px;">
-                  @if($student->programgroup && $student->programgroup->programInfo)
-                  <span style="color: #374151;">{{ $student->programgroup->programInfo->name ?? '–' }}</span>
+                  @if($student->stdprogramenrolled && $student->stdprogramenrolled->first())
+                  <span style="color: #374151;">{{ $student->stdprogramenrolled->first()->name ?? '–' }}</span>
                   @else
                   <span class="text-muted">N/A</span>
                   @endif
@@ -152,6 +152,7 @@
         </div>
         @endif
       </div>
+
     </div>
 
   </div>
