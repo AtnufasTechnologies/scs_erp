@@ -23,4 +23,9 @@ class FeeStructureHasManyProgram extends Model
     {
         return $this->hasMany(FeesStructure::class, 'id', 'fee_structure_id');
     }
+
+    function studentprogram()
+    {
+        return $this->hasOne(StudentProgram::class, 'id', 'std_program_id');
+    }
 }

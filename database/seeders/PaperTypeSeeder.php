@@ -13,8 +13,8 @@ class PaperTypeSeeder extends Seeder
      */
     public function run(): void
     {
-        PaperTypeMaster::create(['name' => 'T']);
-        PaperTypeMaster::create(['name' => 'P']);
-        PaperTypeMaster::create(['name' => 'TP']);
+        PaperTypeMaster::create(['code' => 'T', 'name' => 'Theory']);
+        PaperTypeMaster::create(['code' => 'P', 'name' => 'Practical']);
+        PaperTypeMaster::create(['code' => 'TP', 'name' => 'Theory/Practical']);
     }
 }

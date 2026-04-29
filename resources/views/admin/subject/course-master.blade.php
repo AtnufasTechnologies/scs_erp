@@ -112,7 +112,7 @@ $papertypes = PaperTypeMaster::all();
                 <div class="col-lg-12">
                   <div class="mb-3">
                     <label for="courseTitle" class="form-label">Course Title *</label>
-                    <input type="text" class="form-control" id="courseTitle" name="course_title" required>
+                    <textarea name="course_title" id="courseTitle" class="form-control" required></textarea>
                   </div>
                 </div>
               </div>
@@ -140,12 +140,13 @@ $papertypes = PaperTypeMaster::all();
           <form action="{{ route('department.add.course.master') }}" method="post">
             @csrf
             <div class="modal-body">
-              <label for="">Select Master Course</label>
+              <label for="">Select Master Course *</label>
               <select name="courses[]" class="select-multiple" multiple>
                 @foreach ($course_master as $course)
                 <option value="{{ $course->id }}">{{ $course->course_code }} - {{ $course->course_title }} ({{$course->coursetypemaster->title ?? '-'   }})</option>
                 @endforeach
               </select>
+
 
               <input type="hidden" name="subject_id" value="{{ $data->id }}">
             </div>

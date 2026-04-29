@@ -34,7 +34,8 @@ class FeePaymentController extends Controller
             'programgroup.programInfo',
             'stdfeestructure.feeHeads',
             'stdfeestructure',
-            'stdfeestructure.programspivot',
+            // 'stdfeestructure.programspivot',
+            'stdprogramenrolled',  //newly added direct link to student program
             'feepayment'
         ]);
 
@@ -55,7 +56,7 @@ class FeePaymentController extends Controller
         }
 
         if ($request->filter_pgr) {
-            $query->where('programme', $request->filter_pgr);
+            $query->where('new_program_id', $request->filter_pgr);
         }
 
         // ---- PAGINATION ----
@@ -143,6 +144,7 @@ class FeePaymentController extends Controller
                 'batch' => $student->batchmaster->batch_name ?? '',
                 'programgroup' => $student->programgroup->program_code ?? '',
                 'programinfo' => $student->programgroup->programInfo->name ?? '',
+                'stdprogramenrolled' => $student->stdprogramenrolled,
                 'current_year' => $student->current_year,
                 'fee_status' => $fsWithStatus
             ];

@@ -13,11 +13,9 @@
           <div>
             <p class="mb-0 text-secondary">Total Fee Collected</p>
             <h4 class="my-1 text-primary">₹ {{ number_format($totalStudentFeeCollected, 2) }}</h4>
-            <p class="mb-0 text-secondary small">All time student fees</p>
+            <p class="mb-0 text-secondary small">All Semester fees</p>
           </div>
-          <div class="ms-auto widget-icon bg-primary text-white">
-            <i class="fas fa-rupee-sign"></i>
-          </div>
+
         </div>
       </div>
     </div>
@@ -32,9 +30,7 @@
             <h4 class="my-1 text-success">₹ {{ number_format($todayCollection, 2) }}</h4>
             <p class="mb-0 text-secondary small">{{ now()->format('d M Y') }}</p>
           </div>
-          <div class="ms-auto widget-icon bg-success text-white">
-            <i class="fas fa-calendar-day"></i>
-          </div>
+
         </div>
       </div>
     </div>
@@ -49,9 +45,7 @@
             <h4 class="my-1 text-warning">₹ {{ number_format($totalAdmissionFeeCollected, 2) }}</h4>
             <p class="mb-0 text-secondary small">All time admission fees</p>
           </div>
-          <div class="ms-auto widget-icon bg-warning text-white">
-            <i class="fas fa-file-invoice-dollar"></i>
-          </div>
+
         </div>
       </div>
     </div>
@@ -62,13 +56,11 @@
       <div class="card-body">
         <div class="d-flex align-items-center">
           <div>
-            <p class="mb-0 text-secondary">Active Faculty</p>
-            <h4 class="my-1 text-info">{{ $totalFaculty }}</h4>
-            <p class="mb-0 text-secondary small">Currently serving</p>
+            <p class="mb-0 text-secondary"><strong>Total Revenue </strong></p>
+            <h4 class="my-1 text-info">{{ number_format($totalStudentFeeCollected + $totalAdmissionFeeCollected, 2) }}</h4>
+            <p class="mb-0 text-secondary small">Admission and Fees</p>
           </div>
-          <div class="ms-auto widget-icon bg-info text-white">
-            <i class="fas fa-chalkboard-teacher"></i>
-          </div>
+
         </div>
       </div>
     </div>

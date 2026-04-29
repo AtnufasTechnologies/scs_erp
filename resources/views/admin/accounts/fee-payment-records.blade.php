@@ -3,11 +3,12 @@
 use App\Models\BatchMaster;
 use App\Models\Campus;
 use App\Models\ProgramGroup;
+use App\Models\StudentProgram;
 
 $batches = BatchMaster::all();
 
-$programgroups = ProgramGroup::with(['programInfo', 'campus'])->where('campus_id', 2)->get();
-
+// $programgroups = ProgramGroup::with(['programInfo', 'campus'])->where('campus_id', 2)->get();
+$studentPrograms = StudentProgram::with('campusmaster')->get();
 ?>
 @include('includes.header')
 @include('admin.accounts.sidebar')
@@ -21,8 +22,8 @@ $programgroups = ProgramGroup::with(['programInfo', 'campus'])->where('campus_id
         <div class="col-lg-7">
           <select name="filter_pgr" class="form-control dselect-example">
             <option value="">--Select Group--</option>
-            @foreach ($programgroups as $pgr)
-            <option value="{{$pgr->id}}">{{$pgr->program_code}} - {{$pgr->programInfo->name}} </option>
+            @foreach ($studentPrograms as $prg)
+            <option value="{{$prg->id}}">{{$prg->code}} - {{$prg->name}} | {{$prg->campusmaster->name ?? ''}} </option>
             @endforeach
           </select>
         </div>
@@ -78,8 +79,8 @@ $programgroups = ProgramGroup::with(['programInfo', 'campus'])->where('campus_id
 
             </div>
           </td>
-          <div class="meta-line">{{ $item['programgroup'] }} • Batch {{ $item['batch'] }}</div>
-          <div class="meta-line">Current Year: {{ $item['current_year'] }}</div>
+          <div class="meta-line"> Batch {{ $item['batch'] }} | Current Year: {{ $item['current_year'] }}</div>
+          <div class="meta-line">{{ $item['stdprogramenrolled']->code ?? '—' }} - {{ $item['stdprogramenrolled']->name ?? '—' }} </div>
         </div>
 
         <div>

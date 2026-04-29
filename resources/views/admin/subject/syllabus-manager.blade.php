@@ -48,6 +48,13 @@ $batches = BatchMaster::all();
       </button>
     </div>
 
+    <div class="col-lg-2">
+      <!-- Upload Reference PDF Button -->
+      <button class="btn btn-primary mb-3" data-bs-toggle="modal" data-bs-target="#uploadRefPdfModal">
+        <i class="fa fa-upload"></i> Upload Ref PDF
+      </button>
+    </div>
+
     <div class="col-lg-3 offset-lg-3">
       <form action="{{ route('department.syllabus.manager', ['id' => $data['id'],'slug' => $data['slug']]) }}" method="get">
         <div class="input-group">
@@ -109,7 +116,7 @@ $batches = BatchMaster::all();
           <div class="modal-body">
             <div class="row">
               <div class="row">
-                <div class="col-lg-6">
+                <div class="col-lg-4">
                   <label for="">Select Batch *</label>
                   <select name="batch" class="form-select">
                     <option value="" selected>--Select--</option>
@@ -123,7 +130,7 @@ $batches = BatchMaster::all();
 
                 </div>
 
-                <div class="col-lg-6">
+                <div class="col-lg-4">
                   <label for="">Select Semester *</label>
                   <select name="semester" class="form-select mb-3">
                     <option value="" selected>--Select--</option>
@@ -188,20 +195,25 @@ $batches = BatchMaster::all();
 
   <!-- Udemy-Style Syllabus Display -->
   <div class="mt-4">
-    @forelse ($data['organized_syllabus'] ?? [] as $batchName => $semesters)
+    @forelse ($data['organized_syllabus'] ?? [] as $batchName => $semesterGroups)
     <div class="card mb-4 shadow-sm">
       <div class="card-header bg-primary text-white">
         <h5 class="mb-0"><i class="fa fa-graduation-cap"></i> Batch: {{ $batchName }}</h5>
       </div>
       <div class="card-body p-0">
-        @foreach ($semesters as $semesterName => $courses)
+        @foreach ($semesterGroups as $semesterName => $courses)
         <div class="border-bottom">
           <div class="p-3 bg-light">
             <h6 class="mb-0"><i class="fa fa-calendar"></i> {{ $semesterName }}</h6>
           </div>
           <div class="accordion" id="accordion{{ Str::slug($batchName . $semesterName) }}">
             @foreach ($courses as $courseKey => $courseData)
-            <?php $firstCso = $courseData['csos'][0] ?? null; ?>
+            <?php
+            $firstCso = $courseData['csos'][0] ?? null;
+            $seatKey  = $firstCso ? "{$firstCso->batch_id}_{$firstCso->semester_id}_{$firstCso->co_id}" : null;
+            $seatAlloc = $seatKey ? ($seatAllocations[$seatKey] ?? null) : null;
+            $refPdf    = $seatKey ? ($syllabuspdfs[$seatKey] ?? null) : null;
+            ?>
             <div class="accordion-item">
               <div class="accordion-header d-flex align-items-center">
                 <button class="accordion-button collapsed flex-grow-1" type="button" data-bs-toggle="collapse"
@@ -210,6 +222,27 @@ $batches = BatchMaster::all();
                   <strong>{{ $courseData['course']->course_code ?? 'N/A' }}</strong>
                   <span class="ms-2">{{ $courseData['course']->course_title ?? 'Unknown Course' }}</span>
                   <span class="badge bg-secondary ms-auto me-2">{{ $courseData['course']->credits ?? '0' }} Credits</span>
+                  @if($seatAlloc)
+                  <span class="badge {{ $seatAlloc->is_open ? 'bg-success' : 'bg-secondary' }} me-2" title="Total Seats">
+                    <i class="fa fa-chair me-1"></i>{{ $seatAlloc->total_seats }} Seats
+                    {{ $seatAlloc->is_open ? '(Open)' : '(Closed)' }}
+                  </span>
+                  @else
+                  <span class="badge bg-warning text-dark me-2" title="No seat allocation set">
+                    <i class="fa fa-chair me-1"></i>Seats N/A
+                  </span>
+                  @endif
+                  @if($refPdf)
+                  <a href="{{ Storage::disk('s3')->url($refPdf->file_path) }}" target="_blank"
+                    class="badge bg-danger text-white me-2 text-decoration-none no-print"
+                    title="View Reference PDF: {{ $refPdf->original_name }}" onclick="event.stopPropagation()">
+                    <i class="fa fa-file-pdf me-1"></i>Ref PDF
+                  </a>
+                  @else
+                  <span class="badge bg-light text-muted border me-2 no-print" title="No reference PDF uploaded">
+                    <i class="fa fa-file-pdf me-1"></i>No PDF
+                  </span>
+                  @endif
                 </button>
                 @if($firstCso)
                 <form action="{{ route('department.syllabus.co.delete', [$data['id'], $firstCso->batch_id, $firstCso->semester_id, $firstCso->co_id]) }}"
@@ -227,6 +260,46 @@ $batches = BatchMaster::all();
                 class="accordion-collapse collapse"
                 data-bs-parent="#accordion{{ Str::slug($batchName . $semesterName) }}">
                 <div class="accordion-body">
+                  <!-- Reference PDF Panel -->
+                  <div class="alert {{ $refPdf ? 'alert-danger' : 'alert-light border' }} d-flex align-items-center justify-content-between py-2 mb-3 no-print" role="alert">
+                    <div>
+                      <i class="fa fa-file-pdf me-2 text-danger"></i>
+                      @if($refPdf)
+                      <strong>Reference PDF:</strong>
+                      <a href="{{ Storage::disk('s3')->url($refPdf->file_path) }}" target="_blank" class="ms-1">
+                        {{ $refPdf->original_name }}
+                      </a>
+                      <small class="text-muted ms-2">uploaded {{ $refPdf->updated_at->diffForHumans() }}</small>
+                      @else
+                      <span class="text-muted">No reference PDF uploaded for this course.</span>
+                      @endif
+                    </div>
+                    <div class="d-flex gap-2">
+                      @if($firstCso)
+                      <!-- Replace / Upload -->
+                      <button class="btn btn-sm btn-outline-primary"
+                        data-bs-toggle="modal"
+                        data-bs-target="#uploadRefPdfModal"
+                        data-batch="{{ $firstCso->batch_id }}"
+                        data-semester="{{ $firstCso->semester_id }}"
+                        data-course="{{ $firstCso->co_id }}"
+                        onclick="prefillPdfModal(this)">
+                        <i class="fa fa-upload me-1"></i>{{ $refPdf ? 'Replace' : 'Upload' }}
+                      </button>
+                      @endif
+                      @if($refPdf)
+                      <form action="{{ route('department.syllabus.pdf.destroy', $refPdf->id) }}" method="POST"
+                        onsubmit="return confirm('Remove this reference PDF?')">
+                        @csrf
+                        @method('DELETE')
+                        <button type="submit" class="btn btn-sm btn-outline-danger">
+                          <i class="fa fa-trash"></i>
+                        </button>
+                      </form>
+                      @endif
+                    </div>
+                  </div>
+
                   <!-- Course Details -->
                   <div class="row mb-3">
                     <div class="col-md-4">
@@ -315,10 +388,79 @@ $batches = BatchMaster::all();
 
 
 </div>
+
+<!-- ═══════════════════════════════════════════════════════
+     Upload Reference PDF Modal
+══════════════════════════════════════════════════════════ -->
+<div class="modal fade" id="uploadRefPdfModal" tabindex="-1" aria-labelledby="uploadRefPdfModalLabel" aria-hidden="true">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title" id="uploadRefPdfModalLabel">
+          <i class="fa fa-upload text-primary me-2"></i>Upload Reference PDF Syllabus
+        </h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <form action="{{ route('department.syllabus.pdf.store') }}" method="POST" enctype="multipart/form-data">
+        @csrf
+        <div class="modal-body">
+          <div class="mb-3">
+            <label class="form-label fw-semibold">Batch <span class="text-danger">*</span></label>
+            <select name="batch_id" id="refPdfBatch" class="form-select" required>
+              <option value="">— Select Batch —</option>
+              @foreach($batches as $b)
+              <option value="{{ $b->id }}">{{ $b->batch_name }}</option>
+              @endforeach
+            </select>
+          </div>
+          <div class="mb-3">
+            <label class="form-label fw-semibold">Semester <span class="text-danger">*</span></label>
+            <select name="semester_id" id="refPdfSemester" class="form-select" required>
+              <option value="">— Select Semester —</option>
+              @foreach($semesters as $s)
+              <option value="{{ $s->id }}">{{ $s->title }}</option>
+              @endforeach
+            </select>
+          </div>
+          <div class="mb-3">
+            <label class="form-label fw-semibold">Course <span class="text-danger">*</span></label>
+            <select name="course_master_id" id="refPdfCourse" class="form-select" required>
+              <option value="">— Select Course —</option>
+              @foreach($cos as $item)
+              <option value="{{ $item->course_master_id }}">
+                ({{ $item->courseMaster->course_code ?? '—' }}) {{ $item->courseMaster->course_title ?? '—' }}
+              </option>
+              @endforeach
+            </select>
+          </div>
+          <div class="mb-3">
+            <label class="form-label fw-semibold">PDF File <span class="text-danger">*</span></label>
+            <input type="file" name="pdf_file" class="form-control" accept=".pdf" required>
+            <small class="text-muted">Max size: 10 MB. Uploading a new file replaces any existing PDF for the same batch/semester/course.</small>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+          <button type="submit" class="btn btn-primary">
+            <i class="fa fa-upload me-1"></i>Upload
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+
 @include('includes.footer')
 
 <!-- CSO AJAX Script -->
 <script>
+  // Pre-fill the Reference PDF upload modal when triggered from a course row
+  function prefillPdfModal(btn) {
+    document.getElementById('refPdfBatch').value = btn.dataset.batch || '';
+    document.getElementById('refPdfSemester').value = btn.dataset.semester || '';
+    document.getElementById('refPdfCourse').value = btn.dataset.course || '';
+  }
+
   document.addEventListener('DOMContentLoaded', function() {
     const courseSelect = document.getElementById('course_objective');
     const csoSelect = document.getElementById('cso_select');

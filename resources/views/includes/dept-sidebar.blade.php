@@ -78,6 +78,12 @@ if ($subjectId) {
     </div>
   </a>
 
+  <a href="{{route('department.seats.index')}}">
+    <div class="sidebar-icon {{ request()->routeIs('department.seats.*') ? 'active' : '' }}" title="Course Seat Manager">
+      <i class="fas fa-chair fa-lg"></i>
+    </div>
+  </a>
+
   <a href="{{route('department.leave.index')}}" style="position: relative;">
     <div class="sidebar-icon {{ request()->routeIs('department.leave.*') ? 'active' : '' }}" title="Leave Sanction">
       <i class="fas fa-clipboard-check fa-lg"></i>

@@ -46,6 +46,8 @@ use App\Http\Controllers\PromotionController;
 use App\Http\Controllers\SeatingAllocationController;
 use App\Http\Controllers\StudentCreditController;
 use App\Http\Controllers\CourseOfferingController;
+use App\Http\Controllers\CourseSeatController;
+use App\Http\Controllers\SyllabusPdfController;
 use App\Http\Controllers\SubjectController;
 use App\Http\Controllers\TestController;
 use App\Http\Controllers\TimetableController;
@@ -694,6 +696,14 @@ Route::group(['prefix' => '/erp'], function () {
         Route::delete('syllabus-subunit/{id}', [SubjectController::class, 'deleteSyllabusSubunit'])->name('department.syllabus.subunit.delete');
         Route::delete('syllabus-co/{subjectId}/{batchId}/{semesterId}/{coId}', [SubjectController::class, 'deleteSyllabusCo'])->name('department.syllabus.co.delete');
         Route::get('syllabus-download-pdf', [SubjectController::class, 'downloadSyllabusPdf'])->name('department.syllabus.download.pdf');
+
+        // Course Seat Manager
+        Route::get('course-seats', [CourseSeatController::class, 'index'])->name('department.seats.index');
+        Route::post('course-seats', [CourseSeatController::class, 'store'])->name('department.seats.store');
+        Route::put('course-seats/{id}', [CourseSeatController::class, 'update'])->name('department.seats.update');
+        Route::delete('course-seats/{id}', [CourseSeatController::class, 'destroy'])->name('department.seats.destroy');
+        Route::post('course-seats/{id}/toggle', [CourseSeatController::class, 'toggle'])->name('department.seats.toggle');
+        Route::post('course-seats/bulk-toggle', [CourseSeatController::class, 'bulkToggle'])->name('department.seats.bulk-toggle');
 
         // Course Offerings (FIFO registration module)
         Route::get('course-offerings', [CourseOfferingController::class, 'index'])->name('department.offerings.index');

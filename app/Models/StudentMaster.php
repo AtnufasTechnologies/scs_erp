@@ -124,4 +124,9 @@ class StudentMaster extends Model
     {
         return $this->hasOne(StudentAddress::class, 'student_id', 'id');
     }
+
+    function stdprogramenrolled()
+    {
+        return $this->hasOne(StudentProgram::class, 'id', 'new_program_id');
+    }
 }

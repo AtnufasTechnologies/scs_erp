@@ -12,9 +12,11 @@ use App\Models\Department;
 use App\Models\FeeHead;
 use App\Models\FeeStructureGroup;
 use App\Models\FeeStructureHasHead;
+use App\Models\FeeStructureHasManyProgram;
 use App\Models\Otp;
 use App\Models\ProgramGroup;
 use App\Models\StudentPayment;
+use App\Models\StudentProgram;
 use App\Models\User;
 use App\Models\UserCampusSetting;
 use App\Models\UserHasPermission;
@@ -244,18 +246,19 @@ class StaticController extends Controller
 
   static function fetchProgramGroupNew()
   {
-    $data = ProgramGroup::with([
-      'programInfo',
-      'campus'
-    ])->get();
+    // $data = ProgramGroup::with([
+    //   'programInfo',
+    //   'campus'
+    // ])->get();
+
+    $data  = StudentProgram::with('campusmaster')->get();
     return $data;
   }
 
   static function fetchCourseMasterGroups($id)
   {
     $data = FeeStructureGroup::with([
-      'programgroupinfo.programInfo',
-      'programgroupinfo.campus'
+      'programinfo.campusmaster',
     ])->where('fee_course_master_id', $id)->get();
     return $data;
   }
@@ -415,7 +418,7 @@ class StaticController extends Controller
    * Check if the current user (COE or DCOE) can see a specific COE sidebar menu.
    * COE can see everything. DCOE sees only assigned menus.
    */
-  static function coeMenuAccess($slug)
+  static function coeMenuAccess(string $slug)
   {
     $role = self::fetchUserRole();
     if ($role === 'coe') {
@@ -498,6 +501,14 @@ class StaticController extends Controller
     $data['sonada'] = AdmissionRegistration::where('campus_id', 1)->where('otp_verification', 1)->count();
     $data['siliguri'] = AdmissionRegistration::where('campus_id', 2)->where('otp_verification', 1)->count();
 
+    return $data;
+  }
+
+  static function fetchFeeStructurePrograms(int $id)
+  {
+    $data = FeeStructureHasManyProgram::with([
+      'studentprogram.campusmaster',
+    ])->where('fee_structure_id', $id)->get();
     return $data;
   }
 }
