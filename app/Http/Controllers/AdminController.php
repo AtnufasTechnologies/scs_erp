@@ -41,6 +41,7 @@ use App\Models\StudentMaster;
 use App\Models\SubjectHasRoutine;
 use App\Models\ExamSystem\ExamStudent;
 use App\Models\ExamSystem\Result;
+use App\Models\StudentProgram;
 use App\Models\User;
 use App\Models\UserCampusSetting;
 use App\Models\UserHasPermission;
@@ -1104,56 +1105,41 @@ class AdminController extends Controller
         $request->validate([
             'progs' => 'required|array|min:1',
         ]);
-        $courseMasterId =  $request->coursemasterId;
-        $progs = $request->progs;
-
-        //link programs to fee structure 
-        /**New Logic Written 
-         * bypassing Program Groups
-         * 29/04/2026
-         * Reason: Program groups were adding unnecessary complexity and overhead in managing fee structures.
-         * Directly linking student programs to fee structures simplifies the architecture and improves performance.
-         */
-
-        /*  for ($i = 0; $i < count($progs); $i++) {
-            if (FeeStructureHasManyProgram::where('fee_structure_id', $courseMasterId)->where('std_program_id', $progs[$i])->exists()) {
-                continue;
-            }
-            $pvt = new FeeStructureHasManyProgram();
-            $pvt->fee_structure_id = $courseMasterId;
-            $pvt->std_program_id = $progs[$i];
-            $pvt->save();
-        }*/
+        $courseMasterId =  $request->coursemasterId;   //single Id 9 (Coourse Master Id)
+        $progs = $request->progs; //multiple program group ids [1,2,3,4,5]
 
 
-
+        // Add to FeeStructureGroup, associate course master with program group, prevent duplicates
         for ($i = 0; $i < count($progs); $i++) {
-
-            if (FeeStructureGroup::where('fee_course_master_id', $courseMasterId)->where('student_program_id', $progs[$i])->exists()) {
-                continue;
+            // Only add if not already present
+            $exists = FeeStructureGroup::where('fee_course_master_id', $courseMasterId)
+                ->where('program_group_id', $progs[$i])
+                ->exists();
+            if (!$exists) {
+                $rec = new FeeStructureGroup();
+                $rec->fee_course_master_id = $courseMasterId;
+                $rec->program_group_id = $progs[$i];
+                $rec->save();
             }
 
-            $rec = new FeeStructureGroup();
-            $rec->fee_course_master_id = $courseMasterId;
-            $rec->student_program_id = $progs[$i];
-            $rec->save();
-        }
-        //find if any fee structure exist
-        $feeStructures = FeesStructure::where('course_name', $courseMasterId)->get();
-        foreach ($feeStructures as $fs) {
-            //link programs to fee structure
-            for ($j = 0; $j < count($progs); $j++) {
-                if (FeeStructureHasManyProgram::where('fee_structure_id', $fs->id)->where('std_program_id', $progs[$j])->exists()) {
-                    continue;
+            // Find the student program id from the program group id
+            $std_prg_id = ProgramGroup::find($progs[$i])->program_id;
+
+            // Find if any fee structure exists for the course master id
+            $feeStructures = FeesStructure::where('course_name', $courseMasterId)->get();
+            for ($a = 0; $a < count($feeStructures); $a++) {
+                $fs_id = $feeStructures[$a]->id;
+                $crossCheck = FeeStructureHasManyProgram::where('fee_structure_id', $fs_id)
+                    ->where('std_program_id', $std_prg_id)
+                    ->exists();
+                if (!$crossCheck) {
+                    $pvt = new FeeStructureHasManyProgram();
+                    $pvt->fee_structure_id = $fs_id;
+                    $pvt->std_program_id = $std_prg_id;
+                    $pvt->save();
                 }
-                $pvt = new FeeStructureHasManyProgram();
-                $pvt->fee_structure_id = $fs->id;
-                $pvt->std_program_id = $progs[$j];
-                $pvt->save();
             }
         }
-
-
 
         return redirect()->back()->with('success', 'New Programs Linked ');
     }
