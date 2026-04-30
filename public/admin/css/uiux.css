@@ -335,3 +335,253 @@
         background-position: right center;
     }
 }
+
+.fcm-page-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 1rem;
+    margin-bottom: 1.5rem;
+}
+
+.fcm-page-header h4 {
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    color: #1a2340;
+    margin: 0;
+}
+
+.fcm-page-header h4 small {
+    font-size: 0.75rem;
+    font-weight: 500;
+    color: #6c757d;
+    display: block;
+    letter-spacing: 0;
+}
+
+.fcm-card {
+    border: none;
+    border-radius: 12px;
+    box-shadow: 0 2px 16px rgba(30, 40, 90, 0.08);
+    overflow: hidden;
+}
+
+.fcm-card .card-header {
+    background: #fff;
+    border-bottom: 1px solid #f0f0f0;
+    padding: 1rem 1.25rem;
+}
+
+.fcm-table thead th {
+    background: #f4f6fb;
+    color: #4a5568;
+    font-size: 0.78rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.07em;
+    border-bottom: 2px solid #e2e8f0;
+    padding: 0.85rem 1rem;
+    white-space: nowrap;
+}
+
+.fcm-table tbody tr {
+    transition: background 0.15s;
+}
+
+.fcm-table tbody tr:hover {
+    background: #f8faff;
+}
+
+.fcm-table tbody td {
+    vertical-align: middle;
+    padding: 0.75rem 1rem;
+    color: #2d3748;
+    border-bottom: 1px solid #f0f4f8;
+    font-size: 0.92rem;
+}
+
+.fcm-id-badge {
+    background: #eef2ff;
+    color: #4f46e5;
+    border-radius: 6px;
+    padding: 2px 8px;
+    font-weight: 700;
+    font-size: 0.82rem;
+}
+
+.fcm-course-name {
+    font-weight: 600;
+    color: #1a2340;
+}
+
+.fcm-group-badge {
+    background: linear-gradient(135deg, #ef4444, #b91c1c);
+    color: #fff;
+    border: none;
+    border-radius: 20px;
+    padding: 4px 12px;
+    font-size: 0.82rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: opacity 0.15s;
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+}
+
+.fcm-group-badge:hover {
+    opacity: 0.85;
+}
+
+.fcm-group-empty {
+    color: #adb5bd;
+    font-size: 0.82rem;
+}
+
+.fcm-action-btn {
+    border: none;
+    border-radius: 8px;
+    padding: 5px 12px;
+    font-size: 0.82rem;
+    font-weight: 600;
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    cursor: pointer;
+    transition:
+        opacity 0.15s,
+        box-shadow 0.15s;
+}
+
+.fcm-action-btn:hover {
+    opacity: 0.88;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.12);
+}
+
+.fcm-btn-add {
+    background: #22c55e;
+    color: #fff;
+}
+
+.fcm-btn-edit {
+    background: #3b82f6;
+    color: #fff;
+}
+
+.fcm-btn-delete {
+    background: #fff;
+    color: #ef4444;
+    border: 1.5px solid #ef4444;
+}
+
+.fcm-btn-delete:hover {
+    background: #fef2f2;
+}
+
+.fcm-modal-header-add {
+    background: linear-gradient(135deg, #4f46e5, #7c3aed);
+}
+
+.fcm-modal-header-link {
+    background: linear-gradient(135deg, #0ea5e9, #0284c7);
+}
+
+.fcm-modal-header-edit {
+    background: linear-gradient(135deg, #3b82f6, #1d4ed8);
+}
+
+.fcm-modal-header-view {
+    background: linear-gradient(135deg, #ef4444, #b91c1c);
+}
+
+.fcm-modal-header-add h5,
+.fcm-modal-header-link h5,
+.fcm-modal-header-edit h5,
+.fcm-modal-header-view h5 {
+    color: #fff;
+    font-weight: 700;
+    margin: 0;
+}
+
+.fcm-modal-header-add .btn-close,
+.fcm-modal-header-link .btn-close,
+.fcm-modal-header-edit .btn-close,
+.fcm-modal-header-view .btn-close {
+    filter: invert(1);
+}
+
+.fcm-linked-card {
+    border: 1px solid #e2e8f0;
+    border-radius: 10px;
+    padding: 0.75rem 1rem;
+    background: #fff;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.5rem;
+    transition: box-shadow 0.15s;
+}
+
+.fcm-linked-card:hover {
+    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.09);
+}
+
+.fcm-linked-code {
+    font-weight: 700;
+    color: #4f46e5;
+    font-size: 0.85rem;
+}
+
+.fcm-linked-name {
+    font-weight: 600;
+    color: #1a2340;
+    font-size: 0.9rem;
+}
+
+.fcm-linked-campus {
+    font-size: 0.78rem;
+    color: #6c757d;
+}
+
+.fcm-unlink-btn {
+    background: #fef2f2;
+    border: 1.5px solid #fca5a5;
+    color: #ef4444;
+    border-radius: 50%;
+    width: 28px;
+    height: 28px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 0.8rem;
+    flex-shrink: 0;
+    transition: background 0.15s;
+}
+
+.fcm-unlink-btn:hover {
+    background: #ef4444;
+    color: #fff;
+}
+
+.fcm-filter-form .input-group .form-select {
+    border-radius: 8px 0 0 8px;
+    border-right: none;
+    font-size: 0.88rem;
+}
+
+.fcm-filter-form .input-group .btn {
+    border-radius: 0 8px 8px 0;
+}
+
+.fcm-empty {
+    text-align: center;
+    padding: 3rem 1rem;
+    color: #a0aec0;
+}
+
+.fcm-empty i {
+    font-size: 3rem;
+    margin-bottom: 0.5rem;
+    display: block;
+}
