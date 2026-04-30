@@ -929,7 +929,7 @@ class AdminController extends Controller
             'feepvthead.head.bankmaster',
             'feepvthead.head:id,head_name,bank_acc_id',
             'feecoursemaster:id,name',
-            'programspivot.studentprogram',
+            'programspivot.programgroupinfo.programInfo',
         ]);
 
         if (!empty($request->keyword)) {
@@ -1114,7 +1114,8 @@ class AdminController extends Controller
          * Reason: Program groups were adding unnecessary complexity and overhead in managing fee structures.
          * Directly linking student programs to fee structures simplifies the architecture and improves performance.
          */
-        for ($i = 0; $i < count($progs); $i++) {
+
+        /*  for ($i = 0; $i < count($progs); $i++) {
             if (FeeStructureHasManyProgram::where('fee_structure_id', $courseMasterId)->where('std_program_id', $progs[$i])->exists()) {
                 continue;
             }
@@ -1122,10 +1123,10 @@ class AdminController extends Controller
             $pvt->fee_structure_id = $courseMasterId;
             $pvt->std_program_id = $progs[$i];
             $pvt->save();
-        }
+        }*/
 
 
-        /*
+
         for ($i = 0; $i < count($progs); $i++) {
 
             if (FeeStructureGroup::where('fee_course_master_id', $courseMasterId)->where('student_program_id', $progs[$i])->exists()) {
@@ -1151,7 +1152,7 @@ class AdminController extends Controller
                 $pvt->save();
             }
         }
-            */
+
 
 
         return redirect()->back()->with('success', 'New Programs Linked ');

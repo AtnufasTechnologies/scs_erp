@@ -566,7 +566,7 @@ $yearGradients = [
               <div class="d-flex flex-wrap gap-2">
                 @foreach($item->programspivot as $s)
                 <span class="badge bg-primary-subtle text-primary border border-primary-subtle px-3 py-2" style="font-size:12px;">
-                  {{ $s->studentprogram->code ?? ''}} – {{ $s->studentprogram->name ?? '' }}
+                  {{ $s->programgroupinfo->programInfo->code ?? ''}} – {{ $s->programgroupinfo->programInfo->name ?? '' }}
                 </span>
                 @endforeach
               </div>
