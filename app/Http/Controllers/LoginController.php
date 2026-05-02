@@ -32,43 +32,63 @@ class LoginController extends Controller
             if (Hash::check($request->password, $user->password)) {
                 Auth::login($user, true);
                 $roleType = UserHasRole::where('user_id', $user->id)->value('role_name');
-                if ($roleType == 'dept-admin-erp') {
-                    //dept Dashboard
-                    //check if dept admin has assigned department
-                    $deptAdminDept = User::with('subjectdeptadmin.subject')->where('id', $user->id)->first();
-                    if ($deptAdminDept->subjectdeptadmin) {
-                        return redirect()->route('department.dashboard')->with('success', 'Login Success');
-                    } else {
-                        Auth::logout();
-                        return redirect('/')->with('error', 'No Department Assigned. Please contact Admin');
-                    }
-                } else if ($roleType == 'account-office-incharge' || $roleType == 'account-office-assistant') {
-                    //Account Office Dashboard
-                    return redirect()->route('account-office.dashboard')->with('success', 'Login Success');
-                } else if ($roleType == 'faculty') {
-                    //Faculty Dashboard
-                    return redirect()->route('faculty.dashboard')->with('success', 'Login Success');
-                } else if ($roleType == 'coe' || $roleType == 'dcoe') {
-                    //COE    Dashboard
-                    return redirect()->route('coe.dashboard')->with('success', 'Login Success');
-                } else if ($roleType == 'principal' || $roleType == 'vice-principal' || $roleType == 'bursar' || $roleType == 'rector') {
-                    //Top Level Dashboard for Principal, Vice Principal, Bursar, Rector
-                    return redirect()->route('principal.dashboard')->with('success', 'Login Success');
-                } else if ($roleType == 'HR') {
-                    //HR Dashboard
-                    return redirect()->route('hr.dashboard')->with('success', 'Login Success');
-                } else if ($roleType == 'student') {
-                    //Student Dashboard
-                    return redirect()->route('student.dashboard')->with('success', 'Login Success');
-                } else if ($roleType == 'admission-incharge') {
-                    //Admission Officer Dashboard
-                    return redirect()->route('admission.dashboard')->with('success', 'Login Success');
-                } else if ($roleType == 'admission-test-incharge') {
-                    //Admission Test Incharge Dashboard
-                    return redirect()->route('admission.testincharge.dashboard')->with('success', 'Login Success');
-                } else {
-                    //for all Super Admin| Office assistane| Admin | IT CEll
-                    return redirect('erp/admin/dashboard')->with('success', 'Login Success');
+
+                switch ($roleType) {
+                    case 'dept-admin-erp':
+                        //dept Dashboard
+                        //check if dept admin has assigned department
+                        $deptAdminDept = User::with('subjectdeptadmin.subject')->where('id', $user->id)->first();
+                        if ($deptAdminDept->subjectdeptadmin) {
+                            return redirect()->route('department.dashboard')->with('success', 'Login Success');
+                        } else {
+                            Auth::logout();
+                            return redirect('/')->with('error', 'No Department Assigned. Please contact Admin');
+                        }
+
+                    case 'account-office-incharge':
+                    case 'account-office-assistant':
+                        //Account Office Dashboard
+                        return redirect()->route('account-office.dashboard')->with('success', 'Login Success');
+
+                    case 'faculty':
+                        //Faculty Dashboard
+                        return redirect()->route('faculty.dashboard')->with('success', 'Login Success');
+
+                    case 'coe':
+                    case 'dcoe':
+                        //COE    Dashboard
+                        return redirect()->route('coe.dashboard')->with('success', 'Login Success');
+
+                    case 'principal':
+                    case 'vice-principal':
+                    case 'bursar':
+                    case 'rector':
+                        //Top Level Dashboard for Principal, Vice Principal, Bursar, Rector
+                        return redirect()->route('principal.dashboard')->with('success', 'Login Success');
+
+                    case 'HR':
+                        //HR Dashboard
+                        return redirect()->route('hr.dashboard')->with('success', 'Login Success');
+
+                    case 'student':
+                        //Student Dashboard
+                        return redirect()->route('student.dashboard')->with('success', 'Login Success');
+
+                    case 'admission-incharge':
+                        //Admission Officer Dashboard
+                        return redirect()->route('admission.dashboard')->with('success', 'Login Success');
+
+                    case 'admission-test-incharge':
+                        //Admission Test Incharge Dashboard
+                        return redirect()->route('admission.testincharge.dashboard')->with('success', 'Login Success');
+
+                    case 'event-controller':
+                        //Event Coordinator Dashboard
+                        return redirect()->route('event-coordinator.dashboard')->with('success', 'Login Success');
+
+                    default:
+                        //for all Super Admin| Office assistane| Admin | IT CEll
+                        return redirect('erp/admin/dashboard')->with('success', 'Login Success');
                 }
             } else {
                 return redirect('/')->with('error', 'Password Incorrect');

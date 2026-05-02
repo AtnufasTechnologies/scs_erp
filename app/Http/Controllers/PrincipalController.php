@@ -1379,7 +1379,7 @@ class PrincipalController extends Controller
       ->groupBy('faculty_id')
       ->pluck('count', 'faculty_id');
 
-    // Extra class counts
+    // Remedial class counts
     $extraCounts = ExtraClassAttendance::whereIn('faculty_id', $facultyIds)
       ->whereBetween('attendance_date', [$startDate, $endDate])
       ->select('faculty_id', DB::raw('COUNT(DISTINCT CONCAT(attendance_date, "-", hour_id)) as count'))

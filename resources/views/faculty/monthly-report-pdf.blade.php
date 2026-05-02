@@ -494,10 +494,10 @@
       </div>
     </div>
 
-    <!-- Extra Classes Breakdown -->
+    <!-- Remedial Classes Breakdown -->
     @if($extraCount > 0 && $workTypeBreakdown->count() > 0)
     <div class="section">
-      <div class="section-title">💼 Extra Classes Breakdown</div>
+      <div class="section-title">💼 Remedial Classes Breakdown</div>
       <div class="chart-container">
         @foreach($workTypeBreakdown as $type => $count)
         <div class="progress-row">

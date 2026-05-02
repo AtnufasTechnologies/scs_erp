@@ -12,7 +12,7 @@ use Carbon\Carbon;
   <main class="page-content">
     <!--start breadcrumb-->
     <div class="page-breadcrumb d-none d-sm-flex align-items-center gap-2">
-      <div class="breadcrumb-title pe-3">Extra Class</div>
+      <div class="breadcrumb-title pe-3">Remedial Class</div>
       <div class="ps-2">
         <nav aria-label="breadcrumb">
           <ol class="breadcrumb mb-0 p-0">

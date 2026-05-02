@@ -305,7 +305,7 @@ class AttendanceController extends Controller
   }
 
   /**
-   * Store extra class attendance records
+   * Store remedial class attendance records
    */
   public function storeExtraAttendance(Request $request)
   {
@@ -353,7 +353,7 @@ class AttendanceController extends Controller
       DB::commit();
       return redirect()
         ->route('faculty.extra.classes')
-        ->with('success', 'Extra Class Attendance recorded successfully!');
+        ->with('success', 'Remedial Class Attendance recorded successfully!');
     } catch (\Exception $e) {
       DB::rollBack();
       return back()->with('error', 'Failed to record attendance. Please try again.');
