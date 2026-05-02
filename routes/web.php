@@ -48,6 +48,7 @@ use App\Http\Controllers\SeatingAllocationController;
 use App\Http\Controllers\StudentCreditController;
 use App\Http\Controllers\CourseOfferingController;
 use App\Http\Controllers\CourseSeatController;
+use App\Http\Controllers\EventCoordinatorController;
 use App\Http\Controllers\SyllabusPdfController;
 use App\Http\Controllers\SubjectController;
 use App\Http\Controllers\TestController;
@@ -1027,5 +1028,44 @@ Route::group(['prefix' => '/erp'], function () {
         Route::put('vp-management/{id}', [PrincipalController::class, 'vpUpdate'])->name('principal.vp.update');
         Route::post('vp-management/{id}/toggle-status', [PrincipalController::class, 'vpToggleStatus'])->name('principal.vp.toggle-status');
         Route::delete('vp-management/{id}', [PrincipalController::class, 'vpDestroy'])->name('principal.vp.destroy');
+    });
+
+    // ========================================================
+    // Event Coordinator
+    // ========================================================
+    Route::group(['prefix' => '/event-coordinator', 'middleware' => 'auth'], function () {
+        Route::get('dashboard', [EventCoordinatorController::class, 'dashboard'])->name('event-coordinator.dashboard');
+
+        // Events
+        Route::get('events', [EventCoordinatorController::class, 'eventsIndex'])->name('event-coordinator.events.index');
+        Route::get('events/create', [EventCoordinatorController::class, 'eventsCreate'])->name('event-coordinator.events.create');
+        Route::post('events', [EventCoordinatorController::class, 'eventsStore'])->name('event-coordinator.events.store');
+        Route::get('events/{event}', [EventCoordinatorController::class, 'eventsShow'])->name('event-coordinator.events.show');
+        Route::get('events/{event}/edit', [EventCoordinatorController::class, 'eventsEdit'])->name('event-coordinator.events.edit');
+        Route::put('events/{event}', [EventCoordinatorController::class, 'eventsUpdate'])->name('event-coordinator.events.update');
+        Route::delete('events/{event}', [EventCoordinatorController::class, 'eventsDestroy'])->name('event-coordinator.events.destroy');
+
+        // Programs (nested under event)
+        Route::get('programs/{program}/edit', [EventCoordinatorController::class, 'programsEdit'])->name('event-coordinator.programs.edit');
+        Route::post('events/{event}/programs', [EventCoordinatorController::class, 'programsStore'])->name('event-coordinator.programs.store');
+        Route::put('programs/{program}', [EventCoordinatorController::class, 'programsUpdate'])->name('event-coordinator.programs.update');
+        Route::delete('programs/{program}', [EventCoordinatorController::class, 'programsDestroy'])->name('event-coordinator.programs.destroy');
+
+        // Faculty Duties
+        Route::post('events/{event}/duties', [EventCoordinatorController::class, 'dutiesStore'])->name('event-coordinator.duties.store');
+        Route::put('duties/{duty}', [EventCoordinatorController::class, 'dutiesUpdate'])->name('event-coordinator.duties.update');
+        Route::delete('duties/{duty}', [EventCoordinatorController::class, 'dutiesDestroy'])->name('event-coordinator.duties.destroy');
+
+        // Fund Transactions
+        Route::post('events/{event}/fund', [EventCoordinatorController::class, 'fundStore'])->name('event-coordinator.fund.store');
+        Route::delete('fund/{transaction}', [EventCoordinatorController::class, 'fundDestroy'])->name('event-coordinator.fund.destroy');
+
+        // Sponsors
+        Route::post('events/{event}/sponsors', [EventCoordinatorController::class, 'sponsorsStore'])->name('event-coordinator.sponsors.store');
+        Route::put('sponsors/{sponsor}', [EventCoordinatorController::class, 'sponsorsUpdate'])->name('event-coordinator.sponsors.update');
+        Route::delete('sponsors/{sponsor}', [EventCoordinatorController::class, 'sponsorsDestroy'])->name('event-coordinator.sponsors.destroy');
+
+        // Report
+        Route::get('events/{event}/report', [EventCoordinatorController::class, 'report'])->name('event-coordinator.report');
     });
 });
