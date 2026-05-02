@@ -107,7 +107,7 @@
                   </div>
                 </div>
                 <div class="flex-grow-1 ms-3">
-                  <h6 class="mb-0 text-muted">Extra Classes</h6>
+                  <h6 class="mb-0 text-muted">Remedial Classes</h6>
                   <h2 class="mb-0 mt-1 fw-bold">{{ $extraCount }}</h2>
                   <small class="text-muted">{{ $totalClasses > 0 ? round(($extraCount / $totalClasses) * 100, 1) : 0
                     }}%</small>
@@ -140,12 +140,12 @@
 
       <!-- Charts Row -->
       <div class="row mb-4">
-        <!-- Work Type Breakdown for Extra Classes -->
+        <!-- Work Type Breakdown for Remedial Classes -->
         @if($extraCount > 0)
         <div class="col-lg-6 mb-3">
           <div class="card border-0 shadow-sm h-100">
             <div class="card-header bg-transparent border-0">
-              <h5 class="mb-0 fw-bold"><i class="bx bx-pie-chart-alt-2 me-2"></i>Extra Classes Breakdown</h5>
+              <h5 class="mb-0 fw-bold"><i class="bx bx-pie-chart-alt-2 me-2"></i>Remedial Classes Breakdown</h5>
             </div>
             <div class="card-body">
               @if($workTypeBreakdown->count() > 0)

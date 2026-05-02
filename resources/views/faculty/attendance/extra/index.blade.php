@@ -28,10 +28,10 @@ $hourMaster = HourMaster::all();
     <div class="container-fluid py-4">
       <div class="row mb-4">
         <div class="col-12">
-          <h2 class="fw-bold">Extra Class Attendance</h2>
-          <p class="text-muted">Select a subject to take or view attendance for extra classes</p>
+          <h2 class="fw-bold">Remedial Class Attendance</h2>
+          <p class="text-muted">Select a subject to take or view attendance for remedial classes</p>
         </div>
-        <a href="{{ route('faculty.attendance.view.extra-class') }}"><button class="btn btn-primary">View Attendance List</button></a>
+        <a href="{{ route('faculty.attendance.view.remedial-class') }}"><button class="btn btn-primary">View Attendance List</button></a>
       </div>
 
       @if(session('success'))
@@ -142,7 +142,7 @@ $hourMaster = HourMaster::all();
       const syllabusId = selectedOption.dataset.syllabusId;
       // Redirect or fetch students as needed
       // Example: redirect to attendance creation page with params
-      const url = `{{ url('erp/faculty/attendance/create/extra-class') }}?rec_id=${recId}&syllabus_id=${syllabusId}&hour_id=${hourId}&attendance_date=${date}&semester_id=${semesterId}&batch_id=${batchId}`;
+      const url = `{{ url('erp/faculty/attendance/create/remedial-class') }}?rec_id=${recId}&syllabus_id=${syllabusId}&hour_id=${hourId}&attendance_date=${date}&semester_id=${semesterId}&batch_id=${batchId}`;
       window.location.href = url;
     });
   });

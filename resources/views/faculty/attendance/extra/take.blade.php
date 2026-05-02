@@ -13,12 +13,12 @@ $hourmaster = HourMaster::all();
   <main class="page-content">
     <!--start breadcrumb-->
     <div class="page-breadcrumb d-none d-sm-flex align-items-center gap-2">
-      <div class="breadcrumb-title pe-3">Extra Classes</div>
+      <div class="breadcrumb-title pe-3">Remedial Classes</div>
       <div class="ps-2">
         <nav aria-label="breadcrumb">
           <ol class="breadcrumb mb-0 p-0">
 
-            <li class="breadcrumb-item"><a href="{{ route('faculty.extra.classes') }}"></a></li>
+            <li class="breadcrumb-item"><a href="{{ route('faculty.remedial.classes') }}"></a></li>
             <li class="breadcrumb-item active" aria-current="page">Take Attendance</li>
           </ol>
         </nav>
@@ -58,7 +58,7 @@ $hourmaster = HourMaster::all();
 
       <div class="card shadow-sm">
         <div class="card-body">
-          <form action="{{ route('faculty.extra.classes.store') }}" method="POST" id="attendanceForm">
+          <form action="{{ route('faculty.remedial.classes.store') }}" method="POST" id="attendanceForm">
             @csrf
 
             <input type="hidden" name="routine_id" value="{{ $recordId }}">
@@ -89,7 +89,7 @@ $hourmaster = HourMaster::all();
               <i class="fa fa-info-circle fs-4 me-3"></i>
               <div>
                 <strong>Quick Marking:</strong> Only Selected students are marked <strong class="text-success">PRESENT</strong> and
-                Considered Eligible for <strong class="text-danger">Extra Classes</strong>.
+                Considered Eligible for <strong class="text-danger">Remedial Classes</strong>.
               </div>
             </div>
 

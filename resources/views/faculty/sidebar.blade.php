@@ -3,7 +3,7 @@
   <div class="sidebar-header">
 
     <div class="logo-text">
-      SCMS
+      <p style="font-size: 12px;">{{ auth()->user()->name }}</p>
     </div>
     <div class=" toggle-icon ms-auto">
       <ion-icon name="menu-sharp"></ion-icon>
@@ -57,6 +57,15 @@
     </li>
 
     <li>
+      <a href="{{route('faculty.mentorship.index')}}">
+        <div class="parent-icon">
+          <i class="fas fa-hands-helping"></i>
+        </div>
+        <div class="menu-title">Mentorship </div>
+      </a>
+    </li>
+
+    <li>
       <a href="{{route('faculty.leave.index')}}">
         <div class="parent-icon">
           <i class="fas fa-calendar-times"></i>
@@ -84,11 +93,11 @@
     </li>
 
     <li>
-      <a href="{{route('faculty.extra.classes')}}">
+      <a href="{{route('faculty.remedial.classes')}}">
         <div class="parent-icon">
           <i class="fas fa-chalkboard-teacher"></i>
         </div>
-        <div class="menu-title">Extra Classes </div>
+        <div class="menu-title">Remedial Classes </div>
       </a>
     </li>
 

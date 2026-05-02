@@ -6,6 +6,7 @@ use App\Faculty\Http\Controllers\AttendanceController as FacultyAttendanceContro
 use App\Faculty\Http\Controllers\WorkDiaryController as WorkDiaryController;
 use App\Faculty\Http\Controllers\FacultyLeaveController;
 use App\Faculty\Http\Controllers\InternalMarksController;
+use App\Faculty\Http\Controllers\MentorshipController;
 use App\Faculty\Http\Controllers\PayrollController as FacultyPayrollController;
 use App\Faculty\Http\Controllers\RequestApplicationController as FacultyRequestApplicationController;
 use App\Http\Controllers\AccessController;
@@ -697,6 +698,9 @@ Route::group(['prefix' => '/erp'], function () {
         Route::delete('syllabus-co/{subjectId}/{batchId}/{semesterId}/{coId}', [SubjectController::class, 'deleteSyllabusCo'])->name('department.syllabus.co.delete');
         Route::get('syllabus-download-pdf', [SubjectController::class, 'downloadSyllabusPdf'])->name('department.syllabus.download.pdf');
 
+        // Syllabus PDF Store
+        Route::post('syllabus-pdf/store', [SyllabusPdfController::class, 'store'])->name('department.syllabus.pdf.store');
+
         // Course Seat Manager
         Route::get('course-seats', [CourseSeatController::class, 'index'])->name('department.seats.index');
         Route::post('course-seats', [CourseSeatController::class, 'store'])->name('department.seats.store');
@@ -781,12 +785,12 @@ Route::group(['prefix' => '/erp'], function () {
         Route::delete('attendance/{id}', [FacultyAttendanceController::class, 'deleteAttendance'])->name('faculty.attendance.delete');
         Route::get('attendance/create', [FacultyAttendanceController::class, 'getStudentList'])->name('faculty.attendance.create');
 
-        //Extar classes
-        Route::get('extra-classes', [FacultyAttendanceController::class, 'extraClasses'])->name('faculty.extra.classes');
-        Route::post('extra-classes', [FacultyAttendanceController::class, 'storeExtraAttendance'])->name('faculty.extra.classes.store');
-        Route::delete('extra-classes/{id}', [FacultyAttendanceController::class, 'deleteExtraClass'])->name('faculty.extra.classes.delete');
-        Route::get('attendance/create/extra-class', [FacultyAttendanceController::class, 'getStudentListExtraClass'])->name('faculty.attendance.create.extra-class');
-        Route::get('attendance/view/extra-class', [FacultyAttendanceController::class, 'viewExtraClassAttendance'])->name('faculty.attendance.view.extra-class');
+        // Remedial classes
+        Route::get('remedial-classes', [FacultyAttendanceController::class, 'extraClasses'])->name('faculty.remedial.classes');
+        Route::post('remedial-classes', [FacultyAttendanceController::class, 'storeExtraAttendance'])->name('faculty.remedial.classes.store');
+        Route::delete('remedial-classes/{id}', [FacultyAttendanceController::class, 'deleteExtraClass'])->name('faculty.remedial.classes.delete');
+        Route::get('attendance/create/remedial-class', [FacultyAttendanceController::class, 'getStudentListExtraClass'])->name('faculty.attendance.create.remedial-class');
+        Route::get('attendance/view/remedial-class', [FacultyAttendanceController::class, 'viewExtraClassAttendance'])->name('faculty.attendance.view.remedial-class');
 
         Route::get('work-diary', [WorkDiaryController::class, 'index'])->name('faculty.workdiary');
         Route::get('work-diary/monthly-report', [WorkDiaryController::class, 'monthlyReport'])->name('faculty.workdiary.monthly.report');
@@ -798,6 +802,35 @@ Route::group(['prefix' => '/erp'], function () {
         Route::post('work-diary/holidays', [WorkDiaryController::class, 'storeHoliday'])->name('faculty.workdiary.holidays.store');
         Route::get('work-diary/holidays', [WorkDiaryController::class, 'getHolidays'])->name('faculty.workdiary.holidays.get');
         Route::delete('work-diary/holidays/{id}', [WorkDiaryController::class, 'deleteHoliday'])->name('faculty.workdiary.holidays.delete');
+
+        // ── Mentorship ──────────────────────────────────────────────
+        Route::prefix('mentorship')->group(function () {
+            Route::get('/', [MentorshipController::class, 'index'])->name('faculty.mentorship.index');
+            Route::post('group/{groupId}/add-by-roll', [MentorshipController::class, 'addStudentByRoll'])->name('faculty.mentorship.add-by-roll');
+            Route::get('groups/create', [MentorshipController::class, 'createGroup'])->name('faculty.mentorship.group.create');
+            Route::post('groups', [MentorshipController::class, 'storeGroup'])->name('faculty.mentorship.group.store');
+            Route::get('groups/{id}', [MentorshipController::class, 'showGroup'])->name('faculty.mentorship.group.show');
+            Route::get('groups/{id}/edit', [MentorshipController::class, 'editGroup'])->name('faculty.mentorship.group.edit');
+            Route::put('groups/{id}', [MentorshipController::class, 'updateGroup'])->name('faculty.mentorship.group.update');
+            Route::delete('groups/{id}', [MentorshipController::class, 'destroyGroup'])->name('faculty.mentorship.group.destroy');
+            Route::get('students/search', [MentorshipController::class, 'searchStudents'])->name('faculty.mentorship.students.search');
+            Route::post('groups/{groupId}/students', [MentorshipController::class, 'addStudents'])->name('faculty.mentorship.students.add');
+            Route::delete('groups/{groupId}/students/{studentId}', [MentorshipController::class, 'removeStudent'])->name('faculty.mentorship.students.remove');
+            Route::get('groups/{groupId}/sessions/create', [MentorshipController::class, 'createSession'])->name('faculty.mentorship.session.create');
+            Route::post('groups/{groupId}/sessions', [MentorshipController::class, 'storeSession'])->name('faculty.mentorship.session.store');
+            Route::get('sessions/{id}', [MentorshipController::class, 'showSession'])->name('faculty.mentorship.session.show');
+            Route::post('sessions/{id}/attendance', [MentorshipController::class, 'saveAttendance'])->name('faculty.mentorship.session.attendance');
+            Route::delete('sessions/{id}', [MentorshipController::class, 'destroySession'])->name('faculty.mentorship.session.destroy');
+            Route::get('groups/{groupId}/assignments/create', [MentorshipController::class, 'createAssignment'])->name('faculty.mentorship.assignment.create');
+            Route::post('groups/{groupId}/assignments', [MentorshipController::class, 'storeAssignment'])->name('faculty.mentorship.assignment.store');
+            Route::get('assignments/{id}', [MentorshipController::class, 'showAssignment'])->name('faculty.mentorship.assignment.show');
+            Route::post('submissions/{id}/grade', [MentorshipController::class, 'gradeSubmission'])->name('faculty.mentorship.submission.grade');
+            Route::delete('assignments/{id}', [MentorshipController::class, 'destroyAssignment'])->name('faculty.mentorship.assignment.destroy');
+            Route::post('groups/{groupId}/notes', [MentorshipController::class, 'storeNote'])->name('faculty.mentorship.note.store');
+            Route::delete('notes/{id}', [MentorshipController::class, 'destroyNote'])->name('faculty.mentorship.note.destroy');
+            Route::get('groups/{groupId}/students/{studentId}/profile', [MentorshipController::class, 'studentProfile'])->name('faculty.mentorship.student.profile');
+        });
+
         Route::get('request-application', [FacultyRequestApplicationController::class, 'index'])->name('faculty.requestapplication');
         Route::get('payroll', [FacultyPayrollController::class, 'index'])->name('faculty.payroll');
         Route::get('payroll/bulk/download', [FacultyPayrollController::class, 'downloadBulk'])->name('faculty.payroll.bulk.download');
@@ -805,6 +838,18 @@ Route::group(['prefix' => '/erp'], function () {
         Route::get('payroll/{id}/download', [FacultyPayrollController::class, 'download'])->name('faculty.payroll.download');
         Route::get('subjects', [FacultyDashboardController::class, 'subjects'])->name('faculty.subjects');
         Route::get('toggle-subunit-completion/{id}', [FacultyDashboardController::class, 'toggleSubunitCompletion'])->name('faculty.toggle.subunitcompletion');
+
+        // Learning Resources Routes
+        Route::get('learning-resources/subunit/{subunitId}', [App\Faculty\Http\Controllers\LearningResourceController::class, 'index'])->name('faculty.resources.index');
+        Route::post('learning-resources', [App\Faculty\Http\Controllers\LearningResourceController::class, 'store'])->name('faculty.resources.store');
+        Route::get('learning-resources/{id}', [App\Faculty\Http\Controllers\LearningResourceController::class, 'show'])->name('faculty.resources.show');
+        Route::delete('learning-resources/{id}', [App\Faculty\Http\Controllers\LearningResourceController::class, 'destroy'])->name('faculty.resources.destroy');
+        Route::get('learning-resources/subunit/{subunitId}/ajax', [App\Faculty\Http\Controllers\LearningResourceController::class, 'getResourcesBySubunit'])->name('faculty.resources.ajax');
+
+        // Question Bank Routes
+        Route::post('question-bank', [App\Faculty\Http\Controllers\QuestionBankController::class, 'store'])->name('faculty.questions.store');
+        Route::delete('question-bank/{id}', [App\Faculty\Http\Controllers\QuestionBankController::class, 'destroy'])->name('faculty.questions.destroy');
+
         Route::get('profile', [FacultyDashboardController::class, 'profile'])->name('faculty.profile');
         Route::put('profile/update', [FacultyDashboardController::class, 'updateProfile'])->name('faculty.profile.update');
         Route::post('profile/photo', [FacultyDashboardController::class, 'updatePhoto'])->name('faculty.profile.photo');

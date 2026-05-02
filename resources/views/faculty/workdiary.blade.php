@@ -49,7 +49,7 @@
                   </div>
                 </div>
                 <div class="flex-grow-1 ms-3">
-                  <h6 class="mb-0 text-muted">Extra Classes</h6>
+                  <h6 class="mb-0 text-muted">Remedial Classes</h6>
                   <h3 class="mb-0 mt-1 fw-bold">{{ $extraCount ?? 0 }}</h3>
                 </div>
               </div>
@@ -138,12 +138,9 @@
             @foreach($hours as $hourMaster)
             <tr>
               <td class="hour-col">{{ $hourMaster->title }}</td>
-              @foreach($weekdays as $day)
+              @foreach($weekdays as $dayIndex => $day)
               @php
-              $dayDate = $weekStart->copy();
-              while ($dayDate->format('l') !== $day) {
-              $dayDate->addDay();
-              }
+              $dayDate = $weekStart->copy()->addDays($dayIndex);
               $dayEntries = isset($calendar[$day][$hourMaster->title]) ? $calendar[$day][$hourMaster->title] : [];
               @endphp
               <td class="calendar-cell {{ count($dayEntries) > 0 ? 'has-entry' : '' }}"
@@ -635,9 +632,9 @@
         return;
       }
 
-      // Validate work type for extra classes
+      // Validate work type for remedial classes
       if (classType === 'extra' && !workType) {
-        alert('Please select type of work for extra classes');
+        alert('Please select type of work for remedial classes');
         return;
       }
 

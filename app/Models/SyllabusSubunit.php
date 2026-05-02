@@ -25,6 +25,16 @@ class SyllabusSubunit extends Model
         return $this->belongsTo(SyllabusManager::class, 'syllabus_manager_id');
     }
 
+    public function learningResources()
+    {
+        return $this->hasMany(LearningResource::class, 'syllabus_subunit_id');
+    }
+
+    public function questions()
+    {
+        return $this->hasMany(QuestionBank::class, 'syllabus_subunit_id');
+    }
+
     function toggleCompletion()
     {
         // Toggle the completion status

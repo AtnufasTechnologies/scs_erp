@@ -272,7 +272,7 @@ class WorkDiaryController extends Controller
     $substitutionCount = $entries->where('class_type', 'substitution')->count();
     $totalClasses = $entries->count();
 
-    // Group by work type for extra classes
+    // Group by work type for remedial classes
     $workTypeBreakdown = $entries->where('class_type', 'extra')
       ->groupBy('work_type')
       ->map(function ($group) {
