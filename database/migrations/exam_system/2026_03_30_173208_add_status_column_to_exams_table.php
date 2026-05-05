@@ -12,7 +12,9 @@ return new class extends Migration
     public function up(): void
     {
         Schema::table('exams', function (Blueprint $table) {
-            $table->string('status')->default('upcoming')->after('regulation_id'); // upcoming, ongoing, completed, cancelled
+            if (!Schema::hasColumn('exams', 'status')) {
+                $table->string('status')->default('upcoming')->after('regulation_id'); // upcoming, ongoing, completed, cancelled
+            }
         });
     }
 
@@ -22,7 +24,9 @@ return new class extends Migration
     public function down(): void
     {
         Schema::table('exams', function (Blueprint $table) {
-            $table->dropColumn('status');
+            if (Schema::hasColumn('exams', 'status')) {
+                $table->dropColumn('status');
+            }
         });
     }
 };

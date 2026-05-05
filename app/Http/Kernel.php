@@ -73,6 +73,7 @@ class Kernel extends HttpKernel
         'check.device.access' => \App\Http\Middleware\CheckDeviceAccess::class,
         'check.dcoe.access' => \App\Http\Middleware\CheckDcoeAccess::class,
         'check.student.access' => \App\Http\Middleware\CheckStudentAccess::class,
+        'block.student.access' => \App\Http\Middleware\BlockStudentAccess::class,
 
     ];
 }

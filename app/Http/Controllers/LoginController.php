@@ -98,7 +98,7 @@ class LoginController extends Controller
         }
     }
 
-    function userAuth($id)
+    function userAuth(int $id)
     {
         $user = User::find($id);
         if ($user) {

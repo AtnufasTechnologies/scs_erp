@@ -4,13 +4,19 @@ namespace App\Http\Controllers;
 
 use App\Mail\ApplicationSuccessMail;
 use App\Mail\OtpMail;
+use App\Models\ExamSystem\Student;
 use App\Models\ProgramGroup;
 use App\Models\SmsTemplate;
+use App\Models\StudentAccountPivot;
 use App\Models\StudentMaster;
+use App\Models\StudentMasterUserPivot;
 use App\Models\StudentPayment;
 use App\Models\SubjectHasDeptAdmin;
+use App\Models\User;
 use App\Models\UserCampusSetting;
+use App\Models\UserHasRole;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Mail;
 
 class TestController extends Controller
@@ -108,5 +114,63 @@ class TestController extends Controller
         }
 
         dd('All student payment records updated with roll no');
+    }
+
+    function createStudentLogin()
+    {
+        set_time_limit(0);
+        ini_set('memory_limit', '512M');
+
+        $count = 0;
+        StudentMaster::where('is_left', 0)->chunk(400, function ($students) use (&$count) {
+            foreach ($students as $item) {
+                $email = $item->mail_id;
+                // If email exists in users table, skip this student
+                if ($email && User::where('email', $email)->exists()) {
+                    continue; // Skip duplicate email
+                }
+
+                $mobile = $item->mobile_no;
+                // If phone is empty or already exists, skip this student
+                if (empty($mobile) || User::where('phone', $mobile)->exists()) {
+                    continue; // Skip duplicate or empty phone
+                }
+
+                $user_id =  User::insertGetId([
+                    'name' => $item->first_name . ' ' . $item->last_name,
+                    'roll_no' => $item->roll_no,
+                    'email' => $email,
+                    'phone' => $mobile,
+                    'password' => Hash::make($item->roll_no), // Setting initial password as roll number
+                    'decrypted_password' => $item->roll_no,
+                    'status' => 'ACTIVE', // Storing decrypted password (not recommended for production)
+                ]);
+
+                UserHasRole::create([
+                    'user_id' => $user_id,
+                    'role_name' => 'student', //student , alumni
+                ]);
+
+                //Adding Pivot Table entry to Link Tables
+                StudentMasterUserPivot::create([
+                    'student_master_id' => $item->id,
+                    'user_id' => $user_id,
+                ]);
+
+                $count++;
+            }
+        });
+
+        dd('All student login records created successfully. Total: ' . $count);
+    }
+
+    function delAllStudentAccount()
+    {
+        $data =  UserHasRole::where('role_name', 'student')->get();
+        foreach ($data as $item) {
+            User::find($item->user_id)->forceDelete();
+            UserHasRole::where('user_id', $item->user_id)->forceDelete();
+        }
+        dd('All student login records deleted successfully');
     }
 }

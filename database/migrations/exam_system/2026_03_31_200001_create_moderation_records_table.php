@@ -16,7 +16,7 @@ return new class extends Migration {
       $table->decimal('moderator_marks', 6, 2)->nullable();
       $table->decimal('adjusted_marks', 6, 2)->nullable();
       $table->decimal('difference', 6, 2)->nullable();
-      $table->unsignedInteger('moderator_id')->nullable();
+      $table->integer('moderator_id')->nullable();
       $table->foreignId('adjusted_by')->nullable()->constrained('users');
       $table->string('status')->default('pending');
       $table->text('remarks')->nullable();

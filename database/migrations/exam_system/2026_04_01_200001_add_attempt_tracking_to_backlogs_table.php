@@ -8,15 +8,33 @@ return new class extends Migration {
   public function up(): void
   {
     Schema::table('backlogs', function (Blueprint $table) {
-      $table->unsignedBigInteger('exam_session_id')->nullable()->after('exam_id');
-      $table->unsignedTinyInteger('attempt_number')->default(1)->after('status');
-      $table->decimal('previous_marks', 6, 2)->nullable()->after('attempt_number');
-      $table->string('previous_grade', 10)->nullable()->after('previous_marks');
-      $table->text('remarks')->nullable()->after('previous_grade');
-      $table->timestamp('registered_at')->nullable()->after('remarks');
-      $table->timestamp('cleared_at')->nullable()->after('registered_at');
+      if (!Schema::hasColumn('backlogs', 'exam_session_id')) {
+        $table->unsignedBigInteger('exam_session_id')->nullable()->after('exam_id');
+      }
+      if (!Schema::hasColumn('backlogs', 'attempt_number')) {
+        $table->unsignedTinyInteger('attempt_number')->default(1)->after('status');
+      }
+      if (!Schema::hasColumn('backlogs', 'previous_marks')) {
+        $table->decimal('previous_marks', 6, 2)->nullable()->after('attempt_number');
+      }
+      if (!Schema::hasColumn('backlogs', 'previous_grade')) {
+        $table->string('previous_grade', 10)->nullable()->after('previous_marks');
+      }
+      if (!Schema::hasColumn('backlogs', 'remarks')) {
+        $table->text('remarks')->nullable()->after('previous_grade');
+      }
+      if (!Schema::hasColumn('backlogs', 'registered_at')) {
+        $table->timestamp('registered_at')->nullable()->after('remarks');
+      }
+      if (!Schema::hasColumn('backlogs', 'cleared_at')) {
+        $table->timestamp('cleared_at')->nullable()->after('registered_at');
+      }
 
-      $table->foreign('exam_session_id')->references('id')->on('exam_sessions')->nullOnDelete();
+      // Add foreign key if it doesn't exist
+      $foreignKeys = DB::select("SELECT CONSTRAINT_NAME FROM INFORMATION_SCHEMA.KEY_COLUMN_USAGE WHERE TABLE_NAME = 'backlogs' AND CONSTRAINT_NAME = 'backlogs_exam_session_id_foreign' AND TABLE_SCHEMA = DATABASE()");
+      if (empty($foreignKeys)) {
+        $table->foreign('exam_session_id')->references('id')->on('exam_sessions')->nullOnDelete();
+      }
     });
   }
 

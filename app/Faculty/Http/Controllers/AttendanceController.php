@@ -3,6 +3,7 @@
 namespace App\Faculty\Http\Controllers;
 
 use App\Http\Controllers\Controller;
+use App\Models\BatchMaster;
 use App\Models\ExtraClassAttendance;
 use App\Models\StudentAttendance;
 use App\Models\StudentCourseInfo;
@@ -12,6 +13,7 @@ use App\Models\SubjectFacultyMaster;
 use App\Models\SubjectHasRoutine;
 use App\Models\SubjectHasSyllabus;
 use Carbon\Carbon;
+use Illuminate\Bus\Batch;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
@@ -48,7 +50,6 @@ class AttendanceController extends Controller
    */
   public function storeAttendance(Request $request)
   {
-
     $request->validate([
       'routine_id' => 'required|exists:subject_has_routines,id',
       'attendance_date' => 'required|date',
@@ -170,13 +171,12 @@ class AttendanceController extends Controller
    */
   public function getStudentList(Request $request)
   {
-
     $id = $request->input('rec_id');
     $syllabus_id = $request->input('syllabus_id');
     $hourId = $request->input('hour_id');
     $attendanceDate = $request->input('attendance_date', date('Y-m-d'));
     $semesterId = $request->input('semester_id');
-    $batchId = $request->input('batch_id');
+    $batch = $request->input('batch_id');
 
     $record =  SubjectHasSyllabus::find($syllabus_id); // Validate syllabus_id
     if (!$record) {
@@ -187,23 +187,24 @@ class AttendanceController extends Controller
     $campusId = $record->subject->campus_id;
 
 
-    // Fetch students from student_course_infos as per course_id, semester_id, campus_id
-    $studentIds = StudentCourseInfo::where('course_id', $course_id)
-      ->when($semesterId, function ($q) use ($semesterId) {
-        $q->where('semester', $semesterId);
-      })
-      ->when($campusId, function ($q) use ($campusId) {
-        $q->where('campus_id', $campusId);
-      })
-
-      ->pluck('student_id');
-
-    $students = StudentMaster::whereIn('id', $studentIds)
-      ->where('is_deleted', 0)
-      ->where('is_left', 0)
-      ->orderBy('first_name')
-      ->orderBy('last_name')
-      ->get(['id', 'first_name', 'last_name', 'roll_no']);
+    $students = DB::table('student_masters as sm')
+      ->join('student_course_infos as sci', 'sm.id', '=', 'sci.student_id')
+      ->select(
+        'sm.id',
+        'sm.roll_no',
+        'sm.first_name',
+        'sm.last_name',
+        'sci.id as course_info_id'
+      )
+      ->where('sm.is_left', 0)
+      ->where('sm.is_deleted', 0)
+      ->where('sci.course_id', $course_id)
+      ->where('sci.academic_year', $batch)
+      ->where('sci.semester', $semesterId)
+      ->where('sci.campus_id', $campusId)
+      ->where('sci.is_deleted', 0)
+      ->distinct()
+      ->get();
 
     $syllabusAssignment = SubjectHasSyllabus::with([
       'courseLink.courseMaster.coursetypemaster',
@@ -211,6 +212,12 @@ class AttendanceController extends Controller
       'batchmaster'
     ])->find($syllabus_id);
 
+    // Get existing attendance for this date/hour/routine
+    $existingAttendance = StudentAttendance::where('routine_id', $id)
+      ->where('attendance_date', $attendanceDate)
+      ->where('hour_id', $hourId)
+      ->get()
+      ->keyBy('student_id');
 
     return view('faculty.attendance.take', [
       'students' => $students,
@@ -218,10 +225,11 @@ class AttendanceController extends Controller
       'syllabusId' => $syllabus_id,
       'hourId' => $hourId,
       'attendanceDate' => $attendanceDate,
-      'batchId' => $batchId,
+      'batchId' => $batch,
       'syllabusAssignment' => $syllabusAssignment,
       'course_id' => $course_id,
       'semesterId' => $semesterId,
+      'existingAttendance' => $existingAttendance,
     ]);
   }
 
@@ -265,8 +273,10 @@ class AttendanceController extends Controller
     $course_id = $record->course_id;
     $campusId = $record->subject->campus_id;
 
+    // Get academic year from batch_id (batch_name like "2024", "2025", etc.)
+    $academicYear = $batchId;
 
-    // Fetch students from student_course_infos as per course_id, semester_id, campus_id
+    // Fetch DISTINCT students from student_course_infos as per course_id, semester_id, campus_id, academic_year
     $studentIds = StudentCourseInfo::where('course_id', $course_id)
       ->when($semesterId, function ($q) use ($semesterId) {
         $q->where('semester', $semesterId);
@@ -274,7 +284,10 @@ class AttendanceController extends Controller
       ->when($campusId, function ($q) use ($campusId) {
         $q->where('campus_id', $campusId);
       })
-
+      ->when($academicYear, function ($q) use ($academicYear) {
+        $q->where('academic_year', $academicYear);
+      })
+      ->distinct()
       ->pluck('student_id');
 
     $students = StudentMaster::whereIn('id', $studentIds)
@@ -290,6 +303,12 @@ class AttendanceController extends Controller
       'batchmaster'
     ])->find($syllabus_id);
 
+    // Get existing attendance for this date/hour/routine
+    $existingAttendance = ExtraClassAttendance::where('routine_id', $id)
+      ->where('attendance_date', $attendanceDate)
+      ->where('hour_id', $hourId)
+      ->get()
+      ->keyBy('student_id');
 
     return view('faculty.attendance.extra.take', [
       'students' => $students,
@@ -301,6 +320,7 @@ class AttendanceController extends Controller
       'syllabusAssignment' => $syllabusAssignment,
       'course_id' => $course_id,
       'semesterId' => $semesterId,
+      'existingAttendance' => $existingAttendance,
     ]);
   }
 

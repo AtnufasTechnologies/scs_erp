@@ -13,6 +13,8 @@ use App\Models\SyllabusSubunit;
 use App\Models\ExamSystem\ExamStudent;
 use App\Models\ExamSystem\Registration;
 use App\Models\ExamSystem\Result;
+use App\Models\ExamSystem\Student;
+use App\Models\StudentMasterUserPivot;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 
@@ -23,8 +25,9 @@ class StudentDashboardController extends Controller
    */
   private function getStudent(): StudentMaster
   {
-    // Middleware shares 'authStudent' but we resolve from user for safety
-    return StudentMaster::findOrFail(Auth::user()->student_id);
+    $record =  StudentMasterUserPivot::where('user_id', Auth::id())->firstOrFail(); // Ensure pivot exists for better error message
+    return StudentMaster::where('id', $record->student_master_id)
+      ->firstOrFail();
   }
 
   /**

@@ -68,7 +68,7 @@ $hourMaster = HourMaster::all();
                   @foreach($syllabusAssignments as $item)
                   <option value="{{ $item->id }}"
                     data-semester-id="{{ $item->syllabus->semester_id ?? '' }}"
-                    data-batch-id="{{ $item->syllabus->batchmaster->id ?? '' }}"
+                    data-batch-id="{{ $item->syllabus->batchmaster->batch_name ?? '' }}"
                     data-syllabus-id="{{ $item->syllabus->id ?? '' }}">
                     {{ $item->syllabus->courseLink->courseMaster->course_title ?? 'N/A' }}
                     ({{ $item->syllabus->courseLink->courseMaster->course_code ?? 'N/A' }})
