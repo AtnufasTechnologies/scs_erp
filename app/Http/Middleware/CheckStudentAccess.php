@@ -16,30 +16,16 @@ class CheckStudentAccess
     $user = Auth::user();
 
     if (!$user) {
-      return redirect('/')->with('error', 'Please login to continue.');
+      return redirect()->route('student.login')->with('error', 'Please login to continue.');
     }
 
     $roleType = UserHasRole::where('user_id', $user->id)->value('role_name');
 
+
     if ($roleType !== 'student') {
       Auth::logout();
-      return redirect('/')->with('error', 'Unauthorized Access');
+      return redirect()->route('student.login')->with('error', 'Unauthorized Access');
     }
-
-    if (!$user->student_id) {
-      Auth::logout();
-      return redirect('/')->with('error', 'Student profile not linked. Please contact admin.');
-    }
-
-    $student = StudentMaster::find($user->student_id);
-
-    if (!$student) {
-      Auth::logout();
-      return redirect('/')->with('error', 'Student record not found. Please contact admin.');
-    }
-
-    // Share student data with all views in this request
-    view()->share('authStudent', $student);
 
     return $next($request);
   }

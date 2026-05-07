@@ -1,0 +1,165 @@
+/*
+  Custom Modern Student Login Styles
+  Author: Copilot
+*/
+
+body {
+    font-family: "Inter", "Segoe UI", Arial, sans-serif;
+    background: linear-gradient(120deg, #232526 0%, #414345 100%);
+    min-height: 100vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+#student-login-main {
+    width: 100vw;
+    min-height: 100vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    position: relative;
+    z-index: 1;
+}
+
+.student-login-card {
+    background: rgba(255, 255, 255, 0.98);
+    border-radius: 24px;
+    box-shadow: 0 8px 40px rgba(44, 62, 80, 0.18);
+    padding: 48px 36px 36px 36px;
+    max-width: 400px;
+    width: 100%;
+    position: relative;
+    overflow: hidden;
+    animation: fadeInUp 0.8s cubic-bezier(0.23, 1.02, 0.67, 1.01);
+}
+
+.student-login-card .logo {
+    width: 72px;
+    height: 72px;
+    display: block;
+    margin: 0 auto 18px auto;
+    border-radius: 16px;
+    box-shadow: 0 2px 12px rgba(102, 126, 234, 0.12);
+}
+
+.student-login-card h1 {
+    font-size: 1.6rem;
+    font-weight: 700;
+    color: #232526;
+    text-align: center;
+    margin-bottom: 0.25rem;
+}
+.student-login-card h2 {
+    font-size: 1.1rem;
+    font-weight: 400;
+    color: #667eea;
+    text-align: center;
+    margin-bottom: 1.5rem;
+}
+
+.student-login-card form {
+    margin-top: 1.5rem;
+}
+
+.student-login-card .input-group {
+    position: relative;
+    margin-bottom: 1.5rem;
+}
+
+.student-login-card .input-group input {
+    width: 100%;
+    padding: 14px 44px 14px 44px;
+    border: 1.5px solid #e0e0e0;
+    border-radius: 10px;
+    font-size: 1rem;
+    background: #f8fafd;
+    color: #232526;
+    transition: border-color 0.2s;
+}
+
+.student-login-card .input-group input:focus {
+    border-color: #667eea;
+    outline: none;
+    background: #fff;
+}
+
+.student-login-card .input-group .fa {
+    position: absolute;
+    left: 14px;
+    top: 50%;
+    transform: translateY(-50%);
+    color: #667eea;
+    font-size: 1.1rem;
+}
+
+.student-login-card .input-group .toggle-password {
+    right: 14px;
+    left: auto;
+    cursor: pointer;
+    color: #667eea;
+    font-size: 1.1rem;
+}
+
+.student-login-card .text-danger {
+    color: #e74c3c;
+    font-size: 0.9rem;
+    margin-top: 0.25rem;
+    display: block;
+}
+
+.student-login-card button[type="submit"] {
+    width: 100%;
+    padding: 13px;
+    background: linear-gradient(90deg, #667eea 0%, #764ba2 100%);
+    color: #fff;
+    border: none;
+    border-radius: 10px;
+    font-size: 1.1rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition:
+        box-shadow 0.2s,
+        transform 0.2s;
+    margin-top: 0.5rem;
+    box-shadow: 0 2px 12px rgba(102, 126, 234, 0.1);
+}
+
+.student-login-card button[type="submit"]:hover {
+    box-shadow: 0 6px 24px rgba(102, 126, 234, 0.18);
+    transform: translateY(-2px);
+}
+
+.student-login-card .forgot-link {
+    display: block;
+    text-align: right;
+    margin-top: 0.5rem;
+    color: #667eea;
+    font-weight: 500;
+    text-decoration: none;
+    font-size: 0.98rem;
+    transition: color 0.2s;
+}
+.student-login-card .forgot-link:hover {
+    color: #764ba2;
+    text-decoration: underline;
+}
+
+@keyframes fadeInUp {
+    0% {
+        opacity: 0;
+        transform: translateY(40px);
+    }
+    100% {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+/* Responsive */
+@media (max-width: 600px) {
+    .student-login-card {
+        padding: 32px 12px 24px 12px;
+        max-width: 98vw;
+    }
+}

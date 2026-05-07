@@ -336,11 +336,10 @@ $hourmaster = HourMaster::all();
     // Form validation
     document.getElementById('attendanceForm')?.addEventListener('submit', function(e) {
       const date = document.getElementById('attendance_date').value;
-      const time = document.getElementById('lecture_start_time').value;
 
-      if (!date || !time) {
+      if (!date) {
         e.preventDefault();
-        alert('Please select both date and lecture start time.');
+        alert('Please select attendance date.');
         return false;
       }
 

@@ -40,6 +40,7 @@ use App\Http\Controllers\StudentDashboardController;
 use App\Http\Controllers\StudentResultController;
 use App\Http\Controllers\InvigilationDutyController;
 use App\Http\Controllers\LoginController;
+use App\Http\Controllers\StudentAuthController;
 use App\Http\Controllers\ModerationDutyController;
 use App\Http\Controllers\PaymentBatchController;
 use App\Http\Controllers\PrincipalController;
@@ -79,10 +80,19 @@ Route::get('verify-mail-reset-token/{id}', [LoginController::class, 'verifyReset
 Route::post('update-password', [LoginController::class, 'updatePassword'])->name('update.password');
 Route::get('logout', [LoginController::class, 'logout'])->name('scms.logout');
 
+// Student Authentication Routes
+Route::get('student-login', [StudentAuthController::class, 'index'])->name('student.login');
+Route::post('student-login', [StudentAuthController::class, 'login'])->name('student.login.submit');
+Route::get('student-forgot-password', [StudentAuthController::class, 'forgotPassword'])->name('student.forgot.password');
+Route::post('student-forgot-password', [StudentAuthController::class, 'sendPasswordReset'])->name('student.password.reset.send');
+Route::get('student-verify-reset-token/{code}', [StudentAuthController::class, 'verifyResetToken'])->name('student.verify.reset.token');
+Route::post('student-update-password', [StudentAuthController::class, 'updatePassword'])->name('student.password.update');
+Route::get('student-logout', [StudentAuthController::class, 'logout'])->name('student.logout');
+
 Route::group(['prefix' => '/erp'], function () {
 
     //admin - superuser routes
-    Route::group(['prefix' => '/admin', 'middleware' => 'auth'], function () {
+    Route::group(['prefix' => '/admin', 'middleware' => ['auth', 'block.student.access']], function () {
         Route::get('dashboard', [AdminController::class, 'index'])->name('admin.dashboard');
         Route::get('std-master-sonada', [AdminController::class, 'stdMasterSonada']);
         Route::get('std-master-siliguri', [AdminController::class, 'stdMasterSiliguri']);
@@ -637,21 +647,39 @@ Route::group(['prefix' => '/erp'], function () {
     });
 
     //existing student
-    Route::group(['prefix' => 'student'], function () {
+    Route::group(['prefix' => 'student',], function () {
+
+        //==Exclusive Console Access ONLY via Login ================= New Working Routes 04/05/2026
+        Route::group(['prefix' => 'console', 'middleware' => ['auth', 'check.student.access']], function () {
+            Route::get('dashboard', [StudentDashboardController::class, 'index'])->name('student.console.dashboard');
+            Route::get('my-profile', [StudentDashboardController::class, 'profile'])->name('student.console.my-profile');
+        });
+
+        Route::get('feedback', [StudentDashboardController::class, 'feedbackList'])->name('student.feedback.list');
+        Route::post('feedback/{id}', [StudentDashboardController::class, 'submitFeedback'])->name('student.feedback.submit');
+
+        // Course Offerings (FIFO)
+        Route::get('course-offerings', [CourseOfferingController::class, 'studentView'])->name('student.offerings.index');
+        Route::post('course-offerings/register', [CourseOfferingController::class, 'studentRegister'])->name('student.offerings.register');
+        Route::post('course-offerings/cancel/{id}', [CourseOfferingController::class, 'studentCancel'])->name('student.offerings.cancel');
+
+        //===================Old Working Routes === * Don Not Disturb * ============================
         Route::get('results', [StudentResultController::class, 'lookup'])->name('student.results.lookup');
         Route::post('results/search', [StudentResultController::class, 'search'])->name('student.results.search');
         Route::get('results/{id}', [StudentResultController::class, 'detail'])->name('student.results.detail');
 
-        Route::get('fee-payment', [FeePaymentController::class, 'studentValidation']);
-        Route::post('fee-status', [FeePaymentController::class, 'studentFeeStatus']);
-        Route::post('fee-payment', [FeePaymentController::class, 'createOrder']);
-        Route::get('fee-status', [FeePaymentController::class, 'studentValidation']);
+        Route::get('fee-payment', [FeePaymentController::class, 'studentValidation'])->name('student.fee.payment');
+        Route::post('fee-status', [FeePaymentController::class, 'studentFeeStatus'])->name('student.fee.validation');
+        Route::post('fee-payment', [FeePaymentController::class, 'createOrder'])->name('student.fee.payment.store');
+        Route::get('fee-status', [FeePaymentController::class, 'studentValidation'])->name('student.fee.status');
 
         Route::post('payment-success', [FeePaymentController::class, 'paymentSuccess'])->name('payment.success');
         Route::post('payment-failure', [FeePaymentController::class, 'paymentFailure'])->name('payment.failure');
         Route::get('transaction-success/{id}', [FeePaymentController::class, 'showSuccessPage']);
         Route::get('transaction-success/{id}/download-pdf', [FeePaymentController::class, 'downloadInvoice']);
     });
+
+
 
     //admission
     Route::group(['prefix' => 'admission'], function () {
@@ -667,8 +695,10 @@ Route::group(['prefix' => '/erp'], function () {
         Route::get('students/{id}/fee-structures', [FeePaymentController::class, 'getStudentFeeStructures']);
         Route::get('students/{rollno}/unpaid-fees', [FeePaymentController::class, 'getStudentUnpaidFees']);
     });
+    // ========================================================
+    // Department routes
 
-    Route::group(['prefix' => '/deptartment', 'middleware' => 'auth'], function () {
+    Route::group(['prefix' => '/deptartment', 'middleware' => ['auth', 'block.student.access']], function () {
         Route::get('dashboard', [SubjectController::class, 'departmentDashboard'])->name('department.dashboard');
         Route::get('combo-master', [SubjectController::class, 'comboMaster'])->name('department.combo.master');
         Route::delete('combination/{id}/delete', [SubjectController::class, 'deleteCombination'])->name('department.combination.delete');
@@ -772,9 +802,10 @@ Route::group(['prefix' => '/erp'], function () {
         Route::put('leave-categories/{id}', [DeptLeaveController::class, 'categoryUpdate'])->name('department.leave.categories.update');
         Route::post('leave-categories/{id}/toggle', [DeptLeaveController::class, 'categoryToggle'])->name('department.leave.categories.toggle');
     });
-
+    // ========================================================
     // Faculty routes
-    Route::group(['prefix' => 'faculty', 'middleware' => 'auth'], function () {
+
+    Route::group(['prefix' => 'faculty', 'middleware' => ['auth', 'block.student.access']], function () {
         Route::get('dashboard', [FacultyDashboardController::class, 'index'])->name('faculty.dashboard');
         Route::get('timetable', [FacultyDashboardController::class, 'facultyTimetable'])->name('faculty.timetable');
 
@@ -873,28 +904,23 @@ Route::group(['prefix' => '/erp'], function () {
         Route::get('internal-marks/view', [InternalMarksController::class, 'view'])->name('faculty.internal-marks.view');
     });
 
-    // Student routes
-    Route::group(['prefix' => 'student', 'middleware' => ['auth', 'check.student.access']], function () {
-        Route::get('dashboard', [StudentDashboardController::class, 'profile'])->name('student.dashboard');
-        Route::get('my-profile', [StudentDashboardController::class, 'profile'])->name('student.profile');
-        Route::get('feedback', [StudentDashboardController::class, 'feedbackList'])->name('student.feedback.list');
-        Route::post('feedback/{id}', [StudentDashboardController::class, 'submitFeedback'])->name('student.feedback.submit');
-        // Course Offerings (FIFO)
-        Route::get('course-offerings', [CourseOfferingController::class, 'studentView'])->name('student.offerings.index');
-        Route::post('course-offerings/register', [CourseOfferingController::class, 'studentRegister'])->name('student.offerings.register');
-        Route::post('course-offerings/cancel/{id}', [CourseOfferingController::class, 'studentCancel'])->name('student.offerings.cancel');
-    });
-
+    // ========================================================
     //Testing route
-    Route::group(['prefix' => '/test', 'middleware' => 'auth'], function () {
-        Route::get('fix', [TestController::class, 'rollnoFixStudentPayment']);
-        //   Route::get('dept-campus-mapping', [TestController::class, 'DeptCampusMapping']);
-        Route::get('mailing', [TestController::class, 'mailTest']);
-        Route::get('sms', [TestController::class, 'smsTest']);
-        Route::get('install-new-programid', [TestController::class, 'studentMasterProgramFixing']);
-    });
 
-    Route::group(['prefix' => '/coe', 'middleware' => 'auth'], function () {
+
+    Route::group(['prefix' => '/test', 'middleware' => ['auth', 'block.student.access']], function () {
+        Route::get('create-student-login', [TestController::class, 'createStudentLogin']); //run once to create student login for all students in student master
+        Route::get('delete-student-login', [TestController::class, 'delAllStudentAccount']); //run once to delete all student login (if needed)
+        // Route::get('fix', [TestController::class, 'rollnoFixStudentPayment']);   //run once to fix rollno in student payment table
+        // Route::get('dept-campus-mapping', [TestController::class, 'DeptCampusMapping']); //run once to fix department campus mapping
+        // Route::get('mailing', [TestController::class, 'mailTest']);//run once to test mailing configuration
+        // Route::get('sms', [TestController::class, 'smsTest']);//run once to test sms configuration
+        // Route::get('install-new-programid', [TestController::class, 'studentMasterProgramFixing']);//run once to fix program id in student master table
+    });
+    // ========================================================
+    //COE route
+
+    Route::group(['prefix' => '/coe', 'middleware' => ['auth', 'block.student.access']], function () {
         Route::get('dashboard', [CoeDashboardController::class, 'index'])->name('coe.dashboard');
         // AJAX filter route for COE Dashboard
         Route::get('dashboard/filter', [CoeDashboardController::class, 'filter'])->name('coe.dashboard.filter');
@@ -992,9 +1018,10 @@ Route::group(['prefix' => '/erp'], function () {
             Route::delete('/{id}', [DcoeManagementController::class, 'destroy'])->name('coe.dcoe.destroy');
         });
     });
-
+    // ========================================================
     // Principal Module Routes
-    Route::group(['prefix' => '/principal', 'middleware' => 'auth'], function () {
+
+    Route::group(['prefix' => '/principal', 'middleware' => ['auth', 'block.student.access']], function () {
         Route::get('dashboard', [PrincipalController::class, 'dashboard'])->name('principal.dashboard');
         Route::get('students', [PrincipalController::class, 'students'])->name('principal.students.index');
         Route::get('{id}/student-profile/{rollno}', [PrincipalController::class, 'studentProfile'])->name('principal.student.profile');
@@ -1032,8 +1059,7 @@ Route::group(['prefix' => '/erp'], function () {
 
     // ========================================================
     // Event Coordinator
-    // ========================================================
-    Route::group(['prefix' => '/event-coordinator', 'middleware' => 'auth'], function () {
+    Route::group(['prefix' => '/event-coordinator', 'middleware' => ['auth', 'block.student.access']], function () {
         Route::get('dashboard', [EventCoordinatorController::class, 'dashboard'])->name('event-coordinator.dashboard');
 
         // Events

@@ -6,13 +6,11 @@ use Illuminate\Support\Facades\Schema;
 return new class extends Migration {
   public function up(): void
   {
-    Schema::dropIfExists('exam_sessions');
-    Schema::dropIfExists('exam_regulations');
+    // Skip - these tables are needed by subsequent migrations
   }
 
   public function down(): void
   {
-    Schema::dropIfExists('exam_sessions');
-    Schema::dropIfExists('exam_regulations');
+    // No action needed
   }
 };

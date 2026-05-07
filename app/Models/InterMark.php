@@ -36,6 +36,6 @@ class InterMark extends Model
 
   public function semester()
   {
-    return $this->belongsTo(Semester::class, 'semester', 'id');
+    return $this->belongsTo(Semester::class, 'SEMESTER', 'id');
   }
 }
