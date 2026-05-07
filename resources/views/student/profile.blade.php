@@ -8,7 +8,7 @@
 
     <style>
       .sp-hero {
-        background: linear-gradient(135deg, #653dca 0%, #28937d 40%, #0dc0c9 100%);
+        background: linear-gradient(135deg, #6a11cb 30%, #2575fc 100%);
         padding: 2.5rem 2rem 4rem;
         color: #fff;
         position: relative

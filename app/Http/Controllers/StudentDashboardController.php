@@ -33,6 +33,7 @@ class StudentDashboardController extends Controller
   /**
    * Student dashboard — overview stats.
    */
+  /*
   public function index()
   {
     $student = $this->getStudent();
@@ -62,6 +63,9 @@ class StudentDashboardController extends Controller
     // Pending feedback (completed subunits not yet rated by this student)
     $pendingFeedbackCount = $this->getPendingFeedbackCount($studentId, $student->batch);
 
+    // Fetch timetable data
+    $timetableData = $this->getTimetableData($student->batch);
+
     return view('student.dashboard', [
       'student'              => $student,
       'totalClasses'         => $totalClasses,
@@ -71,13 +75,14 @@ class StudentDashboardController extends Controller
       'examResultsCount'     => $examResultsCount,
       'coursesCount'         => $coursesCount,
       'pendingFeedbackCount' => $pendingFeedbackCount,
+      'timetableData'        => $timetableData,
     ]);
   }
-
+  */
   /**
    * Student's full profile — mirrors admin std-profile view.
    */
-  public function profile()
+  public function index()
   {
     $student = $this->getStudent();
     $studentId = $student->id;
@@ -147,7 +152,6 @@ class StudentDashboardController extends Controller
         'course:id,course_title,course_code',
         'semester:id,title',
       ])
-      ->orderBy('semester')
       ->get();
 
     // Exam results
@@ -297,5 +301,68 @@ class StudentDashboardController extends Controller
       ->count();
 
     return max(0, $completedIds->count() - $alreadyReviewed);
+  }
+
+  /**
+   * Fetch and organize timetable data for student's batch.
+   */
+  private function getTimetableData(int $batchId): array
+  {
+    // Fetch all timetable entries for the batch
+    $routines = SubjectHasRoutine::where('batch_id', $batchId)
+      ->with([
+        'weekdaymaster:id,title',
+        'hourmaster:id,title',
+        'lecturehallmaster:id,title',
+        'faculty:id,FIRST_NAME,LAST_NAME',
+        'subjectCourse.courseMaster:id,course_title,course_code',
+        'subjectCourse.subject:id,title',
+      ])
+      ->orderBy('weekday_id')
+      ->orderBy('hour_id')
+      ->get();
+
+    // Get all weekdays and hours for grid structure
+    $weekdays = \App\Models\Weekday::orderBy('id')->get();
+    $hours = \App\Models\HourMaster::orderBy('id')->get();
+
+    // Organize timetable by day and hour
+    $timetable = [];
+    foreach ($weekdays as $weekday) {
+      $timetable[$weekday->title] = [];
+      foreach ($hours as $hour) {
+        $timetable[$weekday->title][$hour->title] = null;
+      }
+    }
+
+    // Fill in the timetable data
+    foreach ($routines as $routine) {
+      $day = $routine->weekdaymaster->title ?? 'Unknown';
+      $hour = $routine->hourmaster->title ?? 'Unknown';
+
+      $facultyName = 'TBA';
+      if ($routine->faculty) {
+        $facultyName = trim(($routine->faculty->FIRST_NAME ?? '') . ' ' . ($routine->faculty->LAST_NAME ?? ''));
+      }
+
+      $courseName = $routine->subjectCourse?->courseMaster?->course_title ??
+        $routine->subjectCourse?->subject?->title ?? 'N/A';
+
+      $lectureHall = $routine->lecturehallmaster?->title ?? 'TBA';
+
+      if (isset($timetable[$day][$hour])) {
+        $timetable[$day][$hour] = [
+          'course' => $courseName,
+          'faculty' => $facultyName,
+          'hall' => $lectureHall,
+        ];
+      }
+    }
+
+    return [
+      'weekdays' => $weekdays,
+      'hours' => $hours,
+      'schedule' => $timetable,
+    ];
   }
 }

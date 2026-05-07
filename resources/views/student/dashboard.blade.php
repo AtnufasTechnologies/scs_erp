@@ -468,11 +468,11 @@
     <div class="container-fluid">
       <!-- Hero Section -->
       <div class="std-dashboard-hero">
-        <h1>Welcome, {{ $student->firstname ?? 'Student' }} {{ $student->lastname ?? 'Name' }}!</h1>
+        <h1 class="text-light text-capitalize">Welcome, {{ $student->first_name ?? 'Student' }} {{ $student->last_name ?? 'Name' }}!</h1>
         <p>
-          <i class="fas fa-id-card"></i> Roll No: {{ strtoupper($student->roll_no ?? 'ROLL123') }} |
-          <i class="fas fa-calendar-alt"></i> Batch: {{ $student->batchmaster->batch_name ?? '2023-2027' }} |
-          <i class="fas fa-building"></i> {{ $student->deptmaster->name ?? 'Computer Science' }}
+          <i class="fas fa-id-card"></i> Roll No: {{ strtoupper($student->roll_no ?? 'ROLLNO-NULL') }} |
+          <i class="fas fa-calendar-alt"></i> Batch: {{ $student->batchmaster->batch_name ?? '-' }} |
+          <i class="fas fa-building "></i> <span class="text-capitalize"> {{ $student->deptmaster->name ?? '-' }}</span>
         </p>
       </div>
 
@@ -591,54 +591,44 @@
           <div class="std-section-header">
             <h3 class="std-section-title"><i class="fas fa-calendar-week"></i> Weekly Timetable</h3>
           </div>
+          @if(!empty($timetableData['schedule']) && count($timetableData['weekdays']) > 0)
           <div class="table-responsive">
             <table class="std-table">
               <thead>
                 <tr>
                   <th style="width: 100px;">Day</th>
-                  <th>Period 1<br><small class="text-muted">9:00-10:00</small></th>
-                  <th>Period 2<br><small class="text-muted">10:00-11:00</small></th>
-                  <th>Period 3<br><small class="text-muted">11:00-12:00</small></th>
-                  <th style="background: #f8f9fa;">Break<br><small class="text-muted">12:00-1:00</small></th>
-                  <th>Period 4<br><small class="text-muted">1:00-2:00</small></th>
-                  <th>Period 5<br><small class="text-muted">2:00-3:00</small></th>
-                  <th>Period 6<br><small class="text-muted">3:00-4:00</small></th>
+                  @foreach($timetableData['hours'] as $hour)
+                  <th>{{ $hour->title }}<br><small class="text-muted">{{ $loop->iteration }}:00-{{ $loop->iteration + 1 }}:00</small></th>
+                  @endforeach
                 </tr>
               </thead>
               <tbody>
+                @foreach($timetableData['weekdays'] as $weekday)
                 <tr>
-                  <td><strong>Monday</strong></td>
-                  <td><span class="std-badge std-badge-info">Mathematics</span><br><small>Room 101 - Dr. Smith</small></td>
-                  <td><span class="std-badge std-badge-success">Physics</span><br><small>Lab A - Dr. Johnson</small></td>
-                  <td><span class="std-badge std-badge-warning">Chemistry</span><br><small>Room 203 - Dr. Brown</small></td>
-                  <td style="background: #f8f9fa; text-align: center;"><i class="fas fa-coffee"></i></td>
-                  <td><span class="std-badge std-badge-purple">English</span><br><small>Room 105 - Ms. Davis</small></td>
-                  <td><span class="std-badge std-badge-info">Computer Science</span><br><small>Lab B - Dr. Wilson</small></td>
-                  <td><span class="std-badge std-badge-success">Biology</span><br><small>Room 201 - Dr. Taylor</small></td>
+                  <td><strong>{{ $weekday->title }}</strong></td>
+                  @foreach($timetableData['hours'] as $hour)
+                  <td>
+                    @if(isset($timetableData['schedule'][$weekday->title][$hour->title]) && $timetableData['schedule'][$weekday->title][$hour->title] !== null)
+                      @php $slot = $timetableData['schedule'][$weekday->title][$hour->title]; @endphp
+                      <span class="std-badge std-badge-info">{{ $slot['course'] }}</span>
+                      <br><small>{{ $slot['hall'] }}</small>
+                      <br><small>{{ $slot['faculty'] }}</small>
+                    @else
+                      <span style="color: #d1d5db;">—</span>
+                    @endif
+                  </td>
+                  @endforeach
                 </tr>
-                <tr>
-                  <td><strong>Tuesday</strong></td>
-                  <td colspan="7" class="text-center" style="padding: 2rem; color: #9ca3af;"><i class="fas fa-calendar-week" style="font-size: 2rem; margin-bottom: 0.5rem; display: block;"></i>Timetable data will be loaded from database</td>
-                </tr>
-                <tr>
-                  <td><strong>Wednesday</strong></td>
-                  <td colspan="7" class="text-center" style="padding: 2rem; color: #9ca3af;"></td>
-                </tr>
-                <tr>
-                  <td><strong>Thursday</strong></td>
-                  <td colspan="7" class="text-center" style="padding: 2rem; color: #9ca3af;"></td>
-                </tr>
-                <tr>
-                  <td><strong>Friday</strong></td>
-                  <td colspan="7" class="text-center" style="padding: 2rem; color: #9ca3af;"></td>
-                </tr>
-                <tr>
-                  <td><strong>Saturday</strong></td>
-                  <td colspan="7" class="text-center" style="padding: 2rem; color: #9ca3af;"></td>
-                </tr>
+                @endforeach
               </tbody>
             </table>
           </div>
+          @else
+          <div class="std-empty-state">
+            <i class="fas fa-calendar-week"></i>
+            <p>No timetable data available for your batch</p>
+          </div>
+          @endif
         </div>
       </div>
 
