@@ -512,7 +512,7 @@ $yearGradients = [
                   </div>
                   <div class="col-12">
                     <label class="form-label">Course Name</label>
-                    <input type="text" class="form-control bg-light" value="{{ $item->feecoursemaster->name }}" readonly>
+                    <input type="text" class="form-control bg-light" value="{{ $item->feecoursemaster->name ?? '-'}}" readonly>
                   </div>
                   <div class="col-12">
                     <hr class="my-1">
