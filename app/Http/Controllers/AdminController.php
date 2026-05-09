@@ -1000,7 +1000,7 @@ class AdminController extends Controller
         for ($i = 0; $i < count($progs); $i++) {
             $pg = new FeeStructureHasManyProgram();
             $pg->fee_structure_id = $rec->id;
-            $pg->std_program_id = $progs[$i]->student_program_id;
+            $pg->std_program_id = $progs[$i]->program_group_id;
             $pg->save();
         }
 
