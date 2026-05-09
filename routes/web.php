@@ -650,7 +650,7 @@ Route::group(['prefix' => '/erp'], function () {
     Route::group(['prefix' => 'student',], function () {
 
         //==Exclusive Console Access ONLY via Login ================= New Working Routes 04/05/2026
-        Route::group(['prefix' => 'console', 'middleware' => ['auth', 'check.student.access']], function () {
+        Route::group(['prefix' => 'console'], function () {
             Route::get('dashboard', [StudentDashboardController::class, 'index'])->name('student.console.dashboard');
             Route::get('my-profile', [StudentDashboardController::class, 'profile'])->name('student.console.my-profile');
         });
