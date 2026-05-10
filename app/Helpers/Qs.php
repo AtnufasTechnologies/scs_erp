@@ -228,8 +228,8 @@ class Qs
     $batch_id = $batchnfo->id;
     $data = SubjectHasStudentProgam::where('campus_id', $campusId)
       ->where('batch_id', $batch_id)
-      ->where('total_seats', '!=', null)
-      ->where('total_available_seats', '!=', 0)
+      // ->where('total_seats', '!=', null)
+      // ->where('total_available_seats', '!=', 0)
       ->with('studentprograminfo')
       ->get();
     return $data;

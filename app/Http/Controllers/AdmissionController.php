@@ -767,13 +767,29 @@ class AdmissionController extends Controller
         $interviewDateTime = date('d-m-Y h:i A', strtotime($request->interview_time));
 
         $data = AdmissionApplication::with('registrationmaster:id,mobile_no,first_name,last_name')
-            ->whereIn('programme_id', $programs)
-            ->where('application_status', 1) //approved applications
+            ->whereIn('course', $programs)
+            ->where('payment_gateway_status', 'success') // paid applications only
             ->get();
 
         if ($data->isEmpty()) {
             return back()->with('error', 'No applicants found for the selected programs.');
         }
+
+        //bypass logic
+        //Create Interview Phase 1 List
+        foreach ($data as $applicant) {
+            AdmissionFirstPhase::create(
+                [
+                    'application_id' => $applicant->id,
+                    'reg_id' => $applicant->registrationmaster->id,
+                    'interview_datetime' => $interviewDateTime,
+
+                ]
+            );
+        }
+        return back()->with('success', 'Phase 1 Interview List created for selected applicants.');
+        /*
+
         //send sms to each applicant
         $mobileNumbers = [];
         $firstname = [];
@@ -829,6 +845,7 @@ class AdmissionController extends Controller
         } else {
             return back()->with('error', 'Failed to send Interview SMS. Please try again.');
         }
+            */
     }
 
 
@@ -871,6 +888,40 @@ class AdmissionController extends Controller
 
         $phase1Record = AdmissionFirstPhase::findOrFail($id);
         $application = AdmissionApplication::findOrFail($phase1Record->application_id);
+        $old_program_id = $application->course;;
+
+        // Update the programme_id in the application
+        $application->department = $comboInfo->subject_id;
+        $application->course = $new_program;
+        $application->save();
+
+        //Add Program Change 
+        ApplicantProgramChangeInfo::create([
+            'registration_id' => $request->registration_id,
+            'application_id' => $request->application_id,
+            'old_program_id' => $old_program_id,
+            'new_program_id' => $new_program,
+            'changed_by' => Auth::user()->id,
+            'reason' => $request->reason ?? 'Not specified',
+        ]);
+
+        return back()->with('success', 'Applicant Program Shifted Successfully.');
+    }
+
+    function transferUgProgram(Request $request)
+    {
+
+        $request->validate([
+            'new_program' => 'required',
+            'application_id' => 'required',
+            'registration_id' => 'required',
+        ]);
+        //Find Student Program Groupd
+        $new_program = $request->new_program;
+        $comboInfo =  SubjectHasStudentProgam::where('student_program_id', $new_program)->firstOrFail();
+        $id = $request->id;
+        $phase1Record = AdmissionFirstPhase::find($id);
+        $application = AdmissionApplication::find($request->application_id);
         $old_program_id = $application->course;;
 
         // Update the programme_id in the application
@@ -2439,6 +2490,12 @@ class AdmissionController extends Controller
         $applicationData = $studnetData->applicationmaster;
         if (!$applicationData) {
             return back()->with('error', 'Application data not found for this student.');
+        }
+
+        // Check if student already exists
+        $existingStudent = StudentMaster::where('user_code', $applicationData->application_code)->first();
+        if ($existingStudent) {
+            return back()->with('error', 'Student already exists in the master table with this application code.');
         }
 
 

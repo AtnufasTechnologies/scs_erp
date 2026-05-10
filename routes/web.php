@@ -343,6 +343,8 @@ Route::group(['prefix' => '/erp'], function () {
             Route::post('send-phase1-notification', [AdmissionController::class, 'sendPhase1BulkNotification'])->name('send.phase1.notification');
             Route::put('phase1/update-status/{id}', [AdmissionController::class, 'updateUgPhase1Status'])->name('admission.ug.phase1.update-status');
             Route::put('phase1/program-shift/{id}', [AdmissionController::class, 'shiftUgProgram'])->name('admission.ug.phase1.shift-program');
+            Route::post('phase1/program-transfer', [AdmissionController::class, 'transferUgProgram'])->name('admission.ug.phase1.transfer-program'); //new route
+
             Route::post('send-phase2-notification', [AdmissionController::class, 'sendPhase2BulkNotification'])->name('send.phase2.notification');
             //Settings
             Route::get('settings', [AdmissionController::class, 'admissionSettings'])->name('admission.settings');

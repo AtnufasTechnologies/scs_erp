@@ -60,13 +60,13 @@ $canManageAll = $isAdmissionIncharge || $isSuperAdmin;
           </a>
         </li>
         <li>
-          <a href="{{ route('admission.ug.phase1') }}">
+          <a href="{{ route('admission.ug.phase1') }}" target="_blank">
             <div class="parent-icon"><i class="fas fa-arrow-alt-circle-right"></i></div>
             <div class="menu-title">Selection Phase 1</div>
           </a>
         </li>
         <li>
-          <a href="{{ route('admission.ug.phase2') }}">
+          <a href="{{ route('admission.ug.phase2') }}" target="_blank">
             <div class="parent-icon"><i class="fas fa-arrow-alt-circle-right"></i></div>
             <div class="menu-title">Selection Phase 2</div>
           </a>
