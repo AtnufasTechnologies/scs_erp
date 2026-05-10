@@ -33,7 +33,7 @@ $campus = MainProgram::with('campus')->get();
             <div class="input-group">
               <input type="datetime-local" name="interview_time" class="form-control" required>
               <button type="submit" class="btn btn-main">
-                <i class="fas fa-sms"></i> Send Interview SMS
+                <i class="fas fa-sms"></i>Test Send Interview SMS
               </button>
             </div>
 
