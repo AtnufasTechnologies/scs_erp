@@ -43,6 +43,17 @@ $programs = Qs::getProgramGroups();
       <input type="text" id="liveSearchInput" class="form-control" placeholder="Search by name, mobile, email, or code...">
     </div>
     <div class="col-lg-8 text-end">
+      @if($userRoleType == 'admission-incharge')
+      <div class="form-check form-check-inline me-3">
+        <input class="form-check-input" type="checkbox" id="selectAllCheckbox" style="cursor: pointer;">
+        <label class="form-check-label" for="selectAllCheckbox" style="cursor: pointer;">
+          <strong>Select All</strong>
+        </label>
+      </div>
+      <button id="bulkOverrideBtn" class="btn btn-danger me-2" style="display: none;">
+        <i class="fa fa-check-circle"></i> Bulk Override (<span id="selectedCount">0</span>)
+      </button>
+      @endif
       <a href="{{ route('admission.ug.phase1.export-all') }}" class="btn btn-primary">
         <i class="fa fa-download"></i> Export All Applicants
       </a>
@@ -62,7 +73,13 @@ $programs = Qs::getProgramGroups();
 
     @foreach ($data as $item)
     <div class="col-lg-3 mb-4">
-      <div class="profile-card shadow {{ $item->dept_interview == 0 && isset($item->programChangeInfo) ? 'border-warning' : '' }}" style="position: relative;">
+      <div class="profile-card shadow {{ $item->dept_interview == 0 && isset($item->programChangeInfo) ? 'border-warning' : '' }}" style="position: relative;" data-applicant-id="{{ $item->id }}">
+
+        @if($userRoleType == 'admission-incharge')
+        <div class="position-absolute" style="top: 10px; right: 10px; z-index: 11;">
+          <input type="checkbox" class="form-check-input applicant-checkbox" value="{{ $item->id }}" style="width: 20px; height: 20px; cursor: pointer;">
+        </div>
+        @endif
 
         @if(isset($item->programChangeInfo))
 
@@ -186,11 +203,11 @@ $programs = Qs::getProgramGroups();
                 <i class="fa fa-check-circle"></i> <strong>Override All</strong>
               </a>
             </li>
-            <li>
+            <!-- <li>
               <a class="dropdown-item text-primary" href="{{ route('activate.admission.payment', ['id' => $item->registrationmaster->id]) }}" onclick="return confirm('Are you sure you want to activate payment for this applicant?')">
                 <i class="fa fa-credit-card"></i> Activate Payment
               </a>
-            </li>
+            </li> -->
             @endif
 
           </ul>
@@ -380,6 +397,7 @@ $programs = Qs::getProgramGroups();
 
 <script>
   document.addEventListener('DOMContentLoaded', function() {
+    // Live search functionality
     const searchInput = document.getElementById('liveSearchInput');
     searchInput.addEventListener('keyup', function() {
       const filter = searchInput.value.toLowerCase();
@@ -403,6 +421,111 @@ $programs = Qs::getProgramGroups();
         }
       });
     });
+
+    // Bulk selection functionality
+    const selectAllCheckbox = document.getElementById('selectAllCheckbox');
+    const applicantCheckboxes = document.querySelectorAll('.applicant-checkbox');
+    const bulkOverrideBtn = document.getElementById('bulkOverrideBtn');
+    const selectedCountSpan = document.getElementById('selectedCount');
+
+    if (selectAllCheckbox) {
+      // Select/Deselect all functionality
+      selectAllCheckbox.addEventListener('change', function() {
+        const isChecked = this.checked;
+        applicantCheckboxes.forEach(checkbox => {
+          const card = checkbox.closest('.col-lg-3');
+          // Only select visible cards
+          if (card.style.display !== 'none') {
+            checkbox.checked = isChecked;
+          }
+        });
+        updateBulkOverrideButton();
+      });
+
+      // Individual checkbox change
+      applicantCheckboxes.forEach(checkbox => {
+        checkbox.addEventListener('change', function() {
+          updateSelectAllCheckbox();
+          updateBulkOverrideButton();
+        });
+      });
+
+      // Bulk override button click
+      bulkOverrideBtn.addEventListener('click', function() {
+        const selectedIds = getSelectedApplicantIds();
+        if (selectedIds.length === 0) {
+          alert('Please select at least one applicant.');
+          return;
+        }
+
+        if (confirm(`Are you sure you want to override the status for ${selectedIds.length} selected applicant(s)? This action cannot be undone.`)) {
+          // Create a form and submit
+          const form = document.createElement('form');
+          form.method = 'POST';
+          form.action = '{{ route("admission.ug.phase1.bulk-override") }}';
+
+          // Add CSRF token
+          const csrfInput = document.createElement('input');
+          csrfInput.type = 'hidden';
+          csrfInput.name = '_token';
+          csrfInput.value = '{{ csrf_token() }}';
+          form.appendChild(csrfInput);
+
+          // Add applicant IDs
+          selectedIds.forEach(id => {
+            const input = document.createElement('input');
+            input.type = 'hidden';
+            input.name = 'applicant_ids[]';
+            input.value = id;
+            form.appendChild(input);
+          });
+
+          document.body.appendChild(form);
+          form.submit();
+        }
+      });
+    }
+
+    function updateSelectAllCheckbox() {
+      if (!selectAllCheckbox) return;
+
+      const visibleCheckboxes = Array.from(applicantCheckboxes).filter(checkbox => {
+        const card = checkbox.closest('.col-lg-3');
+        return card.style.display !== 'none';
+      });
+
+      const checkedVisible = visibleCheckboxes.filter(cb => cb.checked);
+
+      if (checkedVisible.length === 0) {
+        selectAllCheckbox.checked = false;
+        selectAllCheckbox.indeterminate = false;
+      } else if (checkedVisible.length === visibleCheckboxes.length) {
+        selectAllCheckbox.checked = true;
+        selectAllCheckbox.indeterminate = false;
+      } else {
+        selectAllCheckbox.checked = false;
+        selectAllCheckbox.indeterminate = true;
+      }
+    }
+
+    function updateBulkOverrideButton() {
+      if (!bulkOverrideBtn) return;
+
+      const selectedCount = getSelectedApplicantIds().length;
+      selectedCountSpan.textContent = selectedCount;
+
+      if (selectedCount > 0) {
+        bulkOverrideBtn.style.display = 'inline-block';
+      } else {
+        bulkOverrideBtn.style.display = 'none';
+      }
+    }
+
+    function getSelectedApplicantIds() {
+      return Array.from(applicantCheckboxes)
+        .filter(checkbox => checkbox.checked)
+        .map(checkbox => checkbox.value);
+    }
   });
 </script>
 <!-- End Live Search Input -->
