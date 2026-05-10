@@ -336,6 +336,7 @@ Route::group(['prefix' => '/erp'], function () {
             Route::get('phase1/export-all', [AdmissionController::class, 'exportPhase1AllApplicants'])->name('admission.ug.phase1.export-all');
             Route::get('phase1/export-selected', [AdmissionController::class, 'exportPhase1SelectedApplicants'])->name('admission.ug.phase1.export-selected');
             Route::get('phase1/override/{id}', [AdmissionController::class, 'overrideUgPhase1Status'])->name('admission.ug.phase1.override');
+            Route::post('phase1/bulk-override', [AdmissionController::class, 'bulkOverrideUgPhase1Status'])->name('admission.ug.phase1.bulk-override');
             Route::get('phase2', [AdmissionController::class, 'ugPhase2Registrations'])->name('admission.ug.phase2');
             Route::put('phase2/update-status/{id}', [AdmissionController::class, 'updateUgPhase2Status'])->name('admission.ug.phase2.update-status');
             //controls

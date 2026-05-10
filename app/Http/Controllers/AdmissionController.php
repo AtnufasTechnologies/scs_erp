@@ -2482,6 +2482,55 @@ class AdmissionController extends Controller
         return back()->with('success', 'UG Phase 1 status updated successfully.');
     }
 
+    function bulkOverrideUgPhase1Status(Request $request)
+    {
+        $applicantIds = $request->input('applicant_ids', []);
+        
+        if (empty($applicantIds)) {
+            return back()->with('error', 'No applicants selected.');
+        }
+
+        $successCount = 0;
+        $errorCount = 0;
+
+        foreach ($applicantIds as $id) {
+            $data = AdmissionFirstPhase::find($id);
+            
+            if (!$data) {
+                $errorCount++;
+                continue;
+            }
+
+            // Update all statuses to approved/completed
+            AdmissionFirstPhase::where('id', $id)->update([
+                'document_verified' => 1,
+                'proficiency_test_status' => 1,
+                'dept_interview' => 1,
+                'mgt_interview_status' => 1,
+                'final_status' => 1,
+            ]);
+
+            // Check if already exists in Phase 2 before creating
+            $existsInPhase2 = AdmissionFinalPhase::where('application_id', $data->application_id)->exists();
+            
+            if (!$existsInPhase2) {
+                // Shift candidate to Phase 2 table
+                AdmissionFinalPhase::create([
+                    'application_id' => $data->application_id,
+                    'reg_id' => $data->reg_id,
+                ]);
+            }
+
+            $successCount++;
+        }
+
+        if ($errorCount > 0) {
+            return back()->with('warning', "Bulk override completed. {$successCount} applicant(s) processed successfully, {$errorCount} failed.");
+        }
+
+        return back()->with('success', "Bulk override completed successfully for {$successCount} applicant(s).");
+    }
+
     function activateApplicationPayment($id)
     {
 
