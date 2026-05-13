@@ -692,6 +692,32 @@ class AdmissionController extends Controller
         if (!$applicant) {
             return back()->with('info', 'No applicant found for the given application ID.');
         }
+        //bypass logic
+        $checkExistingRecord = AdmissionFirstPhase::where('reg_id', $regId)->first();
+        if ($checkExistingRecord == null) {
+
+            //Create Interview Phase 1 List
+            AdmissionFirstPhase::create(
+                [
+                    'application_id' => $applicant->applicationmaster->id,
+                    'reg_id' => $regId,
+                    'interview_datetime' => $interviewDateTime,
+
+                ]
+            );
+        } else {
+            //Update Interview DateTime if record exists
+            AdmissionFirstPhase::where('reg_id', $regId)->update(
+                [
+                    'interview_datetime' => $interviewDateTime,
+                ]
+            );
+        }
+
+        //return back with success
+        return back()->with('success', 'Interview SMS sent successfully to the applicant.');
+
+        /*
 
         //send sms to applicant
         $phoneNo = $applicant->mobile_no;
@@ -754,6 +780,7 @@ class AdmissionController extends Controller
         } else {
             return back()->with('error', 'Failed to send Interview SMS. Please try again.');
         }
+            */
     }
 
     function sendPhase1BulkNotification(Request $request)
@@ -2485,7 +2512,7 @@ class AdmissionController extends Controller
     function bulkOverrideUgPhase1Status(Request $request)
     {
         $applicantIds = $request->input('applicant_ids', []);
-        
+
         if (empty($applicantIds)) {
             return back()->with('error', 'No applicants selected.');
         }
@@ -2495,7 +2522,7 @@ class AdmissionController extends Controller
 
         foreach ($applicantIds as $id) {
             $data = AdmissionFirstPhase::find($id);
-            
+
             if (!$data) {
                 $errorCount++;
                 continue;
@@ -2512,7 +2539,7 @@ class AdmissionController extends Controller
 
             // Check if already exists in Phase 2 before creating
             $existsInPhase2 = AdmissionFinalPhase::where('application_id', $data->application_id)->exists();
-            
+
             if (!$existsInPhase2) {
                 // Shift candidate to Phase 2 table
                 AdmissionFinalPhase::create([
