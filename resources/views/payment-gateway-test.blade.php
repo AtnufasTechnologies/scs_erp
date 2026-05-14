@@ -151,18 +151,18 @@
             </div>
             <div class="col-md-6">
               <label class="form-label"><strong>Customer Name</strong></label>
-              <input type="text" class="form-control" name="customer_name" value="Test Customer" required>
+              <input type="text" class="form-control" name="customer_name" value="Atnufas Technologies" required>
             </div>
           </div>
 
           <div class="row mb-4">
             <div class="col-md-6">
               <label class="form-label"><strong>Email</strong></label>
-              <input type="email" class="form-control" name="email" value="test@example.com" required>
+              <input type="email" class="form-control" name="email" value="atnufastechnologies@gmail.com" required>
             </div>
             <div class="col-md-6">
               <label class="form-label"><strong>Phone</strong></label>
-              <input type="text" class="form-control" name="phone" value="9999999999" required>
+              <input type="text" class="form-control" name="phone" value="8100556241" required>
             </div>
           </div>
 
@@ -234,7 +234,7 @@
             <h6><strong>BillDesk</strong></h6>
             <ul class="list-unstyled">
               <li><i class="fas fa-check text-success"></i> Service Class: Loaded</li>
-              <li><i class="fas fa-exclamation-triangle text-warning"></i> Environment Variables: Configure Required</li>
+              <li><i class="fas fa-check text-success"></i> Environment Variables: Configured</li>
               <li><i class="fas fa-check text-success"></i> Routes: Active</li>
               <li><i class="fas fa-check text-success"></i> Webhook: Configured</li>
             </ul>

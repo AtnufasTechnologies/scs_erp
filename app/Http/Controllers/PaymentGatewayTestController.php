@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use Illuminate\Http\Request;
 use App\Services\BillDeskService;
+use Firebase\JWT\JWT;
 use Illuminate\Support\Facades\Log;
 
 class PaymentGatewayTestController extends Controller
@@ -55,7 +56,9 @@ class PaymentGatewayTestController extends Controller
       $txnid = 'TEST' . time() . rand(1000, 9999);
 
       $productinfo = 'Test Payment - Salesian College';
-
+      $split = json_encode([
+        'SAL_ACFEES' => $amount
+      ]);
       // Generate hash
       $hashString = "$key|$txnid|$amount|$productinfo|$customerName|$email|||||||||||$salt";
       $hash = strtolower(hash('sha512', $hashString));
@@ -74,10 +77,20 @@ class PaymentGatewayTestController extends Controller
           'surl' => route('payment.test.success'),
           'furl' => route('payment.test.failure'),
           'hash' => $hash,
+          'split_payments' => $split
         ],
       ]);
 
       $apiResponse = json_decode($response->getBody(), true);
+
+      Log::info('EaseBuzz Test Payment Initiated', [
+        'txnid' => $txnid,
+        'amount' => $amount,
+        'customer_name' => $customerName,
+        'email' => $email,
+        'phone' => $phone,
+        'api_response' => $apiResponse
+      ]);
 
       if ($apiResponse['status'] == 1) {
         return redirect(env('EASEBUZZ_PAYMENT_URL') . $apiResponse['data']);
@@ -95,6 +108,57 @@ class PaymentGatewayTestController extends Controller
    */
   private function processBillDeskTest($amount, $customerName, $email, $phone)
   {
+
+    $headers = ["alg" => "HS256", "clientid" => env('BILLDESK_CLIENT_ID')];
+    $orderId = 'TEST' . time() . rand(1000, 9999);
+    $payload = [
+      "merchantid" => env('BILLDESK_MERCHANT_ID'),
+      "orderid" => $orderId,
+      "amount" => number_format($amount, 2, '.', ''),
+      "currencycode" => "356",
+      "customername" => $customerName,
+      "customermobile" => $phone,
+      "customeremail" => $email,
+      "returnurl" => route('payment.test.billdesk.response'),
+      "additionalinfo1" => 'Test Payment',
+      "additionalinfo2" => $customerName,
+      "additionalinfo3" => $phone,
+      "additionalinfo4" => $email,
+      "additionalinfo5" => 'Test Transaction',
+      "additionalinfo6" => 'Salesian College',
+    ];
+    $randomNumber = random_int(100000000000, 999999999999);
+    $traceid = "$randomNumber";
+    $trace_time = date("YmdHis");
+    $order_date = date("Y-m-d\TH:i:sP");
+    $timestamp = date("YmdHis");
+
+    $payload['traceid'] = $traceid;
+    $payload['tracetime'] = $trace_time;
+    $payload['orderdate'] = $order_date;
+
+    Log::info('BillDesk Test Payment', [
+      'order_id' => $orderId,
+      'trace_id' => $traceid,
+      'timestamp' => $timestamp,
+      'amount' => $amount
+    ]);
+
+    $curl_payload = JWT::encode($payload, env('BILLDESK_SECRET_KEY'), "HS256", null, $headers);
+
+
+    return view('admission.billdesk-payment', [
+      'merchantId' => env('BILLDESK_MERCHANT_ID'),
+      'bdOrderId' => $payload['orderid'],
+      'authToken' => $curl_payload,
+      'returnUrl' => route('payment.test.billdesk.response'),
+      'amount' => $amount,
+      'customerName' => $customerName
+    ]);
+
+
+
+    /*
     try {
       $billDeskService = new BillDeskService();
 
@@ -128,6 +192,7 @@ class PaymentGatewayTestController extends Controller
       Log::error('BillDesk Test Payment Error: ' . $e->getMessage());
       return back()->withErrors(['payment' => 'Payment initialization failed: ' . $e->getMessage()]);
     }
+      */
   }
 
   /**

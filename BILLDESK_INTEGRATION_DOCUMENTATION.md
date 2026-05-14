@@ -4,20 +4,40 @@
 
 This document provides complete information about the BillDesk payment gateway integration in the Salesian College ERP system.
 
-## Integration Date
+## Official Documentation
 
-May 13, 2026
+- **API Reference:** https://docs.billdesk.io/reference/createorder
+- **Base Documentation:** https://docs.billdesk.io/
+- **Shell Integration Guide:** [BILLDESK_SHELL_INTEGRATION_GUIDE.md](./BILLDESK_SHELL_INTEGRATION_GUIDE.md)
+
+## Integration Updates
+
+- **Initial Integration:** May 13, 2026
+- **Enhanced with Official API Specs:** May 14, 2026
+    - Added customer object support
+    - Improved error handling
+    - Updated API endpoints to match official documentation
+    - Added Shell/cURL integration examples
+    - Added webhook response parser
+    - Enhanced transaction verification
 
 ## Files Created/Modified
 
 ### 1. Service Layer
 
 - **File**: `app/Services/BillDeskService.php`
-- **Description**: Core BillDesk service class handling order creation, JWT encoding/decoding, and transaction verification.
+- **Description**: Core BillDesk service class handling order creation, JWT encoding/decoding, and transaction verification. Fully compliant with BillDesk API v1_2 specifications.
 - **Key Methods**:
-    - `createOrder()` - Creates a payment order with BillDesk
-    - `verifyTransaction()` - Verifies payment transaction status
-    - `generateUniqueNum()` - Generates unique order numbers
+    - `createOrder($orderId, $amount, $customerName, $returnUrl, $additionalInfo = [], $customerInfo = [])` - Creates a payment order with BillDesk, supports customer information (email, mobile)
+    - `verifyTransaction($orderId)` - Verifies payment transaction status by calling BillDesk Retrieve Transaction API
+    - `parseWebhookResponse($jwtResponse)` - Parses and validates JWT webhook responses from BillDesk
+    - `generateUniqueNum($length = 5)` - Generates unique order numbers
+- **Enhancements**:
+    - Added customer object support (email, mobile)
+    - Enhanced error handling with detailed error messages
+    - Proper JWT response parsing with validation
+    - Support for additional_info7 field
+    - Improved link extraction from API response
 
 ### 2. JWT Library
 
@@ -119,9 +139,12 @@ Route::any('payment-test-billdesk-response', [PaymentGatewayTestController::clas
 BILLDESK_MERCHANT_ID=your_merchant_id
 BILLDESK_CLIENT_ID=your_client_id
 BILLDESK_SECRET_KEY=your_secret_key
-BILLDESK_API_URL=https://uat.billdesk.com/payments/ve1_2/orders/create
+# UAT/Test Environment URL (as per official documentation)
+BILLDESK_API_URL=https://uat1.billdesk.com/u2/payments/ve1_2/orders/create
 BILLDESK_IP_ADDRESS=your_server_ip_address
 ```
+
+**Note:** The official BillDesk API documentation specifies `uat1.billdesk.com/u2` for UAT environment, not `uat.billdesk.com`.
 
 ## Setup Instructions
 
@@ -131,9 +154,14 @@ BILLDESK_IP_ADDRESS=your_server_ip_address
 2. Replace placeholder values with actual BillDesk credentials:
     - `BILLDESK_MERCHANT_ID` - Your merchant ID from BillDesk
     - `BILLDESK_CLIENT_ID` - Your client ID from BillDesk
-    - `BILLDESK_SECRET_KEY` - Your secret key from BillDesk
-    - `BILLDESK_API_URL` - Use UAT URL for testing, production URL for live
-    - `BILLDESK_IP_ADDRESS` - Your server's public IP address
+    - `BILLDESK_SECRET_KEY` - Your secret key from BillDesk (used for JWT signing)
+    - `BILLDESK_API_URL` - Use UAT1 URL for testing (`https://uat1.billdesk.com/u2/...`), production URL for live
+    - `BILLDESK_IP_ADDRESS` - Your server's public IP address (visible to external networks)
+
+**Important:** Ensure your API URL matches the environment:
+
+- UAT: `https://uat1.billdesk.com/u2/payments/ve1_2/orders/create`
+- Production: `https://api.billdesk.com/payments/ve1_2/orders/create`
 
 ### 2. Gateway Logo Setup
 
