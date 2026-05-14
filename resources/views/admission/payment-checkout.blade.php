@@ -77,10 +77,10 @@
               <img src="{{ asset('admin/images/easebuzz.jpg') }}" alt="Easebuzz">
             </label>
 
-            <!-- <label class="gateway-option">
-              <input type="radio" name="gateway" value="billdesk">
+            <label class="gateway-option">
+              <input type="radio" name="gateway" value="billdesk" required>
               <img src="{{ asset('admin/images/billdesk.jpg') }}" alt="BillDesk">
-            </label> -->
+            </label>
 
           </div>
 

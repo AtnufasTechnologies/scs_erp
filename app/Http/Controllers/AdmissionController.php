@@ -49,6 +49,7 @@ use App\Exports\GenericExport;
 use App\Models\ApplicantProgramChangeInfo;
 use App\Models\StudentMaster;
 use Illuminate\Bus\Batch;
+use App\Services\BillDeskService;
 
 class AdmissionController extends Controller
 {
@@ -1445,6 +1446,20 @@ class AdmissionController extends Controller
             ->get();
     }
 
+    /**
+     * Route payment to appropriate gateway
+     */
+    function processPayment(Request $request)
+    {
+        $gateway = $request->input('gateway', 'easebuzz');
+
+        if ($gateway === 'billdesk') {
+            return $this->initiateBillDeskPayment($request);
+        } else {
+            return $this->initateEaseBuzzPayment($request);
+        }
+    }
+
     function initateEaseBuzzPayment(Request $request)
     {
         $id = $request->id ?? Auth::id();
@@ -1663,6 +1678,203 @@ class AdmissionController extends Controller
 
         return response()->json(['status' => 'ok']);
     }
+
+    // ================== BillDesk Payment Methods ==================
+
+    /**
+     * Initiate BillDesk Payment
+     */
+    function initiateBillDeskPayment(Request $request)
+    {
+        $id = $request->id ?? Auth::id();
+        $user = $id ? AdmissionRegistration::find($id) : null;
+        $userId = $user ? $user->id : null;
+
+        if (!$userId) {
+            return redirect()->route('new.admission.login')->withErrors(['registered_no' => 'User not found. Please login again.']);
+        }
+
+        $applicationRegRecord = AdmissionRegistration::where('id', $userId)->first();
+        $applicationRecord = AdmissionApplication::where('registration_id', $applicationRegRecord->id)->first();
+        $applicationId = $applicationRecord->id;
+        $invoice = $applicationRecord->application_code;
+
+        // Calculate payable amount
+        if ($applicationRegRecord->application_type == 'PG') {
+            $payableAmount = AdmissionSetting::where('id', 1)->value('application_fee_pg');
+        } else {
+            $payableAmount = AdmissionSetting::where('id', 1)->value('application_fee_ug');
+        }
+
+        try {
+            $billDeskService = new BillDeskService();
+
+            $orderId = $invoice;
+            $customerName = $applicationRegRecord->first_name . ' ' . $applicationRegRecord->last_name;
+            $returnUrl = route('admission.payment.billdesk.response');
+
+            $additionalInfo = [
+                'info1' => 'Admission Application Fee',
+                'info2' => $customerName,
+                'info3' => $applicationRegRecord->mobile_no,
+                'info4' => $applicationRegRecord->mail_id,
+                'info5' => $userId,
+                'info6' => $applicationId,
+            ];
+
+            $response = $billDeskService->createOrder($orderId, $payableAmount, $customerName, $returnUrl, $additionalInfo);
+
+            if ($response['success']) {
+                // Update application with BillDesk details
+                $applicationRecord->gateway_type = 'billdesk';
+                $applicationRecord->save();
+
+                // Return view with BillDesk SDK integration
+                return view('admission.billdesk-payment', [
+                    'merchantId' => $response['merchantId'],
+                    'bdOrderId' => $response['bdOrderId'],
+                    'authToken' => $response['authToken'],
+                    'returnUrl' => $returnUrl,
+                    'amount' => $payableAmount,
+                    'customerName' => $customerName
+                ]);
+            } else {
+                return back()->withErrors(['payment' => 'Failed to initiate payment: ' . ($response['error'] ?? 'Unknown error')]);
+            }
+        } catch (\Exception $e) {
+            Log::error('BillDesk Payment Error: ' . $e->getMessage());
+            return back()->withErrors(['payment' => 'Payment initialization failed. Please try again.']);
+        }
+    }
+
+    /**
+     * BillDesk Payment Response Handler
+     */
+    public function billDeskResponse(Request $request)
+    {
+        $transactionId = $request->transaction_id ?? $request->txnid;
+        $status = $request->transaction_status ?? $request->status;
+        $orderId = $request->orderid ?? $request->txnid;
+        $amount = $request->transaction_amount ?? $request->amount;
+
+        // Find application by order ID
+        $application = AdmissionApplication::where('application_code', $orderId)->first();
+
+        if (!$application) {
+            return redirect()->route('new.admission.login')->withErrors(['registered_no' => 'Application not found.']);
+        }
+
+        $userId = $application->registration_id;
+        $applicationId = $application->id;
+
+        if ($status == 'SUCCESS' || $status == 'success') {
+            // Update application payment details
+            $application->update([
+                'payment_gateway_ref' => $transactionId,
+                'captured_amount' => $amount,
+                'payment_gateway_status' => $status,
+                'hash' => $request->signature ?? null,
+            ]);
+
+            // Create payment log
+            AdmissionApplicationPaymentLog::create([
+                'application_id' => $applicationId,
+                'txnid' => $orderId,
+                'easepayid' => $transactionId,
+                'user_id' => $userId,
+                'amount' => $amount,
+                'hash' => $request->signature ?? null,
+                'status' => $status,
+                'msg' => 'BillDesk payment successful',
+            ]);
+
+            // Send email and SMS
+            $registrationData = AdmissionRegistration::where('id', $userId)->first();
+            $applicantEmail = $registrationData->mail_id;
+            $applicantPhone = $registrationData->mobile_no;
+
+            Mail::to($applicantEmail)->send(new ApplicationSuccessMail($orderId));
+
+            // Send SMS
+            $var1 = $orderId;
+            $var2 = 9933402478;
+            $var3 = 'admissionenquiry@salesiancollege.net';
+            $fields = array(
+                "sender_id" => 'SCSCLG',
+                "message" => '209860',
+                "variables_values" => $var1 . '|' . $var2 . '|' . $var3,
+                "route" => "dlt",
+                "numbers" => $applicantPhone,
+            );
+            StaticController::smsSender($fields);
+
+            // Login user
+            if ($registrationData) {
+                Auth::login($registrationData, true);
+            }
+
+            $name = $registrationData ? Str::slug(trim($registrationData->first_name . ' ' . $registrationData->last_name)) : null;
+            return redirect()->route('admission.apply.application', ['id' => $userId, 'name' => $name])
+                ->with('success', 'Payment successful. Your application is now complete.');
+        } else {
+            // Payment failed
+            AdmissionApplicationPaymentLog::create([
+                'application_id' => $applicationId,
+                'txnid' => $orderId,
+                'easepayid' => $transactionId,
+                'user_id' => $userId,
+                'amount' => $amount,
+                'hash' => $request->signature ?? null,
+                'status' => $status,
+                'msg' => 'BillDesk payment failed: ' . ($request->error_desc ?? 'Unknown error'),
+            ]);
+
+            $user = AdmissionRegistration::find($userId);
+            if ($user) {
+                Auth::login($user, true);
+                $name = Str::slug(trim($user->first_name . ' ' . $user->last_name));
+                return redirect()->route('admission.apply.application', ['id' => $user->id, 'name' => $name])
+                    ->with('info', 'Payment failed. Please try again.');
+            }
+
+            return redirect()->route('new.admission.login')->withErrors(['registered_no' => 'Payment failed.']);
+        }
+    }
+
+    /**
+     * BillDesk Webhook Handler
+     */
+    public function webhookBillDesk(Request $request)
+    {
+        $payload = $request->all();
+        Log::info('BillDesk Webhook Received', $payload);
+
+        $orderId = $payload['orderid'] ?? null;
+
+        if (!$orderId) {
+            return response()->json(['status' => 'error', 'message' => 'orderid missing'], 400);
+        }
+
+        $application = AdmissionApplication::where('application_code', $orderId)->first();
+
+        if (!$application) {
+            ErrorLog::create(['details' => json_encode($payload)]);
+            return response()->json(['status' => 'ok']);
+        }
+
+        // Update application with webhook data
+        $status = $payload['transaction_status'] ?? 'pending';
+        $application->update([
+            'payment_gateway_ref' => $payload['transaction_id'] ?? null,
+            'payment_gateway_status' => $status,
+            'captured_amount' => $payload['transaction_amount'] ?? null,
+            'hash' => $payload['signature'] ?? null,
+        ]);
+
+        return response()->json(['status' => 'ok']);
+    }
+
+    // ================== End BillDesk Payment Methods ==================
 
 
 

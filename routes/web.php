@@ -54,6 +54,7 @@ use App\Http\Controllers\SyllabusPdfController;
 use App\Http\Controllers\SubjectController;
 use App\Http\Controllers\TestController;
 use App\Http\Controllers\TimetableController;
+use App\Http\Controllers\PaymentGatewayTestController;
 use App\Models\Department;
 use App\Models\User;
 use App\Models\UserType;
@@ -88,6 +89,13 @@ Route::post('student-forgot-password', [StudentAuthController::class, 'sendPassw
 Route::get('student-verify-reset-token/{code}', [StudentAuthController::class, 'verifyResetToken'])->name('student.verify.reset.token');
 Route::post('student-update-password', [StudentAuthController::class, 'updatePassword'])->name('student.password.update');
 Route::get('student-logout', [StudentAuthController::class, 'logout'])->name('student.logout');
+
+// Payment Gateway Test Routes
+Route::get('payment-gateway-test', [PaymentGatewayTestController::class, 'testPage'])->name('payment.gateway.test');
+Route::post('payment-test-process', [PaymentGatewayTestController::class, 'processTestPayment'])->name('payment.test.process');
+Route::post('payment-test-success', [PaymentGatewayTestController::class, 'testPaymentSuccess'])->name('payment.test.success');
+Route::post('payment-test-failure', [PaymentGatewayTestController::class, 'testPaymentFailure'])->name('payment.test.failure');
+Route::any('payment-test-billdesk-response', [PaymentGatewayTestController::class, 'testBillDeskResponse'])->name('payment.test.billdesk.response');
 
 Route::group(['prefix' => '/erp'], function () {
 
@@ -630,10 +638,16 @@ Route::group(['prefix' => '/erp'], function () {
         Route::post('submit-ug-application-form', [AdmissionController::class, 'ugApplicationSubmit'])->name('submit.ug.application.form');
         Route::get('getcombinations-bydepartment', [AdmissionController::class, 'getCombinationsByDepartment'])->name('get.combinations.bydepartment');
         Route::get('payment-checkout', [AdmissionController::class, 'paymentCheckout'])->name('admission.payment.checkout');
-        Route::post('payment-process', [AdmissionController::class, 'initateEaseBuzzPayment'])->name('admission.payment.process');
+        Route::post('payment-process', [AdmissionController::class, 'processPayment'])->name('admission.payment.process');
 
+        // EaseBuzz Payment Routes
         Route::post('payment-success', [AdmissionController::class, 'paymentSuccess'])->name('admission.payment.success');
         Route::post('payment-failure', [AdmissionController::class, 'paymentFailure'])->name('admission.payment.failure');
+
+        // BillDesk Payment Routes
+        Route::any('payment-billdesk-response', [AdmissionController::class, 'billDeskResponse'])->name('admission.payment.billdesk.response');
+        Route::post('payment-webhook-billdesk', [AdmissionController::class, 'webhookBillDesk'])->name('admission.payment.webhook.billdesk');
+
         Route::get('application-success-page', [AdmissionController::class, 'showSuccessPage'])->name('admission.application.success');
 
         //forgot password
