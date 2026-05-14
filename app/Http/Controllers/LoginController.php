@@ -39,10 +39,14 @@ class LoginController extends Controller
                         //check if dept admin has assigned department
                         $deptAdminDept = User::with('subjectdeptadmin.subject')->where('id', $user->id)->first();
                         if ($deptAdminDept->subjectdeptadmin) {
-                            return redirect()->route('department.dashboard')->with('success', 'Login Success');
-                        } else {
+                            //  return redirect()->route('department.dashboard')->with('success', 'Login Success');
                             Auth::logout();
-                            return redirect('/')->with('error', 'No Department Assigned. Please contact Admin');
+                            return redirect('/')->with('info', 'Development in Progress...Please Wait till Product Completion');
+                        } else {
+
+                            Auth::logout();
+                            return redirect('/')->with('info', 'Development in Progress...Please Wait till Product Completion');
+                            // return redirect('/')->with('error', 'No Department Assigned. Please contact Admin');
                         }
 
                     case 'account-office-incharge':
@@ -52,12 +56,16 @@ class LoginController extends Controller
 
                     case 'faculty':
                         //Faculty Dashboard
-                        return redirect()->route('faculty.dashboard')->with('success', 'Login Success');
+                        Auth::logout();
+                        return redirect('/')->with('info', 'Development in Progress...Please Wait till Product Completion');
+                        // return redirect()->route('faculty.dashboard')->with('success', 'Login Success');
 
                     case 'coe':
                     case 'dcoe':
                         //COE    Dashboard
-                        return redirect()->route('coe.dashboard')->with('success', 'Login Success');
+                        Auth::logout();
+                        return redirect('/')->with('info', 'Development in Progress...Please Wait till Product Completion');
+                        // return redirect()->route('coe.dashboard')->with('success', 'Login Success');
 
                     case 'principal':
                     case 'vice-principal':
@@ -68,7 +76,9 @@ class LoginController extends Controller
 
                     case 'HR':
                         //HR Dashboard
-                        return redirect()->route('hr.dashboard')->with('success', 'Login Success');
+                        Auth::logout();
+                        return redirect('/')->with('info', 'Development in Progress...Please Wait till Product Completion');
+                        //    return redirect()->route('hr.dashboard')->with('success', 'Login Success');
 
                     case 'student':
                         //Student Dashboard
