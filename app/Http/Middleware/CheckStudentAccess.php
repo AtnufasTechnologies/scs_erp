@@ -13,6 +13,7 @@ class CheckStudentAccess
 {
   public function handle(Request $request, Closure $next): Response
   {
+    /*
     $user = Auth::user();
 
     if (!$user) {
@@ -26,7 +27,7 @@ class CheckStudentAccess
       Auth::logout();
       return redirect()->route('student.login')->with('error', 'Unauthorized Access');
     }
-
+    */
     return $next($request);
   }
 }
