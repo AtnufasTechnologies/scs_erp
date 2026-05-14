@@ -16,6 +16,7 @@ class BlockStudentAccess
    */
   public function handle(Request $request, Closure $next): Response
   {
+    /*
     $user = Auth::user();
 
     if ($user) {
@@ -27,6 +28,7 @@ class BlockStudentAccess
           ->with('error', 'Access denied. Please use the Student Portal.');
       }
     }
+      */
 
     return $next($request);
   }

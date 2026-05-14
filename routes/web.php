@@ -92,7 +92,7 @@ Route::get('student-logout', [StudentAuthController::class, 'logout'])->name('st
 Route::group(['prefix' => '/erp'], function () {
 
     //admin - superuser routes
-    Route::group(['prefix' => '/admin', 'middleware' => ['auth', 'block.student.access']], function () {
+    Route::group(['prefix' => '/admin',], function () {
         Route::get('dashboard', [AdminController::class, 'index'])->name('admin.dashboard');
         Route::get('std-master-sonada', [AdminController::class, 'stdMasterSonada']);
         Route::get('std-master-siliguri', [AdminController::class, 'stdMasterSiliguri']);
@@ -701,7 +701,7 @@ Route::group(['prefix' => '/erp'], function () {
     // ========================================================
     // Department routes
 
-    Route::group(['prefix' => '/deptartment', 'middleware' => ['auth', 'block.student.access']], function () {
+    Route::group(['prefix' => '/deptartment',], function () {
         Route::get('dashboard', [SubjectController::class, 'departmentDashboard'])->name('department.dashboard');
         Route::get('combo-master', [SubjectController::class, 'comboMaster'])->name('department.combo.master');
         Route::delete('combination/{id}/delete', [SubjectController::class, 'deleteCombination'])->name('department.combination.delete');
@@ -808,7 +808,7 @@ Route::group(['prefix' => '/erp'], function () {
     // ========================================================
     // Faculty routes
 
-    Route::group(['prefix' => 'faculty', 'middleware' => ['auth', 'block.student.access']], function () {
+    Route::group(['prefix' => 'faculty',], function () {
         Route::get('dashboard', [FacultyDashboardController::class, 'index'])->name('faculty.dashboard');
         Route::get('timetable', [FacultyDashboardController::class, 'facultyTimetable'])->name('faculty.timetable');
 
@@ -911,7 +911,7 @@ Route::group(['prefix' => '/erp'], function () {
     //Testing route
 
 
-    Route::group(['prefix' => '/test', 'middleware' => ['auth', 'block.student.access']], function () {
+    Route::group(['prefix' => '/test',], function () {
         Route::get('create-student-login', [TestController::class, 'createStudentLogin']); //run once to create student login for all students in student master
         Route::get('delete-student-login', [TestController::class, 'delAllStudentAccount']); //run once to delete all student login (if needed)
         // Route::get('fix', [TestController::class, 'rollnoFixStudentPayment']);   //run once to fix rollno in student payment table
@@ -923,7 +923,7 @@ Route::group(['prefix' => '/erp'], function () {
     // ========================================================
     //COE route
 
-    Route::group(['prefix' => '/coe', 'middleware' => ['auth', 'block.student.access']], function () {
+    Route::group(['prefix' => '/coe',], function () {
         Route::get('dashboard', [CoeDashboardController::class, 'index'])->name('coe.dashboard');
         // AJAX filter route for COE Dashboard
         Route::get('dashboard/filter', [CoeDashboardController::class, 'filter'])->name('coe.dashboard.filter');
@@ -1024,7 +1024,7 @@ Route::group(['prefix' => '/erp'], function () {
     // ========================================================
     // Principal Module Routes
 
-    Route::group(['prefix' => '/principal', 'middleware' => ['auth', 'block.student.access']], function () {
+    Route::group(['prefix' => '/principal',], function () {
         Route::get('dashboard', [PrincipalController::class, 'dashboard'])->name('principal.dashboard');
         Route::get('students', [PrincipalController::class, 'students'])->name('principal.students.index');
         Route::get('{id}/student-profile/{rollno}', [PrincipalController::class, 'studentProfile'])->name('principal.student.profile');
@@ -1062,7 +1062,7 @@ Route::group(['prefix' => '/erp'], function () {
 
     // ========================================================
     // Event Coordinator
-    Route::group(['prefix' => '/event-coordinator', 'middleware' => ['auth', 'block.student.access']], function () {
+    Route::group(['prefix' => '/event-coordinator',], function () {
         Route::get('dashboard', [EventCoordinatorController::class, 'dashboard'])->name('event-coordinator.dashboard');
 
         // Events
