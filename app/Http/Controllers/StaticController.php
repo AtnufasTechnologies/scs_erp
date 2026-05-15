@@ -246,21 +246,29 @@ class StaticController extends Controller
 
   static function fetchProgramGroupNew()
   {
-    $data = ProgramGroup::with([
-      'programInfo',
-      'campus'
+    // Now fetching student programs directly instead of program groups
+    $data = StudentProgram::with([
+      'campusmaster'
     ])->get();
 
-    // $data  = StudentProgram::with('campusmaster')->get();
     return $data;
   }
 
 
-  static function fetchCourseMasterGroups($id)
+  static function fetchCourseMasterGroups(int $id)
+  {
+    // Fetch student programs linked to course master
+    $data = FeeStructureGroup::with([
+      'programinfo',
+      'programinfo.campusmaster'
+    ])->where('fee_course_master_id', $id)->get();
+    return $data;
+  }
+
+  static function fetchConnectedStudentPrograms(int $id)
   {
     $data = FeeStructureGroup::with([
-      'programInfo',
-      'programInfo.campus'
+      'programinfo',
     ])->where('fee_course_master_id', $id)->get();
     return $data;
   }

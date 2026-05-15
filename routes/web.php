@@ -682,8 +682,6 @@ Route::group(['prefix' => '/erp'], function () {
         Route::get('transaction-success/{id}/download-pdf', [FeePaymentController::class, 'downloadInvoice']);
     });
 
-
-
     //admission
     Route::group(['prefix' => 'admission'], function () {
         Route::get('registration', [AdmissionController::class, 'index']);
@@ -912,8 +910,9 @@ Route::group(['prefix' => '/erp'], function () {
 
 
     Route::group(['prefix' => '/test',], function () {
-        Route::get('create-student-login', [TestController::class, 'createStudentLogin']); //run once to create student login for all students in student master
-        Route::get('delete-student-login', [TestController::class, 'delAllStudentAccount']); //run once to delete all student login (if needed)
+        Route::get('fee-issue-fix', [TestController::class, 'feesIssueFixing']); //run once to test fee structure creation logic
+        // Route::get('create-student-login', [TestController::class, 'createStudentLogin']); //run once to create student login for all students in student master
+        // Route::get('delete-student-login', [TestController::class, 'delAllStudentAccount']); //run once to delete all student login (if needed)
         // Route::get('fix', [TestController::class, 'rollnoFixStudentPayment']);   //run once to fix rollno in student payment table
         // Route::get('dept-campus-mapping', [TestController::class, 'DeptCampusMapping']); //run once to fix department campus mapping
         // Route::get('mailing', [TestController::class, 'mailTest']);//run once to test mailing configuration

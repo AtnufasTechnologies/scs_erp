@@ -35,7 +35,7 @@ $fetchPrograms = StaticController::fetchProgramGroupNew();
 <div class="fcm-page-header">
   <h4>
     <i class="fa fa-layer-group me-2 text-primary"></i>Fee Course Master
-    <small>Manage fee courses and their linked program groups</small>
+    <small>Manage fee courses and their linked student programs</small>
   </h4>
   <button class="fcm-action-btn fcm-btn-add px-3 py-2" style="font-size:0.9rem;" data-bs-toggle="modal" data-bs-target="#add">
     <i class="fa fa-plus-circle"></i> Add New Course
@@ -61,7 +61,7 @@ $fetchPrograms = StaticController::fetchProgramGroupNew();
       <i class="fa fa-list me-1"></i> Showing {{ count($data) }} record(s)
     </span>
     <form action="{{url('erp/admin/accounts/fee-course-master')}}" method="get" class="fcm-filter-form">
-      <div class="input-group" style="width:280px;">
+      <div class="input-group">
         <span class="input-group-text bg-white border-end-0" style="border-radius:8px 0 0 8px;"><i class="fa fa-search text-muted"></i></span>
         <select name="coursemaster" class="form-select border-start-0" style="border-radius:0 8px 8px 0;">
           <option value="">Filter by course…</option>
@@ -79,12 +79,13 @@ $fetchPrograms = StaticController::fetchProgramGroupNew();
   </div>
 
   <div class="table-responsive">
+
     <table class="table fcm-table mb-0">
       <thead>
         <tr>
           <th style="width:60px;">ID</th>
           <th>Course Name</th>
-          <th>Program Groups</th>
+          <th>Student Programs</th>
           <th>Link Programs</th>
           <th style="width:80px;">Edit</th>
           <th style="width:80px;">Delete</th>
@@ -93,16 +94,16 @@ $fetchPrograms = StaticController::fetchProgramGroupNew();
       <tbody>
         @if (count($data))
         @foreach ($data as $item)
-        <?php $courseGroup = StaticController::fetchCourseMasterGroups($item->id); ?>
+        <?php $courseConnected = StaticController::fetchConnectedStudentPrograms($item->id); ?>
         <tr data-course-id="{{$item->id}}" data-course-name="{{strtolower($item->name)}}">
           <td><span class="fcm-id-badge">#{{$item->id}}</span></td>
           <td><span class="fcm-course-name">{{$item->name}}</span></td>
 
-          {{-- Program Groups Cell --}}
+          {{-- Student Programs Cell --}}
           <td>
-            @if(count($courseGroup))
+            @if(count($courseConnected))
             <button type="button" class="fcm-group-badge" data-bs-toggle="modal" data-bs-target="#viewProgs{{$item->id}}">
-              <i class="fa fa-users"></i> {{count($courseGroup)}} group{{ count($courseGroup) > 1 ? 's' : '' }}
+              <i class="fa fa-users"></i> {{count($courseConnected)}} program{{ count($courseConnected) > 1 ? 's' : '' }}
             </button>
             @else
             <span class="fcm-group-empty"><i class="fa fa-minus-circle me-1"></i>None</span>
@@ -114,23 +115,30 @@ $fetchPrograms = StaticController::fetchProgramGroupNew();
                 <div class="modal-content border-0 shadow-lg" style="border-radius:14px; overflow:hidden;">
                   <div class="modal-header fcm-modal-header-view">
                     <div>
-                      <h5 class="modal-title"><i class="fa fa-users me-2"></i>Linked Program Groups</h5>
+                      <h5 class="modal-title"><i class="fa fa-users me-2"></i>Linked Student Programs</h5>
                       <div style="color:rgba(255,255,255,0.8); font-size:0.8rem;">{{$item->name}}</div>
                     </div>
                     <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
                   </div>
                   <div class="modal-body p-4">
-                    @if(count($courseGroup))
-                    <div class="row g-3">
-                      @foreach ($courseGroup as $s)
-                      <div class="col-lg-6">
+
+                    <div class="mb-3">
+                      <label for="searchLinkedPrograms{{$item->id}}" class="form-label fw-semibold text-muted small text-uppercase">Search Linked Programs</label>
+                      <input type="text" id="searchLinkedPrograms{{$item->id}}" class="form-control fcm-search-input" placeholder="Type to search..." data-target="linkedPrograms{{$item->id}}">
+                    </div>
+
+
+                    @if(count($courseConnected))
+                    <div class="row g-3" id="linkedPrograms{{$item->id}}">
+                      @foreach ($courseConnected as $s)
+                      <div class="col-lg-6 fcm-program-item" data-search-text="{{strtolower($s->programinfo->code ?? '')}} {{strtolower($s->programinfo->name ?? '')}} {{strtolower($s->programinfo->campusmaster->name ?? '')}}">
                         <div class="fcm-linked-card">
                           <div>
-                            <div class="fcm-linked-code">{{$s->programgroupinfo->programInfo->code ?? '—'}}</div>
-                            <div class="fcm-linked-name">{{$s->programgroupinfo->programInfo->name ?? 'Unknown Program'}}</div>
-                            <div class="fcm-linked-campus"><i class="fa fa-map-marker-alt me-1"></i>{{$s->programgroupinfo->campus->name ?? '—'}}</div>
+                            <div class="fcm-linked-code">{{$s->programinfo->code ?? '—'}}</div>
+                            <div class="fcm-linked-name">{{$s->programinfo->name ?? 'Unknown Program'}}</div>
+                            <div class="fcm-linked-campus"><i class="fa fa-map-marker-alt me-1"></i>{{$s->programinfo->campus_id == 1 ? 'Sonada': 'Siliguri'}}</div>
                           </div>
-                          <a href="{{url('erp/admin/accounts/unlink/fee-structure-group/'.$s->id)}}" class="fcm-unlink-btn" title="Unlink this program" onclick="return confirm('Remove this program group?')">
+                          <a href="{{url('erp/admin/accounts/unlink/fee-structure-group/'.$s->id)}}" class="fcm-unlink-btn" title="Unlink this program" onclick="return confirm('Remove this student program?')">
                             <i class="fa fa-times"></i>
                           </a>
                         </div>
@@ -140,9 +148,41 @@ $fetchPrograms = StaticController::fetchProgramGroupNew();
                     @else
                     <div class="fcm-empty">
                       <i class="fa fa-unlink"></i>
-                      <p class="mb-0">No program groups linked yet.</p>
+                      <p class="mb-0">No student programs linked yet.</p>
                     </div>
                     @endif
+
+                    <script>
+                      document.getElementById('searchLinkedPrograms{{$item->id}}').addEventListener('keyup', function() {
+                        const searchText = this.value.toLowerCase().trim();
+                        const targetId = this.getAttribute('data-target');
+                        const container = document.getElementById(targetId);
+                        const items = container.querySelectorAll('.fcm-program-item');
+                        let visibleCount = 0;
+
+                        items.forEach(function(item) {
+                          const text = item.getAttribute('data-search-text');
+                          if (text.includes(searchText)) {
+                            item.style.display = '';
+                            visibleCount++;
+                          } else {
+                            item.style.display = 'none';
+                          }
+                        });
+
+                        if (visibleCount === 0 && items.length > 0) {
+                          if (!container.querySelector('.fcm-no-results')) {
+                            const noResults = document.createElement('div');
+                            noResults.className = 'fcm-no-results alert alert-info';
+                            noResults.innerHTML = '<i class="fa fa-search me-2"></i>No programs found.';
+                            container.appendChild(noResults);
+                          }
+                        } else {
+                          const noResults = container.querySelector('.fcm-no-results');
+                          if (noResults) noResults.remove();
+                        }
+                      });
+                    </script>
                   </div>
                 </div>
               </div>
@@ -152,7 +192,7 @@ $fetchPrograms = StaticController::fetchProgramGroupNew();
           {{-- Link Programs Cell --}}
           <td>
             <button class="fcm-action-btn fcm-btn-add" data-bs-target="#linkAddModal{{$item->id}}" data-bs-toggle="modal">
-              <i class="fa fa-link"></i> Link Groups
+              <i class="fa fa-link"></i> Link Programs
             </button>
 
             <div class="modal fade" id="linkAddModal{{$item->id}}" aria-hidden="true" tabindex="-1">
@@ -160,7 +200,7 @@ $fetchPrograms = StaticController::fetchProgramGroupNew();
                 <div class="modal-content border-0 shadow-lg" style="border-radius:14px; overflow:hidden;">
                   <div class="modal-header fcm-modal-header-link">
                     <div>
-                      <h5 class="modal-title"><i class="fa fa-link me-2"></i>Link Program Groups</h5>
+                      <h5 class="modal-title"><i class="fa fa-link me-2"></i>Link Student Programs</h5>
                       <div style="color:rgba(255,255,255,0.8); font-size:0.8rem;">{{$item->name}}</div>
                     </div>
                     <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
@@ -168,11 +208,11 @@ $fetchPrograms = StaticController::fetchProgramGroupNew();
                   <form action="{{route('link.coursemaster.prggroup')}}" method="post">
                     @csrf
                     <div class="modal-body p-4">
-                      <label class="form-label fw-semibold text-muted small text-uppercase">Select Program Groups <span class="text-danger">*</span></label>
-                      <div class="text-muted small mb-2">Hold Ctrl / Cmd to select multiple groups.</div>
-                      <select name="progs[]" class="select-multiple form-select" multiple style="min-height:180px;">
+                      <label class="form-label fw-semibold text-muted small text-uppercase">Select Student Programs <span class="text-danger">*</span></label>
+
+                      <select name="progs[]" class="select-multiple" multiple>
                         @foreach ($fetchPrograms as $p)
-                        <option value="{{$p->id}}">{{$p->programInfo->code ?? ''}} — {{$p->programInfo->name ?? ''}} | {{$p->campus->name ?? ''}}</option>
+                        <option value="{{$p->id}}">{{$p->code ?? ''}} — {{$p->name ?? ''}} | {{$p->campusmaster->name ?? ''}}</option>
                         @endforeach
                       </select>
                       <input type="hidden" name="coursemasterId" value="{{$item->id}}">
@@ -194,7 +234,7 @@ $fetchPrograms = StaticController::fetchProgramGroupNew();
             </button>
 
             <div class="modal fade" id="edit{{$item->id}}" tabindex="-1" aria-hidden="true">
-              <div class="modal-dialog modal-dialog-centered">
+              <div class="modal-dialog modal-lg">
                 <div class="modal-content border-0 shadow-lg" style="border-radius:14px; overflow:hidden;">
                   <div class="modal-header fcm-modal-header-edit">
                     <h5 class="modal-title"><i class="fa fa-edit me-2"></i>Edit Course Name</h5>
@@ -204,7 +244,7 @@ $fetchPrograms = StaticController::fetchProgramGroupNew();
                     @csrf
                     <div class="modal-body p-4">
                       <label class="form-label fw-semibold text-muted small text-uppercase">Course Name <span class="text-danger">*</span></label>
-                      <input type="text" name="name" class="form-control form-control-lg" value="{{$item->name}}">
+                      <input type="text" name="name" class="form-control" value="{{$item->name}}">
                       <input type="hidden" name="id" value="{{$item->id}}">
                     </div>
                     <div class="modal-footer border-0 pt-0">
