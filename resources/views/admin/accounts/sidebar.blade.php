@@ -80,7 +80,7 @@ $isAssistant = $roleType === 'account-office-assistant';
 
     @if($isIncharge || StaticController::subMenuRights('fee-course-master'))
     <li>
-      <a href="{{ url('erp/admin/accounts/fee-course-master') }}">
+      <a href="{{ route('fee.course.master') }}">
         <div class="parent-icon"><i class="fas fa-book-open"></i></div>
         <div class="menu-title">Fee Course Master</div>
       </a>

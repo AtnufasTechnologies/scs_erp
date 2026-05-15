@@ -15,6 +15,7 @@ $feeheads = FeeHead::latest()->get();
 $feecoursemaster = FeeCourseMaster::latest()->get();
 $programgroups = ProgramGroup::with(['programInfo'])->get();
 $latefee = LateFee::find(1);
+$studentprograms = StudentProgram::with('campusmaster')->orderby('code', 'ASC')->get();
 
 $yearGradients = [
   1 => 'linear-gradient(-45deg, #1565c0, #42a5f5)',
@@ -555,7 +556,7 @@ $yearGradients = [
 
       {{-- Linked programs modal --}}
       <div class="modal fade" id="viewProgs{{ $item->id }}" tabindex="-1" aria-hidden="true">
-        <div class="modal-dialog">
+        <div class="modal-dialog modal-lg">
           <div class="modal-content">
             <div class="modal-header">
               <h5 class="modal-title">Linked Programs</h5>
@@ -563,17 +564,89 @@ $yearGradients = [
             </div>
             <div class="modal-body">
               @if(count($item->programspivot))
-              <div class="d-flex flex-wrap gap-2">
+              {{-- Search box for filtering linked programs --}}
+
+              <div class="mb-3">
+                <label for="searchLinkedPrograms{{$item->id}}" class="form-label fw-semibold text-muted small text-uppercase">Search Linked Programs</label>
+                <input type="text" id="searchLinkedPrograms{{$item->id}}" class="form-control fcm-search-input" placeholder="Type to search..." data-target="linkedPrograms{{$item->id}}">
+              </div>
+
+              <div id="linkedProgsContainer{{ $item->id }}" class="d-flex flex-wrap gap-2 overflow-auto" style="max-height:400px; min-height:40px; padding:2px; border:1px solid #e3e6ed; border-radius:6px; background:#f8fafc;">
                 @foreach($item->programspivot as $s)
-                <span class="badge bg-primary-subtle text-primary border border-primary-subtle px-3 py-2" style="font-size:12px;">
-                  {{ $s->studentprogram->code ?? ''}} – {{ $s->studentprogram->name ?? '' }}
+                <span class="linked-prog-badge badge bg-primary-subtle text-primary border border-primary-subtle px-3 py-2 d-inline-flex align-items-center gap-2 mb-1"
+                  style="font-size:12px; max-width:100%; word-break:break-word; white-space:normal;"
+                  data-program-text="{{ strtolower(($s->studentprogram->code ?? '') . ' ' . ($s->studentprogram->name ?? '')) }}">
+                  <span>{{ $s->studentprogram->code ?? ''}} – {{ $s->studentprogram->name ?? '' }}</span>
+                  <a href="{{ route('direct.unlink.feestructure.stdprogram', $s->id) }}"
+                    onclick="return confirm('Unlink this program from fee structure?')"
+                    class="text-danger ms-1"
+                    title="Unlink program"
+                    style="cursor:pointer; line-height:1;">
+                    <i class="fa fa-times-circle"></i>
+                  </a>
                 </span>
                 @endforeach
               </div>
               @else
-              <p class="text-center text-muted">No programs linked.</p>
+              <p class="text-center text-muted mb-0">No programs linked.</p>
               @endif
             </div>
+            <div class="modal-footer">
+              <button type="button" class="btn btn-primary btn-sm" data-bs-toggle="modal" data-bs-target="#linkProgModal{{ $item->id }}">
+                <i class="fa fa-link me-1"></i>Link New Program
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {{-- Link new program modal --}}
+      <div class="modal fade" id="linkProgModal{{ $item->id }}" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog modal-lg">
+          <div class="modal-content">
+            <div class="modal-header bg-primary text-white">
+              <h5 class="modal-title"><i class="fa fa-link me-2"></i>Link Student Program</h5>
+              <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <form action="{{ url('erp/admin/accounts/link-program-to-feestructure') }}" method="post">
+              @csrf
+              <div class="modal-body">
+                <div class="alert alert-info py-2 small mb-3">
+                  <i class="fa fa-info-circle me-1"></i>
+                  Link a student program to this fee structure. Students enrolled in the selected program will be able to pay this fee.
+                </div>
+
+                <input type="hidden" name="fee_structure_id" value="{{ $item->id }}">
+
+                <div class="mb-3">
+                  <label class="form-label fw-semibold">Select Student Program <span class="text-danger">*</span></label>
+                  <select name="student_program_id" class="form-select dselect-example" required>
+                    <option value="">-- Choose Program --</option>
+                    @foreach ($studentprograms as $prog)
+                    <option value="{{ $prog->id }}">
+                      {{ $prog->code }} – {{ $prog->name }} |
+                      ({{ $prog->campus->name ?? 'No Campus' }})
+
+                    </option>
+                    @endforeach
+
+
+                  </select>
+                  <div class="form-text">Programs already linked to this structure are disabled.</div>
+                </div>
+
+                <div class="alert alert-warning py-2 small mb-0">
+                  <i class="fa fa-exclamation-triangle me-1"></i>
+                  <strong>Note:</strong> Linked programs cannot be unlinked if students have already made payments.
+                </div>
+              </div>
+              <div class="modal-footer">
+                <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Cancel</button>
+                <button type="submit" class="btn btn-primary btn-sm">
+                  <i class="fa fa-link me-1"></i>Link Program
+                </button>
+              </div>
+            </form>
           </div>
         </div>
       </div>
@@ -633,6 +706,26 @@ $yearGradients = [
 <p class=" text-center display-4">No Records Found</p>
 @endif
 
+<script>
+  // Filter linked programs in the viewProgs modal
+  function filterLinkedPrograms(input, containerId) {
+    const filter = input.value.toLowerCase();
+    const container = document.getElementById(containerId);
+    if (!container) return;
 
+    const badges = container.querySelectorAll('.linked-prog-badge');
+    let visibleCount = 0;
+
+    badges.forEach(function(badge) {
+      const programText = badge.getAttribute('data-program-text') || '';
+      if (programText.includes(filter)) {
+        badge.style.display = 'inline-flex';
+        visibleCount++;
+      } else {
+        badge.style.display = 'none';
+      }
+    });
+  }
+</script>
 
 @include('includes.footer')

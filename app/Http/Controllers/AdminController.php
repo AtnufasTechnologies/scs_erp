@@ -1098,6 +1098,13 @@ class AdminController extends Controller
         return redirect()->back()->with('success', 'Done');
     }
 
+    function unlinkStdProgramDirect($id)
+    {
+        return  FeeStructureGroup::find($id)->first();
+        FeeStructureHasManyProgram::where('fee_structure_group_id', $id)->first();
+        return redirect()->back()->with('success', 'Done');
+    }
+
 
     function addCourseMasterGroup(Request $request)
     {
@@ -1286,13 +1293,14 @@ class AdminController extends Controller
 
     function feeCourseMaster(Request $request)
     {
-        if (!empty($request->coursemaster)) {
-            $data = FeeCourseMaster::with('feegroups.programgroup')->where('id', $request->coursemaster)->latest()->get();
-        } else {
-            $data = FeeCourseMaster::with('feegroups.programgroup')->latest()->get();
-        }
-
-        $allcourses = FeeCourseMaster::latest()->get();
+        // if (!empty($request->coursemaster)) {
+        //     $data = FeeCourseMaster::with('feegroups.programgroup')->where('id', $request->coursemaster)->latest()->get();
+        // } else {
+        //     $data = FeeCourseMaster::with('feegroups.programgroup')->latest()->get();
+        // }
+        // $allcourses = FeeCourseMaster::latest()->get();
+        $data =  FeeCourseMaster::with('connectedprograms')->latest()->get();
+        return response()->json($data);
         return view('admin.accounts.fee-course-master', ['data' => $data, 'allcourses' => $allcourses]);
     }
 

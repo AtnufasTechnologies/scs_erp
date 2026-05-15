@@ -14,4 +14,9 @@ class FeeCourseMaster extends Model
     {
         return $this->hasMany(FeeStructureGroup::class, 'fee_course_master_id');
     }
+
+    function connectedprograms()
+    {
+        return $this->hasMany(FeeStructureHasManyProgram::class, 'fee_structure_id')->with('studentprogram');
+    }
 }

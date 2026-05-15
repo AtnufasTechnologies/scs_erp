@@ -198,13 +198,14 @@ Route::group(['prefix' => '/erp'], function () {
             Route::get('unlink-prog-from-feestructure/{id}', [AdminController::class, 'unlinkStdProgram']);
             Route::post('link-prgs-to-feestructure', [AdminController::class, 'linkProgramtoFeeStructure'])->name('link.feestructure.stdprogram');
             Route::get('update/feestructure-status/{id}', [AdminController::class, 'updateFeeStructureStatus']);
+            Route::get('direct-unlink-prog-from-feestructuregroup/{id}', [AdminController::class, 'unlinkStdProgramDirect'])->name('direct.unlink.feestructure.stdprogram');
 
             Route::get('del-feecourse-master/{id}', [AdminController::class, 'delFeeCourseMaster']);
             Route::post('fee-structure-groups', [AdminController::class, 'addFeeStructureGroup']);
             Route::get('unlink/fee-structure-group/{id}', [AdminController::class, 'feeStructureGroupUnlink']);
 
             Route::get('student-fee/{id}', [AdminController::class, 'getFeeStructure']);
-            Route::get('fee-course-master', [AdminController::class, 'feeCourseMaster']);
+            Route::get('fee-course-master', [AdminController::class, 'feeCourseMaster'])->name('fee.course.master');
             Route::post('fee-course-master', [AdminController::class, 'addCourseFeeMaster']);
             Route::post('update-fee-course-master', [AdminController::class, 'updateCourseFeeMaster']);
             Route::get('delete-feestructure/{id}', [AdminController::class, 'deleteFeeStructure']);

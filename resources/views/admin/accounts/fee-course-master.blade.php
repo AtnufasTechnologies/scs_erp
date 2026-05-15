@@ -83,7 +83,8 @@ $fetchPrograms = StaticController::fetchProgramGroupNew();
     <table class="table fcm-table mb-0">
       <thead>
         <tr>
-          <th style="width:60px;">ID</th>
+          <th>Sl#</th>
+          <th style="width:60px;">Prg ID</th>
           <th>Course Name</th>
           <th>Student Programs</th>
           <th>Link Programs</th>
@@ -96,7 +97,8 @@ $fetchPrograms = StaticController::fetchProgramGroupNew();
         @foreach ($data as $item)
         <?php $courseConnected = StaticController::fetchConnectedStudentPrograms($item->id); ?>
         <tr data-course-id="{{$item->id}}" data-course-name="{{strtolower($item->name)}}">
-          <td><span class="fcm-id-badge">#{{$item->id}}</span></td>
+          <td>#{{$loop->iteration}}</td>
+          <td><span class="fcm-id-badge">{{$item->id}}</span></td>
           <td><span class="fcm-course-name">{{$item->name}}</span></td>
 
           {{-- Student Programs Cell --}}
@@ -201,7 +203,7 @@ $fetchPrograms = StaticController::fetchProgramGroupNew();
                   <div class="modal-header fcm-modal-header-link">
                     <div>
                       <h5 class="modal-title"><i class="fa fa-link me-2"></i>Link Student Programs</h5>
-                      <div style="color:rgba(255,255,255,0.8); font-size:0.8rem;">{{$item->name}}</div>
+                      <div style="font-size:0.8rem;">{{$item->name}}</div>
                     </div>
                     <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
                   </div>
