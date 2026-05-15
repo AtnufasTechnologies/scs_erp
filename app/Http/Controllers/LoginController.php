@@ -39,9 +39,9 @@ class LoginController extends Controller
                         //check if dept admin has assigned department
                         $deptAdminDept = User::with('subjectdeptadmin.subject')->where('id', $user->id)->first();
                         if ($deptAdminDept->subjectdeptadmin) {
-                            //  return redirect()->route('department.dashboard')->with('success', 'Login Success');
-                            Auth::logout();
-                            return redirect('/')->with('info', 'Development in Progress...Please Wait till Product Completion');
+                            return redirect()->route('department.dashboard')->with('success', 'Login Success');
+                            //Auth::logout();
+                            //return redirect('/')->with('info', 'Development in Progress...Please Wait till Product Completion');
                         } else {
 
                             Auth::logout();
