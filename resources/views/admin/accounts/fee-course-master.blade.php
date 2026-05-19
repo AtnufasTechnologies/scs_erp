@@ -138,7 +138,7 @@ $fetchPrograms = StaticController::fetchProgramGroupNew();
                           <div>
                             <div class="fcm-linked-code">{{$s->programinfo->code ?? '—'}}</div>
                             <div class="fcm-linked-name">{{$s->programinfo->name ?? 'Unknown Program'}}</div>
-                            <div class="fcm-linked-campus"><i class="fa fa-map-marker-alt me-1"></i>{{$s->programinfo->campus_id == 1 ? 'Sonada': 'Siliguri'}}</div>
+                            <div class="fcm-linked-campus"><i class="fa fa-map-marker-alt me-1"></i>{{$s->programinfo ? $s->programinfo->campus_id == 1 ? 'Sonada': 'Siliguri' : 'NA'}}</div>
                           </div>
                           <a href="{{route('unlink.fee-structure-group', $s->id)}}" class="fcm-unlink-btn" title="Unlink this program" onclick="return confirm('Remove this student program?')">
                             <i class="fa fa-times"></i>
