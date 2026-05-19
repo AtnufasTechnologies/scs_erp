@@ -956,6 +956,7 @@ class AdminController extends Controller
 
     function addFeeStructure(Request $request)
     {
+
         $request->validate([
             'program' => 'required',
             'batch' => 'required',
@@ -970,10 +971,24 @@ class AdminController extends Controller
 
 
         ]);
+
+
+        // Check for duplicate fee structure
+        $duplicate = FeesStructure::where('batch_id', $request->batch)
+            ->where('program_id', $request->program)
+            ->where('course_name', $request->course)
+            ->where('std_current_year', $request->applicable_year)
+            ->where('yearly_pay_order', $request->yearly_pay_order)
+            ->first();
+
+        if ($duplicate) {
+            return redirect()->back()->with('error', 'A fee structure with these specifications already exists. Please check batch, program, course, year, and payment order.');
+        }
+
         $rec = new FeesStructure();
-        $rec->program_id = $request->program;
-        $rec->batch_id = $request->batch;
-        $rec->course_name = $request->course;
+        $rec->program_id = $request->program; //ug pg
+        $rec->batch_id = $request->batch; //batch master: id
+        $rec->course_name = $request->course; //fee course master: id
         $rec->reminder_date = $request->reminder_date;
         $rec->due_date = $request->due_date;
         $rec->quarter_title = $request->quarter_title;
@@ -1129,30 +1144,48 @@ class AdminController extends Controller
                 $rec->save();
             }
 
-            // The student program id is directly from the request
-            $std_prg_id = $progs[$i];
 
-            // Find if any fee structure exists for the course master id
-            $feeStructures = FeesStructure::where('course_name', $courseMasterId)->get();
-            for ($a = 0; $a < count($feeStructures); $a++) {
-                $fs_id = $feeStructures[$a]->id;
-                $crossCheck = FeeStructureHasManyProgram::where('fee_structure_id', $fs_id)
-                    ->where('std_program_id', $std_prg_id)
-                    ->exists();
-                if (!$crossCheck) {
-                    $pvt = new FeeStructureHasManyProgram();
-                    $pvt->fee_structure_id = $fs_id;
-                    $pvt->std_program_id = $std_prg_id;
-                    $pvt->save();
+            //fetch in Fees_structure this course_name: id exist
+            $feestructure_data =   FeesStructure::where('course_name', $courseMasterId)->get();
+
+            if ($feestructure_data != null) {
+
+                // If fee structure exists, link the student program to it in FeeStructureHasManyProgram
+                foreach ($feestructure_data as $fs) {
+                    $fs_id = $fs->id;
+                    // Check if already linked to avoid duplicates
+                    $existsLink = FeeStructureHasManyProgram::where('fee_structure_id', $fs_id)
+                        ->where('std_program_id', $progs[$i])
+                        ->exists();
+
+                    if (!$existsLink) {
+                        $link = new FeeStructureHasManyProgram();
+                        $link->fee_structure_id = $fs_id;
+                        $link->std_program_id = $progs[$i];
+                        $link->save();
+                    }
                 }
             }
         }
 
-        return redirect()->back()->with('success', 'New Programs Linked ');
+        return redirect()->back()->with('success', 'Connected Successfully');
     }
 
-    function feeStructureGroupUnlink($id)
+    function feeStructureGroupUnlink(int $id)
     {
+        $data = FeeStructureGroup::findOrFail($id);
+
+        $fee_course_master_id = $data->fee_course_master_id;
+        $student_program_id = $data->student_program_id;
+        //Check if any fee structure exists for the course master id
+        $feeStructures = FeesStructure::where('course_name', $fee_course_master_id)->get();
+        //unlink from FeeStructureHasManyProgram where feeStructures->id and student_program_id
+        foreach ($feeStructures as $fs) {
+            FeeStructureHasManyProgram::where('fee_structure_id', $fs->id)
+                ->where('std_program_id', $student_program_id)
+                ->delete();
+        }
+
         FeeStructureGroup::findOrFail($id)->delete();
         return redirect()->back()->with('success', 'Deleted');
     }
@@ -1293,14 +1326,13 @@ class AdminController extends Controller
 
     function feeCourseMaster(Request $request)
     {
-        // if (!empty($request->coursemaster)) {
-        //     $data = FeeCourseMaster::with('feegroups.programgroup')->where('id', $request->coursemaster)->latest()->get();
-        // } else {
-        //     $data = FeeCourseMaster::with('feegroups.programgroup')->latest()->get();
-        // }
-        // $allcourses = FeeCourseMaster::latest()->get();
-        $data =  FeeCourseMaster::with('connectedprograms')->latest()->get();
-        return response()->json($data);
+        if (!empty($request->coursemaster)) {
+            $data = FeeCourseMaster::with('feegroups.programgroup')->where('id', $request->coursemaster)->latest()->get();
+        } else {
+            $data = FeeCourseMaster::with('feegroups.programgroup')->latest()->get();
+        }
+        $allcourses = FeeCourseMaster::latest()->get();
+
         return view('admin.accounts.fee-course-master', ['data' => $data, 'allcourses' => $allcourses]);
     }
 

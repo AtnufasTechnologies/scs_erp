@@ -140,7 +140,7 @@ $fetchPrograms = StaticController::fetchProgramGroupNew();
                             <div class="fcm-linked-name">{{$s->programinfo->name ?? 'Unknown Program'}}</div>
                             <div class="fcm-linked-campus"><i class="fa fa-map-marker-alt me-1"></i>{{$s->programinfo->campus_id == 1 ? 'Sonada': 'Siliguri'}}</div>
                           </div>
-                          <a href="{{url('erp/admin/accounts/unlink/fee-structure-group/'.$s->id)}}" class="fcm-unlink-btn" title="Unlink this program" onclick="return confirm('Remove this student program?')">
+                          <a href="{{route('unlink.fee-structure-group', $s->id)}}" class="fcm-unlink-btn" title="Unlink this program" onclick="return confirm('Remove this student program?')">
                             <i class="fa fa-times"></i>
                           </a>
                         </div>
@@ -199,11 +199,11 @@ $fetchPrograms = StaticController::fetchProgramGroupNew();
 
             <div class="modal fade" id="linkAddModal{{$item->id}}" aria-hidden="true" tabindex="-1">
               <div class="modal-dialog modal-lg modal-dialog-centered">
-                <div class="modal-content border-0 shadow-lg" style="border-radius:14px; overflow:hidden;">
+                <div class="modal-content border-0 shadow-lg" style="border-radius:14px; overflow:auto;">
                   <div class="modal-header fcm-modal-header-link">
                     <div>
-                      <h5 class="modal-title"><i class="fa fa-link me-2"></i>Link Student Programs</h5>
-                      <div style="font-size:0.8rem;">{{$item->name}}</div>
+                      <h5 class="modal-title"><i class="fa fa-link me-2"></i>Connect Student Programs to "{{$item->name}}"</h5>
+
                     </div>
                     <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
                   </div>
@@ -217,6 +217,7 @@ $fetchPrograms = StaticController::fetchProgramGroupNew();
                         <option value="{{$p->id}}">{{$p->code ?? ''}} — {{$p->name ?? ''}} | {{$p->campusmaster->name ?? ''}}</option>
                         @endforeach
                       </select>
+
                       <input type="hidden" name="coursemasterId" value="{{$item->id}}">
                     </div>
                     <div class="modal-footer border-0 pt-0">

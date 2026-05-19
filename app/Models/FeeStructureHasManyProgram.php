@@ -17,7 +17,7 @@ class FeeStructureHasManyProgram extends Model
 
     function studentprogram()
     {
-        return $this->hasOne(StudentProgram::class, 'id', 'std_program_id');
+        return $this->hasOne(StudentProgram::class, 'id', 'std_program_id')->with('campusmaster');
     }
 
     function feeStructure()

@@ -202,7 +202,7 @@ Route::group(['prefix' => '/erp'], function () {
 
             Route::get('del-feecourse-master/{id}', [AdminController::class, 'delFeeCourseMaster']);
             Route::post('fee-structure-groups', [AdminController::class, 'addFeeStructureGroup']);
-            Route::get('unlink/fee-structure-group/{id}', [AdminController::class, 'feeStructureGroupUnlink']);
+            Route::get('unlink/fee-structure-group/{id}', [AdminController::class, 'feeStructureGroupUnlink'])->name('unlink.fee-structure-group');
 
             Route::get('student-fee/{id}', [AdminController::class, 'getFeeStructure']);
             Route::get('fee-course-master', [AdminController::class, 'feeCourseMaster'])->name('fee.course.master');
