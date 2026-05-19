@@ -1190,6 +1190,36 @@ class AdminController extends Controller
         return redirect()->back()->with('success', 'Deleted');
     }
 
+    function feeStructureStdProgramUnlink(int $id)
+    {
+        FeeStructureHasManyProgram::findOrFail($id)->delete();
+        return redirect()->back()->with('success', 'Deleted');
+    }
+
+    function connectFeesStructureSingleWithStdProgram(Request $request)
+    {
+        $request->validate([
+            'selected_program' => 'required',
+        ]);
+
+        $feeStructureId = $request->id;
+        $stdProgramId = $request->selected_program;
+        // Check if already linked to avoid duplicates
+        $exists = FeeStructureHasManyProgram::where('fee_structure_id', $feeStructureId)
+            ->where('std_program_id', $stdProgramId)
+            ->exists();
+
+        if (!$exists) {
+            $rec = new FeeStructureHasManyProgram();
+            $rec->fee_structure_id = $feeStructureId;
+            $rec->std_program_id = $stdProgramId;
+            $rec->save();
+            return redirect()->back()->with('success', 'Student program linked to the fee structure successfully.');
+        } else {
+            return redirect()->back()->with('error', 'This student program is already linked to the fee structure.');
+        }
+    }
+
     function linkProgramtoFeeStructure(Request $request)
     {
         $request->validate([

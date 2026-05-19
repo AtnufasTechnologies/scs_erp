@@ -302,7 +302,7 @@ $batchColorPalette = [
     <div class="fee-card">
 
       {{-- Coloured top accent bar --}}
-      <div class="fc-accent" style="background: {{ $gradient }};"></div>
+      <div class="fc-accent" style="background: {{ $batchAccentColor }};"></div>
 
       {{-- Payable status badge --}}
       <div class="fc-status">
@@ -578,14 +578,14 @@ $batchColorPalette = [
               @if(count($item->programspivot))
               <div class="row g-3" id="linkedPrograms{{$item->id}}">
                 @foreach ($item->programspivot as $s)
-                <div class="col-lg-6 fcm-program-item" data-search-text="{{strtolower($s->code ?? '')}} {{strtolower($s->name ?? '')}} {{strtolower($s->campusmaster->name ?? '')}}">
+                <div class="col-lg-6 fcm-program-item" data-search-text="{{strtolower($s->studentprogram->code ?? '')}} {{strtolower($s->studentprogram->name ?? '')}} {{strtolower($s->studentprogram->campusmaster->name ?? '')}}">
                   <div class="fcm-linked-card">
                     <div>
                       <div class="fcm-linked-code">{{ $s->studentprogram->code ?? '' }} – {{ $s->studentprogram->name ?? '-' }}
                       </div>
                       <div class="fcm-linked-name"> {{ $s->studentprogram->campusmaster->name ?? 'No Campus' }}</div>
                     </div>
-                    <a href="{{url('erp/admin/accounts/unlink/fee-structure-group/'.$s->id)}}" class="fcm-unlink-btn" title="Unlink this program" onclick="return confirm('Remove this student program?')">
+                    <a href="{{ route('delete.fee-structure.studentprogram', $s->id) }}" class="fcm-unlink-btn" title="Unlink this program" onclick="return confirm('Remove this student program?')">
                       <i class="fa fa-times"></i>
                     </a>
                   </div>
@@ -630,86 +630,93 @@ $batchColorPalette = [
                   }
                 });
               </script>
+            </div>
+            <div class="modal-footer">
+              <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+              <button type="button" class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#linkProgModal{{$item->id}}">Link New Program</button>
             </div>
           </div>
         </div>
       </div>
 
-      {{-- Link new program modal --}}
-      <div class="modal fade" id="linkProgModal{{$item->id}}" tabindex="-1" aria-hidden="true">
+      {{-- Link student program modal --}}
+      <!-- <div class="modal fade" id="linkStudentProgModal{{$item->id}}" tabindex="-1" aria-hidden="true">
         <div class="modal-dialog modal-lg modal-dialog-centered modal-dialog-scrollable">
           <div class="modal-content border-0 shadow-lg" style="border-radius:14px; overflow:hidden;">
             <div class="modal-header fcm-modal-header-view">
               <div>
-                <h5 class="modal-title"><i class="fa fa-users me-2"></i>Linked Student Programs</h5>
+                <h5 class="modal-title"><i class="fa fa-link me-2"></i>Link Student Programs</h5>
                 <div style="color:rgba(255,255,255,0.8); font-size:0.8rem;">{{$item->name}}</div>
               </div>
               <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
             </div>
-            <div class="modal-body p-4">
-
-              <div class="mb-3">
-                <label for="searchLinkedPrograms{{$item->id}}" class="form-label fw-semibold text-muted small text-uppercase">Search Linked Programs</label>
-                <input type="text" id="searchLinkedPrograms{{$item->id}}" class="form-control fcm-search-input" placeholder="Type to search..." data-target="linkedPrograms{{$item->id}}">
-              </div>
-
-
-              @if(count($studentprograms))
-              <div class="row g-3" id="linkedPrograms{{$item->id}}">
-                @foreach ($studentprograms as $s)
-                <div class="col-lg-6 fcm-program-item" data-search-text="{{strtolower($s->programinfo->code ?? '')}} {{strtolower($s->programinfo->name ?? '')}} {{strtolower($s->programinfo->campusmaster->name ?? '')}}">
-                  <div class="fcm-linked-card">
-                    <div>
-                      <div class="fcm-linked-code">{{$s->programinfo->code ?? '—'}}</div>
-                      <div class="fcm-linked-name">{{$s->programinfo->name ?? 'Unknown Program'}}</div>
-                      <div class="fcm-linked-campus"><i class="fa fa-map-marker-alt me-1"></i></div>
-                    </div>
-                    <a href="{{url('erp/admin/accounts/unlink/fee-structure-group/'.$s->id)}}" class="fcm-unlink-btn" title="Unlink this program" onclick="return confirm('Remove this student program?')">
-                      <i class="fa fa-times"></i>
-                    </a>
-                  </div>
+            <form action="{{url('erp/admin/accounts/link/fee-structure-group')}}" method="post">
+              @csrf
+              <input type="hidden" name="fee_structure_id" value="{{$item->id}}">
+              <div class="modal-body p-4">
+                <div class="mb-3">
+                  <label for="searchPrograms{{$item->id}}" class="form-label fw-semibold text-muted small text-uppercase">Search Programs</label>
+                  <input type="text" id="searchPrograms{{$item->id}}" class="form-control fcm-search-input" placeholder="Type to search..." data-target="availablePrograms{{$item->id}}">
                 </div>
-                @endforeach
+                <div class="row g-3" id="availablePrograms{{$item->id}}">
+                  <select name="programs[]" id="programs{{$item->id}}" class="form-select" multiple>
+                    @forelse($studentprograms as $prog)
+                    <option value="{{$prog->id}}">{{$prog->name ?? 'Unknown Program'}}</option>
+                    @empty
+                    <div class="fcm-empty" style="width:100%;">
+                      <i class="fa fa-inbox"></i>
+                      <p class="mb-0">No programs available.</p>
+                    </div>
+                    @endforelse
+                </div>
               </div>
-              @else
-              <div class="fcm-empty">
-                <i class="fa fa-unlink"></i>
-                <p class="mb-0">No student programs linked yet.</p>
+              <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="submit" class="btn btn-primary">Link Selected Programs</button>
               </div>
-              @endif
+            </form>
+          </div>
+        </div>
+      </div> -->
 
-              <script>
-                document.getElementById('searchLinkedPrograms{{$item->id}}').addEventListener('keyup', function() {
-                  const searchText = this.value.toLowerCase().trim();
-                  const targetId = this.getAttribute('data-target');
-                  const container = document.getElementById(targetId);
-                  const items = container.querySelectorAll('.fcm-program-item');
-                  let visibleCount = 0;
-
-                  items.forEach(function(item) {
-                    const text = item.getAttribute('data-search-text');
-                    if (text.includes(searchText)) {
-                      item.style.display = '';
-                      visibleCount++;
-                    } else {
-                      item.style.display = 'none';
-                    }
-                  });
-
-                  if (visibleCount === 0 && items.length > 0) {
-                    if (!container.querySelector('.fcm-no-results')) {
-                      const noResults = document.createElement('div');
-                      noResults.className = 'fcm-no-results alert alert-info';
-                      noResults.innerHTML = '<i class="fa fa-search me-2"></i>No programs found.';
-                      container.appendChild(noResults);
-                    }
-                  } else {
-                    const noResults = container.querySelector('.fcm-no-results');
-                    if (noResults) noResults.remove();
-                  }
-                });
-              </script>
+      {{-- Link new program modal --}}
+      <div class="modal fade" id="linkProgModal{{$item->id}}" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog modal-lg ">
+          <div class="modal-content border-0 shadow-lg">
+            <div class="modal-header ">
+              <div>
+                <h5 class="modal-title"><i class="fa fa-users me-2"></i>Link New Programs</h5>
+                <div style="color:rgba(255,255,255,0.8); font-size:0.8rem;">{{$item->name}}</div>
+              </div>
+              <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
             </div>
+            <form action="{{route('connect.fees-structure.studentprogram')}}" method="post">
+              @csrf
+              <div class="modal-body p-4">
+
+                <input type="hidden" value="{{$item->id}}" name="id">
+                <label for="">Select a Program to Connect</label>
+                @if(count($studentprograms))
+                <select name="selected_program" id="linkedProgramsSelect{{$item->id}}" class="dselect-example">
+                  @foreach ($studentprograms as $s)
+                  <option value="{{$s->id}}">{{$s->code ?? 'Unknown Code'}} - {{$s->name ?? 'Unknown Program'}} | {{$s->campusmaster->name ?? 'Unknown Campus'}}</option>
+                  @endforeach
+                </select>
+
+                @else
+                <div class="fcm-empty">
+                  <i class="fa fa-unlink"></i>
+                  <p class="mb-0">No student programs linked yet.</p>
+                </div>
+                @endif
+
+
+              </div>
+              <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="submit" class="btn btn-primary">Link Selected Programs</button>
+              </div>
+            </form>
           </div>
         </div>
       </div>
