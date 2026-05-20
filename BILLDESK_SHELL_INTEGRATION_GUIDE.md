@@ -1,3 +1,5 @@
+php artisan billdesk:test-auth
+
 # BillDesk Integration Guide - Shell & Laravel
 
 **Based on Official Documentation:** https://docs.billdesk.io/reference/createorder

@@ -3,315 +3,381 @@
 namespace App\Services;
 
 use Exception;
-use Firebase\JWT\JWK;
-use Firebase\JWT\JWT;
-use Firebase\JWT\Key;
+use Illuminate\Support\Facades\Log;
 
+/**
+ * BillDesk Payment Gateway Service
+ *
+ * Uses JOSE (nested JWE + JWS) for all API communication:
+ *   Request  : JSON → JWE-encrypt (AES-256-GCM, SECRET_KEY) → JWS-sign (HS256, SIGN_KEY)
+ *   Response : JWS-verify (SIGN_KEY) → JWE-decrypt (SECRET_KEY) → JSON
+ */
 class BillDeskService
 {
   private $merchantId;
   private $clientId;
-  private $secretKey;
+  private $keyId;
+  private $secretKey;   // AES-256-GCM encryption key  (BILLDESK_SECRET_KEY)
+  private $signKey;     // HMAC-SHA256 signing key      (BILLDESK_SIGN_KEY)
   private $apiUrl;
   private $ipAddress;
 
   public function __construct()
   {
     $this->merchantId = env('BILLDESK_MERCHANT_ID');
-    $this->clientId = env('BILLDESK_CLIENT_ID');
-    $this->secretKey = env('BILLDESK_SECRET_KEY');
-    $this->apiUrl = env('BILLDESK_API_URL');
-    $this->ipAddress = env('BILLDESK_IP_ADDRESS', request()->ip());
+    $this->clientId   = env('BILLDESK_CLIENT_ID');
+    $this->keyId      = env('BILLDESK_KEY_ID');
+    $this->secretKey  = env('BILLDESK_SECRET_KEY');
+    $this->signKey    = env('BILLDESK_SIGN_KEY');
+    $this->apiUrl     = env('BILLDESK_API_URL');
+    $this->ipAddress  = env('BILLDESK_IP_ADDRESS', request()->ip());
   }
+
+  // ─────────────────────────────────────────────────────────────────────────
+  //  Public API methods
+  // ─────────────────────────────────────────────────────────────────────────
 
   /**
    * Generate unique order number
    */
   public function generateUniqueNum($length = 5)
   {
-    $chars = '53194931851485852262767284719384643';
+    $chars  = '53194931851485852262767284719384643';
     $result = '';
-
     for ($p = 0; $p < $length; $p++) {
       $result .= ($p % 2) ? $chars[mt_rand(19, 23)] : $chars[mt_rand(0, 18)];
     }
-
-    $dt = date('Y-m-d-H-i-s');
-    $x = explode('-', $dt);
-    $result = $x[1] . $x[2] . $x[3] . "TM" . $result;
-
-    return $result;
+    $x = explode('-', date('Y-m-d-H-i-s'));
+    return $x[1] . $x[2] . $x[3] . 'TM' . $result;
   }
 
   /**
    * Create order with BillDesk
-   * 
-   * @param string $orderId Unique order ID
-   * @param float $amount Transaction amount
-   * @param string $customerName Customer name
-   * @param string $returnUrl Return URL after payment
-   * @param array $additionalInfo Additional information
-   * @param array $customerInfo Customer details (email, mobile, etc.)
-   * @return array
+   *
+   * @param string $orderId
+   * @param float  $amount
+   * @param string $customerName
+   * @param string $returnUrl
+   * @param array  $additionalInfo
+   * @param array  $customerInfo   Keys: email, mobile
+   * @return array  ['success'=>true, 'bdOrderId'=>..., 'authToken'=>..., 'merchantId'=>...]
+   * @throws Exception
    */
   public function createOrder($orderId, $amount, $customerName, $returnUrl, $additionalInfo = [], $customerInfo = [])
   {
-    $headers = ["alg" => "HS256", "clientid" => $this->clientId];
+    $traceid    = (string) random_int(100000000000, 999999999999);
+    $traceTime  = date('YmdHis');
+    $orderDate  = date("Y-m-d\TH:i:sP");
+    $userAgent  = request()->header('User-Agent') ?? 'Mozilla/5.0';
 
-    $randomNumber = random_int(100000000000, 999999999999);
-    $traceid = "$randomNumber";
-    $trace_time = date("YmdHis");
-    $order_date = date("Y-m-d\TH:i:sP");
-
-    $userAgent = request()->header('User-Agent') ?? 'Mozilla/5.0';
-
-    // Build payload according to BillDesk API specification
     $payload = [
-      "mercid" => $this->merchantId,
-      "orderid" => $orderId,
-      "amount" => number_format($amount, 2, '.', ''),
-      "order_date" => $order_date,
-      "currency" => "356", // INR (ISO 4217)
-      "ru" => $returnUrl,
-      "itemcode" => "DIRECT",
-      "device" => [
-        "init_channel" => "internet",
-        "ip" => $this->ipAddress,
-        "accept_header" => "text/html",
-        "user_agent" => $userAgent,
-        "browser_tz" => "-330",
-        "browser_color_depth" => "32",
-        "browser_java_enabled" => "false",
-        "browser_screen_height" => "601",
-        "browser_screen_width" => "657",
-        "browser_language" => "en-US",
-        "browser_javascript_enabled" => "true"
-      ]
+      'mercid'     => $this->merchantId,
+      'orderid'    => $orderId,
+      'amount'     => number_format($amount, 2, '.', ''),
+      'order_date' => $orderDate,
+      'currency'   => '356',
+      'ru'         => $returnUrl,
+      'itemcode'   => 'DIRECT',
+      'device'     => [
+        'init_channel'               => 'internet',
+        'ip'                         => $this->ipAddress,
+        'accept_header'              => 'text/html',
+        'user_agent'                 => $userAgent,
+        'browser_tz'                 => '-330',
+        'browser_color_depth'        => '32',
+        'browser_java_enabled'       => 'false',
+        'browser_screen_height'      => '601',
+        'browser_screen_width'       => '657',
+        'browser_language'           => 'en-US',
+        'browser_javascript_enabled' => 'true',
+      ],
     ];
 
-    // Add customer object (recommended by BillDesk)
     if (!empty($customerInfo)) {
       $customer = [];
-      if (isset($customerInfo['email'])) {
-        $customer['email_id'] = $customerInfo['email'];
-      }
-      if (isset($customerInfo['mobile'])) {
-        $customer['mobile_no'] = $customerInfo['mobile'];
-      }
-      if (!empty($customer)) {
-        $payload['customer'] = $customer;
-      }
+      if (isset($customerInfo['email']))  $customer['email_id']  = $customerInfo['email'];
+      if (isset($customerInfo['mobile'])) $customer['mobile_no'] = $customerInfo['mobile'];
+      if (!empty($customer)) $payload['customer'] = $customer;
     }
 
-    // Add additional_info array
     $payload['additional_info'] = [
-      "additional_info1" => $additionalInfo['info1'] ?? "Application Fee",
-      "additional_info2" => $customerName,
-      "additional_info3" => $additionalInfo['info3'] ?? "",
-      "additional_info4" => $additionalInfo['info4'] ?? "",
-      "additional_info5" => $additionalInfo['info5'] ?? "",
-      "additional_info6" => $additionalInfo['info6'] ?? "",
-      "additional_info7" => $additionalInfo['info7'] ?? ""
+      'additional_info1' => $additionalInfo['info1'] ?? 'Application Fee',
+      'additional_info2' => $customerName,
+      'additional_info3' => $additionalInfo['info3'] ?? '',
+      'additional_info4' => $additionalInfo['info4'] ?? '',
+      'additional_info5' => $additionalInfo['info5'] ?? '',
+      'additional_info6' => $additionalInfo['info6'] ?? '',
+      'additional_info7' => $additionalInfo['info7'] ?? '',
     ];
 
-    $curl_payload = JWT::encode($payload, $this->secretKey, "HS256", null, $headers);
+    Log::info('BillDesk createOrder - payload', ['orderid' => $orderId, 'amount' => $payload['amount']]);
 
-    $ch = curl_init($this->apiUrl);
+    $body     = $this->joseEncode(json_encode($payload));
+    $result   = $this->post($this->apiUrl, $body, $traceid, $traceTime);
+    $response = $this->joseDecode($result);
 
-    $ch_headers = array(
-      "Content-Type: application/jose",
-      "accept: application/jose",
-      "BD-Traceid: $traceid",
-      "BD-Timestamp: $trace_time"
-    );
+    Log::info('BillDesk createOrder - response', ['status' => $response['status'] ?? null, 'orderid' => $orderId]);
 
-    curl_setopt($ch, CURLOPT_HTTPHEADER, $ch_headers);
-    curl_setopt($ch, CURLOPT_POST, 1);
-    curl_setopt($ch, CURLOPT_POSTFIELDS, $curl_payload);
-    curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
-
-    $result = curl_exec($ch);
-    $curl_errno = curl_errno($ch);
-    $curl_error = curl_error($ch);
-    $http_code = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-    curl_close($ch);
-
-    if ($curl_errno) {
-      throw new Exception("cURL error {$curl_errno}: {$curl_error}");
-    }
-
-    // Handle HTTP errors
-    if ($http_code < 200 || $http_code >= 300) {
-      $errorMessage = "HTTP error {$http_code}";
-
-      // Try to decode error response
-      try {
-        if (!empty($result)) {
-          $error_decoded = JWT::decode($result, new Key($this->secretKey, 'HS256'));
-          $errorMessage .= ": " . ($error_decoded->error_description ?? json_encode($error_decoded));
+    if (isset($response['status']) && $response['status'] === 'ACTIVE') {
+      $authorizationToken = null;
+      foreach ($response['links'] ?? [] as $link) {
+        if (isset($link['headers']['authorization'])) {
+          $authorizationToken = $link['headers']['authorization'];
+          break;
         }
-      } catch (Exception $e) {
-        $errorMessage .= ": Unable to decode error response";
       }
-
-      throw new Exception($errorMessage);
+      return [
+        'success'    => true,
+        'bdOrderId'  => $response['bdorderid'] ?? null,
+        'authToken'  => $authorizationToken,
+        'merchantId' => $this->merchantId,
+        'returnUrl'  => $returnUrl,
+        'links'      => $response['links'] ?? [],
+        'order_date' => $response['order_date'] ?? null,
+      ];
     }
 
-    // Decode BillDesk Response
-    try {
-      $result_decoded = JWT::decode($result, new Key($this->secretKey, 'HS256'));
-      $result_array = (array) $result_decoded;
-
-      // Check if order creation was successful
-      if (isset($result_decoded->status) && $result_decoded->status == 'ACTIVE') {
-        $bdOrderId = $result_array['bdorderid'] ?? null;
-        $authorizationToken = null;
-
-        // Extract authorization token from links
-        if (isset($result_array['links']) && is_array($result_array['links'])) {
-          foreach ($result_array['links'] as $link) {
-            if (isset($link->headers->authorization)) {
-              $authorizationToken = $link->headers->authorization;
-              break;
-            }
-          }
-        }
-
-        return [
-          'success' => true,
-          'bdOrderId' => $bdOrderId,
-          'authToken' => $authorizationToken,
-          'merchantId' => $this->merchantId,
-          'returnUrl' => $returnUrl,
-          'links' => $result_array['links'] ?? [],
-          'order_date' => $result_array['order_date'] ?? null
-        ];
-      } else {
-        return [
-          'success' => false,
-          'error' => $result_decoded->error_description ?? 'Order creation failed',
-          'error_code' => $result_decoded->error_code ?? null,
-          'response' => $result_decoded
-        ];
-      }
-    } catch (Exception $e) {
-      throw new Exception("JWT decode error: " . $e->getMessage());
-    }
+    return [
+      'success'    => false,
+      'error'      => $response['message'] ?? $response['error_description'] ?? 'Order creation failed',
+      'error_code' => $response['error_code'] ?? null,
+      'response'   => $response,
+    ];
   }
 
   /**
    * Retrieve/Verify payment transaction
-   * Calls BillDesk Retrieve Transaction API
-   * 
-   * @param string $orderId Order ID to verify
+   *
+   * @param string $orderId
    * @return array
    */
   public function verifyTransaction($orderId)
   {
-    $headers = ["alg" => "HS256", "clientid" => $this->clientId];
-
-    $randomNumber = random_int(100000000000, 999999999999);
-    $traceid = "$randomNumber";
-    $trace_time = date("YmdHis");
+    $traceid   = (string) random_int(100000000000, 999999999999);
+    $traceTime = date('YmdHis');
+    $apiUrl    = str_replace('/orders/create', '/transactions/get', $this->apiUrl);
 
     $payload = [
-      "mercid" => $this->merchantId,
-      "orderid" => $orderId
+      'mercid'  => $this->merchantId,
+      'orderid' => $orderId,
     ];
 
-    require_once app_path('Services/BillDesk/JWT/JWTExceptionWithPayloadInterface.php');
-    require_once app_path('Services/BillDesk/JWT/BeforeValidException.php');
-    require_once app_path('Services/BillDesk/JWT/ExpiredException.php');
-    require_once app_path('Services/BillDesk/JWT/SignatureInvalidException.php');
-    require_once app_path('Services/BillDesk/JWT/Key.php');
-    require_once app_path('Services/BillDesk/JWT/JWT.php');
-
-    $curl_payload = JWT::encode($payload, $this->secretKey, "HS256", null, $headers);
-
-    // Use transaction retrieve API endpoint
-    $apiUrl = str_replace('/orders/create', '/transactions/get', $this->apiUrl);
-
-    $ch = curl_init($apiUrl);
-
-    $ch_headers = array(
-      "Content-Type: application/jose",
-      "accept: application/jose",
-      "BD-Traceid: $traceid",
-      "BD-Timestamp: $trace_time"
-    );
-
-    curl_setopt($ch, CURLOPT_HTTPHEADER, $ch_headers);
-    curl_setopt($ch, CURLOPT_POST, 1);
-    curl_setopt($ch, CURLOPT_POSTFIELDS, $curl_payload);
-    curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
-
-    $result = curl_exec($ch);
-    $curl_errno = curl_errno($ch);
-    $curl_error = curl_error($ch);
-    $http_code = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-    curl_close($ch);
-
-    if ($curl_errno) {
-      return [
-        'success' => false,
-        'error' => "cURL error {$curl_errno}: {$curl_error}"
-      ];
-    }
+    $body   = $this->joseEncode(json_encode($payload));
+    $result = $this->post($apiUrl, $body, $traceid, $traceTime);
 
     try {
-      $result_decoded = JWT::decode($result, new Key($this->secretKey, 'HS256'));
+      $response = $this->joseDecode($result);
+    } catch (Exception $e) {
+      return ['success' => false, 'error' => 'Decode error: ' . $e->getMessage()];
+    }
 
+    return [
+      'success'             => true,
+      'transaction_status'  => $response['transaction_status'] ?? null,
+      'amount'              => $response['amount'] ?? null,
+      'transaction_date'    => $response['transaction_date'] ?? null,
+      'payment_method_type' => $response['payment_method_type'] ?? null,
+      'data'                => $response,
+    ];
+  }
+
+  /**
+   * Parse and verify the JOSE-encoded webhook/callback response from BillDesk.
+   *
+   * @param string $joseResponse
+   * @return array
+   */
+  public function parseWebhookResponse($joseResponse)
+  {
+    try {
+      $decoded = $this->joseDecode($joseResponse);
       return [
-        'success' => true,
-        'http_code' => $http_code,
-        'transaction_status' => $result_decoded->transaction_status ?? null,
-        'amount' => $result_decoded->amount ?? null,
-        'transaction_date' => $result_decoded->transaction_date ?? null,
-        'payment_method_type' => $result_decoded->payment_method_type ?? null,
-        'data' => $result_decoded
+        'success'            => true,
+        'orderid'            => $decoded['orderid'] ?? null,
+        'transaction_status' => $decoded['transaction_status'] ?? null,
+        'amount'             => $decoded['amount'] ?? null,
+        'transaction_date'   => $decoded['transaction_date'] ?? null,
+        'objectid'           => $decoded['objectid'] ?? null,
+        'response_code'      => $decoded['transaction_error_code'] ?? null,
+        'response_message'   => $decoded['transaction_error_desc'] ?? null,
+        'data'               => $decoded,
       ];
     } catch (Exception $e) {
       return [
         'success' => false,
-        'error' => "JWT decode error: " . $e->getMessage()
+        'error'   => 'Invalid JOSE response: ' . $e->getMessage(),
       ];
     }
   }
 
+  // ─────────────────────────────────────────────────────────────────────────
+  //  JOSE helpers  (JWE = AES-256-GCM, JWS = HS256)
+  // ─────────────────────────────────────────────────────────────────────────
+
   /**
-   * Parse and verify webhook/callback response from BillDesk
-   * 
-   * @param string $jwtResponse JWT encoded response from BillDesk
-   * @return array
+   * Encode: JSON → JWE(AES-256-GCM) → JWS(HS256)
    */
-  public function parseWebhookResponse($jwtResponse)
+  private function joseEncode(string $json): string
   {
-    try {
-      require_once app_path('Services/BillDesk/JWT/JWTExceptionWithPayloadInterface.php');
-      require_once app_path('Services/BillDesk/JWT/BeforeValidException.php');
-      require_once app_path('Services/BillDesk/JWT/ExpiredException.php');
-      require_once app_path('Services/BillDesk/JWT/SignatureInvalidException.php');
-      require_once app_path('Services/BillDesk/JWT/Key.php');
-      require_once app_path('Services/BillDesk/JWT/JWT.php');
+    return $this->jwsSign($this->jweEncrypt($json));
+  }
 
-      $decoded = JWT::decode($jwtResponse, new Key($this->secretKey, 'HS256'));
-
-      return [
-        'success' => true,
-        'orderid' => $decoded->orderid ?? null,
-        'transaction_status' => $decoded->transaction_status ?? null,
-        'amount' => $decoded->amount ?? null,
-        'transaction_date' => $decoded->transaction_date ?? null,
-        'objectid' => $decoded->objectid ?? null,
-        'response_code' => $decoded->transaction_error_code ?? null,
-        'response_message' => $decoded->transaction_error_desc ?? null,
-        'data' => $decoded
-      ];
-    } catch (Exception $e) {
-      return [
-        'success' => false,
-        'error' => 'Invalid JWT response: ' . $e->getMessage()
-      ];
+  /**
+   * Decode: JWS → verify → JWE → decrypt → array
+   */
+  private function joseDecode(string $token): array
+  {
+    $jwe  = $this->jwsVerify($token);
+    $json = $this->jweDecrypt($jwe);
+    $data = json_decode($json, true);
+    if ($data === null) {
+      throw new Exception('joseDecode: json_decode failed on: ' . substr($json, 0, 200));
     }
+    return $data;
+  }
+
+  /**
+   * JWE compact serialisation: DIR + A256GCM
+   * Header: {"alg":"dir","enc":"A256GCM","kid":"...","clientid":"..."}
+   * AAD   : BASE64URL(header)
+   */
+  private function jweEncrypt(string $plaintext): string
+  {
+    $header = $this->b64u(json_encode([
+      'alg'      => 'dir',
+      'enc'      => 'A256GCM',
+      'kid'      => $this->keyId,
+      'clientid' => $this->clientId,
+    ]));
+
+    $iv         = random_bytes(12);
+    $tag        = '';
+    $ciphertext = openssl_encrypt($plaintext, 'aes-256-gcm', $this->secretKey, OPENSSL_RAW_DATA, $iv, $tag, $header, 16);
+
+    if ($ciphertext === false) {
+      throw new Exception('JWE encrypt failed: ' . openssl_error_string());
+    }
+
+    return $header . '..' . $this->b64u($iv) . '.' . $this->b64u($ciphertext) . '.' . $this->b64u($tag);
+  }
+
+  /**
+   * JWE compact decryption
+   */
+  private function jweDecrypt(string $jwe): string
+  {
+    $parts = explode('.', $jwe);
+    if (count($parts) !== 5) {
+      throw new Exception('JWE: expected 5 parts, got ' . count($parts));
+    }
+    [$header, , $iv, $ciphertext, $tag] = $parts;
+
+    $plaintext = openssl_decrypt(
+      $this->b64uDecode($ciphertext),
+      'aes-256-gcm',
+      $this->secretKey,
+      OPENSSL_RAW_DATA,
+      $this->b64uDecode($iv),
+      $this->b64uDecode($tag),
+      $header
+    );
+
+    if ($plaintext === false) {
+      throw new Exception('JWE decrypt failed: ' . openssl_error_string());
+    }
+
+    return $plaintext;
+  }
+
+  /**
+   * JWS compact: HS256
+   * Header: {"alg":"HS256","kid":"...","clientid":"..."}
+   */
+  private function jwsSign(string $payload): string
+  {
+    $header       = $this->b64u(json_encode(['alg' => 'HS256', 'kid' => $this->keyId, 'clientid' => $this->clientId]));
+    $encPayload   = $this->b64u($payload);
+    $signingInput = $header . '.' . $encPayload;
+    $signature    = hash_hmac('sha256', $signingInput, $this->signKey, true);
+
+    return $signingInput . '.' . $this->b64u($signature);
+  }
+
+  /**
+   * JWS compact verification — returns the decoded payload (the JWE string).
+   */
+  private function jwsVerify(string $jws): string
+  {
+    $parts = explode('.', $jws);
+    if (count($parts) !== 3) {
+      throw new Exception('JWS: expected 3 parts, got ' . count($parts));
+    }
+    [$header, $payload, $signature] = $parts;
+
+    $expected = hash_hmac('sha256', $header . '.' . $payload, $this->signKey, true);
+    if (!hash_equals($expected, $this->b64uDecode($signature))) {
+      throw new Exception('JWS signature verification failed');
+    }
+
+    return $this->b64uDecode($payload);
+  }
+
+  private function b64u(string $data): string
+  {
+    return rtrim(strtr(base64_encode($data), '+/', '-_'), '=');
+  }
+
+  private function b64uDecode(string $data): string
+  {
+    $pad = strlen($data) % 4;
+    if ($pad) $data .= str_repeat('=', 4 - $pad);
+    return base64_decode(strtr($data, '-_', '+/'));
+  }
+
+  // ─────────────────────────────────────────────────────────────────────────
+  //  HTTP helper
+  // ─────────────────────────────────────────────────────────────────────────
+
+  /**
+   * POST a JOSE body to a BillDesk endpoint and return the raw response string.
+   *
+   * @throws Exception on cURL error or non-2xx HTTP status
+   */
+  private function post(string $url, string $body, string $traceid, string $timestamp): string
+  {
+    $ch = curl_init($url);
+    curl_setopt($ch, CURLOPT_CUSTOMREQUEST, 'POST');
+    curl_setopt($ch, CURLOPT_POSTFIELDS, $body);
+    curl_setopt($ch, CURLOPT_HTTPHEADER, [
+      'Content-Type: application/jose',
+      'Accept: application/jose',
+      "BD-Traceid: $traceid",
+      "BD-Timestamp: $timestamp",
+      'Content-Length: ' . strlen($body),
+    ]);
+    curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+    curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, true);
+    curl_setopt($ch, CURLOPT_TIMEOUT, 30);
+
+    $result    = curl_exec($ch);
+    $httpCode  = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+    $curlErrNo = curl_errno($ch);
+    $curlError = curl_error($ch);
+    curl_close($ch);
+
+    Log::info('BillDesk HTTP', ['url' => $url, 'http_code' => $httpCode, 'traceid' => $traceid]);
+
+    if ($curlErrNo) {
+      throw new Exception("cURL error $curlErrNo: $curlError");
+    }
+
+    if ($httpCode < 200 || $httpCode >= 300) {
+      // Error responses from BillDesk are plain JSON (not JOSE)
+      $err = json_decode($result, true);
+      $msg = $err['message'] ?? $err['error_description'] ?? $result;
+      throw new Exception("HTTP $httpCode: $msg");
+    }
+
+    return $result;
   }
 }
