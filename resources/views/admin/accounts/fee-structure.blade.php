@@ -15,6 +15,7 @@ $feeheads = FeeHead::latest()->get();
 $feecoursemaster = FeeCourseMaster::latest()->get();
 $programgroups = ProgramGroup::with(['programInfo'])->get();
 $latefee = LateFee::find(1);
+$studentprograms = StudentProgram::with('campusmaster')->orderby('code', 'ASC')->get();
 
 $yearGradients = [
   1 => 'linear-gradient(-45deg, #1565c0, #42a5f5)',
@@ -22,6 +23,19 @@ $yearGradients = [
   3 => 'linear-gradient(-45deg, #e65100, #ffca28)',
   4 => 'linear-gradient(-45deg, #880e4f, #f48fb1)',
   5 => 'linear-gradient(-45deg, #4a148c, #ce93d8)',
+];
+
+$batchColorPalette = [
+  '#1565c0', // blue
+  '#2e7d32', // green
+  '#e65100', // deep orange
+  '#880e4f', // pink/maroon
+  '#4a148c', // purple
+  '#00695c', // teal
+  '#bf360c', // burnt orange
+  '#37474f', // blue-grey
+  '#f57f17', // amber
+  '#1a237e', // indigo
 ];
 ?>
 @include('includes.header')
@@ -126,18 +140,6 @@ $yearGradients = [
 
         <input type="text" id="feeSearch" class="form-control form-control-sm" placeholder="Type to filter...">
       </div>
-      <script>
-        document.addEventListener('DOMContentLoaded', function() {
-          const searchInput = document.getElementById('feeSearch');
-          searchInput.addEventListener('input', function() {
-            const query = this.value.toLowerCase();
-            document.querySelectorAll('.fee-card').forEach(function(card) {
-              const text = card.innerText.toLowerCase();
-              card.parentElement.style.display = text.includes(query) ? '' : 'none';
-            });
-          });
-        });
-      </script>
       <div class="col-md-6 d-flex justify-content-end">
         <form action="" method="post" class="d-flex align-items-center gap-2">
           @csrf
@@ -292,13 +294,15 @@ $yearGradients = [
   5 => '#4a148c',
   default => '#5f6498',
   };
+  $batchId = $item->batch_id ?? ($item->batch->id ?? 0);
+  $batchAccentColor = $batchColorPalette[$batchId % count($batchColorPalette)];
   $total = StaticController::feeStructureTotal($item->id);
   @endphp
   <div class="col-xl-3 col-lg-4 col-md-6 mb-4">
     <div class="fee-card">
 
       {{-- Coloured top accent bar --}}
-      <div class="fc-accent" style="background: {{ $gradient }};"></div>
+      <div class="fc-accent" style="background: {{ $batchAccentColor }};"></div>
 
       {{-- Payable status badge --}}
       <div class="fc-status">
@@ -317,7 +321,7 @@ $yearGradients = [
       <div class="fc-body">
 
         {{-- Batch badge --}}
-        <span class="fc-batch-badge" style="background: {{ $accentColor }};">
+        <span class="fc-batch-badge" style="background: {{ $batchAccentColor }};">
           <i class="fa fa-layer-group me-1"></i>{{ $item->batch->batch_name }}
         </span>
 
@@ -553,30 +557,170 @@ $yearGradients = [
         </div>
       </div>
 
-      {{-- Linked programs modal --}}
-      <div class="modal fade" id="viewProgs{{ $item->id }}" tabindex="-1" aria-hidden="true">
-        <div class="modal-dialog">
-          <div class="modal-content">
-            <div class="modal-header">
-              <h5 class="modal-title">Linked Programs</h5>
-              <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      <div class="modal fade" id="viewProgs{{$item->id}}" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog modal-lg modal-dialog-centered modal-dialog-scrollable">
+          <div class="modal-content border-0 shadow-lg" style="border-radius:14px; overflow:hidden;">
+            <div class="modal-header bg-success text-white">
+              <div>
+                <h5 class="modal-title"><i class="fa fa-users me-2"></i>Connected Programs</h5>
+                <div style="color:rgba(255,255,255,0.8); font-size:0.8rem;">{{$item->name}}</div>
+              </div>
+              <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
             </div>
-            <div class="modal-body">
+            <div class="modal-body p-4">
+
+              <div class="mb-3">
+                <label for="searchLinkedPrograms{{$item->id}}" class="form-label fw-semibold text-muted small text-uppercase">Search Linked Programs</label>
+                <input type="text" id="searchLinkedPrograms{{$item->id}}" class="form-control fcm-search-input" placeholder="Type to search..." data-target="linkedPrograms{{$item->id}}">
+              </div>
+
+
               @if(count($item->programspivot))
-              <div class="d-flex flex-wrap gap-2">
-                @foreach($item->programspivot as $s)
-                <span class="badge bg-primary-subtle text-primary border border-primary-subtle px-3 py-2" style="font-size:12px;">
-                  {{ $s->programgroupinfo->programInfo->code ?? ''}} – {{ $s->programgroupinfo->programInfo->name ?? '' }}
-                </span>
+              <div class="row g-3" id="linkedPrograms{{$item->id}}">
+                @foreach ($item->programspivot as $s)
+                <div class="col-lg-6 fcm-program-item" data-search-text="{{strtolower($s->studentprogram->code ?? '')}} {{strtolower($s->studentprogram->name ?? '')}} {{strtolower($s->studentprogram->campusmaster->name ?? '')}}">
+                  <div class="fcm-linked-card">
+                    <div>
+                      <div class="fcm-linked-code">{{ $s->studentprogram->code ?? '' }} – {{ $s->studentprogram->name ?? '-' }}
+                      </div>
+                      <div class="fcm-linked-name"> {{ $s->studentprogram->campusmaster->name ?? 'No Campus' }}</div>
+                    </div>
+                    <a href="{{ route('delete.fee-structure.studentprogram', $s->id) }}" class="fcm-unlink-btn" title="Unlink this program" onclick="return confirm('Remove this student program?')">
+                      <i class="fa fa-times"></i>
+                    </a>
+                  </div>
+                </div>
                 @endforeach
               </div>
               @else
-              <p class="text-center text-muted">No programs linked.</p>
+              <div class="fcm-empty">
+                <i class="fa fa-unlink"></i>
+                <p class="mb-0">No student programs linked yet.</p>
+              </div>
               @endif
+
+              <script>
+                document.getElementById('searchLinkedPrograms{{$item->id}}').addEventListener('keyup', function() {
+                  const searchText = this.value.toLowerCase().trim();
+                  const targetId = this.getAttribute('data-target');
+                  const container = document.getElementById(targetId);
+                  const items = container.querySelectorAll('.fcm-program-item');
+                  let visibleCount = 0;
+
+                  items.forEach(function(item) {
+                    const text = item.getAttribute('data-search-text');
+                    if (text.includes(searchText)) {
+                      item.style.display = '';
+                      visibleCount++;
+                    } else {
+                      item.style.display = 'none';
+                    }
+                  });
+
+                  if (visibleCount === 0 && items.length > 0) {
+                    if (!container.querySelector('.fcm-no-results')) {
+                      const noResults = document.createElement('div');
+                      noResults.className = 'fcm-no-results alert alert-info';
+                      noResults.innerHTML = '<i class="fa fa-search me-2"></i>No programs found.';
+                      container.appendChild(noResults);
+                    }
+                  } else {
+                    const noResults = container.querySelector('.fcm-no-results');
+                    if (noResults) noResults.remove();
+                  }
+                });
+              </script>
+            </div>
+            <div class="modal-footer">
+              <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+              <button type="button" class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#linkProgModal{{$item->id}}">Link New Program</button>
             </div>
           </div>
         </div>
       </div>
+
+      {{-- Link student program modal --}}
+      <!-- <div class="modal fade" id="linkStudentProgModal{{$item->id}}" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog modal-lg modal-dialog-centered modal-dialog-scrollable">
+          <div class="modal-content border-0 shadow-lg" style="border-radius:14px; overflow:hidden;">
+            <div class="modal-header fcm-modal-header-view">
+              <div>
+                <h5 class="modal-title"><i class="fa fa-link me-2"></i>Link Student Programs</h5>
+                <div style="color:rgba(255,255,255,0.8); font-size:0.8rem;">{{$item->name}}</div>
+              </div>
+              <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <form action="{{url('erp/admin/accounts/link/fee-structure-group')}}" method="post">
+              @csrf
+              <input type="hidden" name="fee_structure_id" value="{{$item->id}}">
+              <div class="modal-body p-4">
+                <div class="mb-3">
+                  <label for="searchPrograms{{$item->id}}" class="form-label fw-semibold text-muted small text-uppercase">Search Programs</label>
+                  <input type="text" id="searchPrograms{{$item->id}}" class="form-control fcm-search-input" placeholder="Type to search..." data-target="availablePrograms{{$item->id}}">
+                </div>
+                <div class="row g-3" id="availablePrograms{{$item->id}}">
+                  <select name="programs[]" id="programs{{$item->id}}" class="form-select" multiple>
+                    @forelse($studentprograms as $prog)
+                    <option value="{{$prog->id}}">{{$prog->name ?? 'Unknown Program'}}</option>
+                    @empty
+                    <div class="fcm-empty" style="width:100%;">
+                      <i class="fa fa-inbox"></i>
+                      <p class="mb-0">No programs available.</p>
+                    </div>
+                    @endforelse
+                </div>
+              </div>
+              <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="submit" class="btn btn-primary">Link Selected Programs</button>
+              </div>
+            </form>
+          </div>
+        </div>
+      </div> -->
+
+      {{-- Link new program modal --}}
+      <div class="modal fade" id="linkProgModal{{$item->id}}" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog modal-lg ">
+          <div class="modal-content border-0 shadow-lg">
+            <div class="modal-header ">
+              <div>
+                <h5 class="modal-title"><i class="fa fa-users me-2"></i>Link New Programs</h5>
+                <div style="color:rgba(255,255,255,0.8); font-size:0.8rem;">{{$item->name}}</div>
+              </div>
+              <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <form action="{{route('connect.fees-structure.studentprogram')}}" method="post">
+              @csrf
+              <div class="modal-body p-4">
+
+                <input type="hidden" value="{{$item->id}}" name="id">
+                <label for="">Select a Program to Connect</label>
+                @if(count($studentprograms))
+                <select name="selected_program" id="linkedProgramsSelect{{$item->id}}" class="dselect-example">
+                  @foreach ($studentprograms as $s)
+                  <option value="{{$s->id}}">{{$s->code ?? 'Unknown Code'}} - {{$s->name ?? 'Unknown Program'}} | {{$s->campusmaster->name ?? 'Unknown Campus'}}</option>
+                  @endforeach
+                </select>
+
+                @else
+                <div class="fcm-empty">
+                  <i class="fa fa-unlink"></i>
+                  <p class="mb-0">No student programs linked yet.</p>
+                </div>
+                @endif
+
+
+              </div>
+              <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="submit" class="btn btn-primary">Link Selected Programs</button>
+              </div>
+            </form>
+          </div>
+        </div>
+      </div>
+
 
       {{-- Clone batch modal --}}
       <div class="modal fade" id="cloneCard{{ $item->id }}" tabindex="-1" aria-hidden="true">
@@ -636,3 +780,17 @@ $yearGradients = [
 
 
 @include('includes.footer')
+<script>
+  // Fee card live search (toolbar)
+  document.addEventListener('DOMContentLoaded', function() {
+    var searchInput = document.getElementById('feeSearch');
+    if (!searchInput) return;
+    searchInput.addEventListener('input', function() {
+      var query = this.value.toLowerCase();
+      document.querySelectorAll('.fee-card').forEach(function(card) {
+        var col = card.closest('[class*="col-"]');
+        if (col) col.style.display = card.innerText.toLowerCase().includes(query) ? '' : 'none';
+      });
+    });
+  });
+</script>

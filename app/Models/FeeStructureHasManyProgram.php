@@ -15,18 +15,13 @@ class FeeStructureHasManyProgram extends Model
         'std_program_id',
     ];
 
-    function programgroupinfo()
+    function studentprogram()
     {
-        return $this->hasOne(ProgramGroup::class, 'id', 'std_program_id');
+        return $this->hasOne(StudentProgram::class, 'id', 'std_program_id')->with('campusmaster');
     }
 
     function feeStructure()
     {
         return $this->hasMany(FeesStructure::class, 'id', 'fee_structure_id');
-    }
-
-    function studentprogram()
-    {
-        return $this->hasOne(StudentProgram::class, 'id', 'std_program_id');
     }
 }

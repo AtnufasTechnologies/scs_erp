@@ -4,7 +4,12 @@ namespace App\Http\Controllers;
 
 use App\Mail\ApplicationSuccessMail;
 use App\Mail\OtpMail;
+use App\Models\BatchMaster;
 use App\Models\ExamSystem\Student;
+use App\Models\FeeCourseMaster;
+use App\Models\FeesStructure;
+use App\Models\FeeStructureGroup;
+use App\Models\FeeStructureHasManyProgram;
 use App\Models\ProgramGroup;
 use App\Models\SmsTemplate;
 use App\Models\StudentAccountPivot;
@@ -172,5 +177,50 @@ class TestController extends Controller
             UserHasRole::where('user_id', $item->user_id)->forceDelete();
         }
         dd('All student login records deleted successfully');
+    }
+
+    function feesIssueFixing()
+    {
+
+        $data = FeeStructureGroup::with('programgroup')->get();
+        for ($i = 0; $i < count($data); $i++) {
+            FeeStructureGroup::where('id', $data[$i]->id)->update([
+                'student_program_id' => $data[$i]->programgroup->program_id
+            ]);
+        }
+        dd('Student Program Id fixing completed successfully');
+
+        /*
+        $batchSize = 100; // Adjust the batch size as needed
+        $count = 0;
+
+        $batchId =  BatchMaster::where('admission_active_batch', 1)->first()->id;
+
+        return   $feestructures = FeesStructure::where('batch_id', $batchId)->count();
+
+        for ($i = 0; $i < count($feestructures); $i++) {
+            $fee_structure_id = $feestructures[$i]->id;
+            //get the the list of attached student programs in the fee_course_masters
+            $data =  FeeCourseMaster::with('feegroups.programinfo')->where('id', $feestructures[$i]->program_id)->first();
+            $feegroups =  $data->feegroups;
+
+            //adding studentprogram id to fee_structure_has_many_programs
+            for ($j = 0; $j < count($feegroups); $j++) {
+
+                $checkIfExists = FeeStructureHasManyProgram::where('fee_structure_id', $fee_structure_id)
+                    ->where('std_program_id', $data->feegroups[$j]->student_program_id)
+                    ->first(); // Check if the record already exists
+
+                if ($checkIfExists == null) {
+                    FeeStructureHasManyProgram::create([
+                        'fee_structure_id' => $fee_structure_id,
+                        'std_program_id' => $data->feegroups[$j]->student_program_id,
+                    ]);
+                }
+            }
+        }
+        dd('Fee structure fixing completed successfully. Total records updated: ' . $count);
+
+        */
     }
 }

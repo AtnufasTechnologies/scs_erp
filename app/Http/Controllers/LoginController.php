@@ -40,13 +40,13 @@ class LoginController extends Controller
                         $deptAdminDept = User::with('subjectdeptadmin.subject')->where('id', $user->id)->first();
                         if ($deptAdminDept->subjectdeptadmin) {
                             return redirect()->route('department.dashboard')->with('success', 'Login Success');
-                            //Auth::logout();
+                            // Auth::logout();
                             //return redirect('/')->with('info', 'Development in Progress...Please Wait till Product Completion');
                         } else {
 
                             Auth::logout();
-                            return redirect('/')->with('info', 'Development in Progress...Please Wait till Product Completion');
-                            // return redirect('/')->with('error', 'No Department Assigned. Please contact Admin');
+                            //    return redirect('/')->with('info', 'Development in Progress...Please Wait till Product Completion');
+                            return redirect('/')->with('error', 'No Department Assigned. Please contact Admin');
                         }
 
                     case 'account-office-incharge':

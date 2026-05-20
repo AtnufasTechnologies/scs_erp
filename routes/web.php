@@ -198,13 +198,16 @@ Route::group(['prefix' => '/erp'], function () {
             Route::get('unlink-prog-from-feestructure/{id}', [AdminController::class, 'unlinkStdProgram']);
             Route::post('link-prgs-to-feestructure', [AdminController::class, 'linkProgramtoFeeStructure'])->name('link.feestructure.stdprogram');
             Route::get('update/feestructure-status/{id}', [AdminController::class, 'updateFeeStructureStatus']);
+            Route::get('direct-unlink-prog-from-feestructuregroup/{id}', [AdminController::class, 'unlinkStdProgramDirect'])->name('direct.unlink.feestructure.stdprogram');
 
             Route::get('del-feecourse-master/{id}', [AdminController::class, 'delFeeCourseMaster']);
             Route::post('fee-structure-groups', [AdminController::class, 'addFeeStructureGroup']);
-            Route::get('unlink/fee-structure-group/{id}', [AdminController::class, 'feeStructureGroupUnlink']);
+            Route::get('unlink/fee-structure-group/{id}', [AdminController::class, 'feeStructureGroupUnlink'])->name('unlink.fee-structure-group');
+            Route::get('unlink/fee-structure-studentprogram/{id}', [AdminController::class, 'feeStructureStdProgramUnlink'])->name('delete.fee-structure.studentprogram');
+            Route::post('connect/fee-structure-studentprogram', [AdminController::class, 'connectFeesStructureSingleWithStdProgram'])->name('connect.fees-structure.studentprogram');
 
             Route::get('student-fee/{id}', [AdminController::class, 'getFeeStructure']);
-            Route::get('fee-course-master', [AdminController::class, 'feeCourseMaster']);
+            Route::get('fee-course-master', [AdminController::class, 'feeCourseMaster'])->name('fee.course.master');
             Route::post('fee-course-master', [AdminController::class, 'addCourseFeeMaster']);
             Route::post('update-fee-course-master', [AdminController::class, 'updateCourseFeeMaster']);
             Route::get('delete-feestructure/{id}', [AdminController::class, 'deleteFeeStructure']);
@@ -682,8 +685,6 @@ Route::group(['prefix' => '/erp'], function () {
         Route::get('transaction-success/{id}/download-pdf', [FeePaymentController::class, 'downloadInvoice']);
     });
 
-
-
     //admission
     Route::group(['prefix' => 'admission'], function () {
         Route::get('registration', [AdmissionController::class, 'index']);
@@ -912,8 +913,9 @@ Route::group(['prefix' => '/erp'], function () {
 
 
     Route::group(['prefix' => '/test',], function () {
-        Route::get('create-student-login', [TestController::class, 'createStudentLogin']); //run once to create student login for all students in student master
-        Route::get('delete-student-login', [TestController::class, 'delAllStudentAccount']); //run once to delete all student login (if needed)
+        Route::get('fee-issue-fix', [TestController::class, 'feesIssueFixing']); //run once to test fee structure creation logic
+        // Route::get('create-student-login', [TestController::class, 'createStudentLogin']); //run once to create student login for all students in student master
+        // Route::get('delete-student-login', [TestController::class, 'delAllStudentAccount']); //run once to delete all student login (if needed)
         // Route::get('fix', [TestController::class, 'rollnoFixStudentPayment']);   //run once to fix rollno in student payment table
         // Route::get('dept-campus-mapping', [TestController::class, 'DeptCampusMapping']); //run once to fix department campus mapping
         // Route::get('mailing', [TestController::class, 'mailTest']);//run once to test mailing configuration
