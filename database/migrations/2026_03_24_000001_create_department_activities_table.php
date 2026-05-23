@@ -32,6 +32,7 @@ return new class extends Migration
       $table->text('remarks')->nullable();
       $table->string('banner_image')->nullable();
       $table->json('attachments')->nullable();
+      $table->string('report_file')->nullable();
       $table->unsignedBigInteger('created_by')->nullable();
       $table->unsignedBigInteger('updated_by')->nullable();
       $table->timestamps();

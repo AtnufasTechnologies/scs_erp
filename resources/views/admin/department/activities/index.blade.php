@@ -149,7 +149,9 @@ use Illuminate\Support\Facades\Auth;
               <th style="color: #fff; font-weight: 600;">Date</th>
               <th style="color: #fff; font-weight: 600;">Venue</th>
               <th style="color: #fff; font-weight: 600;">Status</th>
-              <th style="color: #fff; font-weight: 600;">Participants</th>
+              <th style="color: #fff; font-weight: 600;">Expected </th>
+              <th style="color: #fff; font-weight: 600;">Registered </th>
+              <th style="color: #fff; font-weight: 600;">Report </th>
               <th style="color: #d9f085; font-weight: 600;">Actions</th>
             </tr>
           </thead>
@@ -182,18 +184,71 @@ use Illuminate\Support\Facades\Auth;
                 {{ $activity->actual_participants ?? $activity->expected_participants ?? '-' }}
               </td>
               <td>
+                {{ $activity->participants->count() ?? '0' }}
+              </td>
+              <td>
+                @if ($activity->report_file)
+                <a href="{{ Storage::disk('s3')->url($activity->report_file) }}" target="_blank" class="btn btn-success">
+                  <i class="fas fa-file-pdf"></i> View Report
+                </a>
+                @else
+                <span class="text-danger">No Report</span>
+                @endif
+              </td>
+              <td>
                 <div class="d-flex gap-1">
-                  <a href="{{ route('department.activities.participants', $activity->id) }}"><button class="btn btn-sm btn-modern view-activity" style="background: #5b4cdb; color: white;">
-                      <i class="fas fa-users-cog"></i>
-                    </button></a>
-                  <button class="btn btn-sm btn-modern edit-activity" data-id="{{ $activity->id }}" style="background: #43cea2; color: white;" data-bs-toggle="modal" data-bs-target="#editActivityModal">
-                    <i class="fas fa-edit"></i>
+
+                  <button class="btn btn-success" data-bs-toggle="modal" data-bs-target="#uploadActivityReport{{ $activity->id }}">
+                    @if ($activity->report_file)
+                    <i class="fas fa-check-circle text-light"></i>
+                    @else
+                    <i class="fas fa-upload"></i>
+                    @endif
+                    IQAC Report
                   </button>
-                  <form action="{{ route('department.activities.destroy', $activity->id) }}" method="POST" onsubmit="return confirm('Are you sure you want to delete this activity?');" style="display:inline;">
+
+                  <!-- View Activity Modal -->
+                  <div class="modal fade" id="uploadActivityReport{{ $activity->id }}" tabindex="-1" aria-labelledby="uploadActivityReportModalLabel" aria-hidden="true">
+                    <div class="modal-dialog modal-lg">
+                      <div class="modal-content" style="border-radius: 20px; border: none;">
+                        <div class="modal-header" style="border-bottom: 1px solid #f0f0f0; padding: 24px;">
+                          <h5 class="modal-title" style="color: #1a1a1a; font-weight: 700;" id="viewActivityModalLabel">Upload Report for IQAC</h5>
+                          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                        </div>
+                        <form action="{{ route('department.activities.participants.upload-report', $activity->id) }}" method="post" enctype="multipart/form-data">
+                          @csrf
+                          <div class="modal-body" style="padding: 24px;">
+                            <label for="">Activity Name</label>
+                            <input type="text" value="{{$activity->title}}" class="form-control" readonly style="border-radius: 12px; border: 1px solid #e5e7eb; padding: 12px;">
+                            <label for="">Select File (Allowed Format: PDF, Maxsize: 10MB)</label>
+                            <input type="file" name="report_file" accept="application/pdf" class="form-control" style="border-radius: 12px; border: 1px solid #e5e7eb; padding: 12px; " required>
+                            @error('report_file')
+                            <span class="text-danger">{{$message}}</span>
+                            @enderror
+                          </div>
+                          <div class="modal-footer">
+                            <button type="submit" class="btn btn-success">
+                              <i class="fas fa-upload"></i> Upload Report
+                            </button>
+                          </div>
+                        </form>
+                      </div>
+                    </div>
+                  </div>
+
+
+
+                  <a href="{{ route('department.activities.participants', $activity->id) }}"><button class="btn btn-success">
+                      <i class="fas fa-users-cog"></i> Participants
+                    </button></a>
+                  <!-- <button class="btn btn-secondary" data-id="{{ $activity->id }}" data-bs-toggle="modal" data-bs-target="#editActivityModal">
+                    <i class="fas fa-edit"></i>
+                  </button> -->
+                  <form action="{{ route('department.activities.destroy', $activity->id) }}" method="POST" class="delete-activity-form" style="display:inline;">
                     @csrf
                     @method('DELETE')
-                    <button type="submit" class="btn-lg btn-danger" style="background: #fee; color: #dc2626; border: none; border-radius: 8px; padding: 6px 12px;">
-                      <i class="fas fa-trash"></i>
+                    <button type="button" class="btn btn-danger delete-activity-btn">
+                      <i class="fas fa-trash"></i> Delete
                     </button>
                   </form>
                 </div>
@@ -307,6 +362,8 @@ use Illuminate\Support\Facades\Auth;
     </div>
   </div>
 
+
+
   <!-- Edit Activity Modal (similar structure, will be populated via JavaScript) -->
   <div class="modal fade" id="editActivityModal" tabindex="-1" aria-labelledby="editActivityModalLabel" aria-hidden="true">
     <div class="modal-dialog modal-xl">
@@ -409,25 +466,35 @@ use Illuminate\Support\Facades\Auth;
     </div>
   </div>
 
-  <!-- View Activity Modal -->
-  <div class="modal fade" id="viewActivityModal" tabindex="-1" aria-labelledby="viewActivityModalLabel" aria-hidden="true">
-    <div class="modal-dialog modal-lg">
-      <div class="modal-content" style="border-radius: 20px; border: none;">
-        <div class="modal-header" style="border-bottom: 1px solid #f0f0f0; padding: 24px;">
-          <h5 class="modal-title" style="color: #1a1a1a; font-weight: 700;" id="viewActivityModalLabel">Activity Details</h5>
-          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-        </div>
-        <div class="modal-body" style="padding: 24px;" id="viewActivityContent">
-          <!-- Content will be populated via JavaScript -->
-        </div>
-      </div>
-    </div>
-  </div>
+
 
 </div>
 
 <script>
   document.addEventListener('DOMContentLoaded', function() {
+    // Delete activity with SweetAlert confirmation
+    document.querySelectorAll('.delete-activity-btn').forEach(button => {
+      button.addEventListener('click', function(e) {
+        e.preventDefault();
+        const form = this.closest('.delete-activity-form');
+
+        Swal.fire({
+          title: 'Are you sure?',
+          text: "You won't be able to revert this!",
+          icon: 'warning',
+          showCancelButton: true,
+          confirmButtonColor: '#d33',
+          cancelButtonColor: '#3085d6',
+          confirmButtonText: 'Yes, delete it!',
+          cancelButtonText: 'Cancel'
+        }).then((result) => {
+          if (result.isConfirmed) {
+            form.submit();
+          }
+        });
+      });
+    });
+
     // Edit activity
     document.querySelectorAll('.edit-activity').forEach(button => {
       button.addEventListener('click', function() {

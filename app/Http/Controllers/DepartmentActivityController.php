@@ -21,7 +21,7 @@ class DepartmentActivityController extends Controller
     $subject = Subject::findOrFail($subjectId);
 
     $activities = DepartmentActivity::where('subject_id', $subjectId)
-      ->with(['creator', 'updater'])
+      ->with(['creator', 'updater', 'participants'])
       ->orderBy('activity_date', 'desc')
       ->paginate(10);
 
@@ -170,8 +170,13 @@ class DepartmentActivityController extends Controller
 
     // Delete banner image if exists
     if ($activity->banner_image) {
-      Storage::disk('public')->delete($activity->banner_image);
+      Storage::disk('s3')->delete($activity->banner_image);
     }
+    if ($activity->report_file) {
+      Storage::disk('s3')->delete($activity->report_file);
+    }
+
+    DepartmentActivityHasParticipant::where('activity_id', $id)->delete();
 
     $activity->delete();
 
@@ -273,5 +278,32 @@ class DepartmentActivityController extends Controller
     $participant->delete();
 
     return redirect()->back()->with('success', 'Participant removed successfully!');
+  }
+
+  function uploadActivityReport(Request $request, $activityId)
+  {
+
+
+    $request->validate([
+      'report_file' => 'required|file|mimes:pdf|max:10240', // Max size 10MB
+    ]);
+
+    $activity = DepartmentActivity::findOrFail($activityId);
+
+    // Handle file upload
+    if ($request->hasFile('report_file')) {
+      $file = $request->file('report_file');
+      $filename = StaticController::s3_file_uploader($file, 'dept_activity_reports');
+
+      // Save the report path in the database (you may want to create a new column for this)
+      $activity->update([
+        'report_file' => $filename,
+        'updated_by' => Auth::id()
+      ]);
+
+      return redirect()->back()->with('success', 'Report uploaded successfully!');
+    }
+
+    return redirect()->back()->with('error', 'No file uploaded.');
   }
 }
