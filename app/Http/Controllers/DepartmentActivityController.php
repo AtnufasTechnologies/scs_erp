@@ -3,7 +3,9 @@
 namespace App\Http\Controllers;
 
 use App\Models\DepartmentActivity;
+use App\Models\DepartmentActivityHasParticipant;
 use App\Models\Subject;
+use App\Models\SubjectHasDeptAdmin;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Storage;
@@ -224,5 +226,52 @@ class DepartmentActivityController extends Controller
       ->paginate(10);
 
     return response()->json($activities);
+  }
+
+
+  function activityParticipants($activityId)
+  {
+    $activity = DepartmentActivity::findOrFail($activityId);
+    $participants = $activity->participants()->orderBy('created_at', 'desc')->get();
+
+    return view('admin.department.activities.participants', compact('activity', 'participants'));
+  }
+
+  function addParticipant(Request $request, $activityId)
+  {
+    $activity = DepartmentActivity::findOrFail($activityId);
+
+    $request->validate([
+      'participant_category' => 'required',
+      'participant_type' => 'required',
+      'participant_name' => 'required|string|max:255',
+      'institution_name' => 'nullable|string|max:255',
+    ]);
+
+    $userId = Auth::user()->id;
+    $dept_id = SubjectHasDeptAdmin::where('user_id', $userId)->value('subject_id');
+
+    $activity->participants()->create([
+      'dept_id' => $dept_id,
+      'activity_id' => $request->activityId,
+      'participant_category' => $request->participant_category,
+      'participant_type' => $request->participant_type,
+      'participant_name' => $request->participant_name,
+      'participant_email' => $request->participant_email,
+      'participant_phone' => $request->participant_phone,
+      'participant_rollno' => $request->participant_rollno,
+      'institution_name' => $request->institution_name
+
+    ]);
+
+    return redirect()->back()->with('success', 'Participant added successfully!');
+  }
+
+  function removeParticipant($id)
+  {
+    $participant = DepartmentActivityHasParticipant::findOrFail($id);
+    $participant->delete();
+
+    return redirect()->back()->with('success', 'Participant removed successfully!');
   }
 }

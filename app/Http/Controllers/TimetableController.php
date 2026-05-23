@@ -989,4 +989,69 @@ class TimetableController extends Controller
             'timetable' => $timetable
         ]);
     }
+
+    /**
+     * Get available teachers for substitution at a specific time slot
+     * Only returns teachers who are not teaching at that time
+     */
+    public function getAvailableTeachersForSubstitution(Request $request)
+    {
+        try {
+            $validated = $request->validate([
+                'subject_id' => 'required|exists:subjects,id',
+                'batch_id' => 'required|exists:batch_masters,id',
+                'weekday_id' => 'required|integer|min:1|max:7',
+                'hour_id' => 'required|integer|min:1'
+            ]);
+
+            $subjectId = $validated['subject_id'];
+            $batchId = $validated['batch_id'];
+            $weekdayId = $validated['weekday_id'];
+            $hourId = $validated['hour_id'];
+
+            // Get all faculty members assigned to this subject
+            $subjectFaculties = SubjectFacultyMaster::where('subject_id', $subjectId)
+                ->with('faculty')
+                ->get();
+
+            // Get faculty IDs who are already teaching at this time slot
+            $busyFacultyIds = SubjectHasRoutine::where('weekday_id', $weekdayId)
+                ->where('hour_id', $hourId)
+                ->whereNotNull('faculty_id')
+                ->pluck('faculty_id')
+                ->toArray();
+
+            // Filter to get only available teachers
+            $availableTeachers = $subjectFaculties->filter(function ($subjectFaculty) use ($busyFacultyIds) {
+                return $subjectFaculty->faculty &&
+                    !in_array($subjectFaculty->faculty->id, $busyFacultyIds) &&
+                    $subjectFaculty->faculty->IS_LEFT == 0;
+            })->map(function ($subjectFaculty) {
+                $faculty = $subjectFaculty->faculty;
+                return [
+                    'id' => $faculty->id,
+                    'user_code' => $faculty->USER_CODE ?? '',
+                    'first_name' => $faculty->FIRST_NAME ?? '',
+                    'last_name' => $faculty->LAST_NAME ?? '',
+                    'full_name' => trim(($faculty->FIRST_NAME ?? '') . ' ' . ($faculty->LAST_NAME ?? ''))
+                ];
+            })->values();
+
+            return response()->json([
+                'success' => true,
+                'available_teachers' => $availableTeachers,
+                'total_available' => $availableTeachers->count(),
+                'time_slot' => [
+                    'weekday_id' => $weekdayId,
+                    'hour_id' => $hourId,
+                    'batch_id' => $batchId
+                ]
+            ]);
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Failed to fetch available teachers: ' . $e->getMessage()
+            ], 500);
+        }
+    }
 }

@@ -189,7 +189,7 @@
 /* Text Colors */
 
 .text-primary {
-    color: #923eb9 !important;
+    color: #5947d1 !important;
 }
 
 .text-danger {
@@ -197,15 +197,15 @@
 }
 
 .text-success {
-    color: #18bb6b !important;
+    color: #54d396 !important;
 }
 
 .text-info {
-    color: #32bfff !important;
+    color: #2ed6f0 !important;
 }
 
 .text-warning {
-    color: #ffab4d !important;
+    color: #ffca4d !important;
 }
 
 .text-purple {

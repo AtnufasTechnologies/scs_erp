@@ -410,7 +410,7 @@ class SubjectController extends Controller
 
 
         // Get upcoming activities
-        $upcomingActivities = DepartmentActivity::where('subject_id', $subjectId)
+        $upcomingActivities = DepartmentActivity::withCount('participants')->where('subject_id', $subjectId)
             ->upcoming()
             ->take(3)
             ->get();
@@ -504,7 +504,7 @@ class SubjectController extends Controller
         $data = Subject::find($academicDeptId);
 
         $courses =  SubjectCourseMaster::with([
-            'courseMaster.paperTypeMaster',
+            'courseMaster',
         ])->where('subject_id', $academicDeptId)->get();
 
         $programCourseMaster =  ProgramCourseMaster::all();
@@ -793,6 +793,7 @@ class SubjectController extends Controller
             'credits' => 'required|integer|min:0',
             'internal' => 'required|numeric|min:0',
             'external' => 'required|numeric|min:0',
+            'paper_type' => 'required',
         ]);
 
         $courseMaster->course_code = Str::upper($request->course_code);
@@ -803,7 +804,7 @@ class SubjectController extends Controller
         $courseMaster->external = $request->external;
         $courseMaster->total = $request->internal + $request->external;
         $courseMaster->total_alloted_hours = $request->total_alloted_hours;
-        $courseMaster->paper_type = $request->paper_type;
+        $courseMaster->paper_type_id = $request->paper_type;
         $courseMaster->save();
 
         return redirect()->back()->with('success', 'Course Master Updated');

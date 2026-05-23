@@ -337,4 +337,4 @@ class CourseOfferingController extends Controller
   {
     return StudentMaster::findOrFail(Auth::user()->student_id);
   }
-}app/Http/Controllers/StudentDashboardController.php
+}

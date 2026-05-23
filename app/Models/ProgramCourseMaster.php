@@ -31,7 +31,7 @@ class ProgramCourseMaster extends Model
 
     function papertypemaster()
     {
-        return  $this->hasOne(PaperTypeMaster::class, 'id', 'paper_type');
+        return  $this->hasOne(PaperTypeMaster::class, 'id', 'paper_type_id');
     }
 
     function csos()

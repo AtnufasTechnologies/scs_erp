@@ -21,6 +21,6 @@ class SubjectCourseMaster extends Model
 
     function courseMaster()
     {
-        return $this->belongsTo(ProgramCourseMaster::class, 'course_master_id');
+        return $this->belongsTo(ProgramCourseMaster::class, 'course_master_id')->with('papertypemaster');
     }
 }

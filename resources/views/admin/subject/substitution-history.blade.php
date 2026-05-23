@@ -311,8 +311,8 @@ $userRoleType = StaticController::fetchUserRole();
       exportToExcel();
     });
 
-    // Load initial data from last 30 days
-    const endDate = new Date().toISOString().split('T')[0];
+    // Load initial data from last 30 days to next 7 days (to include planned future substitutions)
+    const endDate = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
     const startDate = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
     document.getElementById('startDate').value = startDate;
     document.getElementById('endDate').value = endDate;

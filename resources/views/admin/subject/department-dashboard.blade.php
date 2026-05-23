@@ -117,7 +117,8 @@ $mainStreams = ProgramMaster::all();
                     @endif
                     @if($activity->expected_participants)
                     <p class="mb-0" style="font-size: 12px; color: #6b7280;">
-                      <i class="fas fa-users me-1"></i>{{ $activity->expected_participants }} attendees expected
+                      <i class="fas fa-users me-1 text-warning fa-2x"></i>{{ $activity->expected_participants }} attendees expected |
+                      <i class="fas fa-user-check me-1 text-success fa-2x"></i>{{ $activity->participants_count }} confirmed
                     </p>
                     @endif
                   </div>
@@ -442,7 +443,7 @@ $mainStreams = ProgramMaster::all();
   </div>
 
   <!-- Subject Combinations Section -->
-  <div class="table-modern mt-4">
+  <!-- <div class="table-modern mt-4">
     <div class="p-4">
       <div class="d-flex justify-content-between align-items-center mb-4">
         <h5 style="color: #1a1a1a; font-weight: 700; margin: 0;">
@@ -489,7 +490,7 @@ $mainStreams = ProgramMaster::all();
           </div>
         </div>
 
-        <!-- Per-card Add More Combos Modal -->
+
         <div class="modal fade" id="addMoreCombos_{{ $first->batch_id }}_{{ $first->campus_id }}_{{ $first->main_subject_id }}" tabindex="-1" aria-hidden="true">
           <div class="modal-dialog modal-md">
             <div class="modal-content" style="border-radius: 20px; border: none;">
@@ -529,10 +530,10 @@ $mainStreams = ProgramMaster::all();
       </div>
       @endif
     </div>
-  </div>
+  </div> -->
 
   <!-- Add Subject Combination Modal -->
-  <div class="modal fade" id="addSubjectCombination" tabindex="-1" aria-hidden="true">
+  <!-- <div class="modal fade" id="addSubjectCombination" tabindex="-1" aria-hidden="true">
     <div class="modal-dialog modal-lg">
       <div class="modal-content" style="border-radius: 20px; border: none;">
         <div class="modal-header" style="border-bottom: 1px solid #f0f0f0; padding: 24px; background: linear-gradient(135deg, #5b4cdb 0%, #7c3aed 100%); border-radius: 20px 20px 0 0;">
@@ -579,7 +580,7 @@ $mainStreams = ProgramMaster::all();
         </form>
       </div>
     </div>
-  </div>
+  </div> -->
 
   <!-- Modals -->
   <!-- Add Program Modal -->
