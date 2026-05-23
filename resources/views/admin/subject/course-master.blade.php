@@ -196,16 +196,18 @@ $papertypes = PaperTypeMaster::all();
         @forelse($mycourses as $course)
         <div class="col-md-6 col-lg-4 mb-3">
           <div class="card shadow-sm h-100">
+            <div class="card-header">
+              <a href="{{ route('department.view.cso', $course->course_master_id  ) }}"> <button class="btn btn-outline-success">Design Course</button></a>
+            </div>
             <div class="card-body">
-              <a href="{{ route('department.view.cso', $course->course_master_id  ) }}">
-                <h5 class="card-title">{{ $course->courseMaster->course_code }}</h5>
-              </a>
-              <p class="card-text text-muted">{{ $course->courseMaster->course_title }}</p>
+              <p class="card-text "><strong>Code# </strong>{{ $course->courseMaster->course_code }}</p>
+              <p class="card-text text-muted"><strong>Name:</strong> {{ $course->courseMaster->course_title }}</p>
               <ul class="list-unstyled small">
-                <li><strong>Type:</strong> {{ $course->courseMaster->coursetypemaster->title ?? '-' }}</li>
-                <li><strong>Credits:</strong> {{ $course->courseMaster->credits ?? '-' }}</li>
-                <li><strong>Paper Type:</strong> {{ $course->courseMaster->papertypemaster->name ?? '-' }}</li>
-                <li><strong>Hours:</strong> {{ $course->courseMaster->total_alloted_hours ?? '-' }}</li>
+                <li><i class="far fa-quote-left text-success"></i><strong> Type:</strong> {{ $course->courseMaster->coursetypemaster->title ?? '-' }} - {{ $course->courseMaster->coursetypemaster->description ?? '-' }}
+                </li>
+                <li><i class="fa fa-bookmark text-success"></i> <strong>Credits:</strong> {{ $course->courseMaster->credits ?? '-' }}</li>
+                <li><i class="fa fa-badge text-success"></i> <strong>Paper Type:</strong> {{ $course->courseMaster->papertypemaster->name ?? '-' }}</li>
+                <li><i class="fa fa-clock text-success"></i> <strong>Teaching Hours:</strong> {{ $course->courseMaster->total_alloted_hours ?? '-' }}</li>
                 <li><strong>Internal:</strong> {{ $course->courseMaster->internal ?? '-' }} | <strong>External:</strong> {{ $course->courseMaster->external ?? '-' }}</li>
               </ul>
             </div>

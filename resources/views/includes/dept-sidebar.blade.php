@@ -60,11 +60,6 @@ if ($subjectId) {
     </div>
   </a>
 
-  <a href="{{route('department.combo.master',[$data->id,$data->slug])}}">
-    <div class="sidebar-icon" title="Combination Master" data-bs-toggle="tooltip" data-bs-placement="right" data-bs-title="Combination Master">
-      <i class="fas fa-list fa-lg"></i>
-    </div>
-  </a>
 
   <a href="{{route('department.faculty.access',[$data->id,$data->slug])}}">
     <div class="sidebar-icon" title="Settings" data-bs-toggle="tooltip" data-bs-placement="right" data-bs-title="Settings">

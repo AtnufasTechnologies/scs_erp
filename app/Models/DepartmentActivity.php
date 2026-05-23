@@ -92,4 +92,9 @@ class DepartmentActivity extends Model
     ];
     return $badges[$this->status] ?? 'secondary';
   }
+
+  public function participants()
+  {
+    return $this->hasMany(DepartmentActivityHasParticipant::class, 'activity_id');
+  }
 }

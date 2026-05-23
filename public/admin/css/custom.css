@@ -934,3 +934,6 @@ table thead {
     position: absolute;
     z-index: 3;
 }
+.text-primary {
+    color: #3f51b5;
+}

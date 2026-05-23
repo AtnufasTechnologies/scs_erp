@@ -475,27 +475,78 @@ $faculties = SubjectFacultyMaster::where('subject_id', $data->id)->with('faculty
       document.getElementById('substituteTeacher').value = existingSubstitution?.substitute_teacher_id || '';
       document.getElementById('substitutionReason').value = existingSubstitution?.reason || '';
 
-      // Filter out the original teacher from substitute teacher options
+      // Get batch, weekday, and hour for fetching available teachers
+      const batchId = document.getElementById('batchSelect').value;
+      const date = document.getElementById('dateSelect').value;
+      const day = getDayFromSelectedDate();
+
+      // Map day name to weekday_id
+      const weekdayMap = {
+        'Sunday': 7,
+        'Monday': 1,
+        'Tuesday': 2,
+        'Wednesday': 3,
+        'Thursday': 4,
+        'Friday': 5,
+        'Saturday': 6
+      };
+      const weekdayId = weekdayMap[day];
+      const hourId = schedule.hour_number;
+      const subjectId = document.getElementById('subjectIdInput').value;
+
+      // Show loading state in substitute teacher dropdown
       const substituteSelect = document.getElementById('substituteTeacher');
-      const originalTeacherId = schedule.original_faculty_id;
+      substituteSelect.disabled = true;
+      substituteSelect.innerHTML = '<option value="">Loading available teachers...</option>';
 
-      // Reset all options to visible first
-      Array.from(substituteSelect.options).forEach(option => {
-        option.style.display = '';
-      });
-
-      // Hide the original teacher option if it exists
-      if (originalTeacherId) {
-        const originalTeacherOption = substituteSelect.querySelector(`option[value="${originalTeacherId}"]`);
-        if (originalTeacherOption) {
-          originalTeacherOption.style.display = 'none';
-
-          // If the hidden option was selected, clear the selection
-          if (substituteSelect.value === originalTeacherId.toString()) {
-            substituteSelect.value = '';
+      // Fetch available teachers for this time slot
+      fetch(`{{ route('department.substitution.available-teachers') }}?subject_id=${subjectId}&batch_id=${batchId}&weekday_id=${weekdayId}&hour_id=${hourId}`, {
+          method: 'GET',
+          headers: {
+            'Accept': 'application/json',
+            'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content')
           }
-        }
-      }
+        })
+        .then(response => response.json())
+        .then(data => {
+          if (data.success) {
+            const availableTeachers = data.available_teachers || [];
+
+            // Reset dropdown
+            substituteSelect.innerHTML = '<option value="">Select Substitute Teacher</option>';
+
+            if (availableTeachers.length === 0) {
+              substituteSelect.innerHTML = '<option value="">No available teachers at this time</option>';
+              substituteSelect.disabled = true;
+            } else {
+              // Populate with available teachers only
+              availableTeachers.forEach(teacher => {
+                const option = document.createElement('option');
+                option.value = teacher.id;
+                option.textContent = `${teacher.user_code} - ${teacher.full_name}`;
+                substituteSelect.appendChild(option);
+              });
+
+              // If there was an existing substitution, select it
+              if (existingSubstitution?.substitute_teacher_id) {
+                substituteSelect.value = existingSubstitution.substitute_teacher_id;
+              }
+
+              substituteSelect.disabled = false;
+            }
+          } else {
+            console.error('Failed to fetch available teachers:', data.message);
+            alert('Failed to load available teachers. Please try again.');
+            substituteSelect.innerHTML = '<option value="">Error loading teachers</option>';
+            substituteSelect.disabled = true;
+          }
+        })
+        .catch(err => {
+          console.error('Error fetching available teachers:', err);
+          alert('Error loading available teachers. Please try again.');
+          substituteSelect.innerHTML = '<option value="">Error loading teachers</option>';
+          substituteSelect.disabled = true;
+        });
 
       // Store current schedule index for saving
       document.getElementById('saveSubstitutionBtn').setAttribute('data-schedule-index', scheduleIndex);

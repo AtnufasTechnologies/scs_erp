@@ -84,15 +84,15 @@ use Illuminate\Support\Facades\Auth;
 
   <!-- Upcoming Activities -->
   @if(count($upcomingActivities) > 0)
-  <div class="table-modern mb-4">
+  <div class=" mb-4">
     <div class="p-4">
       <h5 style="color: #1a1a1a; font-weight: 700; margin-bottom: 24px;">
         <i class="fas fa-star me-2" style="color: #fbbf24;"></i>Upcoming Activities
       </h5>
       <div class="row g-3">
         @foreach($upcomingActivities as $activity)
-        <div class="col-md-6">
-          <div class="action-card" style="background: linear-gradient(135deg, #e7e7e8 0%, #fafafa 100%);">
+        <div class="col-md-3">
+          <div class="action-card" style="background: linear-gradient(135deg, #d2effc 0%, #ffffff 100%);">
             <div class="d-flex align-items-start gap-3">
               <div class="action-card-icon" style="background: rgba(255, 255, 255, 0.2);">
                 <i class="fas fa-calendar-day"></i>
@@ -143,14 +143,14 @@ use Illuminate\Support\Facades\Auth;
         <table class="table table-hover">
           <thead>
             <tr style="border-bottom: 2px solid #f0f0f0;">
-              <th style="color: #6b7280; font-weight: 600; padding: 16px;">#</th>
-              <th style="color: #6b7280; font-weight: 600;">Title</th>
-              <th style="color: #6b7280; font-weight: 600;">Type</th>
-              <th style="color: #6b7280; font-weight: 600;">Date</th>
-              <th style="color: #6b7280; font-weight: 600;">Venue</th>
-              <th style="color: #6b7280; font-weight: 600;">Status</th>
-              <th style="color: #6b7280; font-weight: 600;">Participants</th>
-              <th style="color: #6b7280; font-weight: 600;">Actions</th>
+              <th style="color: #fff; font-weight: 600; padding: 16px;">#</th>
+              <th style="color: #fff; font-weight: 600;">Title</th>
+              <th style="color: #fff; font-weight: 600;">Type</th>
+              <th style="color: #fff; font-weight: 600;">Date</th>
+              <th style="color: #fff; font-weight: 600;">Venue</th>
+              <th style="color: #fff; font-weight: 600;">Status</th>
+              <th style="color: #fff; font-weight: 600;">Participants</th>
+              <th style="color: #d9f085; font-weight: 600;">Actions</th>
             </tr>
           </thead>
           <tbody>
@@ -176,25 +176,23 @@ use Illuminate\Support\Facades\Auth;
               </td>
               <td style="color: #6b7280;">{{ $activity->venue ?? '-' }}</td>
               <td>
-                <span class="badge badge-{{ $activity->status_badge }}" style="padding: 6px 12px; border-radius: 8px;">
-                  {{ ucfirst($activity->status) }}
-                </span>
+                {{ ucfirst($activity->status) }}
               </td>
               <td style="color: #1a1a1a;">
                 {{ $activity->actual_participants ?? $activity->expected_participants ?? '-' }}
               </td>
               <td>
                 <div class="d-flex gap-1">
-                  <button class="btn btn-sm btn-modern view-activity" data-id="{{ $activity->id }}" style="background: #5b4cdb; color: white;" data-bs-toggle="modal" data-bs-target="#viewActivityModal">
-                    <i class="fas fa-eye"></i>
-                  </button>
+                  <a href="{{ route('department.activities.participants', $activity->id) }}"><button class="btn btn-sm btn-modern view-activity" style="background: #5b4cdb; color: white;">
+                      <i class="fas fa-users-cog"></i>
+                    </button></a>
                   <button class="btn btn-sm btn-modern edit-activity" data-id="{{ $activity->id }}" style="background: #43cea2; color: white;" data-bs-toggle="modal" data-bs-target="#editActivityModal">
                     <i class="fas fa-edit"></i>
                   </button>
                   <form action="{{ route('department.activities.destroy', $activity->id) }}" method="POST" onsubmit="return confirm('Are you sure you want to delete this activity?');" style="display:inline;">
                     @csrf
                     @method('DELETE')
-                    <button type="submit" class="btn btn-sm" style="background: #fee; color: #dc2626; border: none; border-radius: 8px; padding: 6px 12px;">
+                    <button type="submit" class="btn-lg btn-danger" style="background: #fee; color: #dc2626; border: none; border-radius: 8px; padding: 6px 12px;">
                       <i class="fas fa-trash"></i>
                     </button>
                   </form>
