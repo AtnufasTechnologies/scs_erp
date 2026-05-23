@@ -796,6 +796,7 @@ Route::group(['prefix' => '/erp'], function () {
         Route::get('acivity/participants/{activityId}', [DepartmentActivityController::class, 'activityParticipants'])->name('department.activities.participants');
         Route::post('activity/participants/store/{activityId}', [DepartmentActivityController::class, 'addParticipant'])->name('department.activities.participants.store');
         Route::delete('activity/participants/{id}', [DepartmentActivityController::class, 'removeParticipant'])->name('department.activities.participants.remove');
+        Route::post('activity/participants/upload-report/{activityId}', [DepartmentActivityController::class, 'uploadActivityReport'])->name('department.activities.participants.upload-report');
 
         // Faculty Leave Sanction
         Route::get('leave', [DeptLeaveController::class, 'index'])->name('department.leave.index');
