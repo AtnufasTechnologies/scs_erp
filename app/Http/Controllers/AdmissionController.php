@@ -1735,6 +1735,7 @@ class AdmissionController extends Controller
                     'bdOrderId' => $response['bdOrderId'],
                     'authToken' => $response['authToken'],
                     'returnUrl' => $returnUrl,
+                    'orderId' => $orderId,
                     'amount' => $payableAmount,
                     'customerName' => $customerName
                 ]);

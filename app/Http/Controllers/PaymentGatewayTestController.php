@@ -152,6 +152,7 @@ class PaymentGatewayTestController extends Controller
       'bdOrderId' => $payload['orderid'],
       'authToken' => $curl_payload,
       'returnUrl' => route('payment.test.billdesk.response'),
+      'orderId' => $orderId,
       'amount' => $amount,
       'customerName' => $customerName
     ]);
