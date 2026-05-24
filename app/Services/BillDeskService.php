@@ -270,7 +270,7 @@ class BillDeskService
     if (count($parts) !== 5) {
       throw new Exception('JWE: expected 5 parts, got ' . count($parts));
     }
-    [$header, , $iv, $ciphertext, $tag] = $parts;
+    [$header,, $iv, $ciphertext, $tag] = $parts;
 
     $plaintext = openssl_decrypt(
       $this->b64uDecode($ciphertext),
@@ -345,19 +345,23 @@ class BillDeskService
    */
   private function post(string $url, string $body, string $traceid, string $timestamp): string
   {
-    $ch = curl_init($url);
-    curl_setopt($ch, CURLOPT_CUSTOMREQUEST, 'POST');
-    curl_setopt($ch, CURLOPT_POSTFIELDS, $body);
-    curl_setopt($ch, CURLOPT_HTTPHEADER, [
+    $headers = [
       'Content-Type: application/jose',
       'Accept: application/jose',
       "BD-Traceid: $traceid",
       "BD-Timestamp: $timestamp",
-      'Content-Length: ' . strlen($body),
-    ]);
+    ];
+
+    $ch = curl_init($url);
+    curl_setopt($ch, CURLOPT_POST, true);
+    curl_setopt($ch, CURLOPT_POSTFIELDS, $body);
+    curl_setopt($ch, CURLOPT_HTTPHEADER, $headers);
     curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
     curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, true);
     curl_setopt($ch, CURLOPT_TIMEOUT, 30);
+    curl_setopt($ch, CURLOPT_FOLLOWLOCATION, false); // Don't follow redirects
+    curl_setopt($ch, CURLOPT_HTTP_VERSION, CURL_HTTP_VERSION_1_1); // Use HTTP/1.1
+    curl_setopt($ch, CURLOPT_VERBOSE, false);
 
     $result    = curl_exec($ch);
     $httpCode  = curl_getinfo($ch, CURLINFO_HTTP_CODE);
@@ -365,7 +369,13 @@ class BillDeskService
     $curlError = curl_error($ch);
     curl_close($ch);
 
-    Log::info('BillDesk HTTP', ['url' => $url, 'http_code' => $httpCode, 'traceid' => $traceid]);
+    Log::info('BillDesk HTTP Request', [
+      'url' => $url,
+      'http_code' => $httpCode,
+      'traceid' => $traceid,
+      'body_length' => strlen($body),
+      'headers_sent' => $headers
+    ]);
 
     if ($curlErrNo) {
       throw new Exception("cURL error $curlErrNo: $curlError");
@@ -374,8 +384,17 @@ class BillDeskService
     if ($httpCode < 200 || $httpCode >= 300) {
       // Error responses from BillDesk are plain JSON (not JOSE)
       $err = json_decode($result, true);
-      $msg = $err['message'] ?? $err['error_description'] ?? $result;
-      throw new Exception("HTTP $httpCode: $msg");
+      if ($err) {
+        Log::error('BillDesk API Error', [
+          'http_code' => $httpCode,
+          'error' => $err,
+          'traceid' => $traceid
+        ]);
+        $msg = $err['message'] ?? $err['error_description'] ?? 'Unknown error';
+        $code = $err['error_code'] ?? '';
+        throw new Exception("HTTP $httpCode [$code]: $msg");
+      }
+      throw new Exception("HTTP $httpCode: " . substr($result, 0, 200));
     }
 
     return $result;

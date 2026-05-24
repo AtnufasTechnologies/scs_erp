@@ -102,19 +102,23 @@ class TestBillDeskAuth extends Command
 
     $this->line("Step 4 — Sending request (traceid: $traceid)");
 
-    $ch = curl_init($apiUrl);
-    curl_setopt($ch, CURLOPT_CUSTOMREQUEST, 'POST');
-    curl_setopt($ch, CURLOPT_POSTFIELDS, $jws);
-    curl_setopt($ch, CURLOPT_HTTPHEADER, [
+    $headers = [
       'Content-Type: application/jose',
       'Accept: application/jose',
       "BD-Traceid: $traceid",
       "BD-Timestamp: $timestamp",
-      'Content-Length: ' . strlen($jws),
-    ]);
+    ];
+
+    $ch = curl_init($apiUrl);
+    curl_setopt($ch, CURLOPT_POST, true);
+    curl_setopt($ch, CURLOPT_POSTFIELDS, $jws);
+    curl_setopt($ch, CURLOPT_HTTPHEADER, $headers);
     curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
     curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, true);
     curl_setopt($ch, CURLOPT_TIMEOUT, 30);
+    curl_setopt($ch, CURLOPT_FOLLOWLOCATION, false);
+    curl_setopt($ch, CURLOPT_HTTP_VERSION, CURL_HTTP_VERSION_1_1);
+    curl_setopt($ch, CURLOPT_HEADER, false); // Don't include headers in output
 
     $result    = curl_exec($ch);
     $httpCode  = curl_getinfo($ch, CURLINFO_HTTP_CODE);
