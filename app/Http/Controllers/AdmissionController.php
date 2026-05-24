@@ -1729,7 +1729,23 @@ class AdmissionController extends Controller
                 $applicationRecord->gateway_type = 'billdesk';
                 $applicationRecord->save();
 
-                // Return view with BillDesk SDK integration
+                // Get payment page URL from links
+                $paymentUrl = null;
+                foreach ($response['links'] ?? [] as $link) {
+                    if (isset($link['method']) && $link['method'] === 'GET' && isset($link['href'])) {
+                        $paymentUrl = $link['href'];
+                        break;
+                    }
+                }
+
+                Log::info('BillDesk Payment View Data', [
+                    'orderId' => $orderId,
+                    'bdOrderId' => $response['bdOrderId'],
+                    'paymentUrl' => $paymentUrl,
+                    'linksCount' => count($response['links'] ?? [])
+                ]);
+
+                // Return view with BillDesk payment details
                 return view('admission.billdesk-payment', [
                     'merchantId' => $response['merchantId'],
                     'bdOrderId' => $response['bdOrderId'],
@@ -1737,10 +1753,26 @@ class AdmissionController extends Controller
                     'returnUrl' => $returnUrl,
                     'orderId' => $orderId,
                     'amount' => $payableAmount,
-                    'customerName' => $customerName
+                    'customerName' => $customerName,
+                    'paymentUrl' => $paymentUrl,
+                    'links' => $response['links'] ?? []
                 ]);
             } else {
-                return back()->withErrors(['payment' => 'Failed to initiate payment: ' . ($response['error'] ?? 'Unknown error')]);
+                Log::error('BillDesk Order Creation Failed', [
+                    'orderId' => $orderId,
+                    'error' => $response['error'] ?? 'Unknown',
+                    'error_code' => $response['error_code'] ?? null,
+                    'response' => $response['response'] ?? null
+                ]);
+
+                $errorMessage = $response['error'] ?? 'Unknown error';
+
+                // Check for IP whitelisting issue
+                if (isset($response['error_code']) && $response['error_code'] === 'GNAUE0006') {
+                    $errorMessage = 'Server IP not authorized. Please contact administrator.';
+                }
+
+                return back()->withErrors(['payment' => 'Failed to initiate payment: ' . $errorMessage]);
             }
         } catch (\Exception $e) {
             Log::error('BillDesk Payment Error: ' . $e->getMessage());

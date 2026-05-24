@@ -146,6 +146,8 @@ class PaymentGatewayTestController extends Controller
 
     $curl_payload = JWT::encode($payload, env('BILLDESK_SECRET_KEY'), "HS256", null, $headers);
 
+    // For test, create a simple payment URL (this would come from API response in real scenario)
+    $paymentUrl = env('BILLDESK_API_URL') ? str_replace('/orders/create', '/orders/' . $payload['orderid'], env('BILLDESK_API_URL')) : null;
 
     return view('admission.billdesk-payment', [
       'merchantId' => env('BILLDESK_MERCHANT_ID'),
@@ -154,7 +156,9 @@ class PaymentGatewayTestController extends Controller
       'returnUrl' => route('payment.test.billdesk.response'),
       'orderId' => $orderId,
       'amount' => $amount,
-      'customerName' => $customerName
+      'customerName' => $customerName,
+      'paymentUrl' => $paymentUrl,
+      'links' => []
     ]);
 
 
