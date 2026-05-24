@@ -353,20 +353,48 @@ class BillDeskService
     ];
 
     $ch = curl_init($url);
+
+    // More aggressive header setting for live servers
     curl_setopt($ch, CURLOPT_POST, true);
     curl_setopt($ch, CURLOPT_POSTFIELDS, $body);
     curl_setopt($ch, CURLOPT_HTTPHEADER, $headers);
     curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+    curl_setopt($ch, CURLOPT_HEADER, false);
     curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, true);
+    curl_setopt($ch, CURLOPT_SSL_VERIFYHOST, 2);
     curl_setopt($ch, CURLOPT_TIMEOUT, 30);
-    curl_setopt($ch, CURLOPT_FOLLOWLOCATION, false); // Don't follow redirects
-    curl_setopt($ch, CURLOPT_HTTP_VERSION, CURL_HTTP_VERSION_1_1); // Use HTTP/1.1
-    curl_setopt($ch, CURLOPT_VERBOSE, false);
+    curl_setopt($ch, CURLOPT_CONNECTTIMEOUT, 10);
+    curl_setopt($ch, CURLOPT_FOLLOWLOCATION, false);
+    curl_setopt($ch, CURLOPT_HTTP_VERSION, CURL_HTTP_VERSION_1_1);
+    curl_setopt($ch, CURLOPT_ENCODING, ''); // Accept any encoding
+    curl_setopt($ch, CURLOPT_USERAGENT, 'BillDesk-PHP-Client/1.0');
+
+    // Ensure we're sending as POST with proper content-type
+    curl_setopt($ch, CURLOPT_CUSTOMREQUEST, null); // Clear any custom request
+
+    // Enable verbose mode in debug
+    if (config('app.debug')) {
+      curl_setopt($ch, CURLOPT_VERBOSE, true);
+      $verbose = fopen('php://temp', 'w+');
+      curl_setopt($ch, CURLOPT_STDERR, $verbose);
+    }
 
     $result    = curl_exec($ch);
     $httpCode  = curl_getinfo($ch, CURLINFO_HTTP_CODE);
     $curlErrNo = curl_errno($ch);
     $curlError = curl_error($ch);
+    $curlInfo  = curl_getinfo($ch);
+
+    // Log verbose output if debugging
+    if (config('app.debug') && isset($verbose)) {
+      rewind($verbose);
+      $verboseLog = stream_get_contents($verbose);
+      if ($verboseLog) {
+        Log::debug('cURL Verbose', ['output' => $verboseLog]);
+      }
+      fclose($verbose);
+    }
+
     curl_close($ch);
 
     Log::info('BillDesk HTTP Request', [
@@ -374,7 +402,8 @@ class BillDeskService
       'http_code' => $httpCode,
       'traceid' => $traceid,
       'body_length' => strlen($body),
-      'headers_sent' => $headers
+      'request_headers' => $headers,
+      'content_type' => $curlInfo['content_type'] ?? 'unknown'
     ]);
 
     if ($curlErrNo) {
@@ -388,7 +417,8 @@ class BillDeskService
         Log::error('BillDesk API Error', [
           'http_code' => $httpCode,
           'error' => $err,
-          'traceid' => $traceid
+          'traceid' => $traceid,
+          'url' => $url
         ]);
         $msg = $err['message'] ?? $err['error_description'] ?? 'Unknown error';
         $code = $err['error_code'] ?? '';

@@ -104,66 +104,10 @@ class PaymentGatewayTestController extends Controller
   }
 
   /**
-   * Process BillDesk test payment
+   * Process BillDesk test payment - Redirect directly to payment page
    */
   private function processBillDeskTest($amount, $customerName, $email, $phone)
   {
-
-    $headers = ["alg" => "HS256", "clientid" => env('BILLDESK_CLIENT_ID')];
-    $orderId = 'TEST' . time() . rand(1000, 9999);
-    $payload = [
-      "merchantid" => env('BILLDESK_MERCHANT_ID'),
-      "orderid" => $orderId,
-      "amount" => number_format($amount, 2, '.', ''),
-      "currencycode" => "356",
-      "customername" => $customerName,
-      "customermobile" => $phone,
-      "customeremail" => $email,
-      "returnurl" => route('payment.test.billdesk.response'),
-      "additionalinfo1" => 'Test Payment',
-      "additionalinfo2" => $customerName,
-      "additionalinfo3" => $phone,
-      "additionalinfo4" => $email,
-      "additionalinfo5" => 'Test Transaction',
-      "additionalinfo6" => 'Salesian College',
-    ];
-    $randomNumber = random_int(100000000000, 999999999999);
-    $traceid = "$randomNumber";
-    $trace_time = date("YmdHis");
-    $order_date = date("Y-m-d\TH:i:sP");
-    $timestamp = date("YmdHis");
-
-    $payload['traceid'] = $traceid;
-    $payload['tracetime'] = $trace_time;
-    $payload['orderdate'] = $order_date;
-
-    Log::info('BillDesk Test Payment', [
-      'order_id' => $orderId,
-      'trace_id' => $traceid,
-      'timestamp' => $timestamp,
-      'amount' => $amount
-    ]);
-
-    $curl_payload = JWT::encode($payload, env('BILLDESK_SECRET_KEY'), "HS256", null, $headers);
-
-    // For test, create a simple payment URL (this would come from API response in real scenario)
-    $paymentUrl = env('BILLDESK_API_URL') ? str_replace('/orders/create', '/orders/' . $payload['orderid'], env('BILLDESK_API_URL')) : null;
-
-    return view('admission.billdesk-payment', [
-      'merchantId' => env('BILLDESK_MERCHANT_ID'),
-      'bdOrderId' => $payload['orderid'],
-      'authToken' => $curl_payload,
-      'returnUrl' => route('payment.test.billdesk.response'),
-      'orderId' => $orderId,
-      'amount' => $amount,
-      'customerName' => $customerName,
-      'paymentUrl' => $paymentUrl,
-      'links' => []
-    ]);
-
-
-
-    /*
     try {
       $billDeskService = new BillDeskService();
 
@@ -179,25 +123,62 @@ class PaymentGatewayTestController extends Controller
         'info6' => 'Salesian College',
       ];
 
-      $response = $billDeskService->createOrder($orderId, $amount, $customerName, $returnUrl, $additionalInfo);
+      $customerInfo = [
+        'email' => $email,
+        'mobile' => $phone,
+      ];
+
+      Log::info('BillDesk Test Payment - Creating Order', [
+        'order_id' => $orderId,
+        'amount' => $amount,
+        'customer' => $customerName
+      ]);
+
+      $response = $billDeskService->createOrder($orderId, $amount, $customerName, $returnUrl, $additionalInfo, $customerInfo);
 
       if ($response['success']) {
-        return view('admission.billdesk-payment', [
-          'merchantId' => $response['merchantId'],
-          'bdOrderId' => $response['bdOrderId'],
-          'authToken' => $response['authToken'],
-          'returnUrl' => $returnUrl,
-          'amount' => $amount,
-          'customerName' => $customerName
-        ]);
+        // Extract payment URL from links array
+        $paymentUrl = null;
+        foreach ($response['links'] ?? [] as $link) {
+          if (isset($link['method']) && $link['method'] === 'GET' && isset($link['href'])) {
+            $paymentUrl = $link['href'];
+            break;
+          }
+        }
+
+        if ($paymentUrl) {
+          Log::info('BillDesk Test Payment - Redirecting', [
+            'order_id' => $orderId,
+            'bdorder_id' => $response['bdOrderId'],
+            'payment_url' => $paymentUrl
+          ]);
+
+          // Direct redirect to BillDesk payment page
+          return redirect()->away($paymentUrl);
+        } else {
+          Log::error('BillDesk Test Payment - No payment URL found', [
+            'order_id' => $orderId,
+            'response' => $response
+          ]);
+
+          return back()->withErrors(['payment' => 'Payment URL not available. Please try again.']);
+        }
       } else {
+        Log::error('BillDesk Test Payment - Order creation failed', [
+          'order_id' => $orderId,
+          'error' => $response['error'] ?? 'Unknown',
+          'error_code' => $response['error_code'] ?? null
+        ]);
+
         return back()->withErrors(['payment' => 'BillDesk payment initiation failed: ' . ($response['error'] ?? 'Unknown error')]);
       }
     } catch (\Exception $e) {
-      Log::error('BillDesk Test Payment Error: ' . $e->getMessage());
+      Log::error('BillDesk Test Payment Error: ' . $e->getMessage(), [
+        'trace' => $e->getTraceAsString()
+      ]);
+
       return back()->withErrors(['payment' => 'Payment initialization failed: ' . $e->getMessage()]);
     }
-      */
   }
 
   /**

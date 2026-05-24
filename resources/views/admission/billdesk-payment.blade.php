@@ -36,8 +36,13 @@
     }
 
     @keyframes spin {
-      0% { transform: rotate(0deg); }
-      100% { transform: rotate(360deg); }
+      0% {
+        transform: rotate(0deg);
+      }
+
+      100% {
+        transform: rotate(360deg);
+      }
     }
 
     h2 {
@@ -75,8 +80,13 @@
     }
 
     @keyframes fadeIn {
-      from { opacity: 0; }
-      to { opacity: 1; }
+      from {
+        opacity: 0;
+      }
+
+      to {
+        opacity: 1;
+      }
     }
 
     .btn {
@@ -148,11 +158,12 @@
     function redirectToPayment() {
       try {
         console.log('Attempting to redirect to BillDesk payment page...');
-        
+
         // Method 1: Direct URL redirect (if payment URL is provided)
         if (paymentConfig.paymentUrl) {
           console.log('Using direct payment URL:', paymentConfig.paymentUrl);
           document.getElementById('status-text').textContent = 'Redirecting to BillDesk...';
+          isRedirecting = true; // Set flag before redirect
           setTimeout(() => {
             window.location.href = paymentConfig.paymentUrl;
           }, 1500);
@@ -165,38 +176,40 @@
             if (link.method === 'GET' && link.href) {
               console.log('Found GET link:', link.href);
               document.getElementById('status-text').textContent = 'Redirecting to BillDesk...';
-              setTimeout(() => {
-                window.location.href = link.href;
-              }, 1500);
-              return;
+              isRedirecting = true; // Set flag before redirect
+              // If no direct URL available, show error
+              console.error('No payment URL available');
+              console.error('Payment config:', paymentConfig);
+              showError('Payment URL not generated. Please contact support or try again.');
+
+            } catch (error) {
+              console.error('Error during redirect:', error);
+              showError('Failed to redirect to payment gateway: ' + error.message);
             }
           }
-        }
 
-        // If no direct URL available, show error
-        console.error('No payment URL available');
-        console.error('Payment config:', paymentConfig);
-        showError('Payment URL not generated. Please contact support or try again.');
-        
-      } catch (error) {
-        console.error('Error during redirect:', error);
-        showError('Failed to redirect to payment gateway: ' + error.message);
-      }
-    }
+          // Flag to track if redirect is happening
+          let isRedirecting = false;
 
-    // Start redirect when page loads
-    window.addEventListener('load', function() {
-      console.log('Page loaded, initiating payment redirect...');
-      setTimeout(redirectToPayment, 1000);
-    });
+          // Start redirect when page loads
+          window.addEventListener('load', function() {
+            console.log('Page loaded, initiating payment redirect...');
+            setTimeout(redirectToPayment, 1000);
+          });
 
-    // Prevent accidental page exit
-    window.addEventListener('beforeunload', function(e) {
-      if (!document.hidden && document.getElementById('loader').style.display !== 'none') {
-        e.preventDefault();
-        e.returnValue = '';
-      }
-    });
+          // Prevent accidental page exit ONLY if not redirecting
+          window.addEventListener('beforeunload', function(e) {
+            // Don't show warning if we're redirecting to payment
+            if (isRedirecting) {
+              return undefined;
+            }
+
+            // Only prevent if loader is visible (payment not started)
+            if (!document.hidden && document.getElementById('loader').style.display !== 'none') {
+              e.preventDefault();
+              e.returnValue = '';
+            }
+          });
   </script>
 </body>
 

@@ -1738,25 +1738,24 @@ class AdmissionController extends Controller
                     }
                 }
 
-                Log::info('BillDesk Payment View Data', [
+                Log::info('BillDesk Payment - Redirecting', [
                     'orderId' => $orderId,
                     'bdOrderId' => $response['bdOrderId'],
                     'paymentUrl' => $paymentUrl,
                     'linksCount' => count($response['links'] ?? [])
                 ]);
 
-                // Return view with BillDesk payment details
-                return view('admission.billdesk-payment', [
-                    'merchantId' => $response['merchantId'],
-                    'bdOrderId' => $response['bdOrderId'],
-                    'authToken' => $response['authToken'],
-                    'returnUrl' => $returnUrl,
-                    'orderId' => $orderId,
-                    'amount' => $payableAmount,
-                    'customerName' => $customerName,
-                    'paymentUrl' => $paymentUrl,
-                    'links' => $response['links'] ?? []
-                ]);
+                if ($paymentUrl) {
+                    // Direct redirect to BillDesk payment page
+                    return redirect()->away($paymentUrl);
+                } else {
+                    Log::error('BillDesk Payment - No payment URL found', [
+                        'orderId' => $orderId,
+                        'response' => $response
+                    ]);
+
+                    return back()->withErrors(['payment' => 'Payment URL not available. Please try again.']);
+                }
             } else {
                 Log::error('BillDesk Order Creation Failed', [
                     'orderId' => $orderId,
