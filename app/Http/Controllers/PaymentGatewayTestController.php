@@ -170,14 +170,39 @@ class PaymentGatewayTestController extends Controller
           'error_code' => $response['error_code'] ?? null
         ]);
 
-        return back()->withErrors(['payment' => 'BillDesk payment initiation failed: ' . ($response['error'] ?? 'Unknown error')]);
+        $errorMessage = 'BillDesk payment initiation failed: ' . ($response['error'] ?? 'Unknown error');
+
+        // Add specific guidance for common errors
+        if (isset($response['error_code'])) {
+          switch ($response['error_code']) {
+            case 'GNAUE0006':
+              $errorMessage .= ' (Server IP not whitelisted with BillDesk. Contact BillDesk support.)';
+              break;
+            case 'GNIRE0002':
+              $errorMessage .= ' (Content-Type header not received. Check server configuration.)';
+              break;
+          }
+        }
+
+        return back()->withErrors(['payment' => $errorMessage]);
       }
     } catch (\Exception $e) {
       Log::error('BillDesk Test Payment Error: ' . $e->getMessage(), [
         'trace' => $e->getTraceAsString()
       ]);
 
-      return back()->withErrors(['payment' => 'Payment initialization failed: ' . $e->getMessage()]);
+      $errorMessage = 'Payment initialization failed: ' . $e->getMessage();
+
+      // Check for common error patterns in exception message
+      if (str_contains($e->getMessage(), '401')) {
+        if (str_contains($e->getMessage(), 'GNAUE0006')) {
+          $errorMessage .= ' | TIP: Server IP needs to be whitelisted with BillDesk.';
+        } elseif (str_contains($e->getMessage(), 'GNIRE0002')) {
+          $errorMessage .= ' | TIP: Content-Type header issue. Check server configuration or use diagnostic tool: /billdesk-diagnostic.php';
+        }
+      }
+
+      return back()->withErrors(['payment' => $errorMessage]);
     }
   }
 
