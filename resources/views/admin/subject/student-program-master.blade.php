@@ -1,6 +1,7 @@
 @include('includes.header')
 @include('admin.sidebar')
 <h3>Student Program Master</h3>
+<p>Note: Do not create duplicate code while adding programs</p>
 <!-- Button trigger modal -->
 <button class="cst-button mb-3" style="--clr: #21d9c7ff;" data-bs-toggle="modal" data-bs-target="#exampleModal">
   <span class="button-decor"></span>
@@ -87,7 +88,7 @@
         <td>{{$loop->iteration}}</td>
         <td>{{$d->campus_id == 1 ? 'Sonada' : 'Siliguri Campus'}}</td>
         <td>{{$d->code}}</td>
-        <td><span class="text-capitalize">{{$d->name}}</span></td>
+        <td>{{$d->name}}</td>
         <td>{{$d->description}}</td>
         <td>{{$d->semester_count}}</td>
         <td>{{$d->student_count}}</td>

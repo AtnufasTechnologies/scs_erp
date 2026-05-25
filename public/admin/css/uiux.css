@@ -222,13 +222,9 @@
         box-shadow 0.2s;
     box-shadow: 0 2px 8px rgba(255, 105, 97, 0.15);
     &:hover {
-        background: linear-gradient(
-            90deg,
-            #415cbf 0%,
-
-            #452fa5 100%
-        );
-        color: #f7cb7e;
+        background: linear-gradient(90deg, #452fa5 0%, #415cbf 100%);
+        transform: translateY(-2px) scale(1.03);
+        box-shadow: 0 4px 16px rgba(255, 105, 97, 0.25);
     }
 }
 

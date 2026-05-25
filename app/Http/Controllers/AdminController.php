@@ -41,6 +41,7 @@ use App\Models\StudentMaster;
 use App\Models\SubjectHasRoutine;
 use App\Models\ExamSystem\ExamStudent;
 use App\Models\ExamSystem\Result;
+use App\Models\Quote;
 use App\Models\StudentProgram;
 use App\Models\User;
 use App\Models\UserCampusSetting;
@@ -51,6 +52,7 @@ use App\Models\UserType;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Str;
 use Illuminate\Testing\Fluent\Concerns\Has;
 
@@ -58,7 +60,8 @@ class AdminController extends Controller
 {
     function index()
     {
-        return view('admin.dashboard');
+        $quote = Quote::where('is_active', true)->inRandomOrder()->first();
+        return view('admin.dashboard', ['quote' => $quote]);
     }
 
     function stdMasterSonada()

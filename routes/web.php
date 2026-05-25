@@ -288,11 +288,14 @@ Route::group(['prefix' => '/erp'], function () {
             Route::post('add/subject-syllabus', [SubjectController::class, 'addSyllabus'])->name('add.syllabus.to.semester');
             Route::get('all-course-combinations', [SubjectController::class, 'deptAllCourseCombinations'])->name('dept.all.course-combination');
             Route::get('program-course-master', [SubjectController::class, 'programCourseMaster'])->name('program-course.master');
-            Route::get('admin/course-master', [SubjectController::class, 'adminCourseMaster'])->name('admin.course-master');
-            Route::get('delete-combination/{id}', [SubjectController::class, 'deleteCombination'])->name('admin.delete.combination');
+            Route::get('course-master', [SubjectController::class, 'adminCourseMaster'])->name('admin.course-master');
+            Route::post('link-std-programs', [SubjectController::class, 'linkStdPrograms'])->name('admin.link.std.programs');
+            Route::delete('delete-combination/{id}', [SubjectController::class, 'deleteCombination'])->name('admin.delete.combination');
+            Route::put('update-combination/{id}', [SubjectController::class, 'updateCombination'])->name('admin.update.combination');
             Route::get('student-program-master', [SubjectController::class, 'studentProgramMaster'])->name('admin.student-program-master');
             Route::post('add/new/student-program', [SubjectController::class, 'addNewStudentProgram'])->name('admin.add.new.student-program');
             Route::post('update/student-program/{id}', [SubjectController::class, 'updateStudentProgram'])->name('admin.update.student-program');
+            Route::get('admission-combinations', [SubjectController::class, 'getAdmissionCombination'])->name('itcell.admission.combination-master');
         });
 
         //user access management
@@ -912,20 +915,7 @@ Route::group(['prefix' => '/erp'], function () {
         Route::get('internal-marks/view', [InternalMarksController::class, 'view'])->name('faculty.internal-marks.view');
     });
 
-    // ========================================================
-    //Testing route
 
-
-    Route::group(['prefix' => '/test',], function () {
-        Route::get('fee-issue-fix', [TestController::class, 'feesIssueFixing']); //run once to test fee structure creation logic
-        // Route::get('create-student-login', [TestController::class, 'createStudentLogin']); //run once to create student login for all students in student master
-        // Route::get('delete-student-login', [TestController::class, 'delAllStudentAccount']); //run once to delete all student login (if needed)
-        // Route::get('fix', [TestController::class, 'rollnoFixStudentPayment']);   //run once to fix rollno in student payment table
-        // Route::get('dept-campus-mapping', [TestController::class, 'DeptCampusMapping']); //run once to fix department campus mapping
-        // Route::get('mailing', [TestController::class, 'mailTest']);//run once to test mailing configuration
-        // Route::get('sms', [TestController::class, 'smsTest']);//run once to test sms configuration
-        // Route::get('install-new-programid', [TestController::class, 'studentMasterProgramFixing']);//run once to fix program id in student master table
-    });
     // ========================================================
     //COE route
 
@@ -1102,5 +1092,18 @@ Route::group(['prefix' => '/erp'], function () {
 
         // Report
         Route::get('events/{event}/report', [EventCoordinatorController::class, 'report'])->name('event-coordinator.report');
+    });
+
+
+    //Testing route
+    Route::group(['prefix' => '/test',], function () {
+        // Route::get('fee-issue-fix', [TestController::class, 'feesIssueFixing']); //run once to test fee structure creation logic
+        // Route::get('create-student-login', [TestController::class, 'createStudentLogin']); //run once to create student login for all students in student master
+        // Route::get('delete-student-login', [TestController::class, 'delAllStudentAccount']); //run once to delete all student login (if needed)
+        // Route::get('fix', [TestController::class, 'rollnoFixStudentPayment']);   //run once to fix rollno in student payment table
+        // Route::get('dept-campus-mapping', [TestController::class, 'DeptCampusMapping']); //run once to fix department campus mapping
+        // Route::get('mailing', [TestController::class, 'mailTest']);//run once to test mailing configuration
+        // Route::get('sms', [TestController::class, 'smsTest']);//run once to test sms configuration
+        // Route::get('install-new-programid', [TestController::class, 'studentMasterProgramFixing']);//run once to fix program id in student master table
     });
 });

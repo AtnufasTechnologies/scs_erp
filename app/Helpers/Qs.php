@@ -234,4 +234,25 @@ class Qs
       ->get();
     return $data;
   }
+
+  static function getAdmissionCombination($batch = null)
+  {
+    // For combinations modal
+    if (!empty($batch)) {
+      $activeBatch = $batch;
+    } else {
+      $activeBatch = BatchMaster::where('admission_active_batch', 1)->value('id');
+    }
+
+    $data = SubjectHasStudentProgam::where('batch_id', $activeBatch)
+      ->whereHas('subjectmaster', function ($query) {
+        $query->whereNull('deleted_at');
+      })
+      ->with('subjectmaster', 'studentprograminfo', 'campusmaster', 'batchmaster')
+      ->orderby('subject_id', 'asc')
+      ->get()
+      ->groupBy('subject_id');
+
+    return $data;
+  }
 }

@@ -24,6 +24,9 @@
       <form action="{{url('erp/admin/master/paper-type')}}" method="post">
         @csrf
         <div class="modal-body">
+          <label for="paperTypeCode">Paper Type Code *</label>
+          <input type="text" id="paperTypeCode" name="code" class="form-control mb-3" placeholder="e.g. T, P, TP">
+
           <label for="paperTypeName">Paper Type Name *</label>
           <input type="text" id="paperTypeName" name="name" class="form-control mb-3" placeholder="e.g. Theory, Practical, Theory + Practical">
         </div>
@@ -40,6 +43,7 @@
     <thead>
       <tr>
         <th>#</th>
+        <th>Code</th>
         <th>Paper Type</th>
         <th>Delete</th>
       </tr>
@@ -50,6 +54,7 @@
       @foreach ($data as $item)
       <tr>
         <td>{{$sl++}}</td>
+        <td>{{$item->code}}</td>
         <td><span class="text-capitalize">{{$item->name}}</span></td>
         <td>
           <a href="{{url('erp/admin/master/del-paper-type/'.$item->id)}}" id="citadel">
