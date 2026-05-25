@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Helpers\Qs;
 use App\Models\AdmissionApplication;
 use App\Models\BatchMaster;
 use App\Models\Campus;
@@ -308,7 +309,7 @@ class SubjectController extends Controller
         ]);
 
         $userId  = Auth::user()->id;
-        if (!UserHasRole::where('user_id', $userId)->where('role_name', 'dept-admin-erp')->exists()) {
+        if (!UserHasRole::where('user_id', $userId)->orWhere('role_name', 'dept-admin-erp')->orWhere('role_name', 'itcell')->exists()) {
             return redirect()->back()->with('info', 'Unauthorized to Access this Tool');
         }
 
@@ -699,8 +700,8 @@ class SubjectController extends Controller
 
         $data->campus_id = $request->campus;
         $data->code = Str::upper($request->code);
-        $data->name = Str::lower($request->name);
-        $data->description = Str::lower($request->description);
+        $data->name = $request->name;
+        $data->description = $request->description;
         $data->semester_count = $request->semester_count;
         $data->save();
 
@@ -1425,5 +1426,20 @@ class SubjectController extends Controller
     {
         SubjectCombinationMaster::findOrFail($id)->delete();
         return back()->with('success', 'Subject combination deleted.');
+    }
+
+    function getAdmissionCombination()
+    {
+        $data = Qs::getAdmissionCombination();
+        $subjects = Subject::orderBy('title')->get();
+        $batches = BatchMaster::all();
+        $programs = StudentProgram::with('campusmaster')->orderBy('name')->get();
+
+        return view('admin.itcell.admission-combination', [
+            'data' => $data,
+            'subjects' => $subjects,
+            'batches' => $batches,
+            'programs' => $programs
+        ]);
     }
 }

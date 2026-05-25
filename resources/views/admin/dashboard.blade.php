@@ -7,18 +7,25 @@ use App\Models\StudentMaster;
 use App\Models\StudentProgram;
 use App\Models\SubjectHasStudentProgam;
 
-$totalStudents = StudentMaster::count();
+$totalStudents = StudentMaster::where('is_left', 0)->where('is_deleted', 0)->count();
 $totalFaculty = Faculty::where('IS_LEFT', 0)->count();
 $activeCourses = StudentProgram::count(); // Example static data
 $labels = HourMaster::pluck('title')->all();
 $batchId = BatchMaster::where('admission_active_batch', 1)->value('id');
 $batchName = BatchMaster::where('admission_active_batch', 1)->value('batch_name');
 $combinationCount = SubjectHasStudentProgam::with('batchmaster')->where('batch_id', $batchId)->count();
+$roletype = auth()->user()->userroletype;
 ?>
 @include('includes.header')
 @include('admin.sidebar')
 
-<div class="dashboard-container">
+<div class="container-fluid">
+
+  <span style="font-weight: 100; font-size: 33px;">Hi, </span>
+  <span class="text-capitalize text-primary" style="font-weight: 700; font-size: 33px;">{{ auth()->user()->name }}</span> <span>({{ $roletype->role_name }})</span><br>
+  <strong>Stay Motivated</strong>
+  <p>{{$quote->body ?? ''}} <span class="text-muted">- {{$quote->author ?? 'Unknown'}}</span></p>
+
   <div class="stats-grid">
     <div class="stat-card">
       <div class="stat-icon bg-primary">

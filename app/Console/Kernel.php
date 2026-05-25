@@ -15,6 +15,7 @@ class Kernel extends ConsoleKernel
         // $schedule->command('inspire')->hourly();
         $schedule->command('faculty:sync')->dailyAt('02:00');
         $schedule->command('attendance:mark-absent')->everyTenMinutes();
+        $schedule->command('generate-daily-quote')->dailyAt('15:02')->timezone('Asia/Kolkata');
     }
 
     /**
