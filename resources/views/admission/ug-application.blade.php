@@ -830,9 +830,9 @@
       </div>
       <div class="modal-body text-center py-4">
         <i class="fas fa-exclamation-triangle fa-3x text-warning mb-3"></i>
-        <h5>Please come after NCET results are declared</h5>
-        <p class="text-muted mt-3">You can only apply for this course combination after appearing for the NCET examination.</p>
-        <p class="text-muted"><small><i class="fas fa-info-circle"></i> The form will be reset when you close this message.</small></p>
+        <h5>Thank you for your interest.</h5>
+        <p class="text-muted mt-3">We kindly request you to complete and submit the application form once the NCET results are officially declared.</p>
+        <p class="text-muted"><small><i class="fas fa-info-circle"></i> The form will be reset automatically when you close this message.</small></p>
       </div>
       <div class="modal-footer">
         <button type="button" class="btn btn-primary" id="closeMessageModal">OK, Understood</button>
