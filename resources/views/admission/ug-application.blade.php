@@ -129,6 +129,19 @@
             </select>
           </div>
 
+          <script>
+            document.getElementById('coursecombinations').addEventListener('change', function() {
+              const selectedValue = this.value;
+              const ncetRequiredIds = ['187', '188', '189'];
+
+              if (ncetRequiredIds.includes(selectedValue)) {
+                // Show NCET modal
+                const ncetModal = new bootstrap.Modal(document.getElementById('ncetModal'));
+                ncetModal.show();
+              }
+            });
+          </script>
+
 
 
           <div class="col-lg-3 col-sm-12">
@@ -784,5 +797,124 @@
 
 
 </div>
+
+<!-- NCET Exam Modal -->
+<div class="modal fade" id="ncetModal" tabindex="-1" aria-labelledby="ncetModalLabel" aria-hidden="true" data-bs-backdrop="static" data-bs-keyboard="false">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title" id="ncetModalLabel">NCET Examination</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <div class="modal-body">
+        <p class="mb-3">Have you appeared for the NCET (National Common Entrance Test) Examination?</p>
+        <div class="alert alert-info">
+          <i class="fas fa-info-circle"></i> This information is required for the selected course combination.
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-danger" id="ncetNo">No</button>
+        <button type="button" class="btn btn-success" id="ncetYes">Yes</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- NCET Message Modal -->
+<div class="modal fade" id="ncetMessageModal" tabindex="-1" aria-labelledby="ncetMessageModalLabel" aria-hidden="true" data-bs-backdrop="static" data-bs-keyboard="false">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content">
+      <div class="modal-header bg-warning">
+        <h5 class="modal-title" id="ncetMessageModalLabel">NCET Results Required</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <div class="modal-body text-center py-4">
+        <i class="fas fa-exclamation-triangle fa-3x text-warning mb-3"></i>
+        <h5>Please come after NCET results are declared</h5>
+        <p class="text-muted mt-3">You can only apply for this course combination after appearing for the NCET examination.</p>
+        <p class="text-muted"><small><i class="fas fa-info-circle"></i> The form will be reset when you close this message.</small></p>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-primary" id="closeMessageModal">OK, Understood</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+  let isNcetApproved = false;
+  const originalForm = document.getElementById('admission-application-form');
+  const submitBtn = document.getElementById('admission-submitBtn');
+
+  // Handle NCET Yes button
+  document.getElementById('ncetYes').addEventListener('click', function() {
+    isNcetApproved = true;
+    const ncetModal = bootstrap.Modal.getInstance(document.getElementById('ncetModal'));
+    ncetModal.hide();
+    // Enable form
+    enableForm();
+  });
+
+  // Handle NCET No button
+  document.getElementById('ncetNo').addEventListener('click', function() {
+    isNcetApproved = false;
+    const ncetModal = bootstrap.Modal.getInstance(document.getElementById('ncetModal'));
+    ncetModal.hide();
+
+    // Show message modal
+    const messageModal = new bootstrap.Modal(document.getElementById('ncetMessageModal'));
+    messageModal.show();
+  });
+
+  // Handle close message modal button - refresh page
+  document.getElementById('closeMessageModal').addEventListener('click', function() {
+    // Refresh the page to reset the form
+    window.location.reload();
+  });
+
+  // Close modal with X button
+  document.querySelectorAll('[data-bs-dismiss="modal"]').forEach(btn => {
+    btn.addEventListener('click', function() {
+      const courseSelect = document.getElementById('coursecombinations');
+      const ncetRequiredIds = ['187', '188', '189'];
+
+      // Check if closing the message modal without approval - refresh page
+      const messageModal = document.getElementById('ncetMessageModal');
+      if (this.closest('#ncetMessageModal')) {
+        window.location.reload();
+      }
+
+      // If closing NCET modal without approval, reset course selection
+      if (this.closest('#ncetModal') && ncetRequiredIds.includes(courseSelect.value) && !isNcetApproved) {
+        courseSelect.value = '';
+      }
+    });
+  });
+
+  function enableForm() {
+    // Enable the submit button
+    submitBtn.disabled = false;
+    submitBtn.classList.remove('btn-secondary');
+    submitBtn.classList.add('btn-main');
+
+    // Remove warning message if exists
+    const warningMsg = document.getElementById('ncet-warning-message');
+    if (warningMsg) {
+      warningMsg.remove();
+    }
+  }
+
+  // Prevent form submission if NCET not approved for restricted courses
+  originalForm.addEventListener('submit', function(e) {
+    const courseSelect = document.getElementById('coursecombinations');
+    const ncetRequiredIds = ['187', '188', '189'];
+
+    if (ncetRequiredIds.includes(courseSelect.value) && !isNcetApproved) {
+      e.preventDefault();
+      alert('Please confirm your NCET examination status before submitting the form.');
+      return false;
+    }
+  });
+</script>
 
 @include('includes.footer')
