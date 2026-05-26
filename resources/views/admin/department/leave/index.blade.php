@@ -144,13 +144,13 @@
             <thead style="background: #f9fafb;">
               <tr>
                 <th style="padding: 14px 16px; color: #6b7280; font-weight: 600; font-size: 13px;">#</th>
-                <th style="color: #6b7280; font-weight: 600; font-size: 13px;">Faculty</th>
-                <th style="color: #6b7280; font-weight: 600; font-size: 13px;">Leave Type</th>
-                <th style="color: #6b7280; font-weight: 600; font-size: 13px;">Period</th>
-                <th style="color: #6b7280; font-weight: 600; font-size: 13px;">Days</th>
-                <th style="color: #6b7280; font-weight: 600; font-size: 13px;">Applied On</th>
-                <th style="color: #6b7280; font-weight: 600; font-size: 13px;">Status</th>
-                <th style="color: #6b7280; font-weight: 600; font-size: 13px;">Action</th>
+                <th style="color: #fff; font-weight: 600; font-size: 13px;">Faculty</th>
+                <th style="color: #fff; font-weight: 600; font-size: 13px;">Leave Type</th>
+                <th style="color: #fff; font-weight: 600; font-size: 13px;">Period</th>
+                <th style="color: #fff; font-weight: 600; font-size: 13px;">Days</th>
+                <th style="color: #fff; font-weight: 600; font-size: 13px;">Applied On</th>
+                <th style="color: #fff; font-weight: 600; font-size: 13px;">Status</th>
+                <th style="color: #fff; font-weight: 600; font-size: 13px;">Action</th>
               </tr>
             </thead>
             <tbody>

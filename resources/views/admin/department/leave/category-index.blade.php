@@ -59,13 +59,13 @@
             <thead style="background: #f9fafb;">
               <tr>
                 <th style="padding: 14px 16px; color: #6b7280; font-weight: 600; font-size: 13px;">#</th>
-                <th style="color: #6b7280; font-weight: 600; font-size: 13px;">Leave Title</th>
-                <th style="color: #6b7280; font-weight: 600; font-size: 13px;">Code</th>
-                <th style="color: #6b7280; font-weight: 600; font-size: 13px;">Allotted Days/Year</th>
-                <th style="color: #6b7280; font-weight: 600; font-size: 13px;">Attachment Required</th>
-                <th style="color: #6b7280; font-weight: 600; font-size: 13px;">Status</th>
-                <th style="color: #6b7280; font-weight: 600; font-size: 13px;">Description</th>
-                <th style="color: #6b7280; font-weight: 600; font-size: 13px;">Action</th>
+                <th style="color: #fff; font-weight: 600; font-size: 13px;">Leave Title</th>
+                <th style="color: #fff; font-weight: 600; font-size: 13px;">Code</th>
+                <th style="color: #fff; font-weight: 600; font-size: 13px;">Allotted Days/Year</th>
+                <th style="color: #fff; font-weight: 600; font-size: 13px;">Attachment Required</th>
+                <th style="color: #fff; font-weight: 600; font-size: 13px;">Status</th>
+                <th style="color: #fff; font-weight: 600; font-size: 13px;">Description</th>
+
               </tr>
             </thead>
             <tbody>
@@ -103,62 +103,9 @@
                 <td>
                   <small class="text-muted">{{ Str::limit($cat->description, 40) }}</small>
                 </td>
-                <td>
-                  <button class="btn btn-sm btn-outline-primary" data-bs-toggle="modal" data-bs-target="#editCategoryModal{{ $cat->id }}" title="Edit">
-                    <i class="fas fa-edit"></i>
-                  </button>
-                </td>
+
               </tr>
 
-              {{-- Edit Modal --}}
-              <div class="modal fade" id="editCategoryModal{{ $cat->id }}" tabindex="-1">
-                <div class="modal-dialog">
-                  <div class="modal-content" style="border-radius: 16px;">
-                    <div class="modal-header border-0">
-                      <h5 class="modal-title"><i class="fas fa-edit text-primary me-2"></i>Edit Leave Category</h5>
-                      <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
-                    </div>
-                    <form action="{{ route('department.leave.categories.update', $cat->id) }}" method="POST">
-                      @csrf
-                      @method('PUT')
-                      <div class="modal-body">
-                        <div class="mb-3">
-                          <label class="form-label fw-semibold">Leave Title <span class="text-danger">*</span></label>
-                          <input type="text" name="leave_type_name" class="form-control" value="{{ $cat->leave_type_name }}" required>
-                        </div>
-                        <div class="mb-3">
-                          <label class="form-label fw-semibold">Code <span class="text-danger">*</span></label>
-                          <input type="text" name="leave_type_code" class="form-control" value="{{ $cat->leave_type_code }}" required>
-                        </div>
-                        <div class="mb-3">
-                          <label class="form-label fw-semibold">Allotted Days Per Year</label>
-                          <input type="number" name="allowed_days_per_year" class="form-control" value="{{ $cat->allowed_days_per_year }}" min="0" placeholder="Leave empty for unlimited">
-                        </div>
-                        <div class="mb-3">
-                          <label class="form-label fw-semibold">Description</label>
-                          <textarea name="description" class="form-control" rows="2">{{ $cat->description }}</textarea>
-                        </div>
-                        <div class="mb-3">
-                          <label class="form-label fw-semibold">Badge Color</label>
-                          <select name="badge_color" class="form-select">
-                            @foreach(['primary','success','danger','warning','info','secondary','dark'] as $color)
-                            <option value="{{ $color }}" {{ $cat->badge_color === $color ? 'selected' : '' }}>{{ ucfirst($color) }}</option>
-                            @endforeach
-                          </select>
-                        </div>
-                        <div class="form-check">
-                          <input class="form-check-input" type="checkbox" name="requires_attachment" value="1" id="editAttachment{{ $cat->id }}" {{ $cat->requires_attachment ? 'checked' : '' }}>
-                          <label class="form-check-label" for="editAttachment{{ $cat->id }}">Requires Attachment</label>
-                        </div>
-                      </div>
-                      <div class="modal-footer border-0">
-                        <button type="button" class="btn btn-light" data-bs-dismiss="modal">Cancel</button>
-                        <button type="submit" class="btn btn-primary"><i class="fas fa-save me-1"></i>Update</button>
-                      </div>
-                    </form>
-                  </div>
-                </div>
-              </div>
               @endforeach
             </tbody>
           </table>

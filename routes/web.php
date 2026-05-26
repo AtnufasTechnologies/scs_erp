@@ -104,6 +104,7 @@ Route::group(['prefix' => '/erp'], function () {
         Route::delete('{studentId}/courses/{sciId}', [AdminController::class, 'stdCourseDestroy'])->name('admin.student.courses.destroy');
         Route::post('student/{studentId}/create-access', [AdminController::class, 'createStudentAccess'])->name('admin.student.create-access');
         Route::post('update/faculty', [AdminController::class, 'updateFaculty']);
+        Route::get('itcell-admission-applications', [AdmissionController::class, 'itcellAdmissionApplications'])->name('itcell.admission.applications');
 
         //master
         Route::group(['prefix' => '/master'], function () {

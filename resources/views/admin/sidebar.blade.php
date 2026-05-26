@@ -213,21 +213,18 @@ $roleType = UserHasRole::where('user_id', $userId)->value('role_name');
           </a>
         </li>
 
-
-
-
-        <!-- <li>
-          <a href="{{route('admin.subject-combination-master')}}">
-            <div class="parent-icon">
-              <i class="fas fa-arrow-alt-circle-right"></i>
-            </div>
-            <div class="menu-title">Subject Combination</div>
-          </a>
-        </li> -->
-
-
       </ul>
     </li>
+
+    <li>
+      <a href="{{route('itcell.admission.applications')}}">
+        <div class="parent-icon">
+          <i class="fas fa-check-circle"></i>
+        </div>
+        <div class="menu-title">Admission Applications</div>
+      </a>
+    </li>
+
 
     <!--Faculty Master -->
     @if (StaticController::subMenuRights('student-master-sonada') || StaticController::subMenuRights('student-master-siliguri') )
