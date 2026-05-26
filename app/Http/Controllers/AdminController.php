@@ -606,6 +606,21 @@ class AdminController extends Controller
         return redirect()->back()->with('success', 'Done');
     }
 
+    function updateCognitiveLvl(Request $request, $id)
+    {
+        $request->validate([
+            'short_name' => 'required',
+            'full_name' => 'required',
+        ]);
+
+        CognitiveLevelMaster::where('id', $id)->update([
+            'shortname' => $request->short_name,
+            'fullname' => $request->full_name,
+        ]);
+
+        return redirect()->back()->with('success', 'Updated');
+    }
+
 
     function departmentMaster()
     {

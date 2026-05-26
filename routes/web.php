@@ -135,6 +135,7 @@ Route::group(['prefix' => '/erp'], function () {
             Route::get('cognitive-lvl', [AdminController::class, 'cognitiveLvl']);
             Route::post('cognitive-lvl', [AdminController::class, 'addCognitiveLvl']);
             Route::get('del-coglvl/{id}', [AdminController::class, 'delCogLvl']);
+            Route::put('cognitive-lvl/{id}', [AdminController::class, 'updateCognitiveLvl'])->name('update.rbt.level');
 
             Route::get('departments', [AdminController::class, 'departmentMaster']);
 
