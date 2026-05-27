@@ -19,6 +19,16 @@ This folder contains all database migrations related to the HR (Human Resources)
     - `2026_05_27_100000_create_hr_pay_matrix_table.php`
     - `2026_05_27_100001_add_pay_matrix_to_faculty_salary_masters.php`
 
+5. **Designation & Grade Level Masters** - Academic and administrative position management
+    - `2026_05_27_120827_create_hr_designations_table.php` - Designation master (24 positions seeded)
+    - `2026_05_27_120827_create_hr_grade_levels_table.php` - Grade level master (L1-L14 pay scales)
+    - `2026_05_27_120902_add_designation_and_grade_to_faculties_table.php` - Links faculties to designations
+    - `2026_05_27_121429_add_designation_and_grade_foreign_keys_to_pay_matrices_table.php` - Links pay matrix to masters
+
+6. **Promotion Tracking** - Faculty promotion history (disabled - see .bak file)
+    - Tracks designation/grade/pay matrix changes over time
+    - Maintains complete promotion history for auditing
+
 ## Running Migrations
 
 To run these migrations:

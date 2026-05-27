@@ -118,6 +118,20 @@
       </a>
     </li>
 
+    <li class="menu-label">Masters</li>
+    <li>
+      <a href="{{ route('hr.designations.index') }}">
+        <div class="parent-icon"><i class="fas fa-id-card"></i></div>
+        <div class="menu-title">Designations</div>
+      </a>
+    </li>
+    <li>
+      <a href="{{ route('hr.grade-levels.index') }}">
+        <div class="parent-icon"><i class="fas fa-layer-group"></i></div>
+        <div class="menu-title">Grade Levels</div>
+      </a>
+    </li>
+
     <li class="menu-label">System</li>
     <li>
       <a href="{{ route('scms.logout') }}">

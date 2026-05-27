@@ -24,7 +24,7 @@ Salary Slip Details
       </div>
       <div class="ms-auto">
         <a href="{{ route('hr.payroll.index') }}" class="btn btn-secondary">
-          <i class="material-icons-outlined">arrow_back</i> Back to List
+          <i class="fas fa-arrow-left"></i> Back to List
         </a>
       </div>
     </div>
@@ -46,13 +46,13 @@ Salary Slip Details
             <form action="{{ route('hr.payroll.approve', $salarySlip->id) }}" method="POST" style="display: inline;">
               @csrf
               <button type="submit" class="btn btn-success">
-                <i class="material-icons-outlined">check</i> Approve
+                <i class="fas fa-check"></i> Approve
               </button>
             </form>
             @endif
             @if($salarySlip->status == 'approved')
             <button type="button" class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#markPaidModal">
-              <i class="material-icons-outlined">payments</i> Mark as Paid
+              <i class="fas fa-money-bill-wave"></i> Mark as Paid
             </button>
             @endif
           </div>

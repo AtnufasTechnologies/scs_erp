@@ -56,6 +56,8 @@ use App\Http\Controllers\HrFdpController;
 use App\Http\Controllers\HrVacancyController;
 use App\Http\Controllers\HrPayMatrixController;
 use App\Http\Controllers\HrPayrollController;
+use App\Http\Controllers\HrDesignationController;
+use App\Http\Controllers\HrGradeLevelController;
 use App\Http\Controllers\SyllabusPdfController;
 use App\Http\Controllers\SubjectController;
 use App\Http\Controllers\TestController;
@@ -1177,6 +1179,12 @@ Route::group(['prefix' => '/erp'], function () {
         Route::post('pay-matrix/{id}/duplicate', [HrPayMatrixController::class, 'duplicate'])->name('hr.pay-matrix.duplicate');
         Route::post('pay-matrix/{id}/apply-to-faculty', [HrPayMatrixController::class, 'applyToFaculty'])->name('hr.pay-matrix.apply-to-faculty');
         Route::get('pay-matrix/{id}/preview', [HrPayMatrixController::class, 'preview'])->name('hr.pay-matrix.preview');
+
+        // Designation Master
+        Route::resource('designations', HrDesignationController::class, ['as' => 'hr']);
+
+        // Grade Level Master
+        Route::resource('grade-levels', HrGradeLevelController::class, ['as' => 'hr']);
 
         // Payroll Management
         Route::get('payroll', [HrPayrollController::class, 'index'])->name('hr.payroll.index');

@@ -204,41 +204,54 @@ class HrFdpController extends Controller
   {
     $fdpProgram = HrFdpProgram::findOrFail($id);
 
-    $validated = $request->validate([
-      'faculty_id' => 'required|exists:faculties,id',
+    $request->validate([
+      'faculty_ids'      => 'required|array|min:1',
+      'faculty_ids.*'    => 'exists:faculties,id',
       'participant_type' => 'required|in:faculty,staff',
-      'status' => 'required|in:registered,approved',
-      'remarks' => 'nullable|string|max:500',
+      'status'           => 'required|in:registered,approved',
+      'remarks'          => 'nullable|string|max:500',
     ]);
 
-    // Check if already registered
-    $exists = HrFdpParticipant::where('fdp_program_id', $id)
-      ->where('faculty_id', $request->faculty_id)
-      ->exists();
+    $addedCount   = 0;
+    $skippedCount = 0;
 
-    if ($exists) {
-      return redirect()->back()
-        ->with('error', 'This faculty member is already registered for this program!');
+    foreach ($request->faculty_ids as $facultyId) {
+      // Skip if already registered
+      if (HrFdpParticipant::where('fdp_program_id', $id)->where('faculty_id', $facultyId)->exists()) {
+        $skippedCount++;
+        continue;
+      }
+
+      // Stop if program is full
+      if ($fdpProgram->isFull()) {
+        return redirect()->back()
+          ->with('error', 'Program reached maximum participants. Added ' . $addedCount . ', skipped ' . $skippedCount . '.');
+      }
+
+      $data = [
+        'fdp_program_id'   => $id,
+        'faculty_id'       => $facultyId,
+        'participant_type' => $request->participant_type,
+        'status'           => $request->status,
+        'remarks'          => $request->remarks,
+        'registration_date' => now(),
+      ];
+
+      if ($request->status === 'approved') {
+        $data['approved_by'] = Auth::id();
+        $data['approved_at'] = now();
+      }
+
+      HrFdpParticipant::create($data);
+      $addedCount++;
     }
 
-    // Check if program is full
-    if ($fdpProgram->isFull()) {
-      return redirect()->back()
-        ->with('error', 'This program has reached maximum participants!');
+    $message = $addedCount . ' participant(s) added successfully.';
+    if ($skippedCount > 0) {
+      $message .= ' ' . $skippedCount . ' skipped (already registered).';
     }
 
-    $validated['fdp_program_id'] = $id;
-    $validated['registration_date'] = now();
-
-    if ($request->status === 'approved') {
-      $validated['approved_by'] = Auth::id();
-      $validated['approved_at'] = now();
-    }
-
-    HrFdpParticipant::create($validated);
-
-    return redirect()->route('hr.fdp.show', $id)
-      ->with('success', 'Participant added successfully!');
+    return redirect()->route('hr.fdp.show', $id)->with('success', $message);
   }
 
   /**
@@ -300,19 +313,18 @@ class HrFdpController extends Controller
         'fdpParticipations.approver'
       ])->findOrFail($facultyId);
 
+      $participations = $faculty->fdpParticipations;
+
       $stats = [
-        'total_programs' => $faculty->fdpParticipations()->count(),
+        'total_programs' => $participations->count(),
         'completed' => $faculty->completedFdpPrograms()->count(),
-        'ongoing' => $faculty->fdpParticipations()
-          ->whereHas('fdpProgram', function ($q) {
-            $q->where('status', 'ongoing');
-          })->count(),
-        'certificates_earned' => $faculty->fdpParticipations()
-          ->where('certificate_issued', true)
-          ->count(),
+        'ongoing' => $participations->filter(function ($p) {
+          return optional($p->fdpProgram)->status === 'ongoing';
+        })->count(),
+        'certificates_earned' => $participations->where('certificate_issued', true)->count(),
       ];
 
-      return view('hr.fdp.faculty-detail', compact('faculty', 'stats'));
+      return view('hr.fdp.faculty-detail', compact('faculty', 'participations', 'stats'));
     } else {
       // Show list of all faculties with their FDP stats
       $query = Faculty::where('IS_LEFT', 0);

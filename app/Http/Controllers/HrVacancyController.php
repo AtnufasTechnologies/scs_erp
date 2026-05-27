@@ -47,7 +47,7 @@ class HrVacancyController extends Controller
    */
   public function create()
   {
-    $departments = Subject::orderBy('subject_name')->get();
+    $departments = Subject::orderBy('title')->get();
     return view('hr.vacancy.create', compact('departments'));
   }
 

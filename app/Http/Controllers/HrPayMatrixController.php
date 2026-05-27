@@ -56,7 +56,10 @@ class HrPayMatrixController extends Controller
    */
   public function create()
   {
-    return view('hr.pay-matrix.create');
+    $designations = \App\Models\HrDesignation::active()->ordered()->get();
+    $gradeLevels = \App\Models\HrGradeLevel::active()->ordered()->get();
+
+    return view('hr.pay-matrix.create', compact('designations', 'gradeLevels'));
   }
 
   /**
@@ -66,8 +69,10 @@ class HrPayMatrixController extends Controller
   {
     $validated = $request->validate([
       'matrix_name' => 'required|string|max:255',
-      'designation' => 'required|string|max:255',
-      'grade_level' => 'required|string|max:255',
+      'designation_id' => 'required|exists:hr_designations,id',
+      'grade_level_id' => 'required|exists:hr_grade_levels,id',
+      'designation' => 'nullable|string|max:255',
+      'grade_level' => 'nullable|string|max:255',
       'pay_band' => 'nullable|integer',
       'grade_pay' => 'nullable|integer',
       'employment_type' => 'required|in:permanent,contractual,adhoc,guest,visiting',

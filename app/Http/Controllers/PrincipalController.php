@@ -1037,6 +1037,7 @@ class PrincipalController extends Controller
       'lecturehallmaster',
       'subjectCourse.courseMaster.semestermaster',
       'subjectCourse.courseMaster.coursetypemaster',
+      'syllabus.semestermaster',
       'batch'
     ])->where('faculty_id', $id)->get();
 
@@ -1060,24 +1061,27 @@ class PrincipalController extends Controller
     }
 
     // Build assigned courses list
+    /*
     $assignedCourses = $timetable->map(function ($r) {
       $cm = $r->subjectCourse && $r->subjectCourse->courseMaster ? $r->subjectCourse->courseMaster : null;
+      $semester = $r->syllabus && $r->syllabus->semestermaster ? $r->syllabus->semestermaster->title : ($cm && $cm->semestermaster ? $cm->semestermaster->title : '-');
       return [
         'course_code' => $cm ? $cm->course_code : '-',
         'course_title' => $cm ? $cm->course_title : '-',
         'course_type' => $cm && $cm->coursetypemaster ? $cm->coursetypemaster->title : '-',
-        'semester' => $cm && $cm->semestermaster ? $cm->semestermaster->title : '-',
+        'semester' => $semester,
         'academic_year' => $cm ? $cm->academic_year : '-',
         'batch' => $r->batch ? $r->batch->batch_name : '-',
       ];
     })->unique('course_code')->values();
+    */
 
     return view('principal.faculty.timetable', compact(
       'faculty',
       'timetableGrid',
       'weekdays',
       'hours',
-      'assignedCourses'
+
     ));
   }
 
