@@ -138,7 +138,7 @@ class HrFacultyController extends Controller
   public function edit($id)
   {
     $faculty = Faculty::findOrFail($id);
-    $nationalities = NationalityMaster::orderBy('nationality_name')->get();
+    $nationalities = NationalityMaster::orderBy('name')->get();
     return view('hr.faculty.edit', compact('faculty', 'nationalities'));
   }
 

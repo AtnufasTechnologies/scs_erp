@@ -55,27 +55,35 @@
               <table class="table table-borderless">
                 <tr>
                   <th style="width: 40%;">Faculty Name:</th>
-                  <td><strong>{{ $application->faculty->name ?? '-' }}</strong></td>
+                  <td><strong>{{ $application->faculty->FIRST_NAME ?? '' }} {{ $application->faculty->LAST_NAME ?? '' }}</strong></td>
                 </tr>
                 <tr>
                   <th>Employee Code:</th>
-                  <td>{{ $application->faculty->faculty_code ?? '-' }}</td>
+                  <td>{{ $application->faculty->USER_CODE ?? '-' }}</td>
+                </tr>
+                <tr>
+                  <th>Department:</th>
+                  <td><span class="badge bg-secondary">{{ $application->faculty->department->name ?? '-' }}</span></td>
                 </tr>
                 <tr>
                   <th>Leave Type:</th>
-                  <td><span class="badge bg-info">{{ $application->leaveMaster->name ?? '-' }}</span></td>
+                  <td><span class="badge bg-info">{{ $application->leaveMaster->leave_type_name ?? ucfirst($application->leave_type) }}</span></td>
+                </tr>
+                <tr>
+                  <th>Applied Date:</th>
+                  <td><strong>{{ $application->created_at ? $application->created_at->format('d M Y, h:i A') : '-' }}</strong></td>
                 </tr>
                 <tr>
                   <th>From Date:</th>
-                  <td>{{ date('d M Y', strtotime($application->from_date)) }}</td>
+                  <td>{{ $application->start_date ? $application->start_date->format('d M Y') : '-' }}</td>
                 </tr>
                 <tr>
                   <th>To Date:</th>
-                  <td>{{ date('d M Y', strtotime($application->to_date)) }}</td>
+                  <td>{{ $application->end_date ? $application->end_date->format('d M Y') : '-' }}</td>
                 </tr>
                 <tr>
                   <th>Number of Days:</th>
-                  <td><span class="badge bg-secondary">{{ $application->days }} days</span></td>
+                  <td><span class="badge bg-dark">{{ $application->total_days }} day{{ $application->total_days > 1 ? 's' : '' }}</span></td>
                 </tr>
               </table>
             </div>
@@ -83,27 +91,87 @@
               <table class="table table-borderless">
                 <tr>
                   <th style="width: 40%;">Status:</th>
-                  <td><span class="badge bg-warning">{{ ucfirst($application->status) }}</span></td>
+                  <td>
+                    @if($application->status === 'pending')
+                    <span class="badge bg-warning">Pending</span>
+                    @elseif($application->status === 'approved')
+                    <span class="badge bg-success">Approved</span>
+                    @elseif($application->status === 'rejected')
+                    <span class="badge bg-danger">Rejected</span>
+                    @else
+                    <span class="badge bg-secondary">{{ ucfirst($application->status) }}</span>
+                    @endif
+                  </td>
                 </tr>
                 <tr>
                   <th>Academic Session:</th>
-                  <td>{{ $application->annualSession->session_name ?? '-' }}</td>
-                </tr>
-                <tr>
-                  <th>Applied Date:</th>
-                  <td>{{ date('d M Y, h:i A', strtotime($application->created_at)) }}</td>
+                  <td>{{ $application->created_at->format('Y') }}</td>
                 </tr>
                 <tr>
                   <th>Email:</th>
-                  <td>{{ $application->faculty->email ?? '-' }}</td>
+                  <td>{{ $application->faculty->MAIL_ID ?? '-' }}</td>
                 </tr>
                 <tr>
                   <th>Phone:</th>
-                  <td>{{ $application->faculty->phone ?? '-' }}</td>
+                  <td>{{ $application->faculty->MOBILE_NO ?? '-' }}</td>
                 </tr>
+                @if($application->forwarded_to)
+                <tr>
+                  <th>Forwarded To:</th>
+                  <td><span class="badge bg-primary">{{ $application->forwarded_to }}</span></td>
+                </tr>
+                @endif
+                @if($application->forwarded_at)
+                <tr>
+                  <th>Forwarded Date:</th>
+                  <td>{{ $application->forwarded_at->format('d M Y, h:i A') }}</td>
+                </tr>
+                @endif
+                @if($application->dept_action)
+                <tr>
+                  <th>Dept Action:</th>
+                  <td><span class="badge bg-info">{{ ucfirst($application->dept_action) }}</span></td>
+                </tr>
+                @endif
               </table>
             </div>
           </div>
+
+          <!-- Principal/VP Response Section -->
+          @if($application->approved_by)
+          <div class="row mt-3">
+            <div class="col-12">
+              <div class="alert alert-{{ $application->status === 'approved' ? 'success' : 'danger' }} border-0">
+                <h6 class="alert-heading">
+                  <i class="fas fa-{{ $application->status === 'approved' ? 'check-circle' : 'times-circle' }} me-2"></i>
+                  Authority Response
+                </h6>
+                <hr>
+                <div class="row">
+                  <div class="col-md-6">
+                    <p class="mb-1"><strong>Action By:</strong> {{ $application->approver->name ?? 'Authority' }}</p>
+                    <p class="mb-1"><strong>Date:</strong> {{ $application->approved_at ? $application->approved_at->format('d M Y, h:i A') : '-' }}</p>
+                  </div>
+                  <div class="col-md-6">
+                    <p class="mb-1"><strong>Decision:</strong>
+                      <span class="badge bg-{{ $application->status === 'approved' ? 'success' : 'danger' }}">
+                        {{ ucfirst($application->status) }}
+                      </span>
+                    </p>
+                  </div>
+                </div>
+                @if($application->admin_remarks)
+                <hr>
+                <p class="mb-0"><strong>Remarks:</strong> {{ $application->admin_remarks }}</p>
+                @endif
+                @if($application->rejection_reason)
+                <hr>
+                <p class="mb-0"><strong>Rejection Reason:</strong> {{ $application->rejection_reason }}</p>
+                @endif
+              </div>
+            </div>
+          </div>
+          @endif
 
           <div class="row mt-3">
             <div class="col-12">
@@ -113,6 +181,56 @@
               </div>
             </div>
           </div>
+
+          @if($application->forwarded_remarks)
+          <div class="row mt-3">
+            <div class="col-12">
+              <h6 class="mb-2">Forwarding Remarks:</h6>
+              <div class="alert alert-info">
+                {{ $application->forwarded_remarks }}
+              </div>
+            </div>
+          </div>
+          @endif
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Change Leave Type Card -->
+  <div class="row mb-4">
+    <div class="col-12">
+      <div class="card border-warning">
+        <div class="card-header bg-warning text-dark">
+          <h6 class="mb-0"><i class="fas fa-edit me-2"></i>Change Leave Type</h6>
+        </div>
+        <div class="card-body">
+          <p class="text-muted small mb-3">Update the leave type if the application was submitted under wrong category.</p>
+          <form action="{{ route('hr.leave.change-type', $application->id) }}" method="POST" class="row g-3 align-items-end">
+            @csrf
+            <div class="col-md-8">
+              <label class="form-label">Select New Leave Type <span class="text-danger">*</span></label>
+              <select name="leave_type_id" class="form-select @error('leave_type_id') is-invalid @enderror" required>
+                <option value="">-- Select Leave Type --</option>
+                @foreach($leaveTypes as $type)
+                <option value="{{ $type->id }}" {{ $application->leave_type_id == $type->id ? 'selected' : '' }}>
+                  {{ $type->leave_type_name }}
+                  @if($type->allowed_days_per_year)
+                  ({{ $type->allowed_days_per_year }} days/year)
+                  @endif
+                </option>
+                @endforeach
+              </select>
+              @error('leave_type_id')
+              <div class="invalid-feedback">{{ $message }}</div>
+              @enderror
+            </div>
+            <div class="col-md-4">
+              <button type="submit" class="btn btn-warning w-100" onclick="return confirm('Are you sure you want to change the leave type?')">
+                <i class="fas fa-sync me-1"></i>Update Leave Type
+              </button>
+            </div>
+          </form>
         </div>
       </div>
     </div>
@@ -127,7 +245,7 @@
           <h6 class="mb-0"><i class="fas fa-check-circle me-2"></i>Approve Application</h6>
         </div>
         <div class="card-body">
-          <p class="text-muted small">Approve this leave application with optional remarks.</p>
+          <p class="text-muted small">Special Rights to Approve this leave application with optional remarks.</p>
           <form action="{{ route('hr.leave.approve', $application->id) }}" method="POST">
             @csrf
             <div class="mb-3">
@@ -159,10 +277,7 @@
               <div class="invalid-feedback">{{ $message }}</div>
               @enderror
             </div>
-            <div class="mb-3">
-              <label class="form-label">Additional Remarks (Optional)</label>
-              <textarea name="admin_remarks" class="form-control" rows="2" placeholder="Add any remarks..."></textarea>
-            </div>
+
             <button type="submit" class="btn btn-danger w-100" onclick="return confirm('Are you sure you want to reject this leave application?')">
               <i class="fas fa-times me-1"></i>Reject Leave
             </button>
@@ -185,9 +300,8 @@
               <label class="form-label">Forward To <span class="text-danger">*</span></label>
               <select name="forwarded_to" class="form-select @error('forwarded_to') is-invalid @enderror" required>
                 <option value="">Select Authority</option>
-                <option value="Principal">Principal</option>
-                <option value="DeanOfStudentStudies">Dean of Student Studies</option>
-                <option value="DCOE">Deputy COE</option>
+                <option value="Principal">Principal | Vice Principal</option>
+
               </select>
               @error('forwarded_to')
               <div class="invalid-feedback">{{ $message }}</div>

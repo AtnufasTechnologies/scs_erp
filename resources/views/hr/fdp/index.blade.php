@@ -1,7 +1,7 @@
 @include('includes.header')
 
 <div class="wrapper">
-  @include('includes.hr-sidebar')
+  @include('hr.sidebar')
 
   <!--start main wrapper-->
   <main class="page-content">

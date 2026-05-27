@@ -101,7 +101,7 @@
                   <small class="text-muted">{{ $application->faculty->USER_CODE ?? '' }}</small>
                 </td>
                 <td>
-                  <span class="badge" style="background-color: {{ $application->leaveMaster->badge_color ?? '#6c757d' }}">
+                  <span class="badge badge-success">
                     {{ $application->leaveMaster->leave_type_name ?? $application->leave_type }}
                   </span>
                 </td>
@@ -124,12 +124,10 @@
                 <td>{{ $application->created_at->format('d M Y') }}</td>
                 <td>
                   <div class="btn-group btn-group-sm">
-                    <a href="{{ route('hr.leave.show', $application->id) }}" class="btn btn-outline-primary" title="View">
-                      <i class="fas fa-eye"></i>
-                    </a>
+
                     @if($application->status == 'pending')
                     <a href="{{ route('hr.leave.review', $application->id) }}" class="btn btn-outline-success" title="Review">
-                      <i class="fas fa-check"></i>
+                      <i class="fas fa-eye"></i>
                     </a>
                     @endif
                   </div>

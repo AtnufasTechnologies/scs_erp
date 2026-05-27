@@ -1122,14 +1122,14 @@ Route::group(['prefix' => '/erp'], function () {
 
         // Leave Management
         Route::get('leave', [HrLeaveController::class, 'index'])->name('hr.leave.index');
+        Route::get('leave/statistics', [HrLeaveController::class, 'statistics'])->name('hr.leave.statistics');
+        Route::post('leave/bulk-approve', [HrLeaveController::class, 'bulkApprove'])->name('hr.leave.bulk-approve');
         Route::get('leave/{id}', [HrLeaveController::class, 'show'])->name('hr.leave.show');
         Route::get('leave/{id}/review', [HrLeaveController::class, 'reviewForm'])->name('hr.leave.review');
         Route::post('leave/{id}/approve', [HrLeaveController::class, 'approve'])->name('hr.leave.approve');
         Route::post('leave/{id}/reject', [HrLeaveController::class, 'reject'])->name('hr.leave.reject');
         Route::post('leave/{id}/forward', [HrLeaveController::class, 'forward'])->name('hr.leave.forward');
         Route::post('leave/{id}/change-type', [HrLeaveController::class, 'changeLeaveType'])->name('hr.leave.change-type');
-        Route::get('leave/statistics', [HrLeaveController::class, 'statistics'])->name('hr.leave.statistics');
-        Route::post('leave/bulk-approve', [HrLeaveController::class, 'bulkApprove'])->name('hr.leave.bulk-approve');
 
         // FDP (Faculty Development Program) Management
         Route::get('fdp', [HrFdpController::class, 'index'])->name('hr.fdp.index');

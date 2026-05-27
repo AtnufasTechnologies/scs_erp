@@ -76,9 +76,12 @@ class HrLeaveController extends Controller
   public function reviewForm($id)
   {
     $application = FacultyLeaveApplication::with([
-      'faculty',
+      'faculty.department',
       'leaveMaster',
-      'annualSession'
+      'annualSession',
+      'approver',
+      'forwarder',
+      'deptActionUser'
     ])->findOrFail($id);
 
     if ($application->status !== 'pending') {
@@ -86,7 +89,10 @@ class HrLeaveController extends Controller
         ->with('error', 'This application has already been processed.');
     }
 
-    return view('hr.leave.review', compact('application'));
+    // Get all active leave types for changing leave type
+    $leaveTypes = \App\Models\LeaveMaster::active()->ordered()->get();
+
+    return view('hr.leave.review', compact('application', 'leaveTypes'));
   }
 
   /**
