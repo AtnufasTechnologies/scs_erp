@@ -40,7 +40,7 @@
           <div class="card-body text-center">
             @php $totalClasses = $syllabi->sum('total_classes'); @endphp
             <div class="fs-2 fw-bold text-info">{{ $totalClasses }}</div>
-            <div class="text-muted small">Total Classes Taken</div>
+            <div class="text-muted small">Classes Taken</div>
           </div>
         </div>
       </div>
@@ -126,7 +126,6 @@
                     <span class="small text-muted">Completion</span>
                   </div>
                   <div class="mb-2 d-flex flex-wrap gap-2 align-items-center">
-                    <span class="badge bg-info">{{ $syl->total_classes }} Classes</span>
                     <span class="badge {{ $syl->avg_attendance_percent >= 75 ? 'bg-success' : ($syl->avg_attendance_percent >= 50 ? 'bg-warning' : 'bg-danger') }}">
                       {{ $syl->avg_attendance_percent }}% Attendance
                     </span>
@@ -144,7 +143,7 @@
                   <a href="{{ route('principal.courses.detail', $syl->id) }}" class="btn btn-sm btn-outline-primary w-100" title="View Detail">
                     <i class="fas fa-chart-bar"></i> Detail
                   </a>
-                  <button class="btn btn-sm btn-outline-secondary w-100" data-bs-toggle="modal" data-bs-target="#subunitModal{{ $syl->id }}" title="Subunits">
+                  <button class="btn btn-sm btn-outline-success w-100" data-bs-toggle="modal" data-bs-target="#subunitModal{{ $syl->id }}" title="Subunits">
                     <i class="fas fa-list"></i> Subunits
                   </button>
                 </div>

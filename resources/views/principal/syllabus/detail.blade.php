@@ -18,38 +18,38 @@
     </div>
 
     {{-- Subject Header --}}
-    <div class="card mt-3 border-0 shadow-sm">
-      <div class="card-body p-4" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); border-radius: 0.5rem;">
-        <div class="row text-white">
-          <div class="col-md-8">
-            <h3 class="mb-1">{{ $subject->title }}</h3>
-            <div class="d-flex flex-wrap gap-3 mt-2">
-              <span><i class="fas fa-code me-1"></i> {{ $subject->code }}</span>
-              <span><i class="fas fa-building me-1"></i> {{ $subject->campusmaster ? $subject->campusmaster->name : '-' }}</span>
-            </div>
+
+    <div class="card-body p-4" style="background: linear-gradient(135deg, #7735f1dd 0%, #5fdb9d 100%); border-radius: 0.5rem;">
+      <div class="row text-white">
+        <div class="col-md-8">
+          <h3 class="mb-1">{{ $subject->title }}</h3>
+          <div class="d-flex flex-wrap gap-3 mt-2">
+            <span><i class="fas fa-code me-1"></i> {{ $subject->code }}</span>
+            <span><i class="fas fa-building me-1"></i> {{ $subject->campusmaster ? $subject->campusmaster->name : '-' }}</span>
           </div>
-          <div class="col-md-4 text-end">
-            <form method="GET" action="{{ route('principal.syllabus.detail', $subject->id) }}" class="d-flex gap-2 justify-content-end flex-wrap">
-              <select name="batch_id" class="form-select form-select-sm" style="width: 140px;" onchange="this.form.submit()">
-                <option value="">All Batches</option>
-                @foreach($batches as $batch)
-                <option value="{{ $batch->id }}" {{ (string)$selectedBatch === (string)$batch->id ? 'selected' : '' }}>{{ $batch->batch_name }}</option>
-                @endforeach
-              </select>
-              <select name="semester_id" class="form-select form-select-sm" style="width: 150px;" onchange="this.form.submit()">
-                <option value="">All Semesters</option>
-                @foreach($semesters as $sem)
-                <option value="{{ $sem->id }}" {{ (string)$selectedSemester === (string)$sem->id ? 'selected' : '' }}>{{ $sem->title }}</option>
-                @endforeach
-              </select>
-              @if($selectedBatch || $selectedSemester)
-              <a href="{{ route('principal.syllabus.detail', $subject->id) }}" class="btn btn-sm btn-light"><i class="fas fa-times"></i></a>
-              @endif
-            </form>
-          </div>
+        </div>
+        <div class="col-md-4 text-end">
+          <form method="GET" action="{{ route('principal.syllabus.detail', $subject->id) }}" class="d-flex gap-2 justify-content-end flex-wrap">
+            <select name="batch_id" class="form-select form-select-sm" style="width: 140px;" onchange="this.form.submit()">
+              <option value="">All Batches</option>
+              @foreach($batches as $batch)
+              <option value="{{ $batch->id }}" {{ (string)$selectedBatch === (string)$batch->id ? 'selected' : '' }}>{{ $batch->batch_name }}</option>
+              @endforeach
+            </select>
+            <select name="semester_id" class="form-select form-select-sm" style="width: 150px;" onchange="this.form.submit()">
+              <option value="">All Semesters</option>
+              @foreach($semesters as $sem)
+              <option value="{{ $sem->id }}" {{ (string)$selectedSemester === (string)$sem->id ? 'selected' : '' }}>{{ $sem->title }}</option>
+              @endforeach
+            </select>
+            @if($selectedBatch || $selectedSemester)
+            <a href="{{ route('principal.syllabus.detail', $subject->id) }}" class="btn btn-sm btn-light"><i class="fas fa-times"></i></a>
+            @endif
+          </form>
         </div>
       </div>
     </div>
+
 
     {{-- Summary Cards --}}
     <div class="row mt-3 g-3">
@@ -132,7 +132,7 @@
                       <small class="fw-semibold">{{ $syl->completed_subunits }}/{{ $syl->total_subunits }}</small>
                     </div>
                     <div class="progress" style="height: 8px;">
-                      <div class="progress-bar {{ $syl->completion_percent >= 75 ? 'bg-success' : ($syl->completion_percent >= 50 ? 'bg-warning' : 'bg-danger') }}"
+                      <div class="progress-bar {{ $syl->completion_percent >= 75 ? 'bg-success' : ($syl->completion_percent >= 50 ? 'bg-primary' : 'bg-danger') }}"
                         role="progressbar" style="width: {{ $syl->completion_percent }}%"></div>
                     </div>
                   </div>
@@ -153,10 +153,12 @@
                     <table class="table table-sm table-hover mb-0" style="font-size: 0.78rem;">
                       <thead class="table-light sticky-top">
                         <tr>
-                          <th>#</th>
+                          <th style="width: 35px;">#</th>
                           <th>CSO Subunit</th>
-                          <th>Taxonomy</th>
-                          <th>Status</th>
+                          <th style="width: 110px;">Taxonomy</th>
+                          <th style="width: 60px;">Resource</th>
+                          <th style="width: 60px;">Question</th>
+                          <th style="width: 60px;">Status</th>
                         </tr>
                       </thead>
                       <tbody>
@@ -167,9 +169,31 @@
                           <td>{{ $su->csoSubunit ? $su->csoSubunit->title : 'N/A' }}</td>
                           <td>
                             @if($su->csoSubunit && $su->csoSubunit->taxomonylevel)
-                            <span class="badge bg-info-subtle text-info" style="font-size: 0.65rem;">{{ $su->csoSubunit->taxomonylevel->title ?? '-' }}</span>
+                            <span class="badge bg-info text-white" style="font-size: 0.7rem;">{{ $su->csoSubunit->taxomonylevel->fullname }}</span>
                             @else
-                            <span class="text-muted">-</span>
+                            <span class="text-muted small">-</span>
+                            @endif
+                          </td>
+                          <td>
+                            @if($su->learningResources->count() > 0)
+                            <span class="badge bg-success" style="font-size: 0.65rem;" title="{{ $su->learningResources->count() }} resource(s)">
+                              <i class="fas fa-check"></i> {{ $su->learningResources->count() }}
+                            </span>
+                            @else
+                            <span class="badge bg-secondary" style="font-size: 0.65rem;" title="No resources">
+                              <i class="fas fa-times"></i>
+                            </span>
+                            @endif
+                          </td>
+                          <td>
+                            @if($su->questions->count() > 0)
+                            <span class="badge bg-success" style="font-size: 0.65rem;" title="{{ $su->questions->count() }} question(s)">
+                              <i class="fas fa-check"></i> {{ $su->questions->count() }}
+                            </span>
+                            @else
+                            <span class="badge bg-secondary" style="font-size: 0.65rem;" title="No questions">
+                              <i class="fas fa-times"></i>
+                            </span>
                             @endif
                           </td>
                           <td>

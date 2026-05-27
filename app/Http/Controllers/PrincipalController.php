@@ -378,7 +378,8 @@ class PrincipalController extends Controller
       'hourmaster',
       'lecturehallmaster.acblockmaster',
       'faculty',
-      'subjectCourse',
+      'subjectCourse.courseMaster.semestermaster',
+      'syllabus.semestermaster',
       'batch'
     ])->whereHas('weekdaymaster', function ($q) use ($dayOfWeek) {
       $q->where('id', $dayOfWeek);
@@ -664,8 +665,9 @@ class PrincipalController extends Controller
       if ($syl->timetable) {
         $routineId = $syl->timetable->id;
         $courseId = $syl->timetable->subject_course_id;
+        // Count distinct attendance dates (actual number of classes taken)
         $syl->total_classes = StudentAttendance::where('routine_id', $routineId)
-          ->select('attendance_date', 'hour_id')->distinct()->count();
+          ->groupBy('attendance_date')->count();
         $totalAttRecords = StudentAttendance::where('routine_id', $routineId)->count();
         $presentRecords = StudentAttendance::where('routine_id', $routineId)->where('status', 'present')->count();
         $syl->avg_attendance_percent = $totalAttRecords > 0 ? round(($presentRecords / $totalAttRecords) * 100, 1) : 0;
@@ -743,7 +745,7 @@ class PrincipalController extends Controller
 
       // Total distinct class dates
       $totalClassesTaken = StudentAttendance::where('routine_id', $routineId)
-        ->select('attendance_date')->distinct()->count();
+        ->groupBy('attendance_date')->count();
 
       // Student-wise attendance summary
       $studentAttendanceSummary = StudentAttendance::where('routine_id', $routineId)
@@ -913,6 +915,8 @@ class PrincipalController extends Controller
         'batchmaster',
         'semestermaster',
         'syllabusunits.csoSubunit.taxomonylevel',
+        'syllabusunits.learningResources',
+        'syllabusunits.questions',
         'courseLink.courseMaster.coursetypemaster',
         'timetable.faculty',
       ]);
