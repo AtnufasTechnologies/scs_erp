@@ -89,4 +89,37 @@ class Faculty extends Model
     {
         return $this->hasMany(FacultyRemuneration::class, 'faculty_id');
     }
+
+    /**
+     * Get leave applications for this faculty
+     */
+    public function leaveApplications()
+    {
+        return $this->hasMany(FacultyLeaveApplication::class, 'faculty_id');
+    }
+
+    /**
+     * Get FDP participations for this faculty
+     */
+    public function fdpParticipations()
+    {
+        return $this->hasMany(HrFdpParticipant::class, 'faculty_id');
+    }
+
+    /**
+     * Get completed FDP programs
+     */
+    public function completedFdpPrograms()
+    {
+        return $this->hasMany(HrFdpParticipant::class, 'faculty_id')
+            ->where('status', 'completed');
+    }
+
+    /**
+     * Get full name attribute
+     */
+    public function getFullNameAttribute()
+    {
+        return trim($this->FIRST_NAME . ' ' . $this->MIDDLE_NAME . ' ' . $this->LAST_NAME);
+    }
 }

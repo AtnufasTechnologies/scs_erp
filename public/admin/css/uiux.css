@@ -581,3 +581,18 @@
     margin-bottom: 0.5rem;
     display: block;
 }
+
+.gradient-purple {
+    background: linear-gradient(135deg, #7f00ff, #413949);
+    color: #fff;
+    border: none;
+    border-radius: 5px;
+    padding: 0.5rem;
+    font-weight: 400;
+    cursor: pointer;
+    transition:
+        background 0.2s,
+        transform 0.2s,
+        box-shadow 0.2s;
+    box-shadow: 0 2px 8px rgba(127, 0, 255, 0.15);
+}

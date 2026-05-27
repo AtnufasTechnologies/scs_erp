@@ -1,5 +1,27 @@
 @php
 use App\Http\Controllers\StaticController;
+use App\Models\FacultyLeaveApplication;
+use App\Models\UserCampusSetting;
+use App\Models\DepartmentMaster;
+use App\Models\Faculty;
+
+// Get pending leave count forwarded to principal
+$pendingLeaveQuery = FacultyLeaveApplication::where('forwarded_to', 'Principal')
+->where('dept_action', 'forwarded')
+->where('status', 'pending');
+
+// Check if user is vice-principal and filter by campus
+$userRole = auth()->user()->userroletype->role_name ?? null;
+if ($userRole === 'vice-principal') {
+$vpCampusId = UserCampusSetting::where('user_id', auth()->id())->value('campus_id');
+if ($vpCampusId) {
+$deptIds = DepartmentMaster::where('campus_id', $vpCampusId)->pluck('id');
+$facultyIds = Faculty::whereIn('DEPARTMENT', $deptIds)->pluck('id');
+$pendingLeaveQuery->whereIn('faculty_id', $facultyIds);
+}
+}
+
+$pendingLeaveCount = $pendingLeaveQuery->count();
 @endphp
 <!--start sidebar -->
 <aside class="sidebar-wrapper" data-simplebar="true">
@@ -87,6 +109,9 @@ use App\Http\Controllers\StaticController;
       <a href="{{ route('principal.leaves.index') }}">
         <div class="parent-icon">
           <i class="fas fa-calendar-check"></i>
+          @if($pendingLeaveCount > 0)
+          <span class="badge bg-danger rounded-pill" style="position: absolute; top: -5px; right: -5px; font-size: 10px;">{{ $pendingLeaveCount }}</span>
+          @endif
         </div>
         <div class="menu-title">Leave Management</div>
       </a>

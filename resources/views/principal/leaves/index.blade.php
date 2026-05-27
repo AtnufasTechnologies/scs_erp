@@ -27,12 +27,18 @@
     <div class="card mt-3">
       <div class="card-body">
         <form method="GET" action="{{ route('principal.leaves.index') }}" class="d-flex align-items-center gap-2 flex-wrap">
-          <select name="campus_id" class="form-select form-select-sm" style="width: 180px;" onchange="this.form.submit()">
+          @php
+          $isVicePrincipal = auth()->user()->userroletype->role_name === 'vice-principal';
+          @endphp
+          <select name="campus_id" class="form-select form-select-sm" style="width: 180px;" onchange="this.form.submit()" {{ $isVicePrincipal ? 'disabled' : '' }}>
             <option value="">All Campuses</option>
             @foreach($campuses as $campus)
             <option value="{{ $campus->id }}" {{ (string)$selectedCampus === (string)$campus->id ? 'selected' : '' }}>{{ $campus->name }}</option>
             @endforeach
           </select>
+          @if($isVicePrincipal && $selectedCampus)
+          <input type="hidden" name="campus_id" value="{{ $selectedCampus }}">
+          @endif
           <select name="status" class="form-select form-select-sm" style="width: 160px;" onchange="this.form.submit()">
             <option value="">All Status</option>
             <option value="pending" {{ $selectedStatus === 'pending' ? 'selected' : '' }}>Pending</option>

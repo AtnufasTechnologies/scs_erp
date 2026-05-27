@@ -54,6 +54,19 @@ class PrincipalController extends Controller
   {
     $campuses = Campus::all();
 
+    // Check if user is vice-principal
+    $userRole = auth()->user()->userroletype->role_name ?? null;
+    $isVicePrincipal = $userRole === 'vice-principal';
+    $vpCampusId = null;
+
+    // Get VP's campus if applicable
+    if ($isVicePrincipal) {
+      $vpCampusId = UserCampusSetting::where('user_id', auth()->id())->value('campus_id');
+      if ($vpCampusId) {
+        $campuses = Campus::where('id', $vpCampusId)->get();
+      }
+    }
+
     // Student stats per campus
     $studentStats = [];
     foreach ($campuses as $campus) {
@@ -63,34 +76,84 @@ class PrincipalController extends Controller
         'active' => StudentMaster::where('campus_id', $campus->id)->where('is_active', 1)->count(),
       ];
     }
-    $totalStudents = StudentMaster::count();
 
-    // Faculty stats
-    $totalFaculty = Faculty::whereNull('IS_LEFT')->orWhere('IS_LEFT', 0)->count();
-    $facultyOnLeaveToday = FacultyLeaveApplication::where('status', 'approved')
+    // Total students (filtered by campus for VP)
+    $totalStudentsQuery = StudentMaster::query();
+    if ($isVicePrincipal && $vpCampusId) {
+      $totalStudentsQuery->where('campus_id', $vpCampusId);
+    }
+    $totalStudents = $totalStudentsQuery->count();
+
+    // Faculty stats (filtered by campus for VP)
+    $totalFacultyQuery = Faculty::where(function ($q) {
+      $q->whereNull('IS_LEFT')->orWhere('IS_LEFT', 0);
+    });
+    if ($isVicePrincipal && $vpCampusId) {
+      $totalFacultyQuery->where('CAMPUS_ID', $vpCampusId);
+    }
+    $totalFaculty = $totalFacultyQuery->count();
+
+    // Faculty on leave today (filtered by campus for VP)
+    $facultyOnLeaveTodayQuery = FacultyLeaveApplication::where('status', 'approved')
       ->whereDate('start_date', '<=', today())
-      ->whereDate('end_date', '>=', today())
-      ->count();
+      ->whereDate('end_date', '>=', today());
+    if ($isVicePrincipal && $vpCampusId) {
+      $deptIds = DepartmentMaster::where('campus_id', $vpCampusId)->pluck('id');
+      $facultyIds = Faculty::whereIn('DEPARTMENT', $deptIds)->pluck('id');
+      $facultyOnLeaveTodayQuery->whereIn('faculty_id', $facultyIds);
+    }
+    $facultyOnLeaveToday = $facultyOnLeaveTodayQuery->count();
 
-    // Admission stats
-    $totalRegistrations = AdmissionRegistration::where('otp_verification', 1)->count();
-    $totalApplications = AdmissionApplication::count();
-    $registrationsByCampus = AdmissionRegistration::where('otp_verification', 1)
+    // Admission stats (filtered by campus for VP)
+    $totalRegistrationsQuery = AdmissionRegistration::where('otp_verification', 1);
+    if ($isVicePrincipal && $vpCampusId) {
+      $totalRegistrationsQuery->where('campus_id', $vpCampusId);
+    }
+    $totalRegistrations = $totalRegistrationsQuery->count();
+
+    $totalApplicationsQuery = AdmissionApplication::query();
+    if ($isVicePrincipal && $vpCampusId) {
+      $totalApplicationsQuery->whereHas('registrationmaster', function ($q) use ($vpCampusId) {
+        $q->where('campus_id', $vpCampusId);
+      });
+    }
+    $totalApplications = $totalApplicationsQuery->count();
+
+    $registrationsByCampusQuery = AdmissionRegistration::where('otp_verification', 1)
       ->select('campus_id', DB::raw('count(*) as total'))
-      ->groupBy('campus_id')
-      ->pluck('total', 'campus_id');
+      ->groupBy('campus_id');
+    if ($isVicePrincipal && $vpCampusId) {
+      $registrationsByCampusQuery->where('campus_id', $vpCampusId);
+    }
+    $registrationsByCampus = $registrationsByCampusQuery->pluck('total', 'campus_id');
 
-    // Today's classes count
-    $todayWeekday = now()->dayOfWeekIso; // 1=Monday ... 7=Sunday
-    $todayClassesCount = SubjectHasRoutine::whereHas('weekdaymaster', function ($q) use ($todayWeekday) {
+    // Today's classes count (filtered by campus for VP)
+    $todayWeekday = now()->dayOfWeekIso;
+    $todayClassesQuery = SubjectHasRoutine::whereHas('weekdaymaster', function ($q) use ($todayWeekday) {
       $q->where('id', $todayWeekday);
-    })->count();
+    });
+    if ($isVicePrincipal && $vpCampusId) {
+      $todayClassesQuery->whereHas('lecturehallmaster.acblockmaster', function ($q) use ($vpCampusId) {
+        $q->where('campus_id', $vpCampusId);
+      });
+    }
+    $todayClassesCount = $todayClassesQuery->count();
 
-    // Pending leaves
-    $pendingLeaves = FacultyLeaveApplication::where('status', 'pending')->count();
+    // Pending leaves (filtered by campus for VP)
+    $pendingLeavesQuery = FacultyLeaveApplication::where('status', 'pending');
+    if ($isVicePrincipal && $vpCampusId) {
+      $deptIds = DepartmentMaster::where('campus_id', $vpCampusId)->pluck('id');
+      $facultyIds = Faculty::whereIn('DEPARTMENT', $deptIds)->pluck('id');
+      $pendingLeavesQuery->whereIn('faculty_id', $facultyIds);
+    }
+    $pendingLeaves = $pendingLeavesQuery->count();
 
-    // Department count
-    $totalDepartments = DepartmentMaster::count();
+    // Department count (filtered by campus for VP)
+    $totalDepartmentsQuery = DepartmentMaster::query();
+    if ($isVicePrincipal && $vpCampusId) {
+      $totalDepartmentsQuery->where('campus_id', $vpCampusId);
+    }
+    $totalDepartments = $totalDepartmentsQuery->count();
 
     // Programs count
     $totalPrograms = ProgramGroup::count();
@@ -118,6 +181,10 @@ class PrincipalController extends Controller
   {
     $campuses = Campus::all();
 
+    // Check if user is vice-principal
+    $userRole = auth()->user()->userroletype->role_name ?? null;
+    $isVicePrincipal = $userRole === 'vice-principal';
+
     $query = StudentMaster::with([
       'religionmaster:id,name',
       'deptmaster:id,department_code,name',
@@ -128,7 +195,14 @@ class PrincipalController extends Controller
       'programgroup.programInfo'
     ]);
 
-    if ($request->filled('campus_id')) {
+    // For vice-principals, automatically filter by their assigned campus
+    if ($isVicePrincipal) {
+      $vpCampusId = UserCampusSetting::where('user_id', auth()->id())->value('campus_id');
+      if ($vpCampusId) {
+        $query->where('campus_id', $vpCampusId);
+        $request->merge(['campus_id' => $vpCampusId]);
+      }
+    } elseif ($request->filled('campus_id')) {
       $query->where('campus_id', $request->campus_id);
     }
 
@@ -146,10 +220,21 @@ class PrincipalController extends Controller
     $campuses = Campus::all();
     $departments = DepartmentMaster::all();
 
+    // Check if user is vice-principal
+    $userRole = auth()->user()->userroletype->role_name ?? null;
+    $isVicePrincipal = $userRole === 'vice-principal';
+
     $query = Faculty::where('is_left', 0)->whereNull('deleted_at');
 
-    // Filter by campus via department
-    if ($request->filled('campus_id')) {
+    // For vice-principals, automatically filter by their assigned campus
+    if ($isVicePrincipal) {
+      $vpCampusId = UserCampusSetting::where('user_id', auth()->id())->value('campus_id');
+      if ($vpCampusId) {
+        $deptIds = DepartmentMaster::where('campus_id', $vpCampusId)->pluck('id');
+        $query->whereIn('DEPARTMENT', $deptIds);
+        $request->merge(['campus_id' => $vpCampusId]);
+      }
+    } elseif ($request->filled('campus_id')) {
       $deptIds = DepartmentMaster::where('campus_id', $request->campus_id)->pluck('id');
       $query->whereIn('DEPARTMENT', $deptIds);
     }
@@ -270,9 +355,21 @@ class PrincipalController extends Controller
   public function classes(Request $request)
   {
     $campuses = Campus::all();
-    $selectedCampus = $request->campus_id;
     $selectedDate = $request->date ?? today()->format('Y-m-d');
 
+    // Check if user is vice-principal
+    $userRole = auth()->user()->userroletype->role_name ?? null;
+    $isVicePrincipal = $userRole === 'vice-principal';
+
+    // For vice-principals, automatically filter by their assigned campus
+    if ($isVicePrincipal) {
+      $vpCampusId = UserCampusSetting::where('user_id', auth()->id())->value('campus_id');
+      if ($vpCampusId) {
+        $request->merge(['campus_id' => $vpCampusId]);
+      }
+    }
+
+    $selectedCampus = $request->campus_id;
     $dayOfWeek = \Carbon\Carbon::parse($selectedDate)->dayOfWeekIso;
     $hours = HourMaster::all();
 
@@ -320,6 +417,19 @@ class PrincipalController extends Controller
   public function admissions(Request $request)
   {
     $campuses = Campus::all();
+
+    // Check if user is vice-principal
+    $userRole = auth()->user()->userroletype->role_name ?? null;
+    $isVicePrincipal = $userRole === 'vice-principal';
+
+    // For vice-principals, automatically filter by their assigned campus
+    if ($isVicePrincipal) {
+      $vpCampusId = UserCampusSetting::where('user_id', auth()->id())->value('campus_id');
+      if ($vpCampusId) {
+        $request->merge(['campus_id' => $vpCampusId]);
+      }
+    }
+
     $selectedCampus = $request->campus_id;
 
     // Registrations
@@ -483,6 +593,18 @@ class PrincipalController extends Controller
     $semesters = Semester::orderBy('id')->get();
     $academicYears = ProgramCourseMaster::select('academic_year')
       ->distinct()->orderBy('academic_year', 'desc')->pluck('academic_year');
+
+    // Check if user is vice-principal
+    $userRole = auth()->user()->userroletype->role_name ?? null;
+    $isVicePrincipal = $userRole === 'vice-principal';
+
+    // For vice-principals, automatically filter by their assigned campus
+    if ($isVicePrincipal) {
+      $vpCampusId = UserCampusSetting::where('user_id', auth()->id())->value('campus_id');
+      if ($vpCampusId) {
+        $request->merge(['campus_id' => $vpCampusId]);
+      }
+    }
 
     $query = SubjectHasSyllabus::with([
       'subject',
@@ -695,6 +817,18 @@ class PrincipalController extends Controller
     $campuses = Campus::all();
     $semesters = Semester::orderBy('id')->get();
     $batches = BatchMaster::orderBy('batch_name', 'desc')->get();
+
+    // Check if user is vice-principal
+    $userRole = auth()->user()->userroletype->role_name ?? null;
+    $isVicePrincipal = $userRole === 'vice-principal';
+
+    // For vice-principals, automatically filter by their assigned campus
+    if ($isVicePrincipal) {
+      $vpCampusId = UserCampusSetting::where('user_id', auth()->id())->value('campus_id');
+      if ($vpCampusId) {
+        $request->merge(['campus_id' => $vpCampusId]);
+      }
+    }
 
     $query = Subject::withCount('syllabus')
       ->with(['campusmaster']);
@@ -1059,14 +1193,32 @@ class PrincipalController extends Controller
   {
     $campuses = Campus::all();
     $query = FacultyLeaveApplication::with(['faculty', 'leaveMaster'])
+      ->where('forwarded_to', 'Principal')
+      ->where('dept_action', 'forwarded')
       ->orderByRaw("FIELD(status, 'pending', 'approved', 'rejected')")
       ->orderBy('created_at', 'desc');
+
+    // Check if user is vice-principal
+    $userRole = auth()->user()->userroletype->role_name ?? null;
+    $isVicePrincipal = $userRole === 'vice-principal';
+
+    // For vice-principals, automatically filter by their assigned campus
+    if ($isVicePrincipal) {
+      $vpCampusId = UserCampusSetting::where('user_id', auth()->id())->value('campus_id');
+      if ($vpCampusId) {
+        $deptIds = DepartmentMaster::where('campus_id', $vpCampusId)->pluck('id');
+        $facultyIds = Faculty::whereIn('DEPARTMENT', $deptIds)->pluck('id');
+        $query->whereIn('faculty_id', $facultyIds);
+        $request->merge(['campus_id' => $vpCampusId]); // Set for view
+      }
+    }
 
     if ($request->filled('status')) {
       $query->where('status', $request->status);
     }
 
-    if ($request->filled('campus_id')) {
+    // For principals, allow manual campus filtering
+    if (!$isVicePrincipal && $request->filled('campus_id')) {
       $deptIds = DepartmentMaster::where('campus_id', $request->campus_id)->pluck('id');
       $facultyIds = Faculty::whereIn('DEPARTMENT', $deptIds)->pluck('id');
       $query->whereIn('faculty_id', $facultyIds);
@@ -1156,6 +1308,18 @@ class PrincipalController extends Controller
     $campuses = Campus::all();
     $batches = BatchMaster::orderBy('batch_name')->get();
     $programs = ProgramGroup::with('programInfo')->get();
+
+    // Check if user is vice-principal
+    $userRole = auth()->user()->userroletype->role_name ?? null;
+    $isVicePrincipal = $userRole === 'vice-principal';
+
+    // For vice-principals, automatically filter by their assigned campus
+    if ($isVicePrincipal) {
+      $vpCampusId = UserCampusSetting::where('user_id', auth()->id())->value('campus_id');
+      if ($vpCampusId) {
+        $request->merge(['campus_id' => $vpCampusId]);
+      }
+    }
 
     $query = StudentMaster::with([
       'batchmaster',
@@ -1266,6 +1430,18 @@ class PrincipalController extends Controller
     $batches = BatchMaster::orderBy('batch_name')->get();
     $programs = ProgramGroup::with('programInfo')->get();
 
+    // Check if user is vice-principal
+    $userRole = auth()->user()->userroletype->role_name ?? null;
+    $isVicePrincipal = $userRole === 'vice-principal';
+
+    // For vice-principals, automatically filter by their assigned campus
+    if ($isVicePrincipal) {
+      $vpCampusId = UserCampusSetting::where('user_id', auth()->id())->value('campus_id');
+      if ($vpCampusId) {
+        $request->merge(['campus_id' => $vpCampusId]);
+      }
+    }
+
     $query = StudentMaster::with([
       'batchmaster',
       'campusmaster',
@@ -1350,6 +1526,18 @@ class PrincipalController extends Controller
     $selectedMonth = $request->month ?? now()->format('Y-m');
     $startDate = Carbon::parse($selectedMonth . '-01')->startOfMonth();
     $endDate = $startDate->copy()->endOfMonth();
+
+    // Check if user is vice-principal
+    $userRole = auth()->user()->userroletype->role_name ?? null;
+    $isVicePrincipal = $userRole === 'vice-principal';
+
+    // For vice-principals, automatically filter by their assigned campus
+    if ($isVicePrincipal) {
+      $vpCampusId = UserCampusSetting::where('user_id', auth()->id())->value('campus_id');
+      if ($vpCampusId) {
+        $request->merge(['campus_id' => $vpCampusId]);
+      }
+    }
 
     // Fetch active faculties
     $facultyQuery = Faculty::where(function ($q) {
