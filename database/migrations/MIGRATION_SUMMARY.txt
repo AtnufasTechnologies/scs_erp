@@ -1,0 +1,104 @@
+================================================================================
+                    SCS ERP - Migration Organization Summary
+================================================================================
+
+Total Migration Files: 155
+Organized into: 13 Folders
+
+================================================================================
+FOLDER BREAKDOWN
+================================================================================
+
+📁 core (5 files)
+   ├── Framework authentication & system tables
+   └── users, password_resets, failed_jobs, personal_access_tokens
+
+📁 admissions (8 files)
+   ├── Student admission lifecycle
+   └── registrations, applications, fees, payment logs, admission phases
+
+📁 academic (30 files)
+   ├── Academic structure & curriculum
+   └── programs, subjects, syllabus, courses, batches, learning outcomes
+
+📁 faculty (26 files)
+   ├── Faculty management & payroll
+   └── master data, work diaries, leave, salary, loans, remuneration
+
+📁 students (13 files)
+   ├── Student management & tracking
+   └── master records, enrollment, attendance, payments
+
+📁 exams (9 files)
+   ├── Examination & assessment
+   └── exam schedules, registrations, internal marks, question banks
+
+📁 fees (15 files)
+   ├── Fee structure & financial management
+   └── fee structures, heads, late fees, banking
+
+📁 infrastructure (5 files)
+   ├── Campus facilities
+   └── campuses, buildings, classrooms, rooms
+
+📁 masters (9 files)
+   ├── Master data & lookup tables
+   └── countries, religions, weekdays, cognitive levels, paper types
+
+📁 permissions (10 files)
+   ├── Access control & RBAC
+   └── permissions, roles, menu access, user assignments
+
+📁 system (8 files)
+   ├── System utilities & logging
+   └── error logs, activity logs, SMS, OTP, notifications
+
+📁 event_coordinator (10 files)
+   ├── Event & program management
+   └── events, programs, faculty duties, participants, sponsorships
+
+📁 hr (7 files)
+   ├── Human Resources module
+   └── FDP programs, vacancies, recruitment, pay matrix, payroll
+
+================================================================================
+USAGE COMMANDS
+================================================================================
+
+Run all migrations:
+$ php artisan migrate
+
+Run specific folder:
+$ php artisan migrate --path=database/migrations/academic
+$ php artisan migrate --path=database/migrations/hr
+
+Check status of specific folder:
+$ php artisan migrate:status --path=database/migrations/faculty
+
+Check all folder statuses:
+$ ./check-migrations.sh
+
+Rollback specific folder:
+$ php artisan migrate:rollback --path=database/migrations/exams
+
+Fresh installation (drop all & re-run):
+$ php artisan migrate:fresh
+
+================================================================================
+NOTES
+================================================================================
+
+✓ All migrations organized into logical module-based folders
+✓ Each folder contains its own README.md with detailed documentation
+✓ Migrations maintain timestamp ordering for proper execution sequence
+✓ Laravel automatically discovers migrations in subdirectories
+✓ Use --path option to target specific folder operations
+
+For detailed documentation, see:
+- database/migrations/README.md (Main documentation)
+- database/migrations/<folder>/README.md (Folder-specific docs)
+- readme/HR_MODULE_DOCUMENTATION.md (HR module guide)
+
+================================================================================
+Last Updated: May 27, 2026
+================================================================================

@@ -2649,4 +2649,19 @@ class AdmissionController extends Controller
 
         return back()->with('success', 'Application payment activated and student added to master table successfully.');
     }
+
+    function itcellAdmissionApplications()
+    {
+
+        $campusId =  StaticController::fetchCampusSettings();
+        $data = AdmissionApplication::with([
+            'registrationmaster',
+            'stdCourseMaster',
+            'academicDeptMaster',
+        ])->whereHas('registrationmaster', function ($query) use ($campusId) {
+            $query->where('campus_id', $campusId);
+        })->latest()->get();
+
+        return view('admin.itcell.admission-application', ['data' => $data]);
+    }
 }

@@ -50,6 +50,14 @@ use App\Http\Controllers\StudentCreditController;
 use App\Http\Controllers\CourseOfferingController;
 use App\Http\Controllers\CourseSeatController;
 use App\Http\Controllers\EventCoordinatorController;
+use App\Http\Controllers\HrFacultyController;
+use App\Http\Controllers\HrLeaveController;
+use App\Http\Controllers\HrFdpController;
+use App\Http\Controllers\HrVacancyController;
+use App\Http\Controllers\HrPayMatrixController;
+use App\Http\Controllers\HrPayrollController;
+use App\Http\Controllers\HrDesignationController;
+use App\Http\Controllers\HrGradeLevelController;
 use App\Http\Controllers\SyllabusPdfController;
 use App\Http\Controllers\SubjectController;
 use App\Http\Controllers\TestController;
@@ -104,6 +112,7 @@ Route::group(['prefix' => '/erp'], function () {
         Route::delete('{studentId}/courses/{sciId}', [AdminController::class, 'stdCourseDestroy'])->name('admin.student.courses.destroy');
         Route::post('student/{studentId}/create-access', [AdminController::class, 'createStudentAccess'])->name('admin.student.create-access');
         Route::post('update/faculty', [AdminController::class, 'updateFaculty']);
+        Route::get('itcell-admission-applications', [AdmissionController::class, 'itcellAdmissionApplications'])->name('itcell.admission.applications');
 
         //master
         Route::group(['prefix' => '/master'], function () {
@@ -1094,6 +1103,106 @@ Route::group(['prefix' => '/erp'], function () {
         // Report
         Route::get('events/{event}/report', [EventCoordinatorController::class, 'report'])->name('event-coordinator.report');
     });
+
+    // ========================================================
+    // HR Module
+    Route::group(['prefix' => '/hr'], function () {
+        Route::get('dashboard', function () {
+            return view('hr.dashboard');
+        })->name('hr.dashboard');
+
+        // Faculty Management
+        Route::get('faculty', [HrFacultyController::class, 'index'])->name('hr.faculty.index');
+        Route::get('faculty/create', [HrFacultyController::class, 'create'])->name('hr.faculty.create');
+        Route::post('faculty', [HrFacultyController::class, 'store'])->name('hr.faculty.store');
+        Route::get('faculty/{id}', [HrFacultyController::class, 'show'])->name('hr.faculty.show');
+        Route::get('faculty/{id}/edit', [HrFacultyController::class, 'edit'])->name('hr.faculty.edit');
+        Route::put('faculty/{id}', [HrFacultyController::class, 'update'])->name('hr.faculty.update');
+        Route::delete('faculty/{id}', [HrFacultyController::class, 'destroy'])->name('hr.faculty.destroy');
+        Route::post('faculty/{id}/mark-left', [HrFacultyController::class, 'markAsLeft'])->name('hr.faculty.mark-left');
+        Route::post('faculty/{id}/restore', [HrFacultyController::class, 'restore'])->name('hr.faculty.restore');
+
+        // Leave Management
+        Route::get('leave', [HrLeaveController::class, 'index'])->name('hr.leave.index');
+        Route::get('leave/statistics', [HrLeaveController::class, 'statistics'])->name('hr.leave.statistics');
+        Route::post('leave/bulk-approve', [HrLeaveController::class, 'bulkApprove'])->name('hr.leave.bulk-approve');
+        Route::get('leave/{id}', [HrLeaveController::class, 'show'])->name('hr.leave.show');
+        Route::get('leave/{id}/review', [HrLeaveController::class, 'reviewForm'])->name('hr.leave.review');
+        Route::post('leave/{id}/approve', [HrLeaveController::class, 'approve'])->name('hr.leave.approve');
+        Route::post('leave/{id}/reject', [HrLeaveController::class, 'reject'])->name('hr.leave.reject');
+        Route::post('leave/{id}/forward', [HrLeaveController::class, 'forward'])->name('hr.leave.forward');
+        Route::post('leave/{id}/change-type', [HrLeaveController::class, 'changeLeaveType'])->name('hr.leave.change-type');
+
+        // FDP (Faculty Development Program) Management
+        Route::get('fdp', [HrFdpController::class, 'index'])->name('hr.fdp.index');
+        Route::get('fdp/create', [HrFdpController::class, 'create'])->name('hr.fdp.create');
+        Route::post('fdp', [HrFdpController::class, 'store'])->name('hr.fdp.store');
+        Route::get('fdp/{id}', [HrFdpController::class, 'show'])->name('hr.fdp.show');
+        Route::get('fdp/{id}/edit', [HrFdpController::class, 'edit'])->name('hr.fdp.edit');
+        Route::put('fdp/{id}', [HrFdpController::class, 'update'])->name('hr.fdp.update');
+        Route::delete('fdp/{id}', [HrFdpController::class, 'destroy'])->name('hr.fdp.destroy');
+
+        // FDP Participants
+        Route::get('fdp/{id}/add-participant', [HrFdpController::class, 'addParticipantForm'])->name('hr.fdp.add-participant');
+        Route::post('fdp/{id}/participants', [HrFdpController::class, 'addParticipant'])->name('hr.fdp.participants.store');
+        Route::post('fdp/{id}/participants/{participantId}/approve', [HrFdpController::class, 'approveParticipant'])->name('hr.fdp.participants.approve');
+        Route::post('fdp/{id}/participants/{participantId}/complete', [HrFdpController::class, 'completeParticipant'])->name('hr.fdp.participants.complete');
+
+        // FDP Faculty Tracker
+        Route::get('fdp/tracker/faculty', [HrFdpController::class, 'facultyTracker'])->name('hr.fdp.faculty-tracker');
+
+        // Vacancy Management
+        Route::get('vacancy', [HrVacancyController::class, 'index'])->name('hr.vacancy.index');
+        Route::get('vacancy/create', [HrVacancyController::class, 'create'])->name('hr.vacancy.create');
+        Route::post('vacancy', [HrVacancyController::class, 'store'])->name('hr.vacancy.store');
+        Route::get('vacancy/{id}', [HrVacancyController::class, 'show'])->name('hr.vacancy.show');
+        Route::get('vacancy/{id}/edit', [HrVacancyController::class, 'edit'])->name('hr.vacancy.edit');
+        Route::put('vacancy/{id}', [HrVacancyController::class, 'update'])->name('hr.vacancy.update');
+        Route::delete('vacancy/{id}', [HrVacancyController::class, 'destroy'])->name('hr.vacancy.destroy');
+        Route::post('vacancy/{id}/publish', [HrVacancyController::class, 'publish'])->name('hr.vacancy.publish');
+        Route::post('vacancy/{id}/close', [HrVacancyController::class, 'close'])->name('hr.vacancy.close');
+
+        // Vacancy Applications
+        Route::get('vacancy/{id}/applications', [HrVacancyController::class, 'applications'])->name('hr.vacancy.applications');
+        Route::get('vacancy/{vacancyId}/applications/{applicationId}', [HrVacancyController::class, 'showApplication'])->name('hr.vacancy.application.show');
+        Route::post('vacancy/{vacancyId}/applications/{applicationId}/update-status', [HrVacancyController::class, 'updateApplicationStatus'])->name('hr.vacancy.application.update-status');
+
+        // Pay Matrix Management
+        Route::get('pay-matrix', [HrPayMatrixController::class, 'index'])->name('hr.pay-matrix.index');
+        Route::get('pay-matrix/create', [HrPayMatrixController::class, 'create'])->name('hr.pay-matrix.create');
+        Route::post('pay-matrix', [HrPayMatrixController::class, 'store'])->name('hr.pay-matrix.store');
+        Route::get('pay-matrix/{id}', [HrPayMatrixController::class, 'show'])->name('hr.pay-matrix.show');
+        Route::get('pay-matrix/{id}/edit', [HrPayMatrixController::class, 'edit'])->name('hr.pay-matrix.edit');
+        Route::put('pay-matrix/{id}', [HrPayMatrixController::class, 'update'])->name('hr.pay-matrix.update');
+        Route::delete('pay-matrix/{id}', [HrPayMatrixController::class, 'destroy'])->name('hr.pay-matrix.destroy');
+        Route::post('pay-matrix/{id}/archive', [HrPayMatrixController::class, 'archive'])->name('hr.pay-matrix.archive');
+        Route::post('pay-matrix/{id}/duplicate', [HrPayMatrixController::class, 'duplicate'])->name('hr.pay-matrix.duplicate');
+        Route::post('pay-matrix/{id}/apply-to-faculty', [HrPayMatrixController::class, 'applyToFaculty'])->name('hr.pay-matrix.apply-to-faculty');
+        Route::get('pay-matrix/{id}/preview', [HrPayMatrixController::class, 'preview'])->name('hr.pay-matrix.preview');
+
+        // Designation Master
+        Route::resource('designations', HrDesignationController::class, ['as' => 'hr']);
+
+        // Grade Level Master
+        Route::resource('grade-levels', HrGradeLevelController::class, ['as' => 'hr']);
+
+        // Payroll Management
+        Route::get('payroll', [HrPayrollController::class, 'index'])->name('hr.payroll.index');
+        Route::get('payroll/generate', [HrPayrollController::class, 'generateForm'])->name('hr.payroll.generate');
+        Route::post('payroll/assign-pay-matrix', [HrPayrollController::class, 'assignPayMatrix'])->name('hr.payroll.assign-pay-matrix');
+        Route::post('payroll/bulk-generate', [HrPayrollController::class, 'bulkGenerate'])->name('hr.payroll.bulk-generate');
+        Route::get('payroll/{id}', [HrPayrollController::class, 'show'])->name('hr.payroll.show');
+        Route::post('payroll/{id}/approve', [HrPayrollController::class, 'approve'])->name('hr.payroll.approve');
+        Route::post('payroll/{id}/mark-paid', [HrPayrollController::class, 'markPaid'])->name('hr.payroll.mark-paid');
+        Route::delete('payroll/{id}', [HrPayrollController::class, 'destroy'])->name('hr.payroll.destroy');
+        Route::get('payroll/statistics/overview', [HrPayrollController::class, 'statistics'])->name('hr.payroll.statistics');
+    });
+
+    // Public Vacancy Routes (for website)
+    Route::get('careers', [HrVacancyController::class, 'publicIndex'])->name('vacancies.public.index');
+    Route::get('careers/{id}', [HrVacancyController::class, 'publicShow'])->name('vacancies.public.show');
+    Route::get('careers/{id}/apply', [HrVacancyController::class, 'publicApplyForm'])->name('vacancies.public.apply-form');
+    Route::post('careers/{id}/apply', [HrVacancyController::class, 'publicApply'])->name('vacancies.public.apply');
 
 
     //Testing route

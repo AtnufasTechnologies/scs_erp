@@ -79,7 +79,7 @@
       <div class="col-md-2">
         <div class="card border-0 shadow-sm h-100">
           <div class="card-body text-center">
-            <div class="fs-3 fw-bold text-info">{{ $totalClassesTaken }}</div>
+            <div class="fs-3 fw-bold text-info">{{ count($attendanceByDate) }}</div>
             <div class="text-muted small">Classes Taken</div>
           </div>
         </div>
@@ -205,7 +205,7 @@
         {{-- Class Log by Date --}}
         <div class="card border-0 shadow-sm mt-3">
           <div class="card-header bg-white d-flex align-items-center justify-content-between">
-            <h6 class="mb-0"><i class="fas fa-calendar-alt me-2 text-info"></i>Classes Taken (by Date)</h6>
+            <h6 class="mb-0"><i class="fas fa-calendar-alt me-2 text-info"></i>Attendance (by Date)</h6>
             <span class="badge bg-info">{{ $totalClassesTaken }} dates</span>
           </div>
           <div class="card-body p-0" style="max-height: 300px; overflow-y: auto;">
@@ -289,7 +289,7 @@
       </div>
       <div class="card-body p-0">
         <div class="table-responsive" style="max-height: 450px; overflow-y: auto;">
-          <table class="table table-sm table-hover table-striped mb-0">
+          <table class="table table-sm table-hover table-striped mb-0" id="exportTable">
             <thead class="table-light sticky-top">
               <tr>
                 <th>#</th>
@@ -306,7 +306,7 @@
               <tr>
                 <td>{{ $sl++ }}</td>
                 <td class="text-capitalize">{{ $att->student ? $att->student->first_name . ' ' . $att->student->last_name : 'N/A' }}</td>
-                <td>{{ $att->student ? $att->student->roll_no : '-' }}</td>
+                <td><span class="text-uppercase">{{ $att->student ? $att->student->roll_no : '-' }}</span></td>
                 <td>{{ \Carbon\Carbon::parse($att->attendance_date)->format('d M Y') }}</td>
                 <td>
                   @if($att->status === 'present')
@@ -395,43 +395,5 @@
   </main>
 </div>
 
-{{-- Chart.js for completion doughnut --}}
-<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
-<script>
-  document.addEventListener('DOMContentLoaded', function() {
-    const ctx = document.getElementById('completionChart');
-    if (ctx) {
-      new Chart(ctx, {
-        type: 'doughnut',
-        data: {
-          labels: ['Completed', 'Pending'],
-          datasets: [{
-            data: [{
-              {
-                $completedSubunits
-              }
-            }, {
-              {
-                $totalSubunits - $completedSubunits
-              }
-            }],
-            backgroundColor: ['#198754', '#ffc107'],
-            borderWidth: 0
-          }]
-        },
-        options: {
-          cutout: '70%',
-          plugins: {
-            legend: {
-              display: false
-            }
-          },
-          responsive: true,
-          maintainAspectRatio: true
-        }
-      });
-    }
-  });
-</script>
 
 @include('includes.footer')

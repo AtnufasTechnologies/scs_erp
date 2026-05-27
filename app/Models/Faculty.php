@@ -25,6 +25,8 @@ class Faculty extends Model
         'DOL',
         'IS_LEFT',
         'photo',
+        'hr_designation_id',
+        'hr_grade_level_id',
     ];
 
     // function timetablepivot(){
@@ -34,6 +36,11 @@ class Faculty extends Model
     //    function deptmaster(){
     //     return $this->hasOne(Department::class,'id','department_id');
     // }
+
+    public function department()
+    {
+        return $this->belongsTo(DepartmentMaster::class, 'DEPARTMENT', 'id');
+    }
 
     function nationality()
     {
@@ -88,5 +95,54 @@ class Faculty extends Model
     public function facultyRemunerations()
     {
         return $this->hasMany(FacultyRemuneration::class, 'faculty_id');
+    }
+
+    /**
+     * Get leave applications for this faculty
+     */
+    public function leaveApplications()
+    {
+        return $this->hasMany(FacultyLeaveApplication::class, 'faculty_id');
+    }
+
+    /**
+     * Get FDP participations for this faculty
+     */
+    public function fdpParticipations()
+    {
+        return $this->hasMany(HrFdpParticipant::class, 'faculty_id');
+    }
+
+    /**
+     * Get completed FDP programs
+     */
+    public function completedFdpPrograms()
+    {
+        return $this->hasMany(HrFdpParticipant::class, 'faculty_id')
+            ->where('status', 'completed');
+    }
+
+    /**
+     * Get full name attribute
+     */
+    public function getFullNameAttribute()
+    {
+        return trim($this->FIRST_NAME . ' ' . $this->MIDDLE_NAME . ' ' . $this->LAST_NAME);
+    }
+
+    /**
+     * Get the designation assigned to this faculty
+     */
+    public function hrDesignation()
+    {
+        return $this->belongsTo(HrDesignation::class, 'hr_designation_id');
+    }
+
+    /**
+     * Get the grade level assigned to this faculty
+     */
+    public function hrGradeLevel()
+    {
+        return $this->belongsTo(HrGradeLevel::class, 'hr_grade_level_id');
     }
 }

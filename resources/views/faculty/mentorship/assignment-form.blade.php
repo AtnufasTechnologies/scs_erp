@@ -38,7 +38,7 @@
 
                 <div class="mb-3">
                   <label class="form-label fw-semibold">Description / Instructions <span class="text-danger">*</span></label>
-                  <textarea name="description" class="form-control @error('description') is-invalid @enderror"
+                  <textarea name="description" class="form-control "
                     rows="5" required placeholder="Describe the assignment in detail...">{{ old('description') }}</textarea>
                   @error('description')<div class="invalid-feedback">{{ $message }}</div>@enderror
                 </div>

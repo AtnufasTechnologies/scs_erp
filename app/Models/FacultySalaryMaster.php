@@ -11,6 +11,7 @@ class FacultySalaryMaster extends Model
 
   protected $fillable = [
     'faculty_id',
+    'pay_matrix_id',
     'basic_salary',
     'da',
     'hra',
@@ -53,6 +54,14 @@ class FacultySalaryMaster extends Model
   public function faculty()
   {
     return $this->belongsTo(Faculty::class, 'faculty_id', 'id');
+  }
+
+  /**
+   * Get the pay matrix that this salary is based on
+   */
+  public function payMatrix()
+  {
+    return $this->belongsTo(HrPayMatrix::class, 'pay_matrix_id');
   }
 
   /**
