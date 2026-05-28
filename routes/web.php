@@ -62,6 +62,7 @@ use App\Http\Controllers\SyllabusPdfController;
 use App\Http\Controllers\SubjectController;
 use App\Http\Controllers\TestController;
 use App\Http\Controllers\TimetableController;
+use App\Http\Controllers\ITCellController;
 use App\Models\Department;
 use App\Models\User;
 use App\Models\UserType;
@@ -99,7 +100,7 @@ Route::get('student-logout', [StudentAuthController::class, 'logout'])->name('st
 
 Route::group(['prefix' => '/erp'], function () {
 
-    //admin - superuser routes
+    //ITCELL - superuser routes
     Route::group(['prefix' => '/admin',], function () {
         Route::get('dashboard', [AdminController::class, 'index'])->name('admin.dashboard');
         Route::get('std-master-sonada', [AdminController::class, 'stdMasterSonada']);
@@ -113,6 +114,8 @@ Route::group(['prefix' => '/erp'], function () {
         Route::post('student/{studentId}/create-access', [AdminController::class, 'createStudentAccess'])->name('admin.student.create-access');
         Route::post('update/faculty', [AdminController::class, 'updateFaculty']);
         Route::get('itcell-admission-applications', [AdmissionController::class, 'itcellAdmissionApplications'])->name('itcell.admission.applications');
+        Route::get('verify-payment/{id}', [ITCellController::class, 'verifyPayment'])->name('itcell.admission.verify.payment');
+
 
         //master
         Route::group(['prefix' => '/master'], function () {
