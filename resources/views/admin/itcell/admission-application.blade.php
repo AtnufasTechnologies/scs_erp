@@ -48,28 +48,32 @@
                   <h5 class="modal-title" id="exampleModalLabel">Update</h5>
                   <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
                 </div>
-                <div class="modal-body">
-                  <input type="hidden" id="applicationId{{$application->id}}" value="{{$application->id}}">
-                  <div class="mb-3">
+                <form action="{{route('itcell.admission.update.payment')}}" method="POST">
+                  @csrf
+                  <div class="modal-body">
+                    <input type="hidden" name="id" value="{{$application->id}}">
                     <div class="mb-3">
-                      <div class="alert alert-info">
-                        <p>Update the Application Code as per the Paid Merchant Transaction ID in the Payment gateway Portal to <strong>FIX API</strong></p>
+                      <div class="mb-3">
+                        <div class="alert alert-info">
+                          <p>Update the Application Code as per the Paid Merchant Transaction ID in the Payment gateway Portal to <strong>FIX API</strong></p>
+                        </div>
                       </div>
-                    </div>
-                    <label>Application Code </label>
-                    <input type="text" class="form-control" value="{{$application->application_code}}">
+                      <label>Application Code </label>
+                      <input type="text" class="form-control" name="application_code" value="{{$application->application_code}}">
 
+                    </div>
                   </div>
                   <div class="modal-footer">
                     <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
-                    <button type="button" class="btn btn-primary">Update </button>
+                    <button type="submit" class="btn btn-primary">Update </button>
                   </div>
-                </div>
+                </form>
               </div>
             </div>
+          </div>
 
 
-            @endif
+          @endif
         </td>
 
       </tr>

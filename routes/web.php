@@ -115,6 +115,7 @@ Route::group(['prefix' => '/erp'], function () {
         Route::post('update/faculty', [AdminController::class, 'updateFaculty']);
         Route::get('itcell-admission-applications', [AdmissionController::class, 'itcellAdmissionApplications'])->name('itcell.admission.applications');
         Route::get('verify-payment/{id}', [ITCellController::class, 'verifyPayment'])->name('itcell.admission.verify.payment');
+        Route::post('update-application-payment', [ITCellController::class, 'updateApplicationPayment'])->name('itcell.admission.update.payment');
 
 
         //master
