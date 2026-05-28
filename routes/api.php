@@ -1,6 +1,8 @@
 <?php
 
+use App\Http\Controllers\FacultyApiController;
 use App\Http\Controllers\FeePaymentController;
+use App\Http\Controllers\LoginController;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 
@@ -43,4 +45,10 @@ Route::middleware(['auth:sanctum'])->group(function () {
     Route::post('/invigilation/assign', [\App\Http\Controllers\InvigilationController::class, 'assign']);
     Route::get('/invigilation/duty-chart', [\App\Http\Controllers\InvigilationController::class, 'dutyChart']);
     Route::get('/invigilation/schedule/download', [\App\Http\Controllers\InvigilationController::class, 'downloadSchedule']);
+});
+
+
+Route::group(['prefix' => 'faculty'], function () {
+    Route::post('login', [LoginController::class, 'facultyLogin']);
+    Route::get('profile/{id}', [FacultyApiController::class, 'profile']);
 });

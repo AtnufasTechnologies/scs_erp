@@ -283,4 +283,47 @@ class LoginController extends Controller
         Auth::logout();
         return redirect('/')->with('success', 'Signed Out ');
     }
+
+
+
+    /** Api Routes */
+
+    function facultyLogin(Request $request)
+    {
+        $user = User::where('email', $request->email)->where('status', 'ACTIVE')->first();
+
+        if ($user) {
+
+            if (Hash::check($request->password, $user->password)) {
+                $roleType = UserHasRole::where('user_id', $user->id)->value('role_name');
+                if ($roleType == 'faculty') {
+
+                    return response()->json([
+                        'status' => true,
+                        'message' => 'Login Successful',
+                        'data' => [
+                            'user' => $user,
+                            'role' => $roleType,
+                        ],
+                    ], 200);
+                } else {
+
+                    return response()->json([
+                        'status' => false,
+                        'message' => 'Unauthorized Access',
+                    ], 403);
+                }
+            } else {
+                return response()->json([
+                    'status' => false,
+                    'message' => 'Password Incorrect',
+                ], 401);
+            }
+        } else {
+            return response()->json([
+                'status' => false,
+                'message' => 'User Not Found',
+            ], 404);
+        }
+    }
 }
