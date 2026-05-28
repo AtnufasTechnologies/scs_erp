@@ -638,7 +638,7 @@ class SubjectController extends Controller
 
     function studentProgramMaster()
     {
-        $data = StudentProgram::with('programgroup')
+        $data = StudentProgram::with(['programgroup', 'programtypemaster'])
             ->latest()->get()
             ->map(function ($program) {
                 $program->student_count = StudentMaster::where('new_program_id', $program->id)->count();
@@ -696,6 +696,7 @@ class SubjectController extends Controller
             'name' => 'required|string|max:255',
             'semester_count' => 'required|integer|min:1',
             'description' => 'nullable|string',
+            'program_type' => 'required',
         ]);
 
         $data->campus_id = $request->campus;
@@ -703,6 +704,7 @@ class SubjectController extends Controller
         $data->name = $request->name;
         $data->description = $request->description;
         $data->semester_count = $request->semester_count;
+        $data->program_type = $request->program_type;
         $data->save();
 
         return redirect()->back()->with('success', 'Program Updated');

@@ -43,6 +43,7 @@ use App\Models\ExamSystem\ExamStudent;
 use App\Models\ExamSystem\Result;
 use App\Models\Quote;
 use App\Models\StudentProgram;
+use App\Models\StudentProgramTypeMaster;
 use App\Models\User;
 use App\Models\UserCampusSetting;
 use App\Models\UserHasPermission;
@@ -1726,5 +1727,32 @@ class AdminController extends Controller
     {
         UserMenuPermission::findOrFail($id)->delete();
         return redirect()->back()->with('success', 'Deleted');
+    }
+
+
+    function studentProgramMaster()
+    {
+        $data = StudentProgramTypeMaster::with('stdprograms')->latest()->get();
+
+        return view('admin.master.std-program-type', ['data' => $data]);
+    }
+
+    function studentProgramTypeMultiUpdate(Request $request)
+    {
+        $request->validate([
+            'program_type' => 'required',
+            'programs' => 'required|array|min:1',
+        ]);
+
+        $programTypeId = $request->program_type;
+        $programIds = $request->programs;
+
+        for ($i = 0; $i < count($programIds); $i++) {
+            StudentProgram::where('id', $programIds[$i])->update([
+                'program_type' => $programTypeId
+            ]);
+        }
+
+        return redirect()->back()->with('success', 'Student Programs updated successfully');
     }
 }
