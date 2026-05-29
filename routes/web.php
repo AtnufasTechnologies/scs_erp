@@ -190,6 +190,9 @@ Route::group(['prefix' => '/erp'], function () {
             Route::get('subject-combination-master', [SubjectController::class, 'subjectCombinationMaster'])->name('admin.subject-combination-master');
             Route::post('subject-combination', [SubjectController::class, 'storeSubjectCombination'])->name('admin.subject-combination.store');
             Route::get('delete-subject-combination/{id}', [SubjectController::class, 'deleteSubjectCombination'])->name('admin.subject-combination.delete');
+
+            Route::get('student-program-master', [AdminController::class, 'studentProgramMaster'])->name('itcell.student-program-master');
+            Route::post('student-program-type/multi-update', [AdminController::class, 'studentProgramTypeMultiUpdate'])->name('itcell.student-program-type.multi.update');
         });
 
         //account

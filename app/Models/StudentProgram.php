@@ -10,6 +10,16 @@ class StudentProgram extends Model
     use HasFactory;
     protected $table = "student_program";
 
+    protected $fillable = [
+        'name',
+        'description',
+        'semester_count',
+        'campus_id',
+        'department',
+        'programme',
+        'program_type'
+    ];
+
     function campusmaster()
     {
         return $this->hasOne(Campus::class, 'id', 'campus_id');
@@ -31,5 +41,10 @@ class StudentProgram extends Model
     function programgroup()
     {
         return $this->hasOne(ProgramGroup::class, 'id', 'programme');
+    }
+
+    function programtypemaster()
+    {
+        return $this->hasOne(StudentProgramTypeMaster::class, 'id', 'program_type');
     }
 }

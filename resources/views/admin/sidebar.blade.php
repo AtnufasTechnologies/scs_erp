@@ -147,6 +147,15 @@ $roleType = UserHasRole::where('user_id', $userId)->value('role_name');
           </a>
         </li>
 
+        <li>
+          <a href="{{route('itcell.student-program-master')}}">
+            <div class="parent-icon">
+              <i class="fas fa-arrow-alt-circle-right"></i>
+            </div>
+            <div class="menu-title">Student Program Type</div>
+          </a>
+        </li>
+
       </ul>
     </li>
 

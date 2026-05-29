@@ -1,3 +1,9 @@
+<?php
+
+use App\Models\StudentProgramTypeMaster;
+
+$program_types = StudentProgramTypeMaster::latest()->get();
+?>
 @include('includes.header')
 @include('admin.sidebar')
 <h3>Student Program Master</h3>
@@ -76,6 +82,7 @@
         <th>Description</th>
         <th>No of Semesters</th>
         <th>Total Enrolled Students</th>
+        <th>Program Type</th>
         <th>Edit</th>
       </tr>
     </thead>
@@ -92,6 +99,7 @@
         <td>{{$d->description}}</td>
         <td>{{$d->semester_count}}</td>
         <td>{{$d->student_count}}</td>
+        <td>{{$d->programtypemaster->name ?? 'Unknown'}}</td>
         <td>
           <button class="btn btn-warning" data-bs-toggle="modal" data-bs-target="#edit{{$d->id}}">
             <i class="fa fa-edit"></i>
@@ -135,12 +143,20 @@
                         <label for="">Description *</label>
                         <textarea name="description" class="form-control" required>{{$d->description}}</textarea>
                       </div>
+                      <div class="col-lg-12">
+                        <label for="">Program Type</label>
+                        <select name="program_type" class="form-control">
+                          <option value="" selected>--Select--</option>
+                          @foreach ($program_types as $type)
+                          <option value="{{$type->id}}" {{$d->program_type == $type->id ? 'selected' : ''}}>{{$type->name}}</option>
+                          @endforeach
+                        </select>
+                      </div>
                     </div>
-                  </div>
-                  <div class="modal-footer">
-                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
-                    <button type="submit" class="btn btn-primary">Save changes</button>
-                  </div>
+                    <div class="modal-footer">
+                      <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                      <button type="submit" class="btn btn-primary">Save changes</button>
+                    </div>
                 </form>
               </div>
             </div>
