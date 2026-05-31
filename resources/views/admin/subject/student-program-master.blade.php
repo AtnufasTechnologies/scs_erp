@@ -1,8 +1,10 @@
 <?php
 
 use App\Models\StudentProgramTypeMaster;
+use App\Models\Subject;
 
 $program_types = StudentProgramTypeMaster::latest()->get();
+$subjects = Subject::latest()->get();
 ?>
 @include('includes.header')
 @include('admin.sidebar')
@@ -83,6 +85,7 @@ $program_types = StudentProgramTypeMaster::latest()->get();
         <th>No of Semesters</th>
         <th>Total Enrolled Students</th>
         <th>Program Type</th>
+        <th>Combo Map</th>
         <th>Edit</th>
       </tr>
     </thead>
@@ -101,13 +104,26 @@ $program_types = StudentProgramTypeMaster::latest()->get();
         <td>{{$d->student_count}}</td>
         <td>{{$d->programtypemaster->name ?? 'Unknown'}}</td>
         <td>
+          @if($d->programtypemaster != null)
+          @if($d->programtypemaster->name == 'UGC')
+          <span class="badge badge-success">
+            {{$d->combomap->combo1->title ?? 'Unknown'}} - {{$d->combomap->combo2->title ?? 'Unknown'}}
+          </span>
+          @else
+          <span class="badge badge-info">N/A for AICTE</span>
+          @endif
+
+          @endif
+        </td>
+
+        <td>
           <button class="btn btn-warning" data-bs-toggle="modal" data-bs-target="#edit{{$d->id}}">
             <i class="fa fa-edit"></i>
           </button>
 
           <!-- Modal -->
           <div class="modal fade" id="edit{{$d->id}}" tabindex="-1" aria-labelledby="exampleModalLabel" aria-hidden="true">
-            <div class="modal-dialog ">
+            <div class="modal-dialog modal-lg">
               <div class="modal-content">
                 <div class="modal-header">
                   <h5 class="modal-title" id="exampleModalLabel">Edit Program</h5>
@@ -118,7 +134,7 @@ $program_types = StudentProgramTypeMaster::latest()->get();
                   <input type="hidden" name="id" value="{{$d->id}}">
                   <div class="modal-body">
                     <div class="row">
-                      <div class="col-lg-4">
+                      <div class="col-lg-4 mb-3">
                         <label for=""> Campus *</label>
                         <select name="campus" class="form-control" required>
                           <option value="" selected>--Select--</option>
@@ -126,32 +142,54 @@ $program_types = StudentProgramTypeMaster::latest()->get();
                           <option value="2" {{$d->campus_id == 2 ? 'selected' : ''}}>Siliguri Campus</option>
                         </select>
                       </div>
-                      <div class="col-lg-4">
+                      <div class="col-lg-4 mb-3">
                         <label for=""> Program Code *</label>
                         <input type="text" name="code" value="{{$d->code}}" class="form-control" required>
                       </div>
 
-                      <div class="col-lg-4">
+                      <div class="col-lg-4 mb-3">
                         <label for=""> No of Semesters *</label>
                         <input type="number" name="semester_count" value="{{$d->semester_count}}" class="form-control" min="1" required>
                       </div>
-                      <div class="col-lg-12">
+                      <div class="col-lg-12 mb-3">
                         <label for="">Program Name *</label>
                         <input type="text" name="name" value="{{$d->name}}" class="form-control" required>
                       </div>
-                      <div class="col-lg-12">
+                      <div class="col-lg-12 mb-3">
                         <label for="">Description *</label>
                         <textarea name="description" class="form-control" required>{{$d->description}}</textarea>
                       </div>
-                      <div class="col-lg-12">
-                        <label for="">Program Type</label>
-                        <select name="program_type" class="form-control">
-                          <option value="" selected>--Select--</option>
-                          @foreach ($program_types as $type)
-                          <option value="{{$type->id}}" {{$d->program_type == $type->id ? 'selected' : ''}}>{{$type->name}}</option>
-                          @endforeach
-                        </select>
+
+                      <div class="row mb-3">
+                        <div class="col-lg-4">
+                          <label for="">Program Type</label>
+                          <select name="program_type" class="form-control">
+                            <option value="" selected>--Select--</option>
+                            @foreach ($program_types as $type)
+                            <option value="{{$type->id}}" {{$d->program_type == $type->id ? 'selected' : ''}}>{{$type->name}}</option>
+                            @endforeach
+                          </select>
+                        </div>
+                        <div class="col-lg-4">
+                          <label for="">Combo Map 1</label>
+                          <select name="combo_id_1" class="dselect-example">
+                            <option value="" selected>--Select--</option>
+                            @foreach ($subjects as $subject)
+                            <option value="{{$subject->id}}" {{$d->combomap != null ? $d->combomap->combo_id_1 == $subject->id ? 'selected' : '' : ''}}>{{$subject->title}} - {{$subject->campus_id == 1 ?'Sonada': 'Siliguri'}}</option>
+                            @endforeach
+                          </select>
+                        </div>
+                        <div class="col-lg-4">
+                          <label for="">Combo Map 2</label>
+                          <select name="combo_id_2" class=" dselect-example">
+                            <option value="" selected>--Select--</option>
+                            @foreach ($subjects as $subject)
+                            <option value="{{$subject->id}}" {{$d->combomap != null ? $d->combomap->combo_id_2 == $subject->id ? 'selected' : '' : ''}}>{{$subject->title}} -{{$subject->campus_id == 1 ?'Sonada': 'Siliguri'}}</option>
+                            @endforeach
+                          </select>
+                        </div>
                       </div>
+
                     </div>
                     <div class="modal-footer">
                       <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>

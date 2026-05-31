@@ -47,4 +47,9 @@ class StudentProgram extends Model
     {
         return $this->hasOne(StudentProgramTypeMaster::class, 'id', 'program_type');
     }
+
+    function combomap()
+    {
+        return $this->hasOne(StdProgComboMap::class, 'student_program_id', 'id');
+    }
 }

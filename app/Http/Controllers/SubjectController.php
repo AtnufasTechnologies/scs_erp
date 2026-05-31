@@ -40,6 +40,7 @@ use App\Models\SubjectHasSyllabus;
 use App\Models\SubjectTypeMaster;
 use App\Models\SyllabusHasFaculty;
 use App\Models\CourseSeatAllocation;
+use App\Models\StdProgComboMap;
 use App\Models\SyllabusPdfUpload;
 use App\Models\SyllabusManager;
 use App\Models\SyllabusSubunit;
@@ -638,7 +639,7 @@ class SubjectController extends Controller
 
     function studentProgramMaster()
     {
-        $data = StudentProgram::with(['programgroup', 'programtypemaster'])
+        $data = StudentProgram::with(['programgroup', 'programtypemaster', 'combomap.combo1:id,title', 'combomap.combo2:id,title'])
             ->latest()->get()
             ->map(function ($program) {
                 $program->student_count = StudentMaster::where('new_program_id', $program->id)->count();
@@ -706,6 +707,22 @@ class SubjectController extends Controller
         $data->semester_count = $request->semester_count;
         $data->program_type = $request->program_type;
         $data->save();
+
+        if ($request->combo_id_1 || $request->combo_id_2) {
+            $existingCombo = StdProgComboMap::where('student_program_id', $id)->first();
+
+            if ($existingCombo) {
+                $existingCombo->combo_id_1 = $request->combo_id_1;
+                $existingCombo->combo_id_2 = $request->combo_id_2;
+                $existingCombo->save();
+            } else {
+                StdProgComboMap::create([
+                    'student_program_id' => $id,
+                    'combo_id_1' => $request->combo_id_1,
+                    'combo_id_2' => $request->combo_id_2,
+                ]);
+            }
+        }
 
         return redirect()->back()->with('success', 'Program Updated');
     }
@@ -1443,5 +1460,22 @@ class SubjectController extends Controller
             'batches' => $batches,
             'programs' => $programs
         ]);
+    }
+
+    function storeStdProgramComboMap(Request $request)
+    {
+        $request->validate([
+            'student_program_id' => 'required|exists:student_programs,id',
+            'combo_id_1' => 'required|exists:subjects,id',
+            'combo_id_2' => 'required|exists:subjects,id',
+        ]);
+
+        StdProgComboMap::create([
+            'student_program_id' => $request->student_program_id,
+            'combo_id_1' => $request->combo_id_1,
+            'combo_id_2' => $request->combo_id_2,
+        ]);
+
+        return back()->with('success', 'Student program combo map added.');
     }
 }
