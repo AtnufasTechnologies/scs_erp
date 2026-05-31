@@ -23,11 +23,9 @@ class StudentDashboardController extends Controller
   /**
    * Resolve the logged-in student's StudentMaster record.
    */
-  private function getStudent(): StudentMaster
+  private function getStudent()
   {
-    $record =  StudentMasterUserPivot::where('user_id', Auth::id())->firstOrFail(); // Ensure pivot exists for better error message
-    return StudentMaster::where('id', $record->student_master_id)
-      ->firstOrFail();
+    return Auth::user()->student_id;
   }
 
   /**
@@ -84,10 +82,10 @@ class StudentDashboardController extends Controller
    */
   public function index()
   {
-    $student = $this->getStudent();
-    $studentId = $student->id;
+    $studentId = $this->getStudent();
 
-    $student->load([
+
+    $student =  StudentMaster::where('id', $studentId)->with([
       'religionmaster:id,name',
       'deptmaster:id,department_code,name',
       'campusmaster:id,slug,name',
@@ -98,7 +96,7 @@ class StudentDashboardController extends Controller
       'programgroup.programInfo',
       'feepayment.feepaymentinfo:id,quarter_title',
       'feepayment.gatewaytype',
-    ]);
+    ])->firstOrFail();
 
     // Courses with semester and course type
     $studentCourses = StudentCourseInfo::with([

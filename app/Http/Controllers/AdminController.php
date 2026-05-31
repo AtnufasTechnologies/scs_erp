@@ -408,6 +408,7 @@ class AdminController extends Controller
             // Reset password and re-link
             $existing->update([
                 'student_id'          => $studentId,
+                'roll_no'             => $student->roll_no,
                 'password'            => Hash::make($plainPassword),
                 'decrypted_password'  => $plainPassword,
                 'status'              => 'ACTIVE',
