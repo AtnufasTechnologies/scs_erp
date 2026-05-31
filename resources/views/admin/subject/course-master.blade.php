@@ -143,7 +143,7 @@ $papertypes = PaperTypeMaster::all();
               <label for="">Select Master Course *</label>
               <select name="courses[]" class="select-multiple" multiple>
                 @foreach ($course_master as $course)
-                <option value="{{ $course->id }}">{{ $course->course_code }} - {{ $course->course_title }} ({{$course->coursetypemaster->title ?? '-'   }})</option>
+                <option value="{{ $course->id }}">{{ $course->id }} - {{ $course->course_code }} - {{ $course->course_title }} ({{$course->coursetypemaster->title ?? '-'   }})</option>
                 @endforeach
               </select>
 

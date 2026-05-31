@@ -669,8 +669,8 @@
             <div class="sp-slot-badge">
               <span class="hour-num">{{ $slot->hourmaster->title ?? '?' }}</span>
               <div>
-                <div style="font-weight:600;line-height:1.2;">{{ $slot->coursemaster->course_code ?? '—' }}</div>
-                <div style="font-size:.72rem;color:#6c757d;line-height:1.2;">{{ Str::limit($slot->coursemaster->course_title ?? '—', 28) }}</div>
+                <div style="font-weight:600;line-height:1.2;">{{ $slot->syllabus->coursemaster->course_code ?? '—' }}</div>
+                <div style="font-size:.72rem;color:#6c757d;line-height:1.2;">{{ Str::limit($slot->syllabus->coursemaster->course_title ?? '—', 28) }}</div>
                 <div style="font-size:.7rem;color:#3949ab;">
                   <i class="fas fa-user-tie" style="font-size:.65rem;"></i>
                   {{ $slot->faculty ? $slot->faculty->FIRST_NAME.' '.$slot->faculty->LAST_NAME : '—' }}

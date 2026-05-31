@@ -678,11 +678,13 @@ Route::group(['prefix' => '/erp'], function () {
         //==Exclusive Console Access ONLY via Login ================= New Working Routes 04/05/2026
         Route::group(['prefix' => 'console'], function () {
             Route::get('dashboard', [StudentDashboardController::class, 'index'])->name('student.console.dashboard');
-            Route::get('my-profile', [StudentDashboardController::class, 'profile'])->name('student.console.my-profile');
         });
 
         Route::get('feedback', [StudentDashboardController::class, 'feedbackList'])->name('student.feedback.list');
         Route::post('feedback/{id}', [StudentDashboardController::class, 'submitFeedback'])->name('student.feedback.submit');
+
+        // Mentorship Assignment Upload
+        Route::post('mentorship/assignment/{id}/upload', [StudentDashboardController::class, 'uploadAssignment'])->name('student.mentorship.assignment.upload');
 
         // Course Offerings (FIFO)
         Route::get('course-offerings', [CourseOfferingController::class, 'studentView'])->name('student.offerings.index');

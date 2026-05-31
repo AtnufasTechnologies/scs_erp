@@ -65,4 +65,9 @@ class SubjectHasSyllabus extends Model
     {
         return $this->belongsTo(CourseCombination::class, 'course_id', 'id');
     }
+
+    function coursemaster()
+    {
+        return $this->belongsTo(ProgramCourseMaster::class, 'course_id', 'id');
+    }
 }

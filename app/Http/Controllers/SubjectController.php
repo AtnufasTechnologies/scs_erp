@@ -501,7 +501,7 @@ class SubjectController extends Controller
         return redirect()->back()->with('success', 'Combination Updated');
     }
 
-    function courseMaster($academicDeptId, $slug)
+    function courseMaster(int $academicDeptId, $slug)
     {
         $data = Subject::find($academicDeptId);
 

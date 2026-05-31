@@ -45,7 +45,7 @@
               @endif
             </div>
             <button class="btn btn-sm btn-outline-danger" onclick="deleteAssignment({{ $assignment->id }})">
-              <i class="bx bx-trash"></i> Delete
+              <i class="fas fa-trash"></i> Delete
             </button>
           </div>
         </div>
@@ -86,6 +86,7 @@
                   <th>Student</th>
                   <th>Status</th>
                   <th>Submitted At</th>
+                  <th>Submission</th>
                   <th>Marks</th>
                   <th>Feedback</th>
                   <th>Action</th>
@@ -96,7 +97,7 @@
                 <tr id="row-{{ $sub->id }}">
                   <td>
                     <div class="fw-semibold">{{ $sub->student->first_name }} {{ $sub->student->last_name }}</div>
-                    <div class="text-muted small">{{ $sub->student->register_no }}</div>
+                    <div class="text-muted small">{{ $sub->student->roll_no }}</div>
                   </td>
                   <td>
                     <span class="badge bg-{{ $sub->status === 'graded' ? 'success' : ($sub->status === 'submitted' ? 'info' : 'secondary') }}">
@@ -105,9 +106,25 @@
                   </td>
                   <td class="text-muted">{{ $sub->submitted_at ? $sub->submitted_at->format('d M Y H:i') : '—' }}</td>
                   <td>
+                    @if($sub->submission_path)
+                    <a href="{{ Storage::disk('s3')->url($sub->submission_path) }}" target="_blank" class="btn btn-sm btn-outline-primary">
+                      <i class="fas fa-file"></i> View
+                    </a>
+                    @else
+                    <span class="text-muted">—</span>
+                    @endif
+                    @if($sub->response)
+                    <button type="button" class="btn btn-sm btn-outline-info" data-bs-toggle="tooltip" title="{{ $sub->response }}">
+                      <i class="bx bx-message-square-dots"></i>
+                    </button>
+                    @endif
+                  </td>
+                  <td>
                     <input type="number" class="form-control form-control-sm marks-input" id="marks_{{ $sub->id }}"
                       style="width:80px;" value="{{ $sub->marks_obtained }}"
-                      min="0" max="{{ $assignment->max_marks }}" placeholder="—">
+                      min="0" max="{{ $assignment->max_marks }}"
+                      data-max-marks="{{ $assignment->max_marks }}"
+                      placeholder="—">
                   </td>
                   <td>
                     <input type="text" class="form-control form-control-sm feedback-input" id="feedback_{{ $sub->id }}"
@@ -115,7 +132,7 @@
                   </td>
                   <td>
                     <button class="btn btn-sm btn-success" onclick="gradeSubmission({{ $sub->id }})">
-                      <i class="bx bx-check"></i> Grade
+                      <i class="fas fa-check-circle"></i> Grade
                     </button>
                   </td>
                 </tr>
@@ -130,32 +147,72 @@
 </div>
 
 <script>
+  // Initialize tooltips
+  document.addEventListener('DOMContentLoaded', function() {
+    var tooltipTriggerList = [].slice.call(document.querySelectorAll('[data-bs-toggle="tooltip"]'));
+    var tooltipList = tooltipTriggerList.map(function(tooltipTriggerEl) {
+      return new bootstrap.Tooltip(tooltipTriggerEl);
+    });
+  });
+
   function gradeSubmission(subId) {
-    const marks = document.getElementById(`marks_${subId}`).value;
+    const marksInput = document.getElementById(`marks_${subId}`);
+    const marks = marksInput.value;
     const feedback = document.getElementById(`feedback_${subId}`).value;
 
-    if (marks === '') {
-      alert('Enter marks to grade.');
+    if (marks === '' || marks === null) {
+      alert('Please enter marks to grade.');
       return;
     }
 
-    fetch(`/faculty/mentorship/submissions/${subId}/grade`, {
+    // Validate marks
+    const marksNum = parseFloat(marks);
+    const maxMarks = parseFloat(marksInput.getAttribute('data-max-marks'));
+
+    if (isNaN(marksNum) || marksNum < 0 || marksNum > maxMarks) {
+      alert(`Marks must be between 0 and ${maxMarks}`);
+      return;
+    }
+
+    // Show loading state
+    const button = event.target.closest('button');
+    const originalHtml = button.innerHTML;
+    button.disabled = true;
+    button.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Grading...';
+
+    fetch("{{ route('faculty.mentorship.submission.grade', ':id') }}".replace(':id', subId), {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'X-CSRF-TOKEN': '{{ csrf_token() }}'
+          'X-CSRF-TOKEN': '{{ csrf_token() }}',
+          'Accept': 'application/json'
         },
         body: JSON.stringify({
-          marks_obtained: marks,
-          feedback: feedback
+          marks_obtained: marksNum,
+          feedback: feedback || ''
         })
       })
-      .then(r => r.json())
+      .then(response => {
+        if (!response.ok) {
+          return response.json().then(err => {
+            throw new Error(err.message || 'Failed to grade submission');
+          });
+        }
+        return response.json();
+      })
       .then(data => {
         const box = document.getElementById('alertBox');
-        box.innerHTML = `<div class="alert alert-${data.success ? 'success' : 'danger'} alert-dismissible fade show">
-      ${data.message}<button type="button" class="btn-close" data-bs-dismiss="alert"></button></div>`;
-        if (data.success) setTimeout(() => location.reload(), 1200);
+        box.innerHTML = `<div class="alert alert-success alert-dismissible fade show">
+          ${data.message}<button type="button" class="btn-close" data-bs-dismiss="alert"></button></div>`;
+        setTimeout(() => location.reload(), 1200);
+      })
+      .catch(error => {
+        console.error('Error:', error);
+        const box = document.getElementById('alertBox');
+        box.innerHTML = `<div class="alert alert-danger alert-dismissible fade show">
+          ${error.message || 'Failed to grade submission. Please try again.'}<button type="button" class="btn-close" data-bs-dismiss="alert"></button></div>`;
+        button.disabled = false;
+        button.innerHTML = originalHtml;
       });
   }
 

@@ -426,6 +426,7 @@ class AdminController extends Controller
             'student_id'          => $studentId,
             'name'                => $student->first_name . ' ' . $student->last_name,
             'email'               => $student->mail_id,
+            'roll_no'             => $student->roll_no,
             'password'            => Hash::make($plainPassword),
             'decrypted_password'  => $plainPassword,
             'status'              => 'ACTIVE',

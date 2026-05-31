@@ -15,6 +15,12 @@ use App\Models\ExamSystem\Registration;
 use App\Models\ExamSystem\Result;
 use App\Models\ExamSystem\Student;
 use App\Models\StudentMasterUserPivot;
+use App\Models\MentorshipGroup;
+use App\Models\MentorshipGroupStudent;
+use App\Models\MentorshipSession;
+use App\Models\MentorshipSessionAttendance;
+use App\Models\MentorshipAssignment;
+use App\Models\MentorshipAssignmentSubmission;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 
@@ -118,7 +124,7 @@ class StudentDashboardController extends Controller
         'hourmaster:id,title',
         'lecturehallmaster:id,title',
         'faculty:id,FIRST_NAME,LAST_NAME',
-        'coursemaster:id,course_title,course_code',
+        'syllabus',
       ])
       ->orderBy('weekday_id')
       ->orderBy('hour_id')
@@ -184,18 +190,99 @@ class StudentDashboardController extends Controller
 
     $latestRegistration = $examRegistrations->first();
 
-    return view('student.profile', [
-      'data'               => $student,
-      'studentCourses'     => $studentCourses,
-      'coursesBySemester'  => $coursesBySemester,
-      'timetableByDay'     => $timetableByDay,
-      'attendanceSummary'  => $attendanceSummary,
-      'internalMarks'      => $internalMarks,
-      'examResults'        => $examResults,
-      'resultsBySemester'  => $resultsBySemester,
-      'examStudent'        => $examStudent,
-      'examRegistrations'  => $examRegistrations,
-      'latestRegistration' => $latestRegistration,
+    // Mentorship data
+    $mentorshipGroup = MentorshipGroupStudent::where('student_id', $studentId)
+      ->with([
+        'group.faculty',
+        'group.sessions' => function ($q) {
+          $q->orderByDesc('session_date');
+        },
+        'group.assignments' => function ($q) {
+          $q->orderByDesc('created_at');
+        }
+      ])
+      ->first();
+
+    $mentorName = null;
+    $mentorshipSessions = collect();
+    $mentorshipAttendances = collect();
+    $mentorshipAssignments = collect();
+    $mentorshipAssignmentSubmissions = collect();
+    $mentorshipStats = [
+      'total_sessions' => 0,
+      'attended_sessions' => 0,
+      'total_assignments' => 0,
+      'completed_assignments' => 0,
+    ];
+
+    if ($mentorshipGroup && $mentorshipGroup->group) {
+      $group = $mentorshipGroup->group;
+
+      // Get mentor name
+      if ($group->faculty) {
+        $mentorName = trim($group->faculty->FIRST_NAME . ' ' . $group->faculty->LAST_NAME);
+      }
+
+      // Get sessions with feedback
+      $mentorshipSessions = $group->sessions()
+        ->where('status', 'completed')
+        ->with(['attendances' => function ($q) use ($studentId) {
+          $q->where('student_id', $studentId);
+        }])
+        ->orderByDesc('session_date')
+        ->get();
+
+      // Get attendance records
+      $mentorshipAttendances = MentorshipSessionAttendance::where('student_id', $studentId)
+        ->whereHas('session', function ($q) use ($group) {
+          $q->where('mentorship_group_id', $group->id)
+            ->where('status', 'completed');
+        })
+        ->with('session')
+        ->orderByDesc('created_at')
+        ->get();
+
+      // Get assignments with submissions
+      $mentorshipAssignments = $group->assignments()
+        ->with(['submissions' => function ($q) use ($studentId) {
+          $q->where('student_id', $studentId);
+        }])
+        ->orderByDesc('created_at')
+        ->get();
+
+      // Get all submissions
+      $mentorshipAssignmentSubmissions = MentorshipAssignmentSubmission::where('student_id', $studentId)
+        ->whereHas('assignment', function ($q) use ($group) {
+          $q->where('mentorship_group_id', $group->id);
+        })
+        ->with('assignment')
+        ->get();
+
+      // Calculate stats
+      $mentorshipStats['total_sessions'] = $mentorshipSessions->count();
+      $mentorshipStats['attended_sessions'] = $mentorshipAttendances->where('status', 'present')->count();
+      $mentorshipStats['total_assignments'] = $mentorshipAssignments->count();
+      $mentorshipStats['completed_assignments'] = $mentorshipAssignmentSubmissions->whereIn('status', ['submitted', 'graded'])->count();
+    }
+
+    return view('student.dashboard', [
+      'data'                              => $student,
+      'studentCourses'                    => $studentCourses,
+      'coursesBySemester'                 => $coursesBySemester,
+      'timetableByDay'                    => $timetableByDay,
+      'attendanceSummary'                 => $attendanceSummary,
+      'internalMarks'                     => $internalMarks,
+      'examResults'                       => $examResults,
+      'resultsBySemester'                 => $resultsBySemester,
+      'examStudent'                       => $examStudent,
+      'examRegistrations'                 => $examRegistrations,
+      'latestRegistration'                => $latestRegistration,
+      'mentorName'                        => $mentorName,
+      'mentorshipSessions'                => $mentorshipSessions,
+      'mentorshipAttendances'             => $mentorshipAttendances,
+      'mentorshipAssignments'             => $mentorshipAssignments,
+      'mentorshipAssignmentSubmissions'   => $mentorshipAssignmentSubmissions,
+      'mentorshipStats'                   => $mentorshipStats,
     ]);
   }
 
@@ -362,5 +449,58 @@ class StudentDashboardController extends Controller
       'hours' => $hours,
       'schedule' => $timetable,
     ];
+  }
+
+  /**
+   * Upload assignment submission for mentorship program.
+   */
+  public function uploadAssignment(Request $request, int $assignmentId)
+  {
+    $studentId = $this->getStudent();
+
+    // Validate the upload
+    $request->validate([
+      'file' => 'required|file|mimes:pdf,doc,docx,ppt,pptx|max:10240', // 10MB max
+      'response' => 'nullable|string|max:1000',
+    ]);
+
+    // Verify the assignment exists and student is enrolled in the mentorship group
+    $assignment = MentorshipAssignment::findOrFail($assignmentId);
+
+    $isEnrolled = MentorshipGroupStudent::where('mentorship_group_id', $assignment->mentorship_group_id)
+      ->where('student_id', $studentId)
+      ->exists();
+
+    if (!$isEnrolled) {
+      return redirect()->route('student.console.dashboard')
+        ->with('error', 'You are not enrolled in this mentorship group.');
+    }
+
+    // Check if assignment is still active
+    if ($assignment->status !== 'active') {
+      return redirect()->route('student.console.dashboard')
+        ->with('error', 'This assignment is no longer accepting submissions.');
+    }
+
+    // Handle file upload
+    $file = $request->file;
+    $filename = StaticController::s3_file_uploader($file, 'mentorship_assignments');
+
+    // Create or update submission
+    MentorshipAssignmentSubmission::updateOrCreate(
+      [
+        'mentorship_assignment_id' => $assignmentId,
+        'student_id' => $studentId,
+      ],
+      [
+        'submission_path' => $filename,
+        'response' => $request->response,
+        'status' => 'submitted',
+        'submitted_at' => now(),
+      ]
+    );
+
+    return redirect()->route('student.console.dashboard')
+      ->with('success', 'Assignment submitted successfully!');
   }
 }
