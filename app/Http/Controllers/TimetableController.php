@@ -233,13 +233,25 @@ class TimetableController extends Controller
                 ]);
             }
 
+            // Get routine IDs to delete associated substitutions
+            $routineIds = SubjectHasRoutine::whereIn('syllabus_id', $syllabusIds)->pluck('id');
+
+            // Delete associated substitutions first
+            $substitutionsDeleted = FacultySubstitution::whereIn('routine_id', $routineIds)->count();
+            FacultySubstitution::whereIn('routine_id', $routineIds)->delete();
+
             // Delete all routines for these syllabi
             $deletedCount = SubjectHasRoutine::whereIn('syllabus_id', $syllabusIds)->count();
             SubjectHasRoutine::whereIn('syllabus_id', $syllabusIds)->delete();
 
+            $message = "Successfully cleared {$deletedCount} timetable entries";
+            if ($substitutionsDeleted > 0) {
+                $message .= " and {$substitutionsDeleted} related substitutions";
+            }
+
             return response()->json([
                 'success' => true,
-                'message' => "Successfully cleared {$deletedCount} timetable entries"
+                'message' => $message
             ]);
         } catch (\Exception $e) {
             return response()->json([

@@ -301,10 +301,9 @@ $roleType = UserHasRole::where('user_id', $userId)->value('role_name');
             <div class="parent-icon">
               <i class="far fa-users-cog"></i>
             </div>
-            <div class="menu-title">User Manager </div>
+            <div class="menu-title">All User Manager </div>
           </a>
         </li>
-
 
 
         <li>
@@ -316,14 +315,6 @@ $roleType = UserHasRole::where('user_id', $userId)->value('role_name');
           </a>
         </li>
 
-        <li>
-          <a href="{{route('admin.user-types')}}">
-            <div class="parent-icon">
-              <i class="fas fa-arrow-alt-circle-right"></i>
-            </div>
-            <div class="menu-title">User Types </div>
-          </a>
-        </li>
 
         <li>
           <a href="{{route('admin.role-master')}}">

@@ -62,14 +62,14 @@
               @php
               // Group by semester
               $semesterGroups = $subjects->groupBy(function($item) {
-              return $item->syllabus->semestermaster->id ?? 0;
+              return $item->semestermaster->id ?? 0;
               });
               @endphp
 
               @foreach($semesterGroups as $semesterId => $semesterSubjects)
               @php
               $firstSubject = $semesterSubjects->first();
-              $semesterName = $firstSubject->syllabus->semestermaster->title ?? 'Unknown Semester';
+              $semesterName = $firstSubject->semestermaster->title ?? 'Unknown Semester';
               @endphp
 
               <!-- Semester Section -->
@@ -84,7 +84,7 @@
                 <div class="accordion accordion-flush" id="accordion{{ str_replace(' ', '', $batchName) }}{{ $semesterId }}">
                   @foreach($semesterSubjects as $index => $subjectData)
                   @php
-                  $syllabus = $subjectData->syllabus;
+                  $syllabus = $subjectData;
                   $subject = $syllabus->subject ?? null;
                   $courseMaster = $syllabus->courseLink->courseMaster ?? null;
                   $courseType = $courseMaster->coursetypemaster ?? null;
@@ -179,14 +179,37 @@
                                   </tr>
                                 </thead>
                                 <tbody>
-                                  @foreach($syllabusUnits as $unit)
+                                  @php $unitCounter = 1; @endphp
+                                  @foreach($syllabus->csoGroups ?? [] as $csoGroupIndex => $csoGroup)
+                                  @if($csoGroup['cso'])
+                                  <!-- CSO Header Row -->
+                                  <tr class="table-info">
+                                    <td colspan="6" class="fw-bold py-3">
+                                      <div class="d-flex align-items-center justify-content-between">
+                                        <div>
+                                          <i class="fas fa-bullseye me-2"></i>
+                                          <span class="text-primary">CSO {{ $csoGroupIndex + 1 }}:</span>
+                                          {{ $csoGroup['cso']->title }}
+                                        </div>
+                                        @if($csoGroup['cso']->lectures_needed)
+                                        <span class="badge bg-primary">
+                                          <i class="fas fa-clock me-1"></i>{{ $csoGroup['cso']->lectures_needed }} Lectures
+                                        </span>
+                                        @endif
+                                      </div>
+                                    </td>
+                                  </tr>
+                                  @endif
+
+                                  <!-- Learning Units under this CSO -->
+                                  @foreach($csoGroup['units'] as $unit)
                                   @php
                                   $resourceCount = App\Models\LearningResource::where('syllabus_subunit_id', $unit->id)->count();
                                   $questionCount = App\Models\QuestionBank::where('syllabus_subunit_id', $unit->id)->count();
                                   @endphp
                                   <tr class="scs-unit-row {{ $unit->is_completed ? 'scs-row-done' : '' }}">
                                     <td class="text-center">
-                                      <span class="scs-serial">{{ $loop->iteration }}</span>
+                                      <span class="scs-serial">{{ $unitCounter++ }}</span>
                                     </td>
                                     <td>
                                       <div class="d-flex align-items-start gap-2">
@@ -240,6 +263,7 @@
                                       </a>
                                     </td>
                                   </tr>
+                                  @endforeach
                                   @endforeach
                                 </tbody>
                               </table>

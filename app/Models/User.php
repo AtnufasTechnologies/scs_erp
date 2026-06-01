@@ -24,6 +24,7 @@ class User extends Authenticatable
         'name',
         'email',
         'phone',
+        'roll_no',
         'password',
         'decrypted_password',
         'status',

@@ -58,7 +58,7 @@ class SubjectHasRoutine extends Model
 
     function syllabus()
     {
-        return $this->belongsTo(SubjectHasSyllabus::class, 'syllabus_id', 'id');
+        return $this->belongsTo(SubjectHasSyllabus::class, 'syllabus_id', 'id')->with('coursemaster:id,course_code,course_title');
     }
 
     function coursemaster()

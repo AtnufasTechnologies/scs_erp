@@ -8,6 +8,7 @@ use App\Models\Faculty;
 use App\Models\FacultyLeaveApplication;
 use App\Models\SubjectFacultyMaster;
 use App\Models\SubjectHasRoutine;
+use App\Models\SubjectHasSyllabus;
 use App\Models\SyllabusManager;
 use App\Models\SyllabusSubunit;
 use App\Models\UserHasRole;
@@ -54,19 +55,22 @@ class FacultyDashboardController extends Controller
         $syllabus = $routine->syllabus;
         if (!$syllabus) return null;
 
-        // Get syllabus manager to fetch subunits
-        $syllabusManager = SyllabusManager::where('subject_id', $syllabus->subject_id)
+        // Get ALL syllabus managers (all CSOs) to fetch all subunits
+        $syllabusManagers = SyllabusManager::where('subject_id', $syllabus->subject_id)
           ->where('batch_id', $syllabus->batch_id)
           ->where('semester_id', $syllabus->semester_id)
           ->with('syllabusSubunits')
-          ->first();
+          ->get();
 
         $totalUnits = 0;
         $completedUnits = 0;
 
-        if ($syllabusManager && $syllabusManager->syllabusSubunits) {
-          $totalUnits = $syllabusManager->syllabusSubunits->count();
-          $completedUnits = $syllabusManager->syllabusSubunits->where('is_completed', 1)->count();
+        // Count units from all CSOs
+        foreach ($syllabusManagers as $manager) {
+          if ($manager->syllabusSubunits) {
+            $totalUnits += $manager->syllabusSubunits->count();
+            $completedUnits += $manager->syllabusSubunits->where('is_completed', 1)->count();
+          }
         }
 
         $completionPercentage = $totalUnits > 0 ? round(($completedUnits / $totalUnits) * 100) : 0;
@@ -228,19 +232,48 @@ class FacultyDashboardController extends Controller
     $userId = Auth::user()->id;
     $facultyId = SubjectFacultyMaster::where('access_id', $userId)->value('faculty_id');
 
-    // Get subjects assigned to faculty from timetable
-    $data = SubjectHasRoutine::where('faculty_id', $facultyId)
+    // Get all subject IDs assigned to this faculty
+    $assignedSubjectIds = SubjectFacultyMaster::where('faculty_id', $facultyId)
+      ->pluck('subject_id')
+      ->unique();
+
+    // Get all syllabi for those subjects with their relationships
+    $data = SubjectHasSyllabus::whereIn('subject_id', $assignedSubjectIds)
       ->with([
-        'syllabus.subject:id,title',
-        'syllabus.batchmaster:id,batch_name',
-        'syllabus.semestermaster:id,title',
-        'syllabus.courseLink.courseMaster.coursetypemaster',
-        'syllabus.syllabusunits.csoSubunit.taxomonylevel',
+        'subject:id,title',
+        'batchmaster:id,batch_name',
+        'semestermaster:id,title',
+        'courseLink.courseMaster.coursetypemaster',
       ])
-      ->distinct()
-      ->get('syllabus_id');
+      ->get();
+
+    // Load all syllabus managers (CSOs) with their units for each subject
+    $data->each(function ($syllabus) {
+      // Get all SyllabusManager records for this subject/batch/semester combination with CSO info
+      $syllabusManagers = SyllabusManager::where('subject_id', $syllabus->subject_id)
+        ->where('batch_id', $syllabus->batch_id)
+        ->where('semester_id', $syllabus->semester_id)
+        ->with([
+          'cso:id,title,lectures_needed',
+          'syllabusSubunits.csoSubunit.taxomonylevel'
+        ])
+        ->get();
+
+      // Group by CSO and attach to syllabus
+      $syllabus->csoGroups = $syllabusManagers->map(function ($manager) {
+        return [
+          'cso' => $manager->cso,
+          'units' => $manager->syllabusSubunits
+        ];
+      });
+
+      // Also keep flat list for backward compatibility with completion stats
+      $syllabus->syllabusunits = $syllabusManagers->pluck('syllabusSubunits')->flatten();
+    });
+
+    // Group by batch name
     $batchWiseSubjects = $data->groupBy(function ($item) {
-      return $item->syllabus->batchmaster->batch_name;
+      return $item->batchmaster->batch_name ?? 'Unknown Batch';
     });
 
     return view('faculty.subjects', [
