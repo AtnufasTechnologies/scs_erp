@@ -19,21 +19,21 @@ class SubjectHasSyllabus extends Model
 
     function batchmaster()
     {
-        return $this->hasOne(BatchMaster::class, 'id', 'batch_id');
+        return $this->belongsTo(BatchMaster::class, 'batch_id', 'id');
     }
 
     function sessionmaster()
     {
-        return $this->hasOne(BatchMaster::class, 'id', 'session_id');
+        return $this->belongsTo(BatchMaster::class, 'session_id', 'id');
     }
 
     function semestermaster()
     {
-        return $this->hasOne(Semester::class, 'id', 'semester_id');
+        return $this->belongsTo(Semester::class, 'semester_id', 'id');
     }
     function subtypemaster()
     {
-        return $this->hasOne(SubjectTypeMaster::class, 'id', 'subject_type_id');
+        return $this->belongsTo(SubjectTypeMaster::class, 'subject_type_id', 'id');
     }
 
     function timetable()
@@ -51,9 +51,27 @@ class SubjectHasSyllabus extends Model
         return $this->belongsTo(SubjectCourseMaster::class, 'course_id', 'course_master_id');
     }
 
+    function syllabusManagers()
+    {
+        return $this->hasMany(SyllabusManager::class, 'subject_id', 'subject_id')
+            ->where('batch_id', $this->batch_id)
+            ->where('semester_id', $this->semester_id);
+    }
+
     function syllabusunits()
     {
-        return $this->hasMany(SyllabusSubunit::class, 'syllabus_manager_id', 'id');
+        return $this->hasManyThrough(
+            SyllabusSubunit::class,
+            SyllabusManager::class,
+            'subject_id', // Foreign key on SyllabusManager table
+            'syllabus_manager_id', // Foreign key on SyllabusSubunit table
+            'subject_id', // Local key on SubjectHasSyllabus table
+            'id' // Local key on SyllabusManager table
+        )
+            ->whereHas('syllabusManager', function ($query) {
+                $query->where('batch_id', $this->batch_id)
+                    ->where('semester_id', $this->semester_id);
+            });
     }
 
     function semester()
