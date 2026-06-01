@@ -788,6 +788,7 @@ Route::group(['prefix' => '/erp'], function () {
         //substitution
         Route::get('substitution/{id}', [TimetableController::class, 'substitution'])->name('department.substitution');
         Route::get('substitution-schedule/{batchId}/{day}', [TimetableController::class, 'getSubstitutionSchedule'])->name('department.substitution.schedule');
+        Route::get('substitution-available-teachers', [TimetableController::class, 'getAvailableTeachersForSubstitution'])->name('department.substitution.available-teachers');
         Route::post('substitution-save', [TimetableController::class, 'saveSubstitutions'])->name('department.substitution.save');
         Route::put('substitution-update/{routineId}', [TimetableController::class, 'updateSubstitution'])->name('department.substitution.update');
         Route::get('substitution-history', [TimetableController::class, 'getSubstitutionHistory'])->name('department.substitution.history');
