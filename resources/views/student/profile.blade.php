@@ -942,7 +942,6 @@
       @endif
     </div>
 
-    {{-- ── COURSES ── --}}
     <div class="sp-panel" id="tab-courses">
       <div class="sp-card">
         <div class="sp-card-header">
