@@ -129,4 +129,9 @@ class StudentMaster extends Model
     {
         return $this->hasOne(StudentProgram::class, 'id', 'new_program_id');
     }
+
+    function studentcourses()
+    {
+        return $this->hasMany(StudentCourseInfo::class, 'student_id', 'id');
+    }
 }
