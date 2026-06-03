@@ -1,6 +1,8 @@
 <?php
 
 use App\Models\StudentCourseInfo;
+use App\Models\Subject;
+use App\Models\StudentMaster;
 ?>
 @include('includes.header')
 @include('admin.sidebar')
@@ -301,7 +303,7 @@ use App\Models\StudentCourseInfo;
 
   <div class="search-container">
     <div class="search-box">
-      <input type="text" id="searchInput" placeholder="Search by name, roll no, register no, email, department, program..." autocomplete="off">
+      <input type="text" id="searchInput" placeholder="Search by name, roll no, register no, email..." autocomplete="off">
       <i class="fas fa-search"></i>
     </div>
     <div class="search-stats">
@@ -373,7 +375,15 @@ use App\Models\StudentCourseInfo;
           <span class="detail-label">Program Enrolled</span>
           <span class="detail-value">{{ $item->stdprogramenrolled != null ? $item->stdprogramenrolled->code : 'N/A' }} - {{ $item->stdprogramenrolled != null ? $item->stdprogramenrolled->name : 'N/A' }}</span>
         </div>
+
+
+        <div class="detail-item">
+          <span class="detail-label">Single Major Selection</span>
+          <span class="detail-value {{ $item->studentdtsinfo != null ? '' : 'text-danger' }}">{{ $item->studentdtsinfo != null ? $item->studentdtsinfo->coursemaster->code : '' }} - {{ $item->studentdtsinfo != null ? $item->studentdtsinfo->coursemaster->name : 'Not Selected' }}</span>
+        </div>
+
       </div>
+
 
       <div class="academic-info">
         <div class="academic-tags">
@@ -402,6 +412,8 @@ use App\Models\StudentCourseInfo;
     <p>Try adjusting your search terms</p>
   </div>
 </div>
+
+
 
 <script>
   // AJAX-based live search functionality
@@ -575,6 +587,31 @@ use App\Models\StudentCourseInfo;
   document.addEventListener('DOMContentLoaded', function() {
     animateCards();
   });
+
+  // Handle modal data population from data attributes
+  const addDtsModal = document.getElementById('addDtsModal');
+  if (addDtsModal) {
+    addDtsModal.addEventListener('show.bs.modal', function(event) {
+      // Button that triggered the modal
+      const button = event.relatedTarget;
+
+      // Extract info from data-* attributes
+      const studentId = button.getAttribute('data-student-id');
+      const studentName = button.getAttribute('data-student-name');
+      const rollNo = button.getAttribute('data-roll-no');
+      const program = button.getAttribute('data-program');
+
+      // Update the modal's content
+      document.getElementById('modalStudentId').value = studentId;
+      document.getElementById('modalStudentName').textContent = studentName;
+      document.getElementById('modalRollNo').textContent = rollNo;
+      document.getElementById('modalProgram').textContent = program;
+
+      // Update form action with student ID
+      const form = document.getElementById('dtsForm');
+      form.action = `/erp/admin/student/${studentId}/select-dts-course`;
+    });
+  }
 </script>
 
 @include('includes.footer')
