@@ -163,7 +163,7 @@ class AdminController extends Controller
         return view('admin.students.student-master', ['data' => $students]);
     }
 
-    function stdprofile($id, $rollno)
+    function stdprofile(int $id, string $rollno)
     {
         $data = StudentMaster::where('id', $id)->with([
             'religionmaster:id,name',
@@ -263,6 +263,7 @@ class AdminController extends Controller
                 'course:id,course_title,course_code',
                 'semester:id,title',
             ])
+            ->where('is_deleted', 0)
             ->orderBy('semester')
             ->get();
 
