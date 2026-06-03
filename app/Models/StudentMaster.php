@@ -134,9 +134,4 @@ class StudentMaster extends Model
     {
         return $this->hasMany(StudentCourseInfo::class, 'student_id', 'id');
     }
-
-    function studentdtsinfo()
-    {
-        return $this->hasOne(StudentDualtoSingleCourseInfo::class, 'id', 'student_id')->with('coursemaster');
-    }
 }

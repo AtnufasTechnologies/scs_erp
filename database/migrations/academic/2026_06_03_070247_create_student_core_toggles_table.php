@@ -11,11 +11,13 @@ return new class extends Migration
      */
     public function up(): void
     {
-        Schema::create('student_dualto_single_course_infos', function (Blueprint $table) {
+        Schema::create('student_core_toggles', function (Blueprint $table) {
             $table->id();
             $table->integer('student_id');
-            $table->integer('course_id');
-            $table->integer('semester_id')->nullable();
+            $table->integer('core_a')->nullable();
+            $table->integer('core_b')->nullable();
+            $table->smallInteger('core_final_selected')->default('0')->comment('0 - not selected, 1 - core a, 2 - core b');
+            $table->integer('semester');
             $table->timestamps();
             $table->softDeletes();
         });
@@ -26,6 +28,6 @@ return new class extends Migration
      */
     public function down(): void
     {
-        Schema::dropIfExists('student_dualto_single_course_infos');
+        Schema::dropIfExists('student_core_toggles');
     }
 };

@@ -372,15 +372,17 @@ use App\Models\StudentMaster;
 
 
         <div class="detail-item">
-          <span class="detail-label">Program Enrolled</span>
+          <span class="detail-label">Program Enrolled -
+            @if ($item->stdprogramenrolled->program_type != null)
+            <span class="text-success">{{$item->stdprogramenrolled->program_type == '1' ? 'UGC' : 'AICTE'}}</span>
+            @else
+            <span class="text-danger">UNMAPPED</span>
+            @endif
+
+          </span>
           <span class="detail-value">{{ $item->stdprogramenrolled != null ? $item->stdprogramenrolled->code : 'N/A' }} - {{ $item->stdprogramenrolled != null ? $item->stdprogramenrolled->name : 'N/A' }}</span>
         </div>
 
-
-        <div class="detail-item">
-          <span class="detail-label">Single Major Selection</span>
-          <span class="detail-value {{ $item->studentdtsinfo != null ? '' : 'text-danger' }}">{{ $item->studentdtsinfo != null ? $item->studentdtsinfo->coursemaster->code : '' }} - {{ $item->studentdtsinfo != null ? $item->studentdtsinfo->coursemaster->name : 'Not Selected' }}</span>
-        </div>
 
       </div>
 
@@ -489,7 +491,9 @@ use App\Models\StudentMaster;
           </div>
 
           <div class="detail-item">
-            <span class="detail-label">Program Enrolled</span>
+            <span class="detail-label ">Program Enrolled ${student.stdprogramenrolled.program_type == null ? '<span class="text-danger">UNMAPPED</span>' : 
+            student.stdprogramenrolled.program_type == '1' ? '<span class="text-success">UGC</span>' : '<span class="text-success">AICTE</span>'
+            }</span>
             <span class="detail-value">${student.stdprogramenrolled ? `${student.stdprogramenrolled.code} - ${student.stdprogramenrolled.name}` : 'N/A'}</span>
           </div>
         </div>

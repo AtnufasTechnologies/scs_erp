@@ -92,7 +92,7 @@ class AdminController extends Controller
             'bloodgroup',
             'batchmaster:id,batch_name',
             'stdprogramenrolled',
-            'studentdtsinfo',
+
         ])->where('campus_id', 2)->paginate(12);
 
         return view('admin.students.student-master', ['data' => $data]);
