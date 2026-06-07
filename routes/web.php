@@ -105,6 +105,7 @@ Route::group(['prefix' => '/erp'], function () {
         Route::get('dashboard', [AdminController::class, 'index'])->name('admin.dashboard');
         Route::get('std-master-sonada', [AdminController::class, 'stdMasterSonada']);
         Route::get('std-master-siliguri', [AdminController::class, 'stdMasterSiliguri']);
+        Route::get('student-search', [AdminController::class, 'searchStudents'])->name('admin.student.search');
         Route::get('faculty-master', [AdminController::class, 'facultyMaster']);
         Route::get('{id}/std-profile/{rollno}', [AdminController::class, 'stdprofile'])->name('admin.student.profile');
         Route::put('{id}/std-update', [AdminController::class, 'stdUpdate'])->name('admin.student.update');

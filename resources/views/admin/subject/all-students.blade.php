@@ -76,35 +76,33 @@
           <table class="table table-hover mb-0" id="studentsTable">
             <thead style="background: #f9fafb;">
               <tr>
-                <th style="padding: 14px 16px; color: #6b7280; font-weight: 600; font-size: 13px; border-bottom: 2px solid #f0f0f0;">#</th>
-                <th style="color: #6b7280; font-weight: 600; font-size: 13px;">Roll No / Profile</th>
-                <th style="color: #6b7280; font-weight: 600; font-size: 13px;">Student Name</th>
-                <th style="color: #6b7280; font-weight: 600; font-size: 13px;">Program</th>
-                <th style="color: #6b7280; font-weight: 600; font-size: 13px;">Batch</th>
-                <th style="color: #6b7280; font-weight: 600; font-size: 13px;">Mobile</th>
-                <th style="color: #6b7280; font-weight: 600; font-size: 13px;">Email</th>
-                <th style="color: #6b7280; font-weight: 600; font-size: 13px;">Status</th>
+                <th style="padding: 14px 16px; color: #fff; font-weight: 600; font-size: 13px; border-bottom: 2px solid #f0f0f0;">#</th>
+                <th style="color: #fff; font-weight: 600; font-size: 13px;">Roll No / Profile</th>
+                <th style="color: #fff; font-weight: 600; font-size: 13px;">Student Name</th>
+                <th style="color: #fff; font-weight: 600; font-size: 13px;">Program</th>
+                <th style="color: #fff; font-weight: 600; font-size: 13px;">Batch</th>
+                <th style="color: #fff; font-weight: 600; font-size: 13px;">Mobile</th>
+                <th style="color: #fff; font-weight: 600; font-size: 13px;">Email</th>
+                <th style="color: #fff; font-weight: 600; font-size: 13px;">Status</th>
               </tr>
             </thead>
             <tbody>
               @foreach($students as $student)
               <tr class="student-row" data-search="{{ strtolower($student->roll_no . ' ' . $student->first_name . ' ' . $student->last_name) }}" style="border-bottom: 1px solid #f5f5f5;">
-                <td style="padding: 14px 16px; color: #6b7280; font-size: 13px;">{{ $loop->iteration }}</td>
+                <td>{{ $loop->iteration }}</td>
                 <td>
                   <a href="{{ route('department.student.profile', ['id' => $student->id, 'rollno' => $student->roll_no]) }}"
                     style="color: #5b4cdb; font-weight: 700; font-size: 13px; text-transform: uppercase; text-decoration: none;">
-                    <i class="fas fa-id-badge me-1" style="font-size: 11px;"></i>{{ $student->roll_no ?? 'N/A' }}
+                    {{ $student->roll_no ?? 'N/A' }}
                   </a>
                 </td>
                 <td style="color: #1a1a1a; font-size: 13px; text-transform: capitalize; font-weight: 500;">
                   {{ $student->first_name }} {{ $student->last_name }}
                 </td>
                 <td style="font-size: 13px;">
-                  @if($student->stdprogramenrolled && $student->stdprogramenrolled->first())
-                  <span style="color: #374151;">{{ $student->stdprogramenrolled->first()->name ?? '–' }}</span>
-                  @else
-                  <span class="text-muted">N/A</span>
-                  @endif
+                  <span>
+                    {{ $student->stdprogramenrolled->code ?? 'N/A' }} - {{ $student->stdprogramenrolled->name ?? 'N/A' }}
+                  </span>
                 </td>
                 <td>
                   <span class="badge" style="background: linear-gradient(135deg, #43cea2 0%, #185a9d 100%); padding: 4px 10px; border-radius: 6px; font-size: 11px;">

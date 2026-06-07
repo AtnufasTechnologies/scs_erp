@@ -294,7 +294,7 @@ class StudentDashboardController extends Controller
     $student = $this->getStudent();
 
     // Get all syllabus managers for student's batch
-    $syllabusManagers = SyllabusManager::where('batch_id', $student->batch)
+    return  $syllabusManagers = SyllabusManager::where('batch_id', $student->batch)
       ->with([
         'subject:id,title',
         'syllabusSubunits.csoSubunit',

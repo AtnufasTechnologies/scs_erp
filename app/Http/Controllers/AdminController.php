@@ -77,7 +77,7 @@ class AdminController extends Controller
             'batchmaster:id,batch_name',
             'programgroup'
 
-        ])->where('campus_id', 1)->get();
+        ])->where('campus_id', 1)->paginate(12);
 
         return view('admin.students.student-master', ['data' => $data]);
     }
@@ -86,20 +86,85 @@ class AdminController extends Controller
     {
         $data = StudentMaster::with([
             'religionmaster:id,name',
-            'deptmaster:id,department_code,name',
             'campusmaster:id,slug,name',
             'nationalitymaster:id,name',
             'usertype:id,name',
             'bloodgroup',
             'batchmaster:id,batch_name',
-            'programgroup.programInfo'
+            'stdprogramenrolled',
 
-        ])->where('campus_id', 2)->get();
+        ])->where('campus_id', 2)->paginate(12);
 
         return view('admin.students.student-master', ['data' => $data]);
     }
 
-    function stdprofile($id, $rollno)
+    function searchStudents(Request $request)
+    {
+        $searchTerm = $request->input('search');
+        $campusId = $request->input('campus_id', 2); // Default to Siliguri
+
+        $query = StudentMaster::with([
+            'religionmaster:id,name',
+            'campusmaster:id,slug,name',
+            'deptmaster:id,department_code,name',
+            'nationalitymaster:id,name',
+            'usertype:id,name',
+            'bloodgroup',
+            'batchmaster:id,batch_name',
+            'stdprogramenrolled',
+            'programgroup'
+        ])->where('campus_id', $campusId);
+
+        if (!empty($searchTerm)) {
+            $query->where(function ($q) use ($searchTerm) {
+                $q->where('first_name', 'LIKE', "%{$searchTerm}%")
+                    ->orWhere('last_name', 'LIKE', "%{$searchTerm}%")
+                    ->orWhere('roll_no', 'LIKE', "%{$searchTerm}%")
+                    ->orWhere('register_no', 'LIKE', "%{$searchTerm}%")
+                    ->orWhere('mail_id', 'LIKE', "%{$searchTerm}%")
+                    ->orWhere('mobile_no', 'LIKE', "%{$searchTerm}%")
+                    ->orWhereHas('deptmaster', function ($query) use ($searchTerm) {
+                        $query->where('name', 'LIKE', "%{$searchTerm}%");
+                    })
+                    ->orWhereHas('stdprogramenrolled', function ($query) use ($searchTerm) {
+                        $query->where('code', 'LIKE', "%{$searchTerm}%")
+                            ->orWhere('name', 'LIKE', "%{$searchTerm}%");
+                    })
+                    ->orWhereHas('programgroup', function ($query) use ($searchTerm) {
+                        $query->where('program_code', 'LIKE', "%{$searchTerm}%");
+                    })
+                    ->orWhereHas('campusmaster', function ($query) use ($searchTerm) {
+                        $query->where('name', 'LIKE', "%{$searchTerm}%");
+                    })
+                    ->orWhereHas('batchmaster', function ($query) use ($searchTerm) {
+                        $query->where('batch_name', 'LIKE', "%{$searchTerm}%");
+                    });
+            });
+        }
+
+        $students = $query->paginate(50);
+
+        // Add semester information to each student
+        foreach ($students as $student) {
+            $student->current_semester = StudentCourseInfo::where('student_id', $student->id)
+                ->distinct('semester')
+                ->orderBy('semester', 'desc')
+                ->value('semester');
+        }
+
+        if ($request->ajax()) {
+            return response()->json([
+                'students' => $students->items(),
+                'total' => $students->total(),
+                'current_page' => $students->currentPage(),
+                'last_page' => $students->lastPage(),
+            ]);
+        }
+
+        return view('admin.students.student-master', ['data' => $students]);
+    }
+
+    function stdprofile(int $id, string $rollno)
     {
         $data = StudentMaster::where('id', $id)->with([
             'religionmaster:id,name',
@@ -111,7 +176,7 @@ class AdminController extends Controller
             'batchmaster:id,batch_name',
             'programgroup.programInfo',
             'feepayment.feepaymentinfo:id,quarter_title',
-            'feepayment.gatewaytype'
+            'feepayment.gatewaytype',
         ])->firstOrFail();
 
         // Fetch student's courses with semester and course-type relations
@@ -199,6 +264,7 @@ class AdminController extends Controller
                 'course:id,course_title,course_code',
                 'semester:id,title',
             ])
+            ->where('is_deleted', 0)
             ->orderBy('semester')
             ->get();
 
@@ -437,7 +503,7 @@ class AdminController extends Controller
             'role_name' => 'student',
         ]);
 
-        return back()->with('success', "Login created. Email: {$student->mail_id} | Password: {$plainPassword}");
+        return back()->with('success', "Default Login created. Rollno: {$student->roll_no} | Password: {$plainPassword}");
     }
 
     function batchMaster()

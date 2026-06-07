@@ -92,7 +92,7 @@ $userRole = StaticController::fetchUserRole($userId);
   }
 
   .sp-tabs-wrap {
-    position: sticky;
+
     top: 0;
     z-index: 100;
     background: #fff;
@@ -575,7 +575,7 @@ $userRole = StaticController::fetchUserRole($userId);
     <button class="sp-tab" onclick="spTab(event,'tab-timetable')"><i class="fas fa-calendar-alt"></i> Timetable</button>
     <button class="sp-tab" onclick="spTab(event,'tab-attendance')"><i class="fas fa-check-circle"></i> Attendance</button>
     <button class="sp-tab" onclick="spTab(event,'tab-fa')"><i class="fas fa-pen"></i> Internal Marks</button>
-    <button class="sp-tab" onclick="spTab(event,'tab-results')"><i class="fas fa-trophy"></i> Exam Results</button>
+    <!-- <button class="sp-tab" onclick="spTab(event,'tab-results')"><i class="fas fa-trophy"></i> Exam Results</button> -->
     <button class="sp-tab" onclick="spTab(event,'tab-courses')"><i class="fas fa-book"></i> Courses</button>
     <button class="sp-tab" onclick="spTab(event,'tab-fee')"><i class="fas fa-rupee-sign"></i> Fee</button>
     <button class="sp-tab" id="btn-tab-edit" onclick="spTab(event,'tab-edit')"><i class="fas fa-edit"></i> Edit Details</button>
@@ -811,33 +811,40 @@ $userRole = StaticController::fetchUserRole($userId);
       @if($internalMarks->isEmpty())
       <div class="sp-empty"><i class="fas fa-file-alt"></i>No internal marks recorded.</div>
       @else
-      @php $faGrouped=$internalMarks->groupBy(fn($m)=>$m->academic_year??'Unknown'); @endphp
-      @foreach($faGrouped as $year => $marks)
+      @php
+      $faGrouped = $internalMarks->groupBy(function($m) {
+      return $m->semester ?? 'Unknown';
+      })->sortKeys();
+      @endphp
+      @foreach($faGrouped as $semester => $marks)
       <div style="display:flex;align-items:center;gap:.5rem;margin:.75rem 0 .5rem;">
-        <i class="fas fa-calendar" style="color:#e65100;font-size:.8rem;"></i>
-        <span style="font-weight:700;font-size:.82rem;color:#e65100;">Academic Year {{ $year }}</span>
-        <span class="sp-count">{{ $marks->count() }}</span>
+        <i class="fas fa-book-open" style="color:#e65100;font-size:.8rem;"></i>
+        <span style="font-weight:700;font-size:.82rem;color:#e65100;">
+          {{ $marks->first()?->getRelation('semester')?->title ?? 'Semester '.$semester }}
+        </span>
+
+
       </div>
       <table class="sp-table mb-3">
         <thead>
           <tr>
             <th>#</th>
-            <th>Semester</th>
             <th>Course Code</th>
             <th>Course Title</th>
             <th>FA Marks</th>
+            <th>SA Marks</th>
           </tr>
         </thead>
         <tbody>
-          @foreach($marks as $i => $mark)
+          @foreach($marks->unique('course_id')->sortBy('course.course_code') as $i => $mark)
           <tr>
-            <td style="color:#adb5bd;">{{ $i+1 }}</td>
-            <td>{{ $mark->getRelation('semester') ? $mark->getRelation('semester')->title : 'Sem '.$mark->semester }}</td>
+            <td style="color:#adb5bd;">{{ $loop->iteration }}</td>
             <td><span style="background:#e8eaf6;color:#3949ab;border-radius:4px;padding:.1rem .45rem;font-size:.78rem;font-weight:600;">{{ $mark->course->course_code ?? '—' }}</span></td>
             <td>{{ $mark->course->course_title ?? '—' }}</td>
+
             <td>
               <span style="font-size:1.1rem;font-weight:800;color:#e65100;">{{ $mark->internal_mark }}</span>
-              @if($mark->course?->internal) <span style="font-size:.72rem;color:#adb5bd;">/ {{ $mark->course->internal }}</span> @endif
+              @if($mark->course?->internal_mark) <span style="font-size:.72rem;color:#adb5bd;">/ {{ $mark->course->internal_mark }}</span> @endif
             </td>
           </tr>
           @endforeach
