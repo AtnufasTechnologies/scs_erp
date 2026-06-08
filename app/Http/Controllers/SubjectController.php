@@ -1478,4 +1478,164 @@ class SubjectController extends Controller
 
         return back()->with('success', 'Student program combo map added.');
     }
+
+    /**
+     * Department Attendance Monitor - View all attendance taken by faculty
+     */
+    function attendanceMonitor(Request $request)
+    {
+        $userId = Auth::user()->id;
+        $subjectId = SubjectHasDeptAdmin::where('user_id', $userId)->value('subject_id');
+        $subject = Subject::find($subjectId);
+
+        if (!$subject) {
+            return redirect()->route('department.dashboard')->with('info', 'Subject not found.');
+        }
+
+        // Get all faculty IDs in this department
+        $facultyIds = SubjectFacultyMaster::where('subject_id', $subjectId)
+            ->pluck('faculty_id')
+            ->toArray();
+
+        // Build query for attendance
+        $query = StudentAttendance::with([
+            'student:id,first_name,last_name,roll_no,register_no',
+            'courseinfo:id,course_name',
+            'routine.subjectsyllabus.coursemasterrelation:id,course_name'
+        ])
+            ->whereIn('faculty_id', $facultyIds)
+            ->orderBy('attendance_date', 'desc')
+            ->orderBy('created_at', 'desc');
+
+        // Date range filter
+        if ($request->filled('start_date') && $request->filled('end_date')) {
+            $query->whereBetween('attendance_date', [$request->start_date, $request->end_date]);
+        } elseif ($request->filled('start_date')) {
+            $query->where('attendance_date', '>=', $request->start_date);
+        } elseif ($request->filled('end_date')) {
+            $query->where('attendance_date', '<=', $request->end_date);
+        } else {
+            // Default to current month if no filter
+            $query->whereYear('attendance_date', now()->year)
+                ->whereMonth('attendance_date', now()->month);
+        }
+
+        // Faculty filter
+        if ($request->filled('faculty_id')) {
+            $query->where('faculty_id', $request->faculty_id);
+        }
+
+        // Batch filter
+        if ($request->filled('batch')) {
+            $query->where('batch', $request->batch);
+        }
+
+        // Status filter
+        if ($request->filled('status')) {
+            $query->where('status', $request->status);
+        }
+
+        $attendanceRecords = $query->paginate(50);
+
+        // Get weekly analysis for the current filter
+        $startDate = $request->filled('start_date') ? $request->start_date : now()->startOfMonth()->format('Y-m-d');
+        $endDate = $request->filled('end_date') ? $request->end_date : now()->endOfMonth()->format('Y-m-d');
+
+        $weeklyAnalysis = $this->getWeeklyAnalysis($facultyIds, $startDate, $endDate);
+
+        // Summary statistics
+        $totalRecords = StudentAttendance::whereIn('faculty_id', $facultyIds)
+            ->whereBetween('attendance_date', [$startDate, $endDate])
+            ->count();
+
+        $presentCount = StudentAttendance::whereIn('faculty_id', $facultyIds)
+            ->whereBetween('attendance_date', [$startDate, $endDate])
+            ->where('status', 'present')
+            ->count();
+
+        $absentCount = StudentAttendance::whereIn('faculty_id', $facultyIds)
+            ->whereBetween('attendance_date', [$startDate, $endDate])
+            ->where('status', 'absent')
+            ->count();
+
+        $lateCount = StudentAttendance::whereIn('faculty_id', $facultyIds)
+            ->whereBetween('attendance_date', [$startDate, $endDate])
+            ->where('status', 'late')
+            ->count();
+
+        $stats = [
+            'total' => $totalRecords,
+            'present' => $presentCount,
+            'absent' => $absentCount,
+            'late' => $lateCount,
+            'present_percentage' => $totalRecords > 0 ? round(($presentCount / $totalRecords) * 100, 2) : 0,
+        ];
+
+        // Get faculty list for filter dropdown
+        $faculties = Faculty::whereIn('id', $facultyIds)
+            ->orderBy('FIRST_NAME')
+            ->get(['id', 'FIRST_NAME', 'LAST_NAME', 'USER_CODE']);
+
+        // Get batch list
+        $batches = BatchMaster::all();
+
+        return view('admin.department.attendance-monitor', compact(
+            'attendanceRecords',
+            'subject',
+            'weeklyAnalysis',
+            'stats',
+            'faculties',
+            'batches',
+            'startDate',
+            'endDate'
+        ));
+    }
+
+    /**
+     * Get weekly analysis of attendance (present/absent breakdown by week)
+     */
+    private function getWeeklyAnalysis($facultyIds, $startDate, $endDate)
+    {
+        $start = \Carbon\Carbon::parse($startDate);
+        $end = \Carbon\Carbon::parse($endDate);
+
+        $weeklyData = [];
+        $currentStart = $start->copy()->startOfWeek();
+
+        while ($currentStart <= $end) {
+            $weekStart = $currentStart->copy();
+            $weekEnd = $currentStart->copy()->endOfWeek();
+
+            // Don't go beyond the end date
+            if ($weekEnd > $end) {
+                $weekEnd = $end->copy();
+            }
+
+            // Don't start before the start date
+            $queryStart = $weekStart < $start ? $start->copy() : $weekStart;
+
+            $weekLabel = $weekStart->format('M d') . ' - ' . $weekEnd->format('M d');
+
+            $presentCount = StudentAttendance::whereIn('faculty_id', $facultyIds)
+                ->whereBetween('attendance_date', [$queryStart->format('Y-m-d'), $weekEnd->format('Y-m-d')])
+                ->where('status', 'present')
+                ->count();
+
+            $absentCount = StudentAttendance::whereIn('faculty_id', $facultyIds)
+                ->whereBetween('attendance_date', [$queryStart->format('Y-m-d'), $weekEnd->format('Y-m-d')])
+                ->where('status', 'absent')
+                ->count();
+
+            $weeklyData[] = [
+                'week' => $weekLabel,
+                'present' => $presentCount,
+                'absent' => $absentCount,
+                'total' => $presentCount + $absentCount,
+            ];
+
+            $currentStart->addWeek();
+        }
+
+        return $weeklyData;
+    }
 }

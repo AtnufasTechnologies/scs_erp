@@ -283,4 +283,77 @@ class HrLeaveController extends Controller
     return redirect()->back()
       ->with('success', "{$count} leave applications approved successfully!");
   }
+
+  /**
+   * Leave Category Master - list all leave types (Moved from Department)
+   */
+  public function categoryIndex()
+  {
+    $categories = LeaveMaster::ordered()->get();
+    return view('hr.leave.category-index', compact('categories'));
+  }
+
+  /**
+   * Store a new leave category
+   */
+  public function categoryStore(Request $request)
+  {
+    $request->validate([
+      'leave_type_name' => 'required|string|max:255',
+      'leave_type_code' => 'required|string|max:50|unique:leave_masters,leave_type_code',
+      'allowed_days_per_year' => 'nullable|integer|min:0',
+      'description' => 'nullable|string|max:500',
+      'requires_attachment' => 'nullable|boolean',
+      'badge_color' => 'nullable|string|max:50',
+    ]);
+
+    LeaveMaster::create([
+      'leave_type_name' => $request->leave_type_name,
+      'leave_type_code' => strtoupper($request->leave_type_code),
+      'allowed_days_per_year' => $request->allowed_days_per_year,
+      'description' => $request->description,
+      'requires_attachment' => $request->has('requires_attachment'),
+      'badge_color' => $request->badge_color ?? 'primary',
+      'is_active' => true,
+    ]);
+
+    return redirect()->back()->with('success', 'Leave category added successfully');
+  }
+
+  /**
+   * Update an existing leave category
+   */
+  public function categoryUpdate(Request $request, $id)
+  {
+    $category = LeaveMaster::findOrFail($id);
+
+    $request->validate([
+      'leave_type_name' => 'required|string|max:255',
+      'leave_type_code' => 'required|string|max:50|unique:leave_masters,leave_type_code,' . $id,
+      'allowed_days_per_year' => 'nullable|integer|min:0',
+      'description' => 'nullable|string|max:500',
+      'badge_color' => 'nullable|string|max:50',
+    ]);
+
+    $category->update([
+      'leave_type_name' => $request->leave_type_name,
+      'leave_type_code' => strtoupper($request->leave_type_code),
+      'allowed_days_per_year' => $request->allowed_days_per_year,
+      'description' => $request->description,
+      'requires_attachment' => $request->has('requires_attachment'),
+      'badge_color' => $request->badge_color ?? $category->badge_color,
+    ]);
+
+    return redirect()->back()->with('success', 'Leave category updated');
+  }
+
+  /**
+   * Toggle leave category active status
+   */
+  public function categoryToggle($id)
+  {
+    $category = LeaveMaster::findOrFail($id);
+    $category->update(['is_active' => !$category->is_active]);
+    return redirect()->back()->with('success', 'Leave category status updated');
+  }
 }

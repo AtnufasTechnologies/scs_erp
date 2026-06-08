@@ -50,6 +50,22 @@ class StudentAttendance extends Model
   }
 
   /**
+   * Get the faculty who took the attendance
+   */
+  public function faculty()
+  {
+    return $this->belongsTo(Faculty::class, 'faculty_id');
+  }
+
+  /**
+   * Get the course information
+   */
+  public function courseinfo()
+  {
+    return $this->belongsTo(ProgramCourseMaster::class, 'course_id');
+  }
+
+  /**
    * Scope to filter by date range
    */
   public function scopeDateRange($query, $startDate, $endDate)
@@ -84,10 +100,5 @@ class StudentAttendance extends Model
       ->count();
 
     return round(($present / $total) * 100, 2);
-  }
-
-  function courseinfo()
-  {
-    return $this->belongsTo(ProgramCourseMaster::class, 'course_id');
   }
 }

@@ -828,11 +828,8 @@ Route::group(['prefix' => '/erp'], function () {
         Route::post('leave/{id}/reject', [DeptLeaveController::class, 'reject'])->name('department.leave.reject');
         Route::post('leave/{id}/forward', [DeptLeaveController::class, 'forward'])->name('department.leave.forward');
 
-        // Leave Category Master
-        Route::get('leave-categories', [DeptLeaveController::class, 'categoryIndex'])->name('department.leave.categories');
-        Route::post('leave-categories', [DeptLeaveController::class, 'categoryStore'])->name('department.leave.categories.store');
-        Route::put('leave-categories/{id}', [DeptLeaveController::class, 'categoryUpdate'])->name('department.leave.categories.update');
-        Route::post('leave-categories/{id}/toggle', [DeptLeaveController::class, 'categoryToggle'])->name('department.leave.categories.toggle');
+        // Faculty Attendance Monitoring
+        Route::get('attendance-monitor', [SubjectController::class, 'attendanceMonitor'])->name('department.attendance.monitor');
     });
     // ========================================================
     // Faculty routes
@@ -1143,6 +1140,12 @@ Route::group(['prefix' => '/erp'], function () {
         Route::post('leave/{id}/reject', [HrLeaveController::class, 'reject'])->name('hr.leave.reject');
         Route::post('leave/{id}/forward', [HrLeaveController::class, 'forward'])->name('hr.leave.forward');
         Route::post('leave/{id}/change-type', [HrLeaveController::class, 'changeLeaveType'])->name('hr.leave.change-type');
+
+        // Leave Category Master (Moved from Department to HR)
+        Route::get('leave-categories', [HrLeaveController::class, 'categoryIndex'])->name('hr.leave.categories');
+        Route::post('leave-categories', [HrLeaveController::class, 'categoryStore'])->name('hr.leave.categories.store');
+        Route::put('leave-categories/{id}', [HrLeaveController::class, 'categoryUpdate'])->name('hr.leave.categories.update');
+        Route::post('leave-categories/{id}/toggle', [HrLeaveController::class, 'categoryToggle'])->name('hr.leave.categories.toggle');
 
         // FDP (Faculty Development Program) Management
         Route::get('fdp', [HrFdpController::class, 'index'])->name('hr.fdp.index');
