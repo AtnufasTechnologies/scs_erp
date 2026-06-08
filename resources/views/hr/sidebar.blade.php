@@ -120,6 +120,12 @@
 
     <li class="menu-label">Masters</li>
     <li>
+      <a href="{{ route('hr.leave.categories') }}">
+        <div class="parent-icon"><i class="fas fa-box"></i></div>
+        <div class="menu-title">Leave Categories</div>
+      </a>
+    </li>
+    <li>
       <a href="{{ route('hr.designations.index') }}">
         <div class="parent-icon"><i class="fas fa-id-card"></i></div>
         <div class="menu-title">Designations</div>
@@ -131,6 +137,7 @@
         <div class="menu-title">Grade Levels</div>
       </a>
     </li>
+
 
     <li class="menu-label">System</li>
     <li>
