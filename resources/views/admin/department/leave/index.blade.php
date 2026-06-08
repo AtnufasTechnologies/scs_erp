@@ -14,9 +14,7 @@
             <p class="text-muted mb-0">Review and take action on faculty leave applications</p>
           </div>
           <div class="d-flex gap-2">
-            <a href="{{ route('department.leave.categories') }}" class="btn btn-outline-primary">
-              <i class="fas fa-tags me-1"></i>Leave Categories
-            </a>
+
             <a href="{{ route('department.dashboard') }}" class="btn btn-secondary">
               <i class="fas fa-arrow-left me-1"></i>Back
             </a>
@@ -178,7 +176,46 @@
                   @elseif($app->dept_action === 'rejected')
                   <span class="badge bg-danger">Rejected by Dept</span>
                   @elseif($app->status === 'approved')
-                  <span class="badge bg-success">Approved</span>
+                  <div>
+                    <span class="badge bg-success">✓ Approved</span>
+                    @if($app->approver)
+                    <div class="mt-1">
+                      <small class="text-muted">
+                        <i class="fas fa-user-check me-1"></i>
+                        <strong>{{ $app->approver->name }}</strong>
+                        @if($app->approver->hasRole && $app->approver->hasRole->role_name)
+                        <span class="badge badge-sm bg-primary ms-1" style="font-size: 9px;">
+                          {{ $app->approver->hasRole->role_name }}
+                        </span>
+                        @endif
+                      </small>
+                    </div>
+                    @if($app->approved_at)
+                    <div>
+                      <small class="text-muted">
+                        <i class="fas fa-clock me-1"></i>{{ $app->approved_at->format('d M Y, h:i A') }}
+                      </small>
+                    </div>
+                    @endif
+                    @endif
+                  </div>
+                  @elseif($app->status === 'rejected')
+                  <div>
+                    <span class="badge bg-danger">✗ Rejected</span>
+                    @if($app->approver)
+                    <div class="mt-1">
+                      <small class="text-muted">
+                        <i class="fas fa-user-times me-1"></i>
+                        <strong>{{ $app->approver->name }}</strong>
+                        @if($app->approver->hasRole && $app->approver->hasRole->role_name)
+                        <span class="badge badge-sm bg-secondary ms-1" style="font-size: 9px;">
+                          {{ $app->approver->hasRole->role_name }}
+                        </span>
+                        @endif
+                      </small>
+                    </div>
+                    @endif
+                  </div>
                   @elseif($app->status === 'cancelled')
                   <span class="badge bg-secondary">Cancelled</span>
                   @else

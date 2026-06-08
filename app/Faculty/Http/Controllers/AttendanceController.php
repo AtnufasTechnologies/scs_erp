@@ -233,6 +233,52 @@ class AttendanceController extends Controller
     ]);
   }
 
+  function updateAttendance(Request $request, $id)
+  {
+
+    $request->validate([
+      'attendance_date' => 'required',
+      'extra.*' => 'in:late,excused',
+      'status' => 'required|in:present,absent',
+    ]);
+
+    // Check if the selected date is Sunday
+    $attendanceDate = Carbon::parse($request->attendance_date);
+    if ($attendanceDate->isSunday()) {
+      return back()
+        ->withInput()
+        ->with('error', 'Cannot record attendance for Sunday. Sunday is a holiday.');
+    }
+
+    DB::beginTransaction();
+    try {
+      if (!empty($request->extra)) {
+        $extra = $request->extra;
+      } else {
+        $extra = null;
+      }
+      StudentAttendance::updateOrCreate(
+        [
+          'id' => $id,
+        ],
+        [
+          'status' => $request->status,
+          'attendance_method' => 'manual',
+          'extra' => $extra,
+        ]
+      );
+
+
+      DB::commit();
+      return redirect()
+        ->back()
+        ->with('success', 'Attendance updated successfully!');
+    } catch (\Exception $e) {
+      DB::rollBack();
+      return back()->with('error', 'Failed to update attendance. Please try again.');
+    }
+  }
+
 
   function extraClasses()
   {

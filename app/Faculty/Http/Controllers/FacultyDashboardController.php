@@ -4,6 +4,10 @@ namespace App\Faculty\Http\Controllers;
 
 use App\Http\Controllers\Controller;
 use App\Http\Controllers\StaticController;
+use App\Models\DepartmentActivity;
+use App\Models\DepartmentActivityHasParticipant;
+use App\Models\EcFacultyDuty;
+use App\Models\ExamSystem\InvigilationDuty;
 use App\Models\Faculty;
 use App\Models\FacultyLeaveApplication;
 use App\Models\SubjectFacultyMaster;
@@ -156,7 +160,52 @@ class FacultyDashboardController extends Controller
       ->limit(3)
       ->get();
 
-    return view('faculty.dashboard', compact('workDiaryEntries', 'assignedSubjects', 'totalSubjectsCount', 'leaveStats', 'casualLeaves', 'sickLeaves', 'earnedLeaves', 'recentLeaves'));
+    // Get Event Controller Activities assigned to this faculty
+    $eventControllerActivities = EcFacultyDuty::where('faculty_id', $facultyId)
+      ->with(['event', 'program', 'assignedBy'])
+      ->whereHas('event', function ($q) {
+        $q->whereIn('status', ['active', 'draft']);
+      })
+      ->orderBy('created_at', 'desc')
+      ->limit(10)
+      ->get();
+
+    // Get Invigilation Duties
+    $invigilationDuties = InvigilationDuty::where('faculty_id', $facultyId)
+      ->with(['exam', 'room'])
+      ->where('date', '>=', now()->toDateString())
+      ->orderBy('date', 'asc')
+      ->limit(10)
+      ->get();
+
+    // Get faculty email for matching departmental activities
+    $facultyDetails = Faculty::find($facultyId);
+    $facultyEmail = $facultyDetails->MAIL_ID ?? null;
+
+    // Get Departmental Activities where faculty is a participant
+
+
+    $departmentalActivities = DepartmentActivity::with(['subject', 'creator'])
+      ->whereIn('status', ['planned', 'ongoing', 'completed'])
+      ->orderBy('activity_date', 'desc')
+      ->limit(10)
+      ->get();
+
+
+
+    return view('faculty.dashboard', compact(
+      'workDiaryEntries',
+      'assignedSubjects',
+      'totalSubjectsCount',
+      'leaveStats',
+      'casualLeaves',
+      'sickLeaves',
+      'earnedLeaves',
+      'recentLeaves',
+      'eventControllerActivities',
+      'invigilationDuties',
+      'departmentalActivities'
+    ));
   }
 
   public function facultyTimetable(Request $request)
