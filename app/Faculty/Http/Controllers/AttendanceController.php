@@ -218,19 +218,34 @@ class AttendanceController extends Controller
       ->where('hour_id', $hourId)
       ->get()
       ->keyBy('student_id');
+    if ($request->attendance_type == 'regular') {
 
-    return view('faculty.attendance.take', [
-      'students' => $students,
-      'recordId' => $id,
-      'syllabusId' => $syllabus_id,
-      'hourId' => $hourId,
-      'attendanceDate' => $attendanceDate,
-      'batchId' => $batch,
-      'syllabusAssignment' => $syllabusAssignment,
-      'course_id' => $course_id,
-      'semesterId' => $semesterId,
-      'existingAttendance' => $existingAttendance,
-    ]);
+      return view('faculty.attendance.take', [
+        'students' => $students,
+        'recordId' => $id,
+        'syllabusId' => $syllabus_id,
+        'hourId' => $hourId,
+        'attendanceDate' => $attendanceDate,
+        'batchId' => $batch,
+        'syllabusAssignment' => $syllabusAssignment,
+        'course_id' => $course_id,
+        'semesterId' => $semesterId,
+        'existingAttendance' => $existingAttendance,
+      ]);
+    } else {
+      return view('faculty.attendance.extra.take', [
+        'students' => $students,
+        'recordId' => $id,
+        'syllabusId' => $syllabus_id,
+        'hourId' => $hourId,
+        'attendanceDate' => $attendanceDate,
+        'batchId' => $batch,
+        'syllabusAssignment' => $syllabusAssignment,
+        'course_id' => $course_id,
+        'semesterId' => $semesterId,
+        'existingAttendance' => $existingAttendance,
+      ]);
+    }
   }
 
   function updateAttendance(Request $request, $id)
@@ -301,85 +316,16 @@ class AttendanceController extends Controller
     ]);
   }
 
-  public function getStudentListExtraClass(Request $request)
-  {
-
-    $id = $request->input('rec_id');
-    $syllabus_id = $request->input('syllabus_id');
-    $hourId = $request->input('hour_id');
-    $attendanceDate = $request->input('attendance_date', date('Y-m-d'));
-    $semesterId = $request->input('semester_id');
-    $batchId = $request->input('batch_id');
-
-    $record =  SubjectHasSyllabus::find($syllabus_id); // Validate syllabus_id
-    if (!$record) {
-      return back()->with('error', 'Invalid syllabus selected.');
-    }
-
-    $course_id = $record->course_id;
-    $campusId = $record->subject->campus_id;
-
-    // Get academic year from batch_id (batch_name like "2024", "2025", etc.)
-    $academicYear = $batchId;
-
-    // Fetch DISTINCT students from student_course_infos as per course_id, semester_id, campus_id, academic_year
-    $studentIds = StudentCourseInfo::where('course_id', $course_id)
-      ->when($semesterId, function ($q) use ($semesterId) {
-        $q->where('semester', $semesterId);
-      })
-      ->when($campusId, function ($q) use ($campusId) {
-        $q->where('campus_id', $campusId);
-      })
-      ->when($academicYear, function ($q) use ($academicYear) {
-        $q->where('academic_year', $academicYear);
-      })
-      ->distinct()
-      ->pluck('student_id');
-
-    $students = StudentMaster::whereIn('id', $studentIds)
-      ->where('is_deleted', 0)
-      ->where('is_left', 0)
-      ->orderBy('first_name')
-      ->orderBy('last_name')
-      ->get(['id', 'first_name', 'last_name', 'roll_no']);
-
-    $syllabusAssignment = SubjectHasSyllabus::with([
-      'courseLink.courseMaster.coursetypemaster',
-      'semestermaster:id,title',
-      'batchmaster'
-    ])->find($syllabus_id);
-
-    // Get existing attendance for this date/hour/routine
-    $existingAttendance = ExtraClassAttendance::where('routine_id', $id)
-      ->where('attendance_date', $attendanceDate)
-      ->where('hour_id', $hourId)
-      ->get()
-      ->keyBy('student_id');
-
-    return view('faculty.attendance.extra.take', [
-      'students' => $students,
-      'recordId' => $id,
-      'syllabusId' => $syllabus_id,
-      'hourId' => $hourId,
-      'attendanceDate' => $attendanceDate,
-      'batchId' => $batchId,
-      'syllabusAssignment' => $syllabusAssignment,
-      'course_id' => $course_id,
-      'semesterId' => $semesterId,
-      'existingAttendance' => $existingAttendance,
-    ]);
-  }
-
   /**
    * Store remedial class attendance records
    */
-  public function storeExtraAttendance(Request $request)
+  public function storeRemedialAttendance(Request $request)
   {
     $request->validate([
       'routine_id' => 'required|exists:subject_has_routines,id',
       'attendance_date' => 'required|date',
       'attendance' => 'required|array',
-      'attendance.*' => 'in:present,absent,late,excused',
+      'attendance.*' => 'in:present,absent',
       'course_id' => 'required',
     ]);
 
@@ -395,34 +341,42 @@ class AttendanceController extends Controller
     try {
       $userId = Auth::user()->id;
       $facultyId = SubjectFacultyMaster::where('access_id', $userId)->value('faculty_id');
+
+      // Ensure all required fields are present and properly typed
+      if (!$facultyId) {
+        throw new \Exception('Faculty ID not found for current user');
+      }
+
       foreach ($request->attendance as $studentId => $status) {
-        if ($status === 'present') {
-          ExtraClassAttendance::updateOrCreate(
-            [
-              'routine_id' => $request->routine_id,
-              'student_id' => $studentId,
-              'attendance_date' => $request->attendance_date,
-              'course_id' => $request->course_id,
-              'hour_id' => $request->hour_id,
-              'faculty_id' => $facultyId,
-              'semester_id' => $request->semester_id,
-              'batch' => $request->batch,
-            ],
-            [
-              'status' => $status,
-              'attendance_method' => 'manual',
-            ]
-          );
+        if ($status !== 'present') {
+          continue;
         }
+        ExtraClassAttendance::updateOrCreate(
+          [
+            'routine_id' => (int) $request->routine_id,
+            'student_id' => (int) $studentId,
+            'attendance_date' => $request->attendance_date,
+            'course_id' => (int) $request->course_id,
+            'hour_id' => $request->hour_id ? (int) $request->hour_id : null,
+            'faculty_id' => (int) $facultyId,
+            'semester_id' => (int) $request->semester_id,
+            'batch' => $request->batch,
+          ],
+          [
+            'status' => $status,
+            'attendance_method' => 'manual',
+          ]
+        );
       }
 
       DB::commit();
       return redirect()
-        ->route('faculty.extra.classes')
+        ->route('faculty.attendance.view.remedial-class')
         ->with('success', 'Remedial Class Attendance recorded successfully!');
     } catch (\Exception $e) {
       DB::rollBack();
-      return back()->with('error', 'Failed to record attendance. Please try again.');
+      \Log::error('Extra Class Attendance Error: ' . $e->getMessage());
+      return back()->with('error', 'Failed to record attendance: ' . $e->getMessage());
     }
   }
 

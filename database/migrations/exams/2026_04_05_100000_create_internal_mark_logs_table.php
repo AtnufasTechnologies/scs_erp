@@ -10,13 +10,13 @@ return new class extends Migration
   {
     Schema::create('internal_mark_logs', function (Blueprint $table) {
       $table->increments('id');
-      $table->integer('internal_mark_id');
-      $table->integer('student_id');
-      $table->integer('course_id');
+      $table->unsignedInteger('internal_mark_id');
+      $table->unsignedInteger('student_id');
+      $table->unsignedInteger('course_id');
       $table->string('semester', 45);
       $table->string('old_mark', 45)->nullable();
       $table->string('new_mark', 45);
-      $table->integer('changed_by');
+      $table->unsignedInteger('changed_by');
       $table->string('changed_by_name', 100)->nullable();
       $table->string('change_reason', 255)->nullable();
       $table->timestamps();

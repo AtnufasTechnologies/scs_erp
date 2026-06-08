@@ -63,9 +63,9 @@ class LoginController extends Controller
                     case 'coe':
                     case 'dcoe':
                         //COE    Dashboard
-                        Auth::logout();
-                        return redirect('/')->with('info', 'Development in Progress...Please Wait till Product Completion');
-                        // return redirect()->route('coe.dashboard')->with('success', 'Login Success');
+                        // Auth::logout();
+                        // return redirect('/')->with('info', 'Development in Progress...Please Wait till Product Completion');
+                        return redirect()->route('coe.dashboard')->with('success', 'Login Success');
 
                     case 'principal':
                     case 'vice-principal':
