@@ -81,7 +81,7 @@ $hourMaster = HourMaster::all();
 
 
               <div class="row">
-                <div class="col-lg-6">
+                <div class="col-lg-3">
                   <div class="mb-4">
                     <label for="hourSelect" class="form-label fw-bold">Hour</label>
                     <select id="hourSelect" class="form-select">
@@ -91,6 +91,13 @@ $hourMaster = HourMaster::all();
                       @endforeach
                     </select>
                   </div>
+                </div>
+                <div class="col-lg-3">
+                  <label for="attendanceType" class="form-label fw-bold">Attendance Type</label>
+                  <select id="attendance_type" class="form-select">
+                    <option value="regular" selected>Regular</option>
+                    <option value="remedial">Remedial</option>
+                  </select>
                 </div>
                 <div class="col-lg-6">
                   <label for="attendanceDate" class="form-label fw-bold">Date</label>

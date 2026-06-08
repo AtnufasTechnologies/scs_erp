@@ -93,7 +93,7 @@
     </li>
 
     <li>
-      <a href="{{route('faculty.remedial.classes')}}">
+      <a href="{{route('faculty.attendance.view.remedial-class')}}">
         <div class="parent-icon">
           <i class="fas fa-chalkboard-teacher"></i>
         </div>

@@ -845,12 +845,12 @@ Route::group(['prefix' => '/erp'], function () {
         Route::get('attendance/view', [FacultyAttendanceController::class, 'viewAttendance'])->name('faculty.attendance.view');
         Route::delete('attendance/{id}', [FacultyAttendanceController::class, 'deleteAttendance'])->name('faculty.attendance.delete');
         Route::get('attendance/create', [FacultyAttendanceController::class, 'getStudentList'])->name('faculty.attendance.create');
-
+        Route::put('attendance/{id}', [FacultyAttendanceController::class, 'updateAttendance'])->name('faculty.attendance.update');
         // Remedial classes
         Route::get('remedial-classes', [FacultyAttendanceController::class, 'extraClasses'])->name('faculty.remedial.classes');
-        Route::post('remedial-classes', [FacultyAttendanceController::class, 'storeExtraAttendance'])->name('faculty.remedial.classes.store');
+        Route::post('remedial-classes', [FacultyAttendanceController::class, 'storeRemedialAttendance'])->name('faculty.remedial.classes.store');
         Route::delete('remedial-classes/{id}', [FacultyAttendanceController::class, 'deleteExtraClass'])->name('faculty.remedial.classes.delete');
-        Route::get('attendance/create/remedial-class', [FacultyAttendanceController::class, 'getStudentListExtraClass'])->name('faculty.attendance.create.remedial-class');
+        // Route::get('attendance/create/remedial-class', [FacultyAttendanceController::class, 'getStudentListExtraClass'])->name('faculty.attendance.create.remedial-class');
         Route::get('attendance/view/remedial-class', [FacultyAttendanceController::class, 'viewExtraClassAttendance'])->name('faculty.attendance.view.remedial-class');
 
         Route::get('work-diary', [WorkDiaryController::class, 'index'])->name('faculty.workdiary');

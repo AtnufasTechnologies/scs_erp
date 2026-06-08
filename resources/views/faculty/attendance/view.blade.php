@@ -96,6 +96,8 @@ use Carbon\Carbon;
               <th>Roll No</th>
               <th>Student Name</th>
               <th class="text-center">Status</th>
+              <th>Action</th>
+
 
             </tr>
           </thead>
@@ -106,7 +108,7 @@ use Carbon\Carbon;
               data-student="{{ strtolower($record->student->first_name . ' ' . $record->student->last_name . ' ' . $record->student->register_no) }}"
               data-date="{{ $record->attendance_date }}">
               <td>{{$loop->iteration}}</td>
-              <td>{{ $record->attendance_date }}</td>
+              <td>{{ date('d M Y', strtotime($record->attendance_date)) }}</td>
               <td>{{ $record->semester_id }}</td>
               <td>{{$record->hour_id }}</td>
               <td>{{ $record->courseinfo->coursetypemaster->title ?? 'N/A' }}</td>
@@ -117,13 +119,69 @@ use Carbon\Carbon;
               <td class="text-center">
                 @if($record->status === 'present')
                 <span class="badge bg-success"><i class="fa fa-check"></i> Present</span>
-                @elseif($record->status === 'absent')
+                @else($record->status === 'absent')
                 <span class="badge bg-danger"><i class="fa fa-times"></i> Absent</span>
-                @elseif($record->status === 'late')
+                @endif
+                @if($record->extra === 'late')
                 <span class="badge bg-warning"><i class="fa fa-clock"></i> Late</span>
-                @elseif($record->status === 'excused')
+                @elseif($record->extra === 'excused')
                 <span class="badge bg-info"><i class="fa fa-file-text"></i> Excused</span>
                 @endif
+              </td>
+
+              <td>
+
+                <button type="button" class="btn btn-sm btn-primary" data-bs-toggle="modal" data-bs-target="#editAttendanceModal{{ $record->id }}">
+                  <i class="fa fa-edit"></i> Edit
+                </button>
+
+                <!-- Edit Attendance Modal -->
+                <div class="modal fade" id="editAttendanceModal{{ $record->id }}" tabindex="-1">
+                  <div class="modal-dialog">
+                    <div class="modal-content" style="border-radius: 16px;">
+                      <div class="modal-header border-0">
+                        <h5 class="modal-title"><i class="fa fa-edit text-primary me-2"></i>Edit Attendance</h5>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                      </div>
+                      <form action="{{ route('faculty.attendance.update', $record->id) }}" method="POST">
+                        @csrf
+                        @method('PUT')
+                        <div class="modal-body">
+                          <div class="mb-3">
+                            <label class="form-label fw-semibold">Attendance Date</label>
+                            <input type="date" class="form-control" value="{{ date('Y-m-d', strtotime($record->attendance_date)) }}" name="attendance_date" readonly>
+                          </div>
+
+                          <div class="mb-3">
+                            <label class="form-label fw-semibold">RollNo - {{ $record->student->roll_no }}</label>
+                            <input type="text" class="form-control text-capitalize" value="{{ $record->student->first_name }} {{ $record->student->last_name }}" disabled>
+                          </div>
+                          <div class="mb-3">
+                            <label class="form-label fw-semibold">Attendance Status <span class="text-danger">*</span></label>
+                            <select name="status" class="form-select" required>
+                              <option value="present" {{ $record->status === 'present' ? 'selected' : '' }}>Present</option>
+                              <option value="absent" {{ $record->status === 'absent' ? 'selected' : '' }}>Absent</option>
+                            </select>
+                          </div>
+
+                          <div class="mb-3">
+                            <label class="form-label fw-semibold">Extra Remark <span class="text-danger">*</span></label>
+                            <select name="extra" class="form-select" required>
+                              <option value="">--Select--</option>
+                              <option value="late" {{ $record->status === 'late' ? 'selected' : '' }}>Late</option>
+                              <option value="excused" {{ $record->status === 'excused' ? 'selected' : '' }}>Excused</option>
+                            </select>
+                          </div>
+                        </div>
+                        <div class="modal-footer border-0">
+                          <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                          <button type="submit" class="btn btn-primary"><i class="fa fa-save me-1"></i>Save Changes</button>
+                        </div>
+                      </form>
+                    </div>
+                  </div>
+                </div>
+
               </td>
 
             </tr>

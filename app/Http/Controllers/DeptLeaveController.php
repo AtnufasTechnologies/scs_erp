@@ -112,7 +112,7 @@ class DeptLeaveController extends Controller
 
     $facultyIds = $this->getDeptFacultyIds($subject->id);
 
-    $query = FacultyLeaveApplication::with(['faculty', 'leaveMaster', 'forwarder'])
+    $query = FacultyLeaveApplication::with(['faculty', 'leaveMaster', 'forwarder', 'approver.hasRole'])
       ->whereIn('faculty_id', $facultyIds)
       ->currentSession()
       ->orderBy('created_at', 'desc');
@@ -166,7 +166,7 @@ class DeptLeaveController extends Controller
 
     $facultyIds = $this->getDeptFacultyIds($subject->id);
 
-    $application = FacultyLeaveApplication::with(['faculty', 'leaveMaster', 'approver', 'forwarder'])
+    $application = FacultyLeaveApplication::with(['faculty', 'leaveMaster', 'approver.hasRole', 'forwarder'])
       ->whereIn('faculty_id', $facultyIds)
       ->findOrFail($id);
 

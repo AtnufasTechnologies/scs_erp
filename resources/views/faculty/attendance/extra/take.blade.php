@@ -115,11 +115,18 @@ $hourmaster = HourMaster::all();
                 <small class="text-muted">
                   <span id="searchResultCount"></span>
                 </small>
+
               </div>
+
               <div class="col-md-6 text-end d-flex align-items-center justify-content-end">
-                <span class="badge bg-secondary fs-6 px-3 py-2">
-                  Total Students: <strong id="visibleCount">{{ $students->count() }}</strong>
-                </span>
+                <span class="mb-3 btn-sm  btn-success mx-2">Present: <strong id="presentCount">{{ $students->count() }}</strong></span>
+                <span class="mb-3 btn-sm btn-danger mx-2">Absent: <strong id="absentCount">0</strong></span>
+                <span class="mb-3 btn-sm btn-primary mx-2">Total: <strong id="totalCount">{{ $students->count() }}</strong></span>
+                <button type="submit" class="btn btn-dark" id="submitBtn">
+                  <span id="submitBtnText"><i class="fa fa-save "></i>Save Attendance</span>
+                  <span id="loader" class="spinner-border spinner-border-sm d-none" role="status" aria-hidden="true"></span>
+                </button>
+
               </div>
             </div>
 
@@ -165,25 +172,13 @@ $hourmaster = HourMaster::all();
               </table>
             </div>
 
-            <div class="row mt-3">
-              <div class="col-md-12">
-                <div class="alert alert-light border">
-                  <strong>Summary:</strong>
-                  <span class="ms-2">Total: <strong id="totalCount">{{ $students->count() }}</strong></span>
-                  <span class="ms-3 text-success">Present: <strong id="presentCount">{{ $students->count() }}</strong></span>
-                  <span class="ms-3 text-danger">Absent: <strong id="absentCount">0</strong></span>
-                </div>
-              </div>
-            </div>
+
 
             <div class="d-flex justify-content-between mt-4">
               <a href="{{ route('faculty.attendance.index') }}" class="btn btn-secondary">
                 <i class="bi bi-arrow-left me-1"></i>Back
               </a>
-              <button type="submit" class="btn btn-primary" id="submitBtn">
-                <span id="submitBtnText"><i class="bi bi-save me-1"></i>Save Attendance</span>
-                <span id="loader" class="spinner-border spinner-border-sm d-none" role="status" aria-hidden="true"></span>
-              </button>
+
             </div>
             @endif
           </form>

@@ -63,7 +63,7 @@ class User extends Authenticatable
 
     function hasRole()
     {
-        return $this->hasOne(UserHasRole::class, 'user_id', 'id')->with('role');
+        return $this->hasOne(UserHasRole::class, 'user_id', 'id');
     }
 
 

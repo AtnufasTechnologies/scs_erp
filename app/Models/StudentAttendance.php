@@ -25,6 +25,7 @@ class StudentAttendance extends Model
     'lecture_end_time',
     'status',
     'remarks',
+    'extra',
   ];
 
   protected $casts = [
