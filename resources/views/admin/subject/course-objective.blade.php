@@ -181,17 +181,82 @@ $taxonomylevels = CognitiveLevelMaster::all();
                   @foreach($cso->csosubunits as $subunit)
                   <li class="list-group-item shadow d-flex justify-content-between align-items-start">
                     <div>
-                      {{$loop->iteration}}. {{ $subunit->title }} - Taxonomy Level ({{$subunit->taxomonylevel->fullname}})
+                      @foreach ($subunit->taxonomies as $taxonomy)
+                      <button type="button" class="badge badge-success position-relative">
+                        {{ $taxonomy->rbtmaster->shortname ?? 'N/A' }}
+                        <a href="{{route('department.delete.cso.subunit.taxonomy', $taxonomy->id)}}" id="citadel">
+                          <i class="fa fa-times"></i>
+                        </a>
+                      </button>
+                      @endforeach
+                      <br>
+
+                      {{$loop->iteration}}. {{ $subunit->title }}
                       @if($subunit->image_path != null)
                       <br>
                       <img src="{{Storage::disk('s3')->url($subunit->image_path)}}" alt="Subunit Image" class="img-fluid mt-2">
                       @endif
                     </div>
-                    <a href="{{ route('department.delete.cso.subunit', $subunit->id) }}"
-                      class="btn btn-xs btn-danger ms-2"
-                      onclick="return confirm('Delete this subunit?')">
-                      <i class="fa fa-trash"></i>
-                    </a>
+                    <!-- bootstrap modal for editing subunit -->
+                    <div>
+                      <button class="btn btn-xs btn-warning" data-bs-toggle="modal" data-bs-target="#editSubunitModal{{ $subunit->id }}"> <i class="fa fa-edit"></i> </button>
+
+                      <!-- Modal for editing subunit -->
+                      <div class="modal fade" id="editSubunitModal{{ $subunit->id }}" tabindex="-1" aria-hidden="true">
+                        <div class="modal-dialog modal-lg">
+                          <div class="modal-content">
+                            <div class="modal-header">
+                              <h5 class="modal-title">Edit Sub Unit</h5>
+                              <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                            </div>
+                            <form action="{{ route('department.update.cso.subunit', $subunit->id) ?? '#' }}" method="post" enctype="multipart/form-data">
+                              @csrf
+                              @method('PUT')
+                              <div class="modal-body">
+
+                                <div class="mb-3">
+                                  <label for="subunitTitle" class="form-label">Sub Unit Title *</label>
+                                  <textarea name="title" class="form-control">{{ $subunit->title }}</textarea>
+                                  @error('title')
+                                  <span class="text-danger">{{$message}}</span>
+                                  @enderror
+                                </div>
+                                <div class="row">
+                                  <div class="col-lg-12">
+                                    <div class="mb-3">
+                                      <label for="" class="form-label">Bloom's Taxonomy *</label>
+                                      <select name="taxonomy[]" class="form-select select-multiple" multiple>
+                                        @foreach ($taxonomylevels as $level)
+                                        <option value="{{$level->id}}" {{ $subunit->taxonomies->contains('rbt_id', $level->id) ? 'selected' : '' }}>{{$level->shortname}} - {{$level->fullname}}</option>
+                                        @endforeach
+                                      </select>
+                                      @error('taxonomy')
+                                      <span class="text-danger">{{$message}}</span>
+                                      @enderror
+                                    </div>
+                                  </div>
+                                  <div class="col-lg-12">
+                                    <div class="mb-3">
+                                      <label for="subunitPhoto" class="form-label">Upload Photo (allowed: jpg,pn max: 5MB)</label>
+                                      <input type="file" class="form-control" name="photo">
+                                    </div>
+                                  </div>
+                                </div>
+                              </div>
+                              <div class="modal-footer">
+                                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                                <button type="submit" class="btn btn-success">Update Sub Unit</button>
+                              </div>
+                            </form>
+                          </div>
+                        </div>
+                      </div>
+
+                      <a href="{{ route('department.delete.cso.subunit', $subunit->id) }}"
+                        class="btn btn-xs btn-danger ms-2"
+                        onclick="return confirm('Delete this subunit?')">
+                        <i class="fa fa-trash"></i>
+                      </a>
                   </li>
                   @endforeach
                 </ul>
@@ -222,15 +287,11 @@ $taxonomylevels = CognitiveLevelMaster::all();
                             @enderror
                           </div>
 
-
-
-
                           <div class="row">
-                            <div class="col-lg-6">
+                            <div class="col-lg-12">
                               <div class="mb-3">
                                 <label for="" class="form-label">Bloom's Taxonomy *</label>
-                                <select name="taxonomy" class="form-select">
-                                  <option value="" selected>Select</option>
+                                <select name="taxonomy[]" class="form-select select-multiple" multiple>
                                   @foreach ($taxonomylevels as $level)
                                   <option value="{{$level->id}}">{{$level->shortname}} - {{$level->fullname}}</option>
                                   @endforeach
@@ -240,7 +301,7 @@ $taxonomylevels = CognitiveLevelMaster::all();
                                 @enderror
                               </div>
                             </div>
-                            <div class="col-lg-6">
+                            <div class="col-lg-12">
                               <div class="mb-3">
                                 <label for="subunitPhoto" class="form-label">Upload Photo (allowed: jpg,pn max: 5MB)</label>
                                 <input type="file" class="form-control" name="photo">
