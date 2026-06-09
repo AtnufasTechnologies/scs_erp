@@ -41,6 +41,7 @@ use App\Models\SubjectTypeMaster;
 use App\Models\SyllabusHasFaculty;
 use App\Models\CourseSeatAllocation;
 use App\Models\StdProgComboMap;
+use App\Models\SubunitHasRbt;
 use App\Models\SyllabusPdfUpload;
 use App\Models\SyllabusManager;
 use App\Models\SyllabusSubunit;
@@ -759,7 +760,7 @@ class SubjectController extends Controller
     {
         $course = SubjectCourseMaster::with([
             'courseMaster.coursetypemaster',
-            'courseMaster.csos.csosubunits.taxomonylevel',
+            'courseMaster.csos.csosubunits.taxonomies.rbtmaster',
         ])->where('course_master_id', $courseId)->first();
 
         if (!$course) {
@@ -909,6 +910,9 @@ class SubjectController extends Controller
         }
 
         $subunit->delete();
+        //delete taxanomy links
+        SubunitHasRbt::where('subunit_id', $id)->delete();
+
         return redirect()->back()->with('success', 'Subunit deleted successfully');
     }
 
@@ -917,23 +921,33 @@ class SubjectController extends Controller
         $request->validate([
             'title' => 'required',
             'cso_id' => 'required',
-            'taxonomy' => 'required',
+            'taxonomy' => 'required|array|min:1',
         ]);
+        $taxonomy = $request->taxonomy;
 
-
-        $csoSubunit = new CsoSubunit();
-        $csoSubunit->cso_id = $request->cso_id;
-        $csoSubunit->taxonomy_id = $request->taxonomy;
-        $csoSubunit->title = $request->title; // default value for subunit
+        $rec = new CsoSubunit();
+        $rec->cso_id = $request->cso_id;
+        $rec->title = $request->title; // default value for subunit
 
         if (!empty($request->photo)) {
             $photo = $request->photo;
             $filePath = StaticController::s3_file_uploader($photo, 'cso-subunits');
-            $csoSubunit->image_path = $filePath;
+            $rec->image_path = $filePath;
         }
-        $csoSubunit->save();
 
-        return redirect()->back()->with('success', 'CSO Sub Unit added successfully');
+        $rec->save();
+
+        $subunitId = $rec->id;
+
+        //Assign taxonomy levels
+        for ($i = 0; $i < count($taxonomy); $i++) {
+            SubunitHasRbt::create([
+                'subunit_id' => $subunitId,
+                'rbt_id' => $taxonomy[$i],
+            ]);
+        }
+
+        return redirect()->back()->with('success', 'CSO Subunit Added Successfully');
     }
 
     function syllabusManager(Request $request)
@@ -1637,5 +1651,56 @@ class SubjectController extends Controller
         }
 
         return $weeklyData;
+    }
+
+
+    function deleteCsoSubunitTaxonomy($id)
+    {
+        SubunitHasRbt::findOrFail($id)->delete();
+        return redirect()->back()->with('success', 'Taxonomy level removed from subunit');
+    }
+
+
+    function updateCsoSubunit(Request $request, $id)
+    {
+        $subunit = CsoSubunit::findOrFail($id);
+
+        $request->validate([
+            'title' => 'required',
+            'taxonomy' => 'required|array|min:1',
+        ]);
+
+        $subunit->title = $request->title;
+
+        if (!empty($request->photo)) {
+            $photo = $request->photo;
+            $filePath = StaticController::s3_file_uploader($photo, 'cso-subunits');
+            $subunit->image_path = $filePath;
+        }
+
+        $subunit->save();
+
+        // Update taxonomy levels
+        $existingTaxonomyIds = SubunitHasRbt::where('subunit_id', $id)->pluck('rbt_id')->toArray();
+        $newTaxonomyIds = $request->taxonomy;
+
+        // Add new taxonomy levels
+        foreach ($newTaxonomyIds as $rbtId) {
+            if (!in_array($rbtId, $existingTaxonomyIds)) {
+                SubunitHasRbt::create([
+                    'subunit_id' => $id,
+                    'rbt_id' => $rbtId,
+                ]);
+            }
+        }
+
+        // Remove old taxonomy levels that are not in the new list
+        foreach ($existingTaxonomyIds as $existingId) {
+            if (!in_array($existingId, $newTaxonomyIds)) {
+                SubunitHasRbt::where('subunit_id', $id)->where('rbt_id', $existingId)->delete();
+            }
+        }
+
+        return redirect()->back()->with('success', 'CSO Subunit updated successfully');
     }
 }

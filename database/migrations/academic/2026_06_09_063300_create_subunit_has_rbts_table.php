@@ -11,12 +11,10 @@ return new class extends Migration
      */
     public function up(): void
     {
-        Schema::create('cso_subunits', function (Blueprint $table) {
+        Schema::create('subunit_has_rbts', function (Blueprint $table) {
             $table->id();
-            $table->unsignedBigInteger('cso_id');
-            $table->string('title');
-            $table->foreign('cso_id')->references('id')->on('co_has_csos')->onDelete('cascade');
-            $table->string('image_path')->nullable();
+            $table->integer('subunit_id');
+            $table->integer('rbt_id');
             $table->timestamps();
             $table->softDeletes();
         });
@@ -27,6 +25,6 @@ return new class extends Migration
      */
     public function down(): void
     {
-        Schema::dropIfExists('cso_subunits');
+        Schema::dropIfExists('subunit_has_rbts');
     }
 };

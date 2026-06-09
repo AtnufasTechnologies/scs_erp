@@ -11,13 +11,12 @@ class CsoSubunit extends Model
 
     protected $fillable = [
         'cso_id',
-        'taxonomy_id',
         'title',
         'image_path',
     ];
 
-    function taxomonylevel()
+    function taxonomies()
     {
-        return $this->hasOne(CognitiveLevelMaster::class, 'id', 'taxonomy_id');
+        return $this->hasMany(SubunitHasRbt::class, 'subunit_id', 'id')->with('rbtmaster');
     }
 }

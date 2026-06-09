@@ -748,6 +748,8 @@ Route::group(['prefix' => '/erp'], function () {
 
         Route::post('add-cso-subunit', [SubjectController::class, 'addCsoSubunit'])->name('department.add.cso.subunit');
         Route::get('cso-subunit/{id}/delete', [SubjectController::class, 'deleteCsoSubunit'])->name('department.delete.cso.subunit');
+        Route::get('delete-subunit-taxonomy/{id}', [SubjectController::class, 'deleteCsoSubunitTaxonomy'])->name('department.delete.cso.subunit.taxonomy');
+        Route::put('update-cso-subunit/{id}', [SubjectController::class, 'updateCsoSubunit'])->name('department.update.cso.subunit');
 
         Route::get('syllabus-manager', [SubjectController::class, 'syllabusManager'])->name('department.syllabus.manager');
         Route::get('course/{id}/cso-list', [SubjectController::class, 'getCsoListForCourse'])->name('department.get.cso.list');
