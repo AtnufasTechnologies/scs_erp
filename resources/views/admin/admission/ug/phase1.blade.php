@@ -155,7 +155,8 @@ $programs = Qs::getProgramGroups();
               @else
               <i class="fa fa-times-circle text-danger fa-2x"></i>
               @endif
-            </span></label>
+            </span>
+          </label>
 
         </div>
         <div class="stats">

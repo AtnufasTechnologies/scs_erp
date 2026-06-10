@@ -336,8 +336,9 @@ $batches = BatchMaster::all();
                               <h6 class="mb-1">{{ $syllabusSubunit->csoSubunit->title ?? 'N/A' }}</h6>
                               <small class="text-muted">
                                 <span class="badge bg-primary">
-                                  {{ $syllabusSubunit->csoSubunit->taxomonylevel->shortname ?? '-' }} -
-                                  {{ $syllabusSubunit->csoSubunit->taxomonylevel->fullname ?? '-' }}
+                                  @foreach ($syllabusSubunit->csoSubunit->taxonomies ?? [] as $taxonomy)
+                                  {{ $taxonomy->rbtmaster->shortname ?? '-' }} - {{ $taxonomy->rbtmaster->fullname ?? '-' }}
+                                  @endforeach
                                 </span>
                               </small>
                             </div>
