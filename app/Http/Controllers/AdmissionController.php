@@ -882,31 +882,33 @@ class AdmissionController extends Controller
         $phase1Record = AdmissionFirstPhase::findOrFail($id);
 
 
+        if ($phase1Record->document_verified  == 0) {
+            $phase1Record->document_verified = $request->document_verified;
+        }
 
-        $phase1Record->document_verified = $request->document_verified;
-        if ($request->proficiency_test_status !== null) {
+        if ($request->proficiency_test_status == 0 && $request->proficiency_test_status == null) {
             $phase1Record->proficiency_test_status = $request->proficiency_test_status;
         }
 
-        if ($request->proficiency_test_remarks !== null) {
+        if ($request->proficiency_test_remarks == null) {
             $phase1Record->proficiency_test_remarks = $request->proficiency_test_remarks;
         }
 
-        if ($request->dept_interview !== null) {
+        if ($request->dept_interview == 0) {
             $phase1Record->dept_interview = $request->dept_interview;
         }
-        if ($request->dept_interview_remark !== null) {
+        if ($request->dept_interview_remark == null) {
             $phase1Record->dept_interview_remark = $request->dept_interview_remark;
         }
 
 
-        if ($request->mgt_interview_status !== null) {
+        if ($request->mgt_interview_status == 0) {
             $phase1Record->mgt_interview_status = $request->mgt_interview_status;
         }
-        if ($request->mgt_interview_remark !== null) {
+        if ($request->mgt_interview_remark == null) {
             $phase1Record->mgt_interview_remark = $request->mgt_interview_remark;
         }
-        if ($request->final_status !== null) {
+        if ($request->final_status == null) {
             $phase1Record->final_status = $request->final_status;
         }
 
