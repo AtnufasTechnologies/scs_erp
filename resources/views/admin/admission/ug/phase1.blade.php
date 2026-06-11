@@ -274,7 +274,7 @@ $programs = Qs::getProgramGroups();
                   <textarea class="form-control" id="dept_interview_remark{{ $item->id }}" name="dept_interview_remark" rows="2">{{ $item->dept_interview_remark }}</textarea>
                 </div>
                 @endif
-                @if($userRoleType == 'principal' || $userRoleType == 'vice-principal' || $userRoleType == 'admission-incharge' || $userRoleType == 'bursar')
+                @if($userRoleType == 'principal' || $userRoleType == 'vice-principal' || $userRoleType == 'bursar')
                 <div class="mb-3">
                   <label for="mgt_interview_remark{{ $item->id }}" class="form-label">Management Remark</label>
                   <textarea class="form-control" id="mgt_interview_remark{{ $item->id }}" name="mgt_interview_remark" rows="2">{{ $item->mgt_interview_remark }}</textarea>
