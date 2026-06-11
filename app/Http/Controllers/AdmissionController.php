@@ -803,18 +803,26 @@ class AdmissionController extends Controller
         }
 
         //bypass logic
-        //Create Interview Phase 1 List
+        //Create Interview Phase 1 List only for those who don't have a record yet
+        $createdCount = 0;
         foreach ($data as $applicant) {
-            AdmissionFirstPhase::create(
-                [
+            $existingRecord = AdmissionFirstPhase::where('reg_id', $applicant->registrationmaster->id)->first();
+
+            if (!$existingRecord) {
+                AdmissionFirstPhase::create([
                     'application_id' => $applicant->id,
                     'reg_id' => $applicant->registrationmaster->id,
                     'interview_datetime' => $interviewDateTime,
-
-                ]
-            );
+                ]);
+                $createdCount++;
+            }
         }
-        return back()->with('success', 'Phase 1 Interview List created for selected applicants.');
+
+        if ($createdCount > 0) {
+            return back()->with('success', "Phase 1 Interview List created for {$createdCount} new applicant(s).");
+        } else {
+            return back()->with('info', 'All selected applicants already have Phase 1 records.');
+        }
         /*
 
         //send sms to each applicant

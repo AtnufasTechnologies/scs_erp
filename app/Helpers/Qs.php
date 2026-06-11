@@ -30,6 +30,8 @@ class Qs
           $query->whereHas('registrationmaster', function ($query) {
             $query->where('application_type', 'UG');
           });
+          // Exclude applications that already exist in admission_first_phases
+          $query->whereDoesntHave('phaseoneinfo');
         })->distinct()
         ->get(); // Return an empty collection if no campus is set
     } else {
@@ -42,6 +44,8 @@ class Qs
           $query->whereHas('registrationmaster', function ($query) {
             $query->where('application_type', 'UG');
           });
+          // Exclude applications that already exist in admission_first_phases
+          $query->whereDoesntHave('phaseoneinfo');
         })->distinct()
         ->get();
     }
