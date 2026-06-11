@@ -618,7 +618,7 @@ class AdmissionController extends Controller
         // Build query with filters
         $query = AdmissionFirstPhase::with([
             'registrationmaster',
-            'applicationinfo.stdprogramMaster',
+            'applicationinfo.stdCourseMaster',
         ]);
 
         // Campus filter
@@ -669,7 +669,7 @@ class AdmissionController extends Controller
         // Build query - always filter for selected (final_status = 1)
         $query = AdmissionFirstPhase::with([
             'registrationmaster',
-            'applicationinfo.stdprogramMaster',
+            'applicationinfo.stdCourseMaster',
         ])->where('final_status', 1);
 
         // Campus filter

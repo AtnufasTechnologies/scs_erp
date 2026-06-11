@@ -15,18 +15,18 @@ $programs = Qs::getProgramGroups();
 @include('includes.header')
 
 
-@if($userRoleType == 'admission-incharge')
-@include('admin.admission.sidebar')
-@endif
-
-
-
 <div class="container-fluid mt-3">
   <nav class="navbar navbar-expand-lg navbar-dark mb-4 custom-navbar"
     style="background: linear-gradient(135deg, #6615c4 0%, #921bfa 100%); border-radius: 0.75rem;">
     <div class=" container-fluid">
       <img src="{{ asset('admin/images/logo.png') }}" alt="Logo" style="max-height: 80px;" class="me-2">
       <h3><span class="text-light">Interview | Selection First Phase</span></h3>
+      @if($userRoleType == 'admission-incharge')
+      <a href="{{route('admission.dashboard')}}"> <button class="btn btn-light">Back to Main</button></a>
+      @endif
+      @if($userRoleType == 'principal' || $userRoleType == 'vice-principal' || $userRoleType == 'bursar')
+      <a href="{{route('principal.dashboard')}}"> <button class="btn btn-light">Back to Main</button></a>
+      @endif
       @if($userRoleType == 'dept-admin-erp')
       <a href="{{route('department.dashboard')}}"> <button class="btn btn-light">Back to Main</button></a>
       @endif
@@ -388,8 +388,8 @@ $programs = Qs::getProgramGroups();
                 </div>
 
                 <div class="mb-3">
-                  <div class="info info-alert">
-                    <p> On your Final Decision the Student List is Generated and can Proceed to next step of Fee Payment</p>
+                  <div class="alert alert-info">
+                    <p> On your Final Decision the Student is Added Selected List and can Proceed to next step of Fee Payment</p>
                   </div>
                   <label for="">Final Decision </label>
                   <select class="form-select" id="final_status{{ $item->id }}" name="final_status">
@@ -413,7 +413,7 @@ $programs = Qs::getProgramGroups();
         <div class="modal-dialog">
           <div class="modal-content">
             <div class="modal-header">
-              <h5 class="modal-title" id="deptRemarkModalLabel{{ $item->id }}">Department Remark - {{ $item->applicationinfo->application_id }}</h5>
+              <h5 class="modal-title" id="deptRemarkModalLabel{{ $item->id }}">Department Remark - {{ $item->applicationinfo->application_code }}</h5>
               <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
             </div>
             <div class="modal-body">
@@ -433,11 +433,11 @@ $programs = Qs::getProgramGroups();
         <div class="modal-dialog">
           <div class="modal-content">
             <div class="modal-header">
-              <h5 class="modal-title" id="deptRemarkModalLabel{{ $item->id }}">Department Remark - {{ $item->applicationinfo->application_id }}</h5>
+              <h5 class="modal-title" id="mgtRemarkModalLabel{{ $item->id }}">Management Remark - {{ $item->applicationinfo->application_code }}</h5>
               <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
             </div>
             <div class="modal-body">
-              <p>{{ $item->dept_interview_remark }}</p>
+              <p>{{ $item->mgt_interview_remark }}</p>
             </div>
             <div class="modal-footer">
               <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">

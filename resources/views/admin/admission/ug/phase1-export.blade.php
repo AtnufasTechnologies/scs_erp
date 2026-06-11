@@ -26,7 +26,7 @@
       <td>{{ $item->registrationmaster->first_name ?? '' }} {{ $item->registrationmaster->last_name ?? '' }}</td>
       <td>{{ $item->registrationmaster->mobile_no ?? 'N/A' }}</td>
       <td>{{ $item->registrationmaster->mail_id ?? 'N/A' }}</td>
-      <td>{{ $item->applicationinfo->stdprogramMaster->code ?? 'N/A' }} - {{ $item->applicationinfo->stdprogramMaster->name ?? 'N/A' }}</td>
+      <td>{{ $item->applicationinfo->stdCourseMaster->code ?? 'N/A' }} - {{ $item->applicationinfo->stdCourseMaster->name ?? 'N/A' }}</td>
       <td>{{ $item->interview_datetime ?? 'N/A' }}</td>
       <td>{{ $item->document_verified == 1 ? 'Verified' : 'Not Verified' }}</td>
       <td>{{ $item->proficiency_test_status == 1 ? 'Done' : 'Pending' }}</td>
