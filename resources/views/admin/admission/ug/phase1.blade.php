@@ -9,42 +9,148 @@ use App\Models\SubjectHasStudentProgam;
 $userRoleType = StaticController::fetchUserRole();
 $programs = Qs::getProgramGroups();
 
+
 ?>
 
 @include('includes.header')
 
 
-<div class="container-fluid">
+@if($userRoleType == 'admission-incharge')
+@include('admin.admission.sidebar')
+@endif
+
+@if($userRoleType == 'principal' || $userRoleType == 'vice-principal' || $userRoleType == 'bursar')
+@include('principal.sidebar')
+@endif
+
+<div class="container-fluid mt-3">
   <nav class="navbar navbar-expand-lg navbar-dark mb-4 custom-navbar"
-    style="background: linear-gradient(135deg, #17472f 0%, #8931f6 100%); border-radius: 0.75rem;">
+    style="background: linear-gradient(135deg, #6615c4 0%, #921bfa 100%); border-radius: 0.75rem;">
     <div class=" container-fluid">
-      <img src="{{ asset('admin/images/logo.png') }}" alt="Logo" style="max-height: 50px;" class="me-2">
+      <img src="{{ asset('admin/images/logo.png') }}" alt="Logo" style="max-height: 80px;" class="me-2">
       <h3><span class="text-light">Interview | Selection First Phase</span></h3>
+      @if($userRoleType == 'dept-admin-erp')
+      <a href="{{route('department.dashboard')}}"> <button class="btn btn-light">Back to Main</button></a>
+      @endif
     </div>
   </nav>
 </div>
 <!-- Live Search Input -->
 <div class="container-fluid">
-  <div class="mb-3">
-    Total Records: <span class="badge bg-primary">{{ $data->count() }}</span>
-    Completed Records: <span class="badge bg-success">{{ $data->where('final_status', 1)->count() }}</span>
-    Pending Records: <span class="badge bg-dark text-light">{{ $data->where('final_status', 0)->count() }}</span>
-    @if(isset($transferredApplicants))
-    <span class="ms-3">Transferred Applicants: <span class="badge bg-info">{{ $transferredApplicants->count() }}</span></span>
-    @endif
-    @if(isset($transferredPendingInterview) && $transferredPendingInterview->count() > 0)
-    <span class="badge bg-warning text-dark">
-      <i class="fa fa-exclamation-triangle"></i> {{ $transferredPendingInterview->count() }} Transferred Applicant(s) Pending Department Interview
-    </span>
-    @endif
-  </div>
-  <div class="row mb-3">
-    <div class="col-lg-4">
-      <input type="text" id="liveSearchInput" class="form-control" placeholder="Search by name, mobile, email, or code...">
+  <div class="row">
+    <div class="col-lg-2">
+      <div class="card shadow">
+        <div class="card-body">
+          <span class="display-4">{{ $data->count() }}</span>
+          <h5>Total <i class="fa fa-user text-primary fa-2x"></i></h5>
+        </div>
+      </div>
     </div>
-    <div class="col-lg-8 text-end">
-      @if($userRoleType == 'admission-incharge')
-      <div class="form-check form-check-inline me-3">
+
+    <div class="col-lg-2">
+      <div class="card shadow">
+        <div class="card-body">
+          <span class="display-4">{{ $data->where('final_status', 1)->count() }}</span>
+          <h5>Completed <i class="fa fa-check-circle text-success fa-2x"></i></h5>
+        </div>
+      </div>
+    </div>
+
+    <div class="col-lg-2">
+      <div class="card shadow">
+        <div class="card-body">
+          <span class="display-4">{{ $data->where('final_status', 0)->count() }}</span>
+          <h5>Pending <i class="fa fa-hourglass-half text-warning fa-2x"></i></h5>
+        </div>
+      </div>
+    </div>
+
+    <div class="col-lg-2">
+      <div class="card shadow">
+        <div class="card-body">
+          <span class="display-4">
+            @if(isset($transferredApplicants))
+            {{ $transferredApplicants->count() }}
+            @endif
+          </span>
+          <h5>Transferred <i class="fa fa-exchange-alt text-info fa-2x"></i></h5>
+        </div>
+      </div>
+    </div>
+
+    <div class="col-lg-4">
+      <div class="card shadow">
+        <div class="card-body">
+          @if(isset($transferredPendingInterview) && $transferredPendingInterview->count() > 0)
+          <span class="display-4">{{ $transferredPendingInterview->count() }}</span>
+          <h5>Transferred Pending Dept Interview <i class="fa fa-bell text-danger fa-2x"></i></h5>
+          @else
+          <span class="display-4">0</span>
+          <p>No Transferred Applicants Pending Dept Interview <i class="fa fa-check-circle text-success fa-2x"></i></p>
+          @endif
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+
+
+<div class="container-fluid">
+  <div class="row mb-3">
+    <div class="card shadow p-3">
+      <form action="" method="get">
+        <div class="row align-items-end">
+          <div class="col-lg-3">
+            <label class="form-label">Search</label>
+            <input type="text" id="liveSearchInput" class="form-control" placeholder="Search by name, mobile, email, or code...">
+          </div>
+          <div class="col-lg-2">
+            <label class="form-label">Interview Date</label>
+            <div class="input-group">
+              <span class="input-group-text"><i class="fa fa-calendar"></i></span>
+              <input type="date" name="interview_date" class="form-control" value="{{ request('interview_date') }}">
+            </div>
+          </div>
+          <div class="col-lg-2">
+            <label class="form-label">Final Status</label>
+            <select name="final_status" class="form-control">
+              <option value="">All</option>
+              <option value="0" {{ request('final_status') === '0' ? 'selected' : '' }}>Pending</option>
+              <option value="1" {{ request('final_status') === '1' ? 'selected' : '' }}>Selected</option>
+            </select>
+          </div>
+          <div class="col-lg-2">
+            <button class="btn btn-primary w-100" type="submit">
+              <i class="fa fa-filter"></i> Apply Filters
+            </button>
+          </div>
+          <div class="col-lg-2">
+            @if(request('interview_date') || request('final_status') !== null)
+            <a href="{{ route('admission.ug.phase1') }}" class="btn btn-secondary w-100">
+              <i class="fa fa-times"></i> Reset
+            </a>
+            @endif
+          </div>
+          <div class="col-lg-1">
+            <a href="{{ route('admission.ug.phase1.export-all', [
+      'interview_date' => request('interview_date'),
+      'final_status' => request('final_status'),
+      'search' => request('search')
+    ]) }}" class="btn btn-success">
+              <i class="fa fa-download"></i> Export
+            </a>
+          </div>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+
+
+<div class="col-lg-8 text-end">
+  @if($userRoleType == 'admission-incharge')
+  <!-- <div class="form-check form-check-inline me-3">
         <input class="form-check-input" type="checkbox" id="selectAllCheckbox" style="cursor: pointer;">
         <label class="form-check-label" for="selectAllCheckbox" style="cursor: pointer;">
           <strong>Select All</strong>
@@ -52,16 +158,17 @@ $programs = Qs::getProgramGroups();
       </div>
       <button id="bulkOverrideBtn" class="btn btn-danger me-2" style="display: none;">
         <i class="fa fa-check-circle"></i> Bulk Override (<span id="selectedCount">0</span>)
-      </button>
-      @endif
-      <a href="{{ route('admission.ug.phase1.export-all') }}" class="btn btn-primary">
-        <i class="fa fa-download"></i> Export All Applicants
-      </a>
-      <a href="{{ route('admission.ug.phase1.export-selected') }}" class="btn btn-success">
-        <i class="fa fa-download"></i> Export Selected Only
-      </a>
-    </div>
-  </div>
+      </button> -->
+  @endif
+
+  <!-- <a href="{{ route('admission.ug.phase1.export-selected', [
+      'interview_date' => request('interview_date'),
+      'search' => request('search')
+    ]) }}" class="btn btn-success">
+      <i class="fa fa-download"></i> Export Selected Only
+    </a> -->
+</div>
+</div>
 </div>
 
 
@@ -76,9 +183,9 @@ $programs = Qs::getProgramGroups();
       <div class="profile-card shadow {{ $item->dept_interview == 0 && isset($item->programChangeInfo) ? 'border-warning' : '' }}" style="position: relative;" data-applicant-id="{{ $item->id }}">
 
         @if($userRoleType == 'admission-incharge')
-        <div class="position-absolute" style="top: 10px; right: 10px; z-index: 11;">
+        <!-- <div class="position-absolute" style="top: 10px; right: 10px; z-index: 11;">
           <input type="checkbox" class="form-check-input applicant-checkbox" value="{{ $item->id }}" style="width: 20px; height: 20px; cursor: pointer;">
-        </div>
+        </div> -->
         @endif
 
         @if(isset($item->programChangeInfo))
@@ -200,10 +307,10 @@ $programs = Qs::getProgramGroups();
               </a></li>
             @endif
             @if( $userRoleType == 'admission-incharge' )
-            <li><a class="dropdown-item text-danger" href="{{ route('admission.ug.phase1.override', $item->id) }}" onclick="return confirm('Are you sure you want to override the status for this applicant? This action cannot be undone.')">
+            <!-- <li><a class="dropdown-item text-danger" href="{{ route('admission.ug.phase1.override', $item->id) }}" onclick="return confirm('Are you sure you want to override the status for this applicant? This action cannot be undone.')">
                 <i class="fa fa-check-circle"></i> <strong>Override All</strong>
               </a>
-            </li>
+            </li> -->
             <!-- <li>
               <a class="dropdown-item text-primary" href="{{ route('activate.admission.payment', ['id' => $item->registrationmaster->id]) }}" onclick="return confirm('Are you sure you want to activate payment for this applicant?')">
                 <i class="fa fa-credit-card"></i> Activate Payment
@@ -259,7 +366,7 @@ $programs = Qs::getProgramGroups();
                 </div>
                 @endif
 
-                @if($userRoleType == 'principal' || $userRoleType == 'vice-principal')
+                @if($userRoleType == 'principal' || $userRoleType == 'vice-principal' || $userRoleType == 'bursar')
                 <div class="mb-3">
                   <label for="mgt_interview_status{{ $item->id }}" class="form-label">Management Interview</label>
                   <select class="form-select" id="mgt_interview_status{{ $item->id }}" name="mgt_interview_status">
@@ -268,6 +375,8 @@ $programs = Qs::getProgramGroups();
                   </select>
                 </div>
                 @endif
+
+
                 @if($userRoleType == 'dept-admin-erp')
                 <div class="mb-3">
                   <label for="dept_interview_remark{{ $item->id }}" class="form-label">Department Remark</label>
@@ -281,7 +390,10 @@ $programs = Qs::getProgramGroups();
                 </div>
 
                 <div class="mb-3">
-                  <label for="">Final Decision</label>
+                  <div class="info info-alert">
+                    <p> On your Final Decision the Student List is Generated and can Proceed to next step of Fee Payment</p>
+                  </div>
+                  <label for="">Final Decision </label>
                   <select class="form-select" id="final_status{{ $item->id }}" name="final_status">
                     <option value="0" {{ $item->final_status == 0 ? 'selected' : '' }}>Pending</option>
                     <option value="1" {{ $item->final_status == 1 ? 'selected' : '' }}>Selected</option>

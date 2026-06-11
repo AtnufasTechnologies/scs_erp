@@ -106,6 +106,15 @@ $canManageAll = $isAdmissionIncharge || $isSuperAdmin;
     </li>
     @endif
 
+    <li>
+      <a class="nav-link" href="{{route('scms.logout')}}">
+        <div class="parent-icon">
+          <i class="fas fa-sign-out-alt"></i>
+        </div>
+        <div class="menu-title">Logout</div>
+      </a>
+    </li>
+
   </ul>
 </aside>
 <!--end sidebar-->

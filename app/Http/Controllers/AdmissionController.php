@@ -49,6 +49,8 @@ use App\Exports\GenericExport;
 use App\Models\ApplicantProgramChangeInfo;
 use App\Models\StudentMaster;
 use Illuminate\Bus\Batch;
+use DateTime;
+use Locale;
 
 class AdmissionController extends Controller
 {
@@ -79,7 +81,7 @@ class AdmissionController extends Controller
         // Phase 1 & Phase 2 (final) selections
         $phase1Count  = AdmissionFirstPhase::count();
         $phase2Count  = AdmissionFinalPhase::count();
-        $enrolledCount = AdmissionFinalPhase::where('enroll_status', 1)->count();
+        $enrolledCount = AdmissionRegistration::where('is_enrolled', 1)->count();
 
         // Application fee collected
         $totalAppFeeCollected = AdmissionApplicationPaymentLog::where('status', 'success')->sum('amount');
@@ -539,53 +541,55 @@ class AdmissionController extends Controller
     {
 
         $campusId =  StaticController::fetchCampusSettings();
+        $interview_date = $request->interview_date ?? null;
+        $final_status = $request->final_status ?? null;
+        $search = $request->search ?? null;
 
+        // Build base query
+        $query = AdmissionFirstPhase::with([
+            'registrationmaster',
+            'applicationinfo',
+            'programChangeInfo.oldProgram',
+            'programChangeInfo.newProgram',
+        ]);
 
-        if ($campusId == null) {
-            if (!empty($request->search)) {
-                $search = $request->search;
-                $data =   AdmissionFirstPhase::with([
-                    'registrationmaster',
-                    'applicationinfo',
-                    'programChangeInfo.oldProgram',
-                    'programChangeInfo.newProgram',
-                ])->whereHas('applicationinfo', function ($query) use ($search) {
-                    $query->where('application_code', 'like', '%' . $search . '%');
-                })->latest()->get();
-            } else {
-                $data =   AdmissionFirstPhase::with([
-                    'registrationmaster',
-                    'applicationinfo',
-                    'programChangeInfo.oldProgram',
-                    'programChangeInfo.newProgram',
-                ])->latest()->get();
-            }
-        } else {
-            if (!empty($request->search)) {
-                $search = $request->search;
-                $data =   AdmissionFirstPhase::with([
-                    'registrationmaster',
-                    'applicationinfo',
-                    'programChangeInfo.oldProgram',
-                    'programChangeInfo.newProgram',
-                ])->whereHas('applicationinfo', function ($query) use ($search) {
-                    $query->where('application_code', 'like', '%' . $search . '%');
-                })
-                    ->whereHas('registrationmaster', function ($query) use ($campusId) {
-                        $query->where('campus_id', $campusId);
-                    })->latest()->get();
-            } else {
+        // Campus filter
+        if ($campusId != null) {
+            $query->whereHas('registrationmaster', function ($q) use ($campusId) {
+                $q->where('campus_id', $campusId);
+            });
+        }
 
-                $data = AdmissionFirstPhase::with([
-                    'registrationmaster',
-                    'applicationinfo',
-                    'programChangeInfo.oldProgram',
-                    'programChangeInfo.newProgram',
-                ])->whereHas('registrationmaster', function ($query) use ($campusId) {
-                    $query->where('campus_id', $campusId);
-                })->latest()->get();
+        // Search filter
+        if (!empty($search)) {
+            $query->whereHas('applicationinfo', function ($q) use ($search) {
+                $q->where('application_code', 'like', '%' . $search . '%');
+            });
+        }
+
+        // Interview date filter - handle Y-m-d input format
+        if (!empty($interview_date)) {
+            // Convert input date (Y-m-d) to d-m-Y for comparison
+            try {
+                $inputDate = \Carbon\Carbon::createFromFormat('Y-m-d', $interview_date);
+                $formattedDate = $inputDate->format('d-m-Y');
+
+                $query->whereHas('applicationinfo', function ($q) use ($formattedDate) {
+                    // Match only the date part (d-m-Y) from the stored datetime (d-m-Y H:i A)
+                    $q->whereRaw("DATE_FORMAT(STR_TO_DATE(interview_datetime, '%d-%m-%Y %h:%i %p'), '%d-%m-%Y') = ?", [$formattedDate]);
+                });
+            } catch (\Exception $e) {
+                // If date parsing fails, skip the filter
             }
         }
+
+        // Final status filter
+        if ($final_status !== null && $final_status !== '') {
+            $query->where('final_status', $final_status);
+        }
+
+        $data = $query->latest()->get();
+
 
         // Separate transferred applicants
         $transferredApplicants = $data->filter(function ($item) {
@@ -604,46 +608,99 @@ class AdmissionController extends Controller
         ]);
     }
 
-    public function exportPhase1AllApplicants()
+    public function exportPhase1AllApplicants(Request $request)
     {
         $campusId = StaticController::fetchCampusSettings();
+        $interview_date = $request->interview_date ?? null;
+        $final_status = $request->final_status ?? null;
+        $search = $request->search ?? null;
 
-        if ($campusId == null) {
-            $data = AdmissionFirstPhase::with([
-                'registrationmaster',
-                'applicationinfo.stdprogramMaster',
-            ])->latest()->get();
-        } else {
-            $data = AdmissionFirstPhase::with([
-                'registrationmaster',
-                'applicationinfo.stdprogramMaster',
-            ])->whereHas('registrationmaster', function ($query) use ($campusId) {
-                $query->where('campus_id', $campusId);
-            })->latest()->get();
+        // Build query with filters
+        $query = AdmissionFirstPhase::with([
+            'registrationmaster',
+            'applicationinfo.stdprogramMaster',
+        ]);
+
+        // Campus filter
+        if ($campusId != null) {
+            $query->whereHas('registrationmaster', function ($q) use ($campusId) {
+                $q->where('campus_id', $campusId);
+            });
         }
+
+        // Search filter
+        if (!empty($search)) {
+            $query->whereHas('applicationinfo', function ($q) use ($search) {
+                $q->where('application_code', 'like', '%' . $search . '%');
+            });
+        }
+
+        // Interview date filter
+        if (!empty($interview_date)) {
+            try {
+                $inputDate = \Carbon\Carbon::createFromFormat('Y-m-d', $interview_date);
+                $formattedDate = $inputDate->format('d-m-Y');
+
+                $query->whereHas('applicationinfo', function ($q) use ($formattedDate) {
+                    $q->whereRaw("DATE_FORMAT(STR_TO_DATE(interview_datetime, '%d-%m-%Y %h:%i %p'), '%d-%m-%Y') = ?", [$formattedDate]);
+                });
+            } catch (\Exception $e) {
+                // If date parsing fails, skip the filter
+            }
+        }
+
+        // Final status filter
+        if ($final_status !== null && $final_status !== '') {
+            $query->where('final_status', $final_status);
+        }
+
+        $data = $query->latest()->get();
 
         $export = new GenericExport($data, 'admin.admission.ug.phase1-export');
         return Excel::download($export, 'phase1-all-applicants-' . date('Y-m-d') . '.xlsx');
     }
 
-    public function exportPhase1SelectedApplicants()
+    public function exportPhase1SelectedApplicants(Request $request)
     {
         $campusId = StaticController::fetchCampusSettings();
+        $interview_date = $request->interview_date ?? null;
+        $search = $request->search ?? null;
 
-        if ($campusId == null) {
-            $data = AdmissionFirstPhase::with([
-                'registrationmaster',
-                'applicationinfo.stdprogramMaster',
-            ])->where('final_status', 1)->latest()->get();
-        } else {
-            $data = AdmissionFirstPhase::with([
-                'registrationmaster',
-                'applicationinfo.stdprogramMaster',
-            ])->where('final_status', 1)
-                ->whereHas('registrationmaster', function ($query) use ($campusId) {
-                    $query->where('campus_id', $campusId);
-                })->latest()->get();
+        // Build query - always filter for selected (final_status = 1)
+        $query = AdmissionFirstPhase::with([
+            'registrationmaster',
+            'applicationinfo.stdprogramMaster',
+        ])->where('final_status', 1);
+
+        // Campus filter
+        if ($campusId != null) {
+            $query->whereHas('registrationmaster', function ($q) use ($campusId) {
+                $q->where('campus_id', $campusId);
+            });
         }
+
+        // Search filter
+        if (!empty($search)) {
+            $query->whereHas('applicationinfo', function ($q) use ($search) {
+                $q->where('application_code', 'like', '%' . $search . '%');
+            });
+        }
+
+        // Interview date filter
+        if (!empty($interview_date)) {
+            try {
+                $inputDate = \Carbon\Carbon::createFromFormat('Y-m-d', $interview_date);
+                $formattedDate = $inputDate->format('d-m-Y');
+
+                $query->whereHas('applicationinfo', function ($q) use ($formattedDate) {
+                    $q->whereRaw("DATE_FORMAT(STR_TO_DATE(interview_datetime, '%d-%m-%Y %h:%i %p'), '%d-%m-%Y') = ?", [$formattedDate]);
+                });
+            } catch (\Exception $e) {
+                // If date parsing fails, skip the filter
+            }
+        }
+
+        $data = $query->latest()->get();
 
         $export = new GenericExport($data, 'admin.admission.ug.phase1-export');
         return Excel::download($export, 'phase1-selected-applicants-' . date('Y-m-d') . '.xlsx');
@@ -2499,18 +2556,54 @@ class AdmissionController extends Controller
         return view('admission.technical-mode');
     }
 
-    function testInchargeDashboard()
+    function testInchargeDashboard(Request $request)
     {
         $campusId =  StaticController::fetchCampusSettings();
         $batch = BatchMaster::where('admission_active_batch', 1)->value('batch_name');
-
-        $data = AdmissionFirstPhase::with([
+        $interview_date = $request->interview_date ?? null;
+        $final_status = $request->final_status ?? null;
+        $search = $request->search ?? null;
+        // Build base query
+        $query = AdmissionFirstPhase::with([
             'registrationmaster',
             'applicationinfo',
-        ])->whereHas('registrationmaster', function ($query) use ($campusId, $batch) {
+            'programChangeInfo.oldProgram',
+            'programChangeInfo.newProgram',
+        ]);
+
+        // Final status filter
+        if ($final_status !== null && $final_status !== '') {
+            $query->where('final_status', $final_status);
+        }
+        // Interview date filter
+        // Interview date filter - handle Y-m-d input format
+        if (!empty($interview_date)) {
+            // Convert input date (Y-m-d) to d-m-Y for comparison
+            try {
+                $inputDate = \Carbon\Carbon::createFromFormat('Y-m-d', $interview_date);
+                $formattedDate = $inputDate->format('d-m-Y');
+
+                $query->whereHas('applicationinfo', function ($q) use ($formattedDate) {
+                    // Match only the date part (d-m-Y) from the stored datetime (d-m-Y H:i A)
+                    $q->whereRaw("DATE_FORMAT(STR_TO_DATE(interview_datetime, '%d-%m-%Y %h:%i %p'), '%d-%m-%Y') = ?", [$formattedDate]);
+                });
+            } catch (\Exception $e) {
+                // If date parsing fails, skip the filter
+            }
+        }
+
+        $data = $query->whereHas('registrationmaster', function ($query) use ($campusId, $batch) {
             $query->where('batch', $batch);
             $query->where('campus_id', $campusId);
         })->latest()->get();
+
+        // $data = AdmissionFirstPhase::with([
+        //     'registrationmaster',
+        //     'applicationinfo',
+        // ])->whereHas('registrationmaster', function ($query) use ($campusId, $batch) {
+        //     $query->where('batch', $batch);
+        //     $query->where('campus_id', $campusId);
+        // })->latest()->get();
 
 
         return view('admin.admission.test-incharge.dashboard', ['data' => $data]);
