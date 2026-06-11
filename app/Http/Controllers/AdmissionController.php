@@ -881,14 +881,35 @@ class AdmissionController extends Controller
 
         $phase1Record = AdmissionFirstPhase::findOrFail($id);
 
+
+
         $phase1Record->document_verified = $request->document_verified;
-        $phase1Record->proficiency_test_status = $request->proficiency_test_status;
-        $phase1Record->proficiency_test_remarks = $request->proficiency_test_remarks;
-        $phase1Record->dept_interview = $request->dept_interview;
-        $phase1Record->dept_interview_remark = $request->dept_interview_remark;
-        $phase1Record->mgt_interview_status = $request->mgt_interview_status;
-        $phase1Record->mgt_interview_remark = $request->mgt_interview_remark;
-        $phase1Record->final_status = $request->final_status;
+        if ($request->proficiency_test_status !== null) {
+            $phase1Record->proficiency_test_status = $request->proficiency_test_status;
+        }
+
+        if ($request->proficiency_test_remarks !== null) {
+            $phase1Record->proficiency_test_remarks = $request->proficiency_test_remarks;
+        }
+
+        if ($request->dept_interview !== null) {
+            $phase1Record->dept_interview = $request->dept_interview;
+        }
+        if ($request->dept_interview_remark !== null) {
+            $phase1Record->dept_interview_remark = $request->dept_interview_remark;
+        }
+
+
+        if ($request->mgt_interview_status !== null) {
+            $phase1Record->mgt_interview_status = $request->mgt_interview_status;
+        }
+        if ($request->mgt_interview_remark !== null) {
+            $phase1Record->mgt_interview_remark = $request->mgt_interview_remark;
+        }
+        if ($request->final_status !== null) {
+            $phase1Record->final_status = $request->final_status;
+        }
+
         $phase1Record->save();
 
 
