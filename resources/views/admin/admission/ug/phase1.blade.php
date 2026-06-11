@@ -19,9 +19,7 @@ $programs = Qs::getProgramGroups();
 @include('admin.admission.sidebar')
 @endif
 
-@if($userRoleType == 'principal' || $userRoleType == 'vice-principal' || $userRoleType == 'bursar')
-@include('principal.sidebar')
-@endif
+
 
 <div class="container-fluid mt-3">
   <nav class="navbar navbar-expand-lg navbar-dark mb-4 custom-navbar"
