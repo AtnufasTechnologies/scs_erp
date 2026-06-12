@@ -588,7 +588,7 @@ class AdmissionController extends Controller
             $query->where('final_status', $final_status);
         }
 
-        $data = $query->latest()->get();
+        $data = $query->orderby('updated_at', 'DESC')->get();
 
 
         // Separate transferred applicants

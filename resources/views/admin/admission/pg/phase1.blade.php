@@ -7,7 +7,7 @@ use App\Models\StudentProgram;
 use App\Models\SubjectHasStudentProgam;
 
 $userRoleType = StaticController::fetchUserRole();
-$programs = Qs::getProgramGroups();
+$programs = Qs::getPgProgramGroups();
 
 
 ?>
@@ -125,43 +125,43 @@ $programs = Qs::getProgramGroups();
     <div class="card shadow p-3">
       <form action="" method="get">
         <div class="row align-items-end">
-          <div class="col-lg-3 ">
+          <div class="col-lg-3">
             <label class="form-label">Search</label>
-            <input type="text" id="liveSearchInput" class="form-control mb-3" placeholder="Search by name, mobile, email, or code...">
+            <input type="text" id="liveSearchInput" class="form-control" placeholder="Search by name, mobile, email, or code...">
           </div>
           <div class="col-lg-2">
             <label class="form-label">Interview Date</label>
             <div class="input-group">
-
-              <input type="date" name="interview_date" class="form-control mb-3" value="{{ request('interview_date') }}">
+              <span class="input-group-text"><i class="fa fa-calendar"></i></span>
+              <input type="date" name="interview_date" class="form-control" value="{{ request('interview_date') }}">
             </div>
           </div>
           <div class="col-lg-2">
             <label class="form-label">Final Status</label>
-            <select name="final_status" class="form-control mb-3">
+            <select name="final_status" class="form-control">
               <option value="">All</option>
               <option value="0" {{ request('final_status') === '0' ? 'selected' : '' }}>Pending</option>
               <option value="1" {{ request('final_status') === '1' ? 'selected' : '' }}>Selected</option>
             </select>
           </div>
           <div class="col-lg-2">
-            <button class="btn btn-primary w-100 mb-3" type="submit">
+            <button class="btn btn-primary w-100" type="submit">
               <i class="fa fa-filter"></i> Apply Filters
             </button>
           </div>
           <div class="col-lg-2">
             @if(request('interview_date') || request('final_status') !== null)
-            <a href="{{ route('admission.ug.phase1') }}" class="btn btn-secondary w-100 mb-3">
+            <a href="{{ route('admission.pg.phase1') }}" class="btn btn-secondary w-100">
               <i class="fa fa-times"></i> Reset
             </a>
             @endif
           </div>
           <div class="col-lg-1">
-            <a href="{{ route('admission.ug.phase1.export-all', [
+            <a href="{{ route('admission.pg.phase1.export-all', [
       'interview_date' => request('interview_date'),
       'final_status' => request('final_status'),
       'search' => request('search')
-    ]) }}" class="btn btn-success mb-3">
+    ]) }}" class="btn btn-success">
               <i class="fa fa-download"></i> Export
             </a>
           </div>
@@ -185,7 +185,7 @@ $programs = Qs::getProgramGroups();
       </button> -->
   @endif
 
-  <!-- <a href="{{ route('admission.ug.phase1.export-selected', [
+  <!-- <a href="{{ route('admission.pg.phase1.export-selected', [
       'interview_date' => request('interview_date'),
       'search' => request('search')
     ]) }}" class="btn btn-success">
@@ -318,31 +318,10 @@ $programs = Qs::getProgramGroups();
         </div>
 
         <div class="dropdown mt-3">
-          <button class="btn btn-secondary dropdown-toggle w-100" type="button" id="dropdownMenuButton{{ $item->id }}" data-bs-toggle="dropdown" aria-expanded="false">
+          <button class="btn btn-secondarydata-bs-toggle=" modal" data-bs-target="#updateStatusModal{{ $item->id }}">
             Actions
           </button>
-          <ul class="dropdown-menu" aria-labelledby="dropdownMenuButton{{ $item->id }}">
-            <li><a class="dropdown-item" data-bs-toggle="modal" data-bs-target="#updateStatusModal{{ $item->id }}">
-                <i class="fa fa-edit"></i> Update Status
-              </a></li>
-            @if($userRoleType == 'dept-admin-erp' || $userRoleType == 'admission-incharge' )
-            <li><a class="dropdown-item " data-bs-toggle="modal" data-bs-target="#exampleModal{{ $item->id }}">
-                <i class="fa fa-exchange-alt"></i> <strong>Program Transfer</strong>
-              </a></li>
-            @endif
-            @if( $userRoleType == 'admission-incharge' )
-            <!-- <li><a class="dropdown-item text-danger" href="{{ route('admission.ug.phase1.override', $item->id) }}" onclick="return confirm('Are you sure you want to override the status for this applicant? This action cannot be undone.')">
-                <i class="fa fa-check-circle"></i> <strong>Override All</strong>
-              </a>
-            </li> -->
-            <!-- <li>
-              <a class="dropdown-item text-primary" href="{{ route('activate.admission.payment', ['id' => $item->registrationmaster->id]) }}" onclick="return confirm('Are you sure you want to activate payment for this applicant?')">
-                <i class="fa fa-credit-card"></i> Activate Payment
-              </a>
-            </li> -->
-            @endif
 
-          </ul>
         </div>
       </div>
 
@@ -353,7 +332,7 @@ $programs = Qs::getProgramGroups();
               <h5 class="modal-title" id="updateStatusModalLabel{{ $item->id }}">Update Status - {{ $item->applicationinfo->application_code }}</h5>
               <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
             </div>
-            <form action="{{ route('admission.ug.phase1.update-status', $item->id) }}" method="POST">
+            <form action="{{ route('admission.pg.phase1.update-status', $item->id) }}" method="POST">
               @csrf
               @method('PUT')
               <div class="modal-body">
@@ -474,46 +453,15 @@ $programs = Qs::getProgramGroups();
         </div>
       </div>
 
-      <!-- Modal for Program Transfer-->
-      <div class="modal fade" id="exampleModal{{ $item->id }}" tabindex="-1" aria-labelledby="exampleModalLabel" aria-hidden="true">
-        <div class="modal-dialog">
-          <div class="modal-content">
-            <div class="modal-header">
-              <h5 class="modal-title" id="exampleModalLabel">Program Transfer - {{ $item->applicationinfo->application_code }}</h5>
-              <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-            </div>
-            <?php
-            $programs = Qs::getAvailableCourseSeats($item->registrationmaster->campus_id);
-            ?>
-            <form action="{{route('admission.ug.phase1.transfer-program')}}" method="post">
-              @csrf
-              <div class="modal-body">
-                <input type="text" readonly value="{{ $item->registrationmaster->first_name  }} {{ $item->registrationmaster->last_name  }}" class="form-control mb-2">
-                <label for="">Current Program</label>
-                <input type="text" readonly value="{{ $item->applicationinfo->stdCourseMaster->code ?? '' }} - {{ $item->applicationinfo->stdCourseMaster->name ?? '' }}" class="form-control mb-2">
-                <label for="new_program{{ $item->id }}" class="form-label">New Program Availability</label>
-                <select class="form-select dselect-example" id="new_program{{ $item->id }}" name="new_program" required>
-                  @foreach ($programs as $program)
-                  <option value="{{ $program->studentprograminfo->id ?? ''}}">{{ $program->studentprograminfo->code ?? '-'}} - {{ $program->studentprograminfo->name ?? '-'}} </option>
-                  @endforeach
-                </select>
-                <div class="mb-3 mt-3">
-                  <label for="reason{{ $item->id }}" class="form-label">Reason for Program Transfer</label>
-                  <textarea class="form-control" id="reason{{ $item->id }}" name="reason" rows="3" placeholder="Enter reason for program transfer (optional)"></textarea>
-                </div>
-                <input type="hidden" value="{{$item->application_id}}" name="application_id">
-                <input type="hidden" value="{{ $item->reg_id }}" name="registration_id">
-              </div>
-              <div class="modal-footer">
-                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
-                <button type="submit" class="btn btn-primary">Submit</button>
-              </div>
-            </form>
-          </div>
-        </div>
-      </div>
+
+
+
 
     </div>
+
+
+
+
 
     @endforeach
 
@@ -681,7 +629,7 @@ $programs = Qs::getProgramGroups();
           // Create a form and submit
           const form = document.createElement('form');
           form.method = 'POST';
-          form.action = '{{ route("admission.ug.phase1.bulk-override") }}';
+          form.action = '{{ route("admission.pg.phase1.bulk-override") }}';
 
           // Add CSRF token
           const csrfInput = document.createElement('input');
