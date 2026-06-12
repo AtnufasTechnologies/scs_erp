@@ -99,6 +99,7 @@ $programs = Qs::getPgProgramGroups();
     <div class="col-lg-12">
       <div class="card shadow p-3">
         <h5 class="mb-3"><i class="fa fa-filter"></i> Quick Filters</h5>
+        <p><strong>Total Records:</strong> {{ $data->count() }} | <strong>Showing:</strong> <span id="filteredCount" class="text-primary">{{ $data->count() }}</span></p>
         <div class="btn-group" role="group">
           <button type="button" class="btn btn-outline-success" id="filterDocsVerified">
             <i class="fa fa-check-circle"></i> Docs Verified Only
@@ -546,6 +547,7 @@ $programs = Qs::getPgProgramGroups();
 
     function filterCards(type) {
       const cards = document.querySelectorAll('.profile-card');
+      let visibleCount = 0;
 
       cards.forEach(card => {
         const parentCol = card.parentElement;
@@ -553,6 +555,7 @@ $programs = Qs::getPgProgramGroups();
 
         if (!socialLinks) {
           parentCol.style.display = '';
+          visibleCount++;
           return;
         }
 
@@ -586,7 +589,14 @@ $programs = Qs::getPgProgramGroups();
         }
 
         parentCol.style.display = shouldShow ? '' : 'none';
+        if (shouldShow) visibleCount++;
       });
+
+      // Update the filtered count display
+      const filteredCountSpan = document.getElementById('filteredCount');
+      if (filteredCountSpan) {
+        filteredCountSpan.textContent = visibleCount;
+      }
     }
 
     // Bulk selection functionality
