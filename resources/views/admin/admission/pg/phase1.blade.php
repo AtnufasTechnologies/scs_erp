@@ -20,7 +20,7 @@ $programs = Qs::getPgProgramGroups();
     style="background: linear-gradient(135deg, #6615c4 0%, #921bfa 100%); border-radius: 0.75rem;">
     <div class=" container-fluid">
       <img src="{{ asset('admin/images/logo.png') }}" alt="Logo" style="max-height: 80px;" class="me-2">
-      <h3><span class="text-light">Interview | Selection First Phase</span></h3>
+      <h3><span class="text-light">PG - Interview | Selection</span></h3>
       @if($userRoleType == 'admission-incharge')
       <a href="{{route('admission.dashboard')}}"> <button class="btn btn-light">Back to Main</button></a>
       @endif
@@ -173,29 +173,6 @@ $programs = Qs::getPgProgramGroups();
 </div>
 
 
-<div class="col-lg-8 text-end">
-  @if($userRoleType == 'admission-incharge')
-  <!-- <div class="form-check form-check-inline me-3">
-        <input class="form-check-input" type="checkbox" id="selectAllCheckbox" style="cursor: pointer;">
-        <label class="form-check-label" for="selectAllCheckbox" style="cursor: pointer;">
-          <strong>Select All</strong>
-        </label>
-      </div>
-      <button id="bulkOverrideBtn" class="btn btn-danger me-2" style="display: none;">
-        <i class="fa fa-check-circle"></i> Bulk Override (<span id="selectedCount">0</span>)
-      </button> -->
-  @endif
-
-  <!-- <a href="{{ route('admission.pg.phase1.export-selected', [
-      'interview_date' => request('interview_date'),
-      'search' => request('search')
-    ]) }}" class="btn btn-success">
-      <i class="fa fa-download"></i> Export Selected Only
-    </a> -->
-</div>
-</div>
-</div>
-
 
 
 <!-- All Applicants Section -->
@@ -206,13 +183,6 @@ $programs = Qs::getPgProgramGroups();
     @foreach ($data as $item)
     <div class="col-lg-3 mb-4">
       <div class="profile-card shadow {{ $item->dept_interview == 0 && isset($item->programChangeInfo) ? 'border-warning' : '' }}" style="position: relative;" data-applicant-id="{{ $item->id }}">
-
-        @if($userRoleType == 'admission-incharge')
-        <!-- <div class="position-absolute" style="top: 10px; right: 10px; z-index: 11;">
-          <input type="checkbox" class="form-check-input applicant-checkbox" value="{{ $item->id }}" style="width: 20px; height: 20px; cursor: pointer;">
-        </div> -->
-        @endif
-
         @if(isset($item->programChangeInfo))
 
         <div class="position-absolute top-0 start-0 m-2" style="z-index: 10;">
@@ -236,13 +206,12 @@ $programs = Qs::getPgProgramGroups();
         <div class="profile-info">
           <strong>Final Status</strong>
           @if($item->final_status == 1)
-
           <span class="badge bg-success mb-2">Selected</span>
           @else
           <span class="badge bg-warning text-dark mb-2"> Pending</span>
           @endif
           <a href="{{ route('download.admission.application-form', $item->applicationinfo->application_code) }}">
-            <div class="application-no text-success">Application# {{ $item->applicationinfo->application_code }}</div>
+            <div class="profile-title text-success">Application# {{ $item->applicationinfo->application_code }}</div>
           </a>
           <p class="profile-name text-capitalize">{{ $item->registrationmaster->first_name  }} {{ $item->registrationmaster->last_name  }}</p>
           <div class="profile-title">{{ $item->registrationmaster->mobile_no  }}</div>
@@ -250,7 +219,7 @@ $programs = Qs::getPgProgramGroups();
 
           @if(isset($item->programChangeInfo))
 
-          <div class="alert alert-info mt-2 p-2" style="font-size: 0.8rem;">
+          <div class="alert alert-info mt-2 p-2" style="font-size: 1rem;">
             <strong><i class="fa fa-info-circle"></i> Transfer Details:</strong><br>
             <small>
               <span class="text-muted">From:</span> {{ $item->programChangeInfo->oldProgram->code ?? 'N/A' }} - {{ $item->programChangeInfo->oldProgram->name ?? 'N/A' }}<br>
@@ -262,11 +231,14 @@ $programs = Qs::getPgProgramGroups();
           </div>
           @endif
 
-          <div class="profile-bio">
+          <div class="profile-bio alert alert-info">
             <strong>{{ isset($item->programChangeInfo) ? 'Current Program:' : 'Program:' }}</strong><br>
             {{ $item->applicationinfo->stdCourseMaster->code ?? '' }} - {{ $item->applicationinfo->stdCourseMaster->name ?? '' }}
+            <br>
+            <label for=""> <strong><i class="far fa-clock"></i></strong>
+              {{$item->interview_datetime}}</label>
           </div>
-          <label for="">{{$item->interview_datetime}}</label>
+
         </div>
         <div class="social-links">
           <label for="">Docs @if($item->document_verified == 1 )
@@ -318,12 +290,13 @@ $programs = Qs::getPgProgramGroups();
           </div>
         </div>
 
-        <div class="dropdown mt-3">
-          <button class="btn btn-secondarydata-bs-toggle=" modal" data-bs-target="#updateStatusModal{{ $item->id }}">
-            Actions
-          </button>
 
-        </div>
+        <button class="btn btn-primary  mb-3 mt-3" data-bs-toggle="modal" data-bs-target="#updateStatusModal{{ $item->id }}" style="width: 100%;">
+
+          Actions
+        </button>
+
+
       </div>
 
       <div class="modal fade" id="updateStatusModal{{ $item->id }}" tabindex="-1" aria-labelledby="updateStatusModalLabel{{ $item->id }}" aria-hidden="true">
@@ -639,7 +612,7 @@ $programs = Qs::getPgProgramGroups();
           // Create a form and submit
           const form = document.createElement('form');
           form.method = 'POST';
-          form.action = '{{ route("admission.pg.phase1.bulk-override") }}';
+          form.action = '{{ route("admission.ug.phase1.bulk-override") }}';
 
           // Add CSRF token
           const csrfInput = document.createElement('input');

@@ -5,8 +5,8 @@
     border-radius: 20px;
     padding: 2rem;
     box-shadow: 12px 12px 12px -20px rgba(0, 0, 0, 0.3);
-    transform: perspective(1000px) scale(0.8); /*adjust the scale to view properly*/
-    transform-style: preserve-3d;
+    transform: perspective(1000px) scale(1); /* adjust the scale to view properly */
+    /* transform-style: preserve-3d; */
 }
 
 .profile-image img {
@@ -29,7 +29,7 @@
     top: 0;
     width: 100%;
     height: 96px;
-    background-color: #7d988a;
+    background-color: #1c337e;
     border-radius: 20px 20px 0 0;
     z-index: -1;
 }
@@ -49,13 +49,13 @@
 }
 
 .profile-title {
-    font-size: 0.9rem;
+    font-size: 1rem;
     color: #666;
     margin-bottom: 0.5rem;
 }
 
 .profile-bio {
-    font-size: 0.85rem;
+    font-size: 1rem;
     color: #777;
     line-height: 1.4;
     margin-bottom: 1.5rem;

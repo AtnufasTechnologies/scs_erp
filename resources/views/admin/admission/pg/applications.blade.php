@@ -8,20 +8,10 @@ $programs = Qs::getPgProgramGroups();
 @include('includes.header')
 @include('admin.admission.sidebar')
 <h3>PG - Applications </h3>
-<div class="row">
-
-  @foreach($programs as $program)
-  <div class="col-lg-2">
-    <div class="card" style="background-color: #c3d0ffd3;height: 100px; display: flex; align-items: center; justify-content: center;">
-      {{$program->code}} - {{ $program->name }} ({{ count($program->applicationCount)  }})
-    </div>
-  </div>
-  @endforeach
-
-</div>
 
 
-<!-- <div class="container-fluid">
+
+<div class="container-fluid">
   <div class="row">
     <div class="col-lg-8">
       <form method="POST" action="{{ route('send.phase1.notification') }}">
@@ -53,7 +43,7 @@ $programs = Qs::getPgProgramGroups();
       </form>
     </div>
   </div>
-</div> -->
+</div>
 
 
 

@@ -351,7 +351,7 @@ Route::group(['prefix' => '/erp'], function () {
         Route::group(['prefix' => '/admission'], function () {
 
             Route::get('dashboard', [AdmissionController::class, 'dashboard'])->name('admission.dashboard');
-
+            Route::get('search', [AdmissionController::class, 'admissionGlobalSearch'])->name('admission.search');
             Route::get('registrations/{type}', [AdmissionController::class, 'admissionRegistrations'])->name('admission.registration');
             //UG 
             Route::get('ug-applications', [AdmissionController::class, 'ugApplications'])->name('admission.ug.applications');
@@ -359,8 +359,6 @@ Route::group(['prefix' => '/erp'], function () {
             Route::get('phase1', [AdmissionController::class, 'ugPhase1Registrations'])->name('admission.ug.phase1');
             Route::get('phase1/export-all', [AdmissionController::class, 'exportPhase1AllApplicants'])->name('admission.ug.phase1.export-all');
             Route::get('phase1/export-selected', [AdmissionController::class, 'exportPhase1SelectedApplicants'])->name('admission.ug.phase1.export-selected');
-            Route::get('phase1/override/{id}', [AdmissionController::class, 'overrideUgPhase1Status'])->name('admission.ug.phase1.override');
-            Route::post('phase1/bulk-override', [AdmissionController::class, 'bulkOverrideUgPhase1Status'])->name('admission.ug.phase1.bulk-override');
             Route::get('phase2', [AdmissionController::class, 'ugPhase2Registrations'])->name('admission.ug.phase2');
             Route::put('phase2/update-status/{id}', [AdmissionController::class, 'updateUgPhase2Status'])->name('admission.ug.phase2.update-status');
             //controls
@@ -375,9 +373,16 @@ Route::group(['prefix' => '/erp'], function () {
             Route::get('settings', [AdmissionController::class, 'admissionSettings'])->name('admission.settings');
             Route::post('update-admission-settings-ug', [AdmissionController::class, 'updateAdmissionSettingsUg'])->name('update.admission.settings.ug');
             Route::post('update-admission-settings-pg', [AdmissionController::class, 'updateAdmissionSettingsPg'])->name('update.admission.settings.pg');
+            Route::get('phase1/override/{id}', [AdmissionController::class, 'overrideUgPhase1Status'])->name('admission.ug.phase1.override');
+            Route::post('phase1/bulk-override', [AdmissionController::class, 'bulkOverrideUgPhase1Status'])->name('admission.ug.phase1.bulk-override');
 
             //PG
             Route::get('pg-applications', [AdmissionController::class, 'pgApplications'])->name('admission.pg.applications');
+            Route::get('pg-phase1', [AdmissionController::class, 'pgPhase1Registrations'])->name('admission.pg.phase1');
+            Route::get('pg-phase1/export-all', [AdmissionController::class, 'exportPgPhase1AllApplicants'])->name('admission.pg.phase1.export-all');
+            Route::get('pg-phase1/export-selected', [AdmissionController::class, 'exportPgPhase1SelectedApplicants'])->name('admission.pg.phase1.export-selected');
+            Route::put('pg-phase1/update-status/{id}', [AdmissionController::class, 'updateUgPhase1Status'])->name('admission.pg.phase1.update-status');
+
 
             //Edit Application
             Route::get('edit-application/{id}', [AdmissionController::class, 'showEditApplication'])->name('admission.edit.application');

@@ -32,69 +32,57 @@ $canManageAll = $isAdmissionIncharge || $isSuperAdmin;
       </a>
     </li>
 
-    {{-- Admission Portal (external) --}}
-    <li>
-      <a href="https://erpsalesiancollege.sdbinc.org/erp/new-admission/registration" target="_blank">
-        <div class="parent-icon"><i class="fas fa-external-link-alt"></i></div>
-        <div class="menu-title">Admission Portal</div>
-      </a>
-    </li>
+
 
     {{-- UG Admissions --}}
+    <li class="menu-label">Under Graduate (UG)</li>
     <li>
-      <a class="has-arrow" href="javascript:;">
-        <div class="parent-icon"><i class="fas fa-certificate"></i></div>
-        <div class="menu-title">UG Admissions</div>
+      <a href="{{ route('admission.registration', ['type' => 'UG']) }}">
+        <div class="parent-icon"><i class="fas fa-arrow-alt-circle-right"></i></div>
+        <div class="menu-title">New Registrations</div>
       </a>
-      <ul>
-        <li>
-          <a href="{{ route('admission.registration', ['type' => 'UG']) }}">
-            <div class="parent-icon"><i class="fas fa-arrow-alt-circle-right"></i></div>
-            <div class="menu-title">New Registrations</div>
-          </a>
-        </li>
-        <li>
-          <a href="{{ route('admission.ug.applications') }}">
-            <div class="parent-icon"><i class="fas fa-arrow-alt-circle-right"></i></div>
-            <div class="menu-title">Applications</div>
-          </a>
-        </li>
-        <li>
-          <a href="{{ route('admission.ug.phase1') }}" target="_blank">
-            <div class="parent-icon"><i class="fas fa-arrow-alt-circle-right"></i></div>
-            <div class="menu-title">Selection Phase 1</div>
-          </a>
-        </li>
-        <li>
-          <a href="{{ route('admission.ug.phase2') }}" target="_blank">
-            <div class="parent-icon"><i class="fas fa-arrow-alt-circle-right"></i></div>
-            <div class="menu-title">Selection Phase 2</div>
-          </a>
-        </li>
-      </ul>
+    </li>
+    <li>
+      <a href="{{ route('admission.ug.applications') }}">
+        <div class="parent-icon"><i class="fas fa-arrow-alt-circle-right"></i></div>
+        <div class="menu-title">Applications</div>
+      </a>
+    </li>
+    <li>
+      <a href="{{ route('admission.ug.phase1') }}">
+        <div class="parent-icon"><i class="fas fa-arrow-alt-circle-right"></i></div>
+        <div class="menu-title">Interview</div>
+      </a>
+    </li>
+    <li>
+      <a href="{{ route('admission.ug.phase2') }}">
+        <div class="parent-icon"><i class="fas fa-arrow-alt-circle-right"></i></div>
+        <div class="menu-title">Enrollment </div>
+      </a>
     </li>
 
-    {{-- PG Admissions --}}
+    <li class="menu-label">Post Graduate (PG)</li>
     <li>
-      <a class="has-arrow" href="javascript:;">
-        <div class="parent-icon"><i class="fas fa-badge"></i></div>
-        <div class="menu-title">PG Admissions</div>
+      <a href="{{ route('admission.registration', ['type' => 'PG']) }}">
+        <div class="parent-icon"><i class="fas fa-arrow-alt-circle-right"></i></div>
+        <div class="menu-title">New Registrations</div>
       </a>
-      <ul>
-        <li>
-          <a href="{{ route('admission.registration', ['type' => 'PG']) }}">
-            <div class="parent-icon"><i class="fas fa-arrow-alt-circle-right"></i></div>
-            <div class="menu-title">New Registrations</div>
-          </a>
-        </li>
-        <li>
-          <a href="{{ route('admission.pg.applications') }}">
-            <div class="parent-icon"><i class="fas fa-arrow-alt-circle-right"></i></div>
-            <div class="menu-title">Applications</div>
-          </a>
-        </li>
-      </ul>
     </li>
+    <li>
+      <a href="{{ route('admission.pg.applications') }}">
+        <div class="parent-icon"><i class="fas fa-arrow-alt-circle-right"></i></div>
+        <div class="menu-title">Applications</div>
+      </a>
+    </li>
+    <li>
+      <a href="{{ route('admission.pg.phase1') }}" ">
+        <div class=" parent-icon"><i class="fas fa-arrow-alt-circle-right"></i></div>
+        <div class="menu-title">Interview</div>
+      </a>
+    </li>
+
+
+    <li class="menu-label">System</li>
 
     {{-- Admission Settings (incharge / super-admin only) --}}
     @if($canManageAll)
@@ -105,15 +93,15 @@ $canManageAll = $isAdmissionIncharge || $isSuperAdmin;
       </a>
     </li>
     @endif
-
+    {{-- Admission Portal (external) --}}
     <li>
-      <a class="nav-link" href="{{route('scms.logout')}}">
-        <div class="parent-icon">
-          <i class="fas fa-sign-out-alt"></i>
-        </div>
-        <div class="menu-title">Logout</div>
+      <a href="https://erpsalesiancollege.sdbinc.org/erp/new-admission/registration" target="_blank">
+        <div class="parent-icon"><i class="fas fa-external-link-alt"></i></div>
+        <div class="menu-title">Admission Portal</div>
       </a>
     </li>
+
+
 
   </ul>
 </aside>
@@ -125,6 +113,15 @@ $canManageAll = $isAdmissionIncharge || $isSuperAdmin;
     <div class="mobile-menu-button">
       <ion-icon name="menu-sharp"></ion-icon>
     </div>
+    <form class="searchbar" action="{{ route('admission.search') }}" method="GET">
+      <div class="position-absolute top-50 translate-middle-y search-icon ms-3">
+        <ion-icon name="search-sharp"></ion-icon>
+      </div>
+      <input class="form-control" type="text" name="query" placeholder="Search for Applicant">
+      <div class="position-absolute top-50 translate-middle-y search-close-icon">
+        <ion-icon name="close-sharp"></ion-icon>
+      </div>
+    </form>
 
     <div class="top-navbar-right ms-auto">
 

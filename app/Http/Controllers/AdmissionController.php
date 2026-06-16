@@ -551,7 +551,9 @@ class AdmissionController extends Controller
             'applicationinfo',
             'programChangeInfo.oldProgram',
             'programChangeInfo.newProgram',
-        ]);
+        ])->whereHas('registrationmaster', function ($q) {
+            $q->where('application_type', 'UG');
+        });
 
         // Campus filter
         if ($campusId != null) {
@@ -608,6 +610,80 @@ class AdmissionController extends Controller
         ]);
     }
 
+    function pgPhase1Registrations(Request $request)
+    {
+
+        $campusId =  StaticController::fetchCampusSettings();
+        $interview_date = $request->interview_date ?? null;
+        $final_status = $request->final_status ?? null;
+        $search = $request->search ?? null;
+
+        // Build base query
+        $query = AdmissionFirstPhase::with([
+            'registrationmaster',
+            'applicationinfo',
+            'programChangeInfo.oldProgram',
+            'programChangeInfo.newProgram',
+        ])->whereHas('registrationmaster', function ($q) {
+            $q->where('application_type', 'PG');
+        });
+
+        // Campus filter
+        if ($campusId != null) {
+            $query->whereHas('registrationmaster', function ($q) use ($campusId) {
+                $q->where('campus_id', $campusId);
+            });
+        }
+
+        // Search filter
+        if (!empty($search)) {
+            $query->whereHas('applicationinfo', function ($q) use ($search) {
+                $q->where('application_code', 'like', '%' . $search . '%');
+            });
+        }
+
+        // Interview date filter - handle Y-m-d input format
+        if (!empty($interview_date)) {
+            // Convert input date (Y-m-d) to d-m-Y for comparison
+            try {
+                $inputDate = \Carbon\Carbon::createFromFormat('Y-m-d', $interview_date);
+                $formattedDate = $inputDate->format('d-m-Y');
+
+                $query->whereHas('applicationinfo', function ($q) use ($formattedDate) {
+                    // Match only the date part (d-m-Y) from the stored datetime (d-m-Y H:i A)
+                    $q->whereRaw("DATE_FORMAT(STR_TO_DATE(interview_datetime, '%d-%m-%Y %h:%i %p'), '%d-%m-%Y') = ?", [$formattedDate]);
+                });
+            } catch (\Exception $e) {
+                // If date parsing fails, skip the filter
+            }
+        }
+
+        // Final status filter
+        if ($final_status !== null && $final_status !== '') {
+            $query->where('final_status', $final_status);
+        }
+
+        $data = $query->orderby('updated_at', 'DESC')->get();
+
+
+        // Separate transferred applicants
+        $transferredApplicants = $data->filter(function ($item) {
+            return $item->programChangeInfo !== null;
+        });
+
+        // Get transferred applicants with pending department interviews
+        $transferredPendingInterview = $transferredApplicants->filter(function ($item) {
+            return $item->dept_interview == 0;
+        });
+
+        return view('admin.admission.pg.phase1', [
+            'data' => $data,
+            'transferredApplicants' => $transferredApplicants,
+            'transferredPendingInterview' => $transferredPendingInterview
+        ]);
+    }
+
+
     public function exportPhase1AllApplicants(Request $request)
     {
         $campusId = StaticController::fetchCampusSettings();
@@ -655,9 +731,65 @@ class AdmissionController extends Controller
         }
 
         $data = $query->latest()->get();
+        $printstatus = $final_status == 1 ? 'Selected' : ($final_status == 0 ? 'Pending' : 'All');
+        $export = new GenericExport($data, 'admin.admission.ug.phase1-export');
+        return Excel::download($export, 'UG_' . $printstatus . '_list_' . $formattedDate . '.xlsx');
+    }
+
+
+    public function exportPgPhase1AllApplicants(Request $request)
+    {
+        $campusId = StaticController::fetchCampusSettings();
+        $interview_date = $request->interview_date ?? null;
+        $final_status = $request->final_status ?? null;
+        $search = $request->search ?? null;
+
+        // Build query with filters
+        $query = AdmissionFirstPhase::with([
+            'registrationmaster',
+            'applicationinfo.stdCourseMaster',
+        ])->whereHas('registrationmaster', function ($q) {
+            $q->where('application_type', 'PG');
+        });
+
+        // Campus filter
+        if ($campusId != null) {
+            $query->whereHas('registrationmaster', function ($q) use ($campusId) {
+                $q->where('campus_id', $campusId);
+            });
+        }
+
+        // Search filter
+        if (!empty($search)) {
+            $query->whereHas('applicationinfo', function ($q) use ($search) {
+                $q->where('application_code', 'like', '%' . $search . '%');
+            });
+        }
+
+        // Interview date filter
+        if (!empty($interview_date)) {
+            try {
+                $inputDate = \Carbon\Carbon::createFromFormat('Y-m-d', $interview_date);
+                $formattedDate = $inputDate->format('d-m-Y');
+
+                $query->whereHas('applicationinfo', function ($q) use ($formattedDate) {
+                    $q->whereRaw("DATE_FORMAT(STR_TO_DATE(interview_datetime, '%d-%m-%Y %h:%i %p'), '%d-%m-%Y') = ?", [$formattedDate]);
+                });
+            } catch (\Exception $e) {
+                // If date parsing fails, skip the filter
+            }
+        }
+
+        // Final status filter
+        if ($final_status !== null && $final_status !== '') {
+            $query->where('final_status', $final_status);
+        }
+
+        $data = $query->latest()->get();
+        $printstatus = $final_status == 1 ? 'Selected' : ($final_status == 0 ? 'Pending' : 'All');
 
         $export = new GenericExport($data, 'admin.admission.ug.phase1-export');
-        return Excel::download($export, 'phase1-all-applicants-' . date('Y-m-d') . '.xlsx');
+        return Excel::download($export, 'PG_' . $printstatus . '_list_' . $formattedDate . '.xlsx');
     }
 
     public function exportPhase1SelectedApplicants(Request $request)
@@ -2787,5 +2919,31 @@ class AdmissionController extends Controller
         })->latest()->get();
 
         return view('admin.itcell.admission-application', ['data' => $data]);
+    }
+
+    function admissionGlobalSearch(Request $request)
+    {
+        $searchTerm = $request->input('query');
+        $campusId =  StaticController::fetchCampusSettings();
+
+        $query =  AdmissionRegistration::with([
+            'applicationmaster.stdCourseMaster',
+            'applicationmaster.academicDeptMaster',
+            'selectioninfo',
+            'enrollmentinfo'
+        ])->where('campus_id', $campusId);
+
+        $query->where(function ($q) use ($searchTerm) {
+            $q->where('first_name', 'like', '%' . $searchTerm . '%')
+                ->orWhere('last_name', 'like', '%' . $searchTerm . '%')
+                ->orWhere('mail_id', 'like', '%' . $searchTerm . '%')
+                ->orWhere('mobile_no', 'like', '%' . $searchTerm . '%')
+                ->orWhereHas('applicationmaster', function ($q2) use ($searchTerm) {
+                    $q2->where('application_code', 'like', '%' . $searchTerm . '%');
+                });
+        });
+        $data = $query->latest()->get();
+
+        return view('admin.admission.search', ['data' => $data]);
     }
 }

@@ -4,18 +4,17 @@ use App\Helpers\Qs;
 use App\Models\StudentProgram;
 
 $programs = Qs::getProgramGroups();
-
 ?>
 @include('includes.header')
 @include('admin.admission.sidebar')
 
-<div class="container-fluid">
+<div class="container-fluid mb-5">
   <div class="row">
-    <div class="col-lg-3">
-      <h3>Admission | Final Phase </h3>
+    <div class="col-lg-4">
+      <h3>Admission | UG - Enrollment </h3>
       Records Found - {{ $data->count() }}
     </div>
-    <div class="col-lg-3 offset-lg-6">
+    <div class="col-lg-4 offset-lg-4">
       <form action="{{ route('admission.ug.phase2') }}" method="GET" class="search-form">
         <div class="input-group">
           <input type="text" name="search" class="form-control" placeholder="Search by application no." value="{{ request('search') }}">
@@ -60,26 +59,27 @@ $programs = Qs::getProgramGroups();
 <div class="row">
   @foreach ($data as $item)
   <div class="col-lg-4">
-    <div class="profile-card">
+    <div class="profile-card mb-5 shadow">
       <div class="profile-image">
         <img src="{{Storage::disk('s3')->url($item->applicationinfo->photo)}}" alt="proile picture" />
       </div>
       <div class="profile-info">
 
-        @if($item->registrationmaster->is_enrolled == 1)
+        <!-- @if($item->registrationmaster->is_enrolled == 1)
         <span class="badge bg-success mb-2">Enrolled</span>
         @else
         <a href="{{ route('activate.admission.payment', ['id' => $item->registrationmaster->id]) }}" onclick="return confirm('Are you sure you want to activate payment for this applicant?')">
           <button class="btn btn-success">Activate Payment</button>
         </a>
-        @endif
+        @endif -->
+        <div class="profile-title"> Application Code# <b>{{ $item->applicationinfo->application_code ?? '-' }} </b> </div>
         <p class="profile-name text-capitalize">{{ $item->registrationmaster->first_name  }} {{ $item->registrationmaster->last_name  }}</p>
         <div class="profile-title">{{ $item->registrationmaster->mobile_no  }}</div>
         <div class="profile-title">{{ $item->registrationmaster->mail_id  }}</div>
-        <div class="profile-bio">
+        <div class="profile-bio alert alert-success">
           {{ $item->applicationinfo->stdCourseMaster->code ?? '-' }} - {{ $item->applicationinfo->stdCourseMaster->name ?? '-' }}
         </div>
-        <label for="">Interview Slot: {{$item->interview_datetime}}</label>
+        <label for="">Interview Slot: <span><i class="fa fa-clock"></i></span> {{$item->interview_datetime}}</label>
 
       </div>
 
@@ -95,7 +95,6 @@ $programs = Qs::getProgramGroups();
             <i class=" fal fa-file-signature fa-2x {{$item->contract_signed == 1 ? 'text-success' : 'text-danger'}}"></i>
           </div>
         </div> -->
-
       </div>
 
       <div class="dropdown mt-3">
@@ -111,13 +110,15 @@ $programs = Qs::getProgramGroups();
     <div class="modal-dialog">
       <div class="modal-content">
         <div class="modal-header">
-          <h5 class="modal-title" id="updateStatusModalLabel{{ $item->id }}">Update Status - {{ $item->applicationinfo->application_id }}</h5>
+          <h5 class="modal-title" id="updateStatusModalLabel{{ $item->id }}">Update Status - {{ $item->applicationinfo->application_code }}</h5>
           <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
         </div>
         <form action="{{ route('admission.ug.phase2.update-status', $item->id) }}" method="POST">
           @csrf
           @method('PUT')
           <div class="modal-body">
+            <input type="text" value="{{ $item->registrationmaster->first_name  }} {{ $item->registrationmaster->last_name  }}" class="form-control" readonly>
+
             <div class="mb-3">
               <label for="is_doc_validated{{ $item->id }}" class="form-label">Document Validated</label>
               <select class="form-select" id="is_doc_validated{{ $item->id }}" name="is_doc_validated">
@@ -125,6 +126,7 @@ $programs = Qs::getProgramGroups();
                 <option value="1" {{ $item->is_doc_validated == 1 ? 'selected' : '' }}>Validated</option>
               </select>
             </div>
+
             <div class="mb-3">
               <label for="is_subject_selected{{ $item->id }}" class="form-label">Subject Selection</label>
               <select class="form-select" id="is_subject_selected{{ $item->id }}" name="is_subject_selected">
@@ -149,7 +151,7 @@ $programs = Qs::getProgramGroups();
 
             </div>
             <div class="mb-3">
-              <label for="enroll_status{{ $item->id }}" class="form-label">Enrollment Status <br>
+              <label for="enroll_status{{ $item->id }}" class="form-label">Enrollment Status (Warning : Use Carefully) <br>
                 <small class="text-danger">*This will Auto Add Applicant
                   to Student List and Activate RollNo
                 </small></label>

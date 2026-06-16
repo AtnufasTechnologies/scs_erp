@@ -20,7 +20,7 @@ $programs = Qs::getProgramGroups();
     style="background: linear-gradient(135deg, #6615c4 0%, #921bfa 100%); border-radius: 0.75rem;">
     <div class=" container-fluid">
       <img src="{{ asset('admin/images/logo.png') }}" alt="Logo" style="max-height: 80px;" class="me-2">
-      <h3><span class="text-light">Interview | Selection First Phase</span></h3>
+      <h3><span class="text-light">UG - Interview | Selection </span></h3>
       @if($userRoleType == 'admission-incharge')
       <a href="{{route('admission.dashboard')}}"> <button class="btn btn-light">Back to Main</button></a>
       @endif
@@ -222,6 +222,12 @@ $programs = Qs::getProgramGroups();
         </div>
         @endif
 
+        @if($item->final_status == 1)
+        <span class="badge bg-success mb-2">Selected</span>
+        @else
+        <span class="badge bg-warning text-dark mb-2"> Pending</span>
+        @endif
+
         @if(isset($item->programChangeInfo) && $item->dept_interview == 0)
         <div class="position-absolute top-0 end-0 m-2" style="z-index: 10;">
           <span class="badge bg-warning text-dark">
@@ -234,13 +240,7 @@ $programs = Qs::getProgramGroups();
           <img src="{{Storage::disk('s3')->url($item->applicationinfo->photo)}}" alt="proile picture" />
         </div>
         <div class="profile-info">
-          <strong>Final Status</strong>
-          @if($item->final_status == 1)
 
-          <span class="badge bg-success mb-2">Selected</span>
-          @else
-          <span class="badge bg-warning text-dark mb-2"> Pending</span>
-          @endif
           <a href="{{ route('download.admission.application-form', $item->applicationinfo->application_code) }}">
             <div class="application-no text-success">Application# {{ $item->applicationinfo->application_code }}</div>
           </a>
