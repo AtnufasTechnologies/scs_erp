@@ -45,4 +45,14 @@ class AdmissionRegistration extends Authenticatable
             get: fn($value, $attributes) => $attributes['first_name'] . ' ' . $attributes['last_name'],
         );
     }
+
+    function selectioninfo()
+    {
+        return  $this->hasOne(AdmissionFirstPhase::class, 'reg_id', 'id');
+    }
+
+    function enrollmentinfo()
+    {
+        return  $this->hasOne(AdmissionFinalPhase::class, 'reg_id', 'id');
+    }
 }
