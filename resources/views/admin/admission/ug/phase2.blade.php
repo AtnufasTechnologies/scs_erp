@@ -80,12 +80,13 @@ $programs = Qs::getProgramGroups();
         <label for="">Interview Slot: <span><i class="fa fa-clock"></i></span> {{$item->interview_datetime}}</label>
 
       </div>
-
-
+      @if($item->contract_ecopy != null)
+      <i class="fa fa-check-circle text-success"></i> Contract eCopy is uploaded. <a href="{{ Storage::disk('s3')->url($item->contract_ecopy) }}" target="_blank" class="btn btn-sm btn-success">View Contract</a>
+      @endif
       <div class="stats d-flex justify-content-around">
         <div class="stat-item">
           <div class="stat-value">
-            <i class="fa fa-id-card fa-2x {{$item->icard_generated == 1 ? 'text-success' : 'text-danger'}}"></i>
+            <i class="fas fa-id-card-alt fa-2x {{$item->icard_generated == 1 ? 'text-success' : 'text-danger'}}"></i>
           </div>
         </div>
         <div class="stat-item">
@@ -111,7 +112,7 @@ $programs = Qs::getProgramGroups();
           <h5 class="modal-title" id="updateStatusModalLabel{{ $item->id }}">Update Status - {{ $item->applicationinfo->application_code }}</h5>
           <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
         </div>
-        <form action="{{ route('admission.ug.phase2.update-status', $item->id) }}" method="POST">
+        <form action="{{ route('admission.ug.phase2.update-status', $item->id) }}" method="POST" enctype="multipart/form-data">
           @csrf
           @method('PUT')
           <div class="modal-body">
@@ -128,10 +129,20 @@ $programs = Qs::getProgramGroups();
             </div>
 
             @if($userRoleType == 'admission-incharge')
+            @if($item->contract_ecopy == null)
             <div class="mb-3">
-              <label>Upload Contract eCopy</label>
+              <label>Upload Contract eCopy (Accepted: Pdf, Max Size: 10MB)</label>
               <input type="file" class="form-control" name="contract_ecopy">
+              @error('contract_ecopy')
+              <div class="text-danger">{{ $message }}</div>
+              @enderror
             </div>
+            @else
+            <div class="alert alert-info">
+
+            </div>
+
+            @endif
             @endif
 
 

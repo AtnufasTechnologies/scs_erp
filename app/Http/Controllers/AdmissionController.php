@@ -1303,20 +1303,50 @@ class AdmissionController extends Controller
     function updateUgPhase2Status(Request $request, $id)
     {
 
-        $phase2Record = AdmissionFinalPhase::findOrFail($id);
+        $phase2Record = AdmissionFinalPhase::with('registrationmaster:id,batch,application_type,first_name,last_name,mail_id,mobile_no')->findOrFail($id);
 
-        $phase2Record->is_doc_validated = $request->is_doc_validated;
-        $phase2Record->is_subject_selected = $request->is_subject_selected;
-        $phase2Record->uniform_applied = $request->uniform_applied;
-        $phase2Record->fee_paid = $request->fee_paid;
-        $phase2Record->icard_generated = $request->icard_generated;
-        $phase2Record->contract_signed = $request->contract_signed;
-        $phase2Record->enroll_status = $request->enroll_status;
+        if (empty($phase2Record->is_doc_validated)) {
+            $phase2Record->is_doc_validated = $request->is_doc_validated;
+        }
+
+        if (empty($phase2Record->is_subject_selected)) {
+            $phase2Record->is_subject_selected = $request->is_subject_selected;
+        }
+        if (empty($phase2Record->uniform_applied)) {
+            $phase2Record->uniform_applied = $request->uniform_applied;
+        }
+
+        if (empty($phase2Record->fee_paid)) {
+            $phase2Record->fee_paid = $request->fee_paid;
+        }
+        if (empty($phase2Record->icard_generated)) {
+            $phase2Record->icard_generated = $request->icard_generated;
+        }
+        if (empty($phase2Record->contract_signed)) {
+            $phase2Record->contract_signed = $request->contract_signed;
+        }
+        if (empty($phase2Record->enroll_status)) {
+            $phase2Record->enroll_status = $request->enroll_status;
+        }
+
+
+        if (empty($phase2Record->contract_ecopy)) {
+            $request->validate([
+                'contract_ecopy' => 'file|mimes:pdf|max:10240', // max 10MB
+            ]);
+            $file = $request->contract_ecopy;
+            $filename = StaticController::s3_file_uploader($file, 'student-contracts');
+            $phase2Record->contract_ecopy = $filename;
+            $phase2Record->contract_signed = 1; // Mark contract as signed when e-copy is uploaded
+        }
+
         $phase2Record->save();
 
         if ($request->enroll_status == 1) {
             // Add Information into Student Master Table
             StaticController::addToStudentMaster($phase2Record->reg_id);
+            // Add Information into Student Program Table
+            $this->activateApplicationPayment($phase2Record->reg_id);
         }
 
         return back()->with('success', 'Updated successfully.');
@@ -2895,11 +2925,23 @@ class AdmissionController extends Controller
 
 
         //generate Rollno based on the last roll no of the department and course
-        if ($studnetData->campus_id == 1) {
-            $prefix = "USO";
+        if ($studnetData->application_type == 'UG') {
+            $P = 'U';
+            if ($studnetData->campus_id == 1) {
+                $prefix = $P . "SO";
+            } else {
+                $prefix = $P . "SL";
+            }
         } else {
-            $prefix = "USL";
+            $P = 'P';
+            if ($studnetData->campus_id == 1) {
+                $prefix = $P . "SO";
+            } else {
+                $prefix = $P . "SL";
+            }
         }
+
+
 
         $batch = $studnetData->batch;
         $batch_id =  BatchMaster::where('batch_name', $batch)->value('id');
