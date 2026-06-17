@@ -2,6 +2,7 @@
 
 namespace App\Helpers;
 
+use App\Http\Controllers\StaticController;
 use App\Models\AdmissionFinalPhase;
 use App\Models\AdmissionFirstPhase;
 use App\Models\BatchMaster;
@@ -256,6 +257,29 @@ class Qs
       ->orderby('subject_id', 'asc')
       ->get()
       ->groupBy('subject_id');
+
+    return $data;
+  }
+
+  static function selectedApplicants($type)
+  {
+    $campusId =  StaticController::fetchCampusSettings();
+    if ($campusId == null) {
+      $data = AdmissionFinalPhase::with('applicationinfo', 'registrationmaster')
+        ->where('enroll_status', 0)
+        ->whereHas('registrationmaster', function ($query) use ($type) {
+          $query->where('application_type', $type);
+        })
+        ->get();
+    } else {
+      $data = AdmissionFinalPhase::with('applicationinfo', 'registrationmaster')
+        ->where('enroll_status', 0)
+        ->whereHas('registrationmaster', function ($query) use ($campusId, $type) {
+          $query->where('campus_id', $campusId)
+            ->where('application_type', $type);
+        })
+        ->get();
+    }
 
     return $data;
   }

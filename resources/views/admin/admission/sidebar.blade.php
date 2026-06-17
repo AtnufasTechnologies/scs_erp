@@ -38,25 +38,25 @@ $canManageAll = $isAdmissionIncharge || $isSuperAdmin;
     <li class="menu-label">Under Graduate (UG)</li>
     <li>
       <a href="{{ route('admission.registration', ['type' => 'UG']) }}">
-        <div class="parent-icon"><i class="fas fa-arrow-alt-circle-right"></i></div>
+        <div class="parent-icon"><i class="fas fa-wind-turbine"></i></div>
         <div class="menu-title">New Registrations</div>
       </a>
     </li>
     <li>
       <a href="{{ route('admission.ug.applications') }}">
-        <div class="parent-icon"><i class="fas fa-arrow-alt-circle-right"></i></div>
+        <div class="parent-icon"><i class="fal fa-blinds-open"></i></div>
         <div class="menu-title">Applications</div>
       </a>
     </li>
     <li>
       <a href="{{ route('admission.ug.phase1') }}">
-        <div class="parent-icon"><i class="fas fa-arrow-alt-circle-right"></i></div>
+        <div class="parent-icon"><i class="far fa-poll-people"></i></div>
         <div class="menu-title">Interview</div>
       </a>
     </li>
     <li>
       <a href="{{ route('admission.ug.phase2') }}">
-        <div class="parent-icon"><i class="fas fa-arrow-alt-circle-right"></i></div>
+        <div class="parent-icon"><i class="fas fa-user-check"></i></div>
         <div class="menu-title">Enrollment </div>
       </a>
     </li>
@@ -64,25 +64,25 @@ $canManageAll = $isAdmissionIncharge || $isSuperAdmin;
     <li class="menu-label">Post Graduate (PG)</li>
     <li>
       <a href="{{ route('admission.registration', ['type' => 'PG']) }}">
-        <div class="parent-icon"><i class="fas fa-arrow-alt-circle-right"></i></div>
+        <div class="parent-icon"><i class="fas fa-wind-turbine"></i></div>
         <div class="menu-title">New Registrations</div>
       </a>
     </li>
     <li>
       <a href="{{ route('admission.pg.applications') }}">
-        <div class="parent-icon"><i class="fas fa-arrow-alt-circle-right"></i></div>
+        <div class="parent-icon"><i class="fal fa-blinds-open"></i></div>
         <div class="menu-title">Applications</div>
       </a>
     </li>
     <li>
       <a href="{{ route('admission.pg.phase1') }}" ">
-        <div class=" parent-icon"><i class="fas fa-arrow-alt-circle-right"></i></div>
+        <div class=" parent-icon"><i class="far fa-poll-people"></i></div>
         <div class="menu-title">Interview</div>
       </a>
     </li>
     <li>
       <a href="{{ route('admission.pg.enrollment') }}" ">
-        <div class=" parent-icon"><i class="fas fa-arrow-alt-circle-right"></i></div>
+        <div class=" parent-icon"><i class="fas fa-user-check"></i></div>
         <div class="menu-title">Enrollment</div>
       </a>
     </li>

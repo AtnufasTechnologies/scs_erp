@@ -7,6 +7,7 @@ use App\Models\StudentMaster;
 
 $userRoleType = StaticController::fetchUserRole();
 $programs = Qs::getProgramGroups();
+$selectedList = Qs::selectedApplicants('PG');
 ?>
 @include('includes.header')
 @include('admin.admission.sidebar')
@@ -22,37 +23,25 @@ $programs = Qs::getProgramGroups();
       <input type="text" id="liveSearchInput" class="form-control mb-3" placeholder="Search by name, mobile, email, or code...">
     </div>
   </div>
-  <div class="row">
-    <div class="col-lg-8">
-      <form method="POST" action="{{ route('send.phase2.notification') }}">
-        @csrf
-        <div class="row ">
-          <div class="col-lg-6">
-            <label for="programGroup" class="form-label">Select Enrolled Programs</label>
-            <select name="programs[]" class="form-select select-multiple" multiple>
+  <!-- <div class="card shadow">
 
-              @foreach($programs as $program)
-              <option value="{{ $program->id }}">
-                {{$program->code}} - {{ $program->name }} ({{ count($program->applicationCount)  }})
-              </option>
-              @endforeach
-            </select>
-          </div>
+    <form method="POST" action="{{ route('send.phase2.notification') }}">
+      @csrf
+      <label for="" class="form-label">Select Applicant(s) to call for Final Enrollment</label>
+      <div class="input-group">
 
-          <div class="col-lg-5">
-            <label for="interviewDate" class="form-label">Phase 2 Date</label>
-            <div class="input-group">
-              <input type="datetime-local" name="interview_time" class="form-control" required>
-              <button type="submit" class="btn btn-main">
-                <i class="fas fa-sms"></i> Send Phase 2 SMS
-              </button>
-            </div>
+        <select name="applicants[]" class="form-select select-multiple" multiple>
+          @foreach($selectedList as $item)
+          <option value="{{ $item->id }}">
+            {{$item->applicationinfo->application_code}} - {{ $item->registrationmaster->first_name }} {{ $item->registrationmaster->last_name }}
+          </option>
+          @endforeach
+        </select>
+        <button type="submit" class="btn btn-main"> <i class="fas fa-sms"></i> Send </button>
+      </div>
+    </form>
 
-          </div>
-        </div>
-      </form>
-    </div>
-  </div>
+  </div> -->
 </div>
 
 <div class="row">
@@ -70,7 +59,6 @@ $programs = Qs::getProgramGroups();
         @endif
       </div>
       <div class="profile-info">
-
         <!-- @if($item->registrationmaster->is_enrolled == 1)
         <span class="badge bg-success mb-2">Enrolled</span>
         @else
@@ -79,7 +67,6 @@ $programs = Qs::getProgramGroups();
         </a>
         @endif -->
         <div class="profile-title"> Application Code# <b>{{ $item->applicationinfo->application_code ?? '-' }} </b> </div>
-
         <p class="profile-name text-capitalize">{{ $item->registrationmaster->first_name  }} {{ $item->registrationmaster->last_name  }}</p>
         <div class="profile-title">{{ $item->registrationmaster->mobile_no  }}</div>
         <div class="profile-title">{{ $item->registrationmaster->mail_id  }}</div>
