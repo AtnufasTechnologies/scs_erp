@@ -14,7 +14,7 @@ $programs = Qs::getProgramGroups();
 <div class="container-fluid mb-5">
   <div class="row">
     <div class="col-lg-4">
-      <h3>Admission | UG - Enrollment </h3>
+      <h3>Admission | PG - Enrollment </h3>
       Records Found - {{ $data->count() }}
     </div>
     <div class="col-lg-4 offset-lg-4">
@@ -57,32 +57,39 @@ $programs = Qs::getProgramGroups();
 
 <div class="row">
   @foreach ($data as $item)
+
   <div class="col-lg-4">
     <div class="profile-card mb-5 shadow">
       <div class="profile-image">
         <img src="{{Storage::disk('s3')->url($item->applicationinfo->photo)}}" alt="proile picture" />
-      </div>
-      <div class="profile-info">
         @php
         $rollNo = StudentMaster::where('user_code', $item->applicationinfo->application_code)->value('roll_no');
         @endphp
         @if($rollNo != null)
         <span class="badge bg-success mb-2">Roll No: {{ $rollNo }}</span>
         @endif
+      </div>
+      <div class="profile-info">
 
+        <!-- @if($item->registrationmaster->is_enrolled == 1)
+        <span class="badge bg-success mb-2">Enrolled</span>
+        @else
+        <a href="{{ route('activate.admission.payment', ['id' => $item->registrationmaster->id]) }}" onclick="return confirm('Are you sure you want to activate payment for this applicant?')">
+          <button class="btn btn-success">Activate Payment</button>
+        </a>
+        @endif -->
         <div class="profile-title"> Application Code# <b>{{ $item->applicationinfo->application_code ?? '-' }} </b> </div>
+
         <p class="profile-name text-capitalize">{{ $item->registrationmaster->first_name  }} {{ $item->registrationmaster->last_name  }}</p>
         <div class="profile-title">{{ $item->registrationmaster->mobile_no  }}</div>
         <div class="profile-title">{{ $item->registrationmaster->mail_id  }}</div>
         <div class="profile-bio alert alert-success">
           {{ $item->applicationinfo->stdCourseMaster->code ?? '-' }} - {{ $item->applicationinfo->stdCourseMaster->name ?? '-' }}
         </div>
-        <label for="">Interview Slot: <span><i class="fa fa-clock"></i></span> {{$item->interview_datetime}}</label>
-
+        <label for="">Alloted Slot: <span><i class="fa fa-clock"></i></span> {{$item->interview_datetime}}</label>
       </div>
-
-
       <div class="stats d-flex justify-content-around">
+
         <div class="stat-item">
           <div class="stat-value">
             <i class="fa fa-id-card fa-2x {{$item->icard_generated == 1 ? 'text-success' : 'text-danger'}}"></i>
@@ -97,10 +104,10 @@ $programs = Qs::getProgramGroups();
 
       <div class="dropdown mt-3">
         <div class="row">
-          <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#updateStatusModal{{ $item->id }}">Take Action</button>
+          <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#updateStatusModal{{ $item->id }}"><i class="fa fa-cog"></i> Action</button>
         </div>
-
       </div>
+
     </div>
   </div>
   <!-- Modal for Update Status -->

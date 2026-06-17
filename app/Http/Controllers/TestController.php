@@ -4,6 +4,8 @@ namespace App\Http\Controllers;
 
 use App\Mail\ApplicationSuccessMail;
 use App\Mail\OtpMail;
+use App\Models\AdmissionFinalPhase;
+use App\Models\AdmissionFirstPhase;
 use App\Models\BatchMaster;
 use App\Models\ExamSystem\Student;
 use App\Models\FeeCourseMaster;
@@ -222,5 +224,32 @@ class TestController extends Controller
         dd('Fee structure fixing completed successfully. Total records updated: ' . $count);
 
         */
+    }
+
+    function fixAdmissionEnrollment()
+    {
+        $data = AdmissionFirstPhase::where('final_status', 1)->get();
+        foreach ($data as  $item) {
+            //check if record already exists in admission_final_phase table
+            $checkIfExists = AdmissionFinalPhase::where('reg_id', $item->reg_id)
+                ->first();
+            // Check if the record already exists
+            if ($checkIfExists == null) {
+                AdmissionFinalPhase::create([
+                    'application_id' => $item->id,
+                    'reg_id' => $item->reg_id,
+                    'interview_datetime' => $item->interview_datetime,
+                    'is_doc_validated' => 0,
+                    'is_subject_selected' => 0,
+                    'uniform_applied' => 0,
+                    'fee_paid' => 0,
+                    'icard_generated' => 0,
+                    'contract_signed' => 0,
+                    'enroll_status' => 0
+                ]);
+            }
+        }
+
+        return dd('Admission final phase records created successfully for all first phase completed applications');
     }
 }

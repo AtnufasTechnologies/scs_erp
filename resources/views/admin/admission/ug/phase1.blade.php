@@ -240,11 +240,36 @@ $programs = Qs::getProgramGroups();
           <img src="{{Storage::disk('s3')->url($item->applicationinfo->photo)}}" alt="proile picture" />
         </div>
         <div class="profile-info">
+          <div class="row">
+            <div class="col-lg-10">
+              <a href="{{ route('download.admission.application-form', $item->applicationinfo->application_code) }}">
+                <div class="application-no text-success">Application# {{ $item->applicationinfo->application_code }}</div>
+              </a>
+            </div>
+            <div class="col-lg-2">
+              <span class=" btn-sm btn-dark mx-1" title="copy" onclick="copyToClipboard('{{ $item->applicationinfo->application_code }}')">
+                <i class="fa fa-copy"></i>
+              </span>
+            </div>
+          </div>
 
-          <a href="{{ route('download.admission.application-form', $item->applicationinfo->application_code) }}">
-            <div class="application-no text-success">Application# {{ $item->applicationinfo->application_code }}</div>
-          </a>
+
+
+          <script>
+            function copyToClipboard(text) {
+              var tempInput = document.createElement("input");
+              document.body.appendChild(tempInput);
+              tempInput.value = text;
+              tempInput.select();
+              document.execCommand("copy");
+              document.body.removeChild(tempInput);
+
+              // Optional: Show a success message to the user
+              alert("Application code copied to clipboard: " + text);
+            }
+          </script>
           <p class="profile-name text-capitalize">{{ $item->registrationmaster->first_name  }} {{ $item->registrationmaster->last_name  }}</p>
+
           <div class="profile-title">{{ $item->registrationmaster->mobile_no  }}</div>
           <div class="profile-title">{{ $item->registrationmaster->mail_id  }}</div>
 

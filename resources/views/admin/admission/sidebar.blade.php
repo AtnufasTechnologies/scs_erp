@@ -80,6 +80,12 @@ $canManageAll = $isAdmissionIncharge || $isSuperAdmin;
         <div class="menu-title">Interview</div>
       </a>
     </li>
+    <li>
+      <a href="{{ route('admission.pg.enrollment') }}" ">
+        <div class=" parent-icon"><i class="fas fa-arrow-alt-circle-right"></i></div>
+        <div class="menu-title">Enrollment</div>
+      </a>
+    </li>
 
 
     <li class="menu-label">System</li>

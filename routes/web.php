@@ -381,7 +381,8 @@ Route::group(['prefix' => '/erp'], function () {
             Route::get('pg-phase1', [AdmissionController::class, 'pgPhase1Registrations'])->name('admission.pg.phase1');
             Route::get('pg-phase1/export-all', [AdmissionController::class, 'exportPgPhase1AllApplicants'])->name('admission.pg.phase1.export-all');
             Route::get('pg-phase1/export-selected', [AdmissionController::class, 'exportPgPhase1SelectedApplicants'])->name('admission.pg.phase1.export-selected');
-            Route::put('pg-phase1/update-status/{id}', [AdmissionController::class, 'updateUgPhase1Status'])->name('admission.pg.phase1.update-status');
+            Route::put('pg-phase1/update-status/{id}', [AdmissionController::class, 'updatePgPhase1Status'])->name('admission.pg.phase1.update-status');
+            Route::get('pg-phase2', [AdmissionController::class, 'pgPhase2Registrations'])->name('admission.pg.enrollment');
 
 
             //Edit Application
@@ -1228,6 +1229,7 @@ Route::group(['prefix' => '/erp'], function () {
 
     //Testing route
     Route::group(['prefix' => '/test',], function () {
+        Route::get('fix-admission-enrollment', [TestController::class, 'fixAdmissionEnrollment']); //run once to fix enrollment number in student master table
         // Route::get('fee-issue-fix', [TestController::class, 'feesIssueFixing']); //run once to test fee structure creation logic
         // Route::get('create-student-login', [TestController::class, 'createStudentLogin']); //run once to create student login for all students in student master
         // Route::get('delete-student-login', [TestController::class, 'delAllStudentAccount']); //run once to delete all student login (if needed)

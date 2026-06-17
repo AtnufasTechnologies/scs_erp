@@ -1204,12 +1204,16 @@ class AdmissionController extends Controller
                     'applicationinfo.stdCourseMaster',
                 ])->whereHas('applicationinfo', function ($query) use ($search) {
                     $query->where('application_id', 'like', '%' . $search . '%');
+                })->whereHas('registrationmaster', function ($q) {
+                    $q->where('application_type', 'UG');
                 })->latest()->get();
             } else {
                 $data =   AdmissionFinalPhase::with([
                     'registrationmaster',
                     'applicationinfo.stdCourseMaster',
-                ])->latest()->get();
+                ])->whereHas('registrationmaster', function ($q) {
+                    $q->where('application_type', 'UG');
+                })->latest()->get();
             }
         } else {
 
@@ -1224,6 +1228,8 @@ class AdmissionController extends Controller
                 })
                     ->whereHas('registrationmaster', function ($query) use ($campusId) {
                         $query->where('campus_id', $campusId);
+                    })->whereHas('registrationmaster', function ($q) {
+                        $q->where('application_type', 'UG');
                     })->latest()->get();
             } else {
                 $data =  AdmissionFinalPhase::with([
@@ -1231,10 +1237,67 @@ class AdmissionController extends Controller
                     'applicationinfo.stdCourseMaster',
                 ])->whereHas('registrationmaster', function ($query) use ($campusId) {
                     $query->where('campus_id', $campusId);
+                })->whereHas('registrationmaster', function ($q) {
+                    $q->where('application_type', 'UG');
                 })->latest()->get();
             }
         }
         return view('admin.admission.ug.phase2', ['data' => $data]);
+    }
+
+    //Selection Phase 2
+    function pgPhase2Registrations(Request $request)
+    {
+        //Check user has permission
+        $campusId =  StaticController::fetchCampusSettings();
+        if ($campusId == null) {
+
+            if (!empty($request->search)) {
+                $search = $request->search;
+                $data =   AdmissionFinalPhase::with([
+                    'registrationmaster',
+                    'applicationinfo.stdCourseMaster',
+                ])->whereHas('applicationinfo', function ($query) use ($search) {
+                    $query->where('application_id', 'like', '%' . $search . '%');
+                })->whereHas('registrationmaster', function ($q) {
+                    $q->where('application_type', 'PG');
+                })->latest()->get();
+            } else {
+                $data =   AdmissionFinalPhase::with([
+                    'registrationmaster',
+                    'applicationinfo.stdCourseMaster',
+                ])->whereHas('registrationmaster', function ($q) {
+                    $q->where('application_type', 'PG');
+                })->latest()->get();
+            }
+        } else {
+
+
+            if (!empty($request->search)) {
+                $search = $request->search;
+                $data =   AdmissionFinalPhase::with([
+                    'registrationmaster',
+                    'applicationinfo.stdCourseMaster',
+                ])->whereHas('applicationinfo', function ($query) use ($search) {
+                    $query->where('application_id', 'like', '%' . $search . '%');
+                })
+                    ->whereHas('registrationmaster', function ($query) use ($campusId) {
+                        $query->where('campus_id', $campusId);
+                    })->whereHas('registrationmaster', function ($q) {
+                        $q->where('application_type', 'PG');
+                    })->latest()->get();
+            } else {
+                $data =  AdmissionFinalPhase::with([
+                    'registrationmaster',
+                    'applicationinfo.stdCourseMaster',
+                ])->whereHas('registrationmaster', function ($query) use ($campusId) {
+                    $query->where('campus_id', $campusId);
+                })->whereHas('registrationmaster', function ($q) {
+                    $q->where('application_type', 'PG');
+                })->latest()->get();
+            }
+        }
+        return view('admin.admission.pg.phase2', ['data' => $data]);
     }
 
     function updateUgPhase2Status(Request $request, $id)
