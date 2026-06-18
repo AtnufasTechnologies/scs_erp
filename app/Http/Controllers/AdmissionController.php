@@ -690,7 +690,7 @@ class AdmissionController extends Controller
         $interview_date = $request->interview_date ?? null;
         $final_status = $request->final_status ?? null;
         $search = $request->search ?? null;
-
+        $formattedDate = null;
         // Build query with filters
         $query = AdmissionFirstPhase::with([
             'registrationmaster',
@@ -733,7 +733,7 @@ class AdmissionController extends Controller
         $data = $query->latest()->get();
         $printstatus = $final_status == 1 ? 'Selected' : ($final_status == 0 ? 'Pending' : 'All');
         $export = new GenericExport($data, 'admin.admission.ug.phase1-export');
-        return Excel::download($export, 'UG_' . $printstatus . '_list_' . $formattedDate . '.xlsx');
+        return Excel::download($export, 'UG_list_' . $formattedDate . '.xlsx');
     }
 
 
@@ -743,7 +743,7 @@ class AdmissionController extends Controller
         $interview_date = $request->interview_date ?? null;
         $final_status = $request->final_status ?? null;
         $search = $request->search ?? null;
-
+        $formattedDate = null;
         // Build query with filters
         $query = AdmissionFirstPhase::with([
             'registrationmaster',
@@ -786,10 +786,9 @@ class AdmissionController extends Controller
         }
 
         $data = $query->latest()->get();
-        $printstatus = $final_status == 1 ? 'Selected' : ($final_status == 0 ? 'Pending' : 'All');
 
         $export = new GenericExport($data, 'admin.admission.ug.phase1-export');
-        return Excel::download($export, 'PG_' . $printstatus . '_list_' . $formattedDate . '.xlsx');
+        return Excel::download($export, 'PG_list_' .  '' . $formattedDate . '.xlsx');
     }
 
     public function exportPhase1SelectedApplicants(Request $request)
