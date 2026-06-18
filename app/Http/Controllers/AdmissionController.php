@@ -1330,7 +1330,7 @@ class AdmissionController extends Controller
         }
 
 
-        if (empty($phase2Record->contract_ecopy)) {
+        if (!empty($phase2Record->contract_ecopy)) {
             $request->validate([
                 'contract_ecopy' => 'file|mimes:pdf|max:10240', // max 10MB
             ]);
