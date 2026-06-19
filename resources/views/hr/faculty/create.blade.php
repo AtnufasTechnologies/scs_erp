@@ -1,3 +1,9 @@
+<?php
+
+use App\Models\Campus;
+
+$campuses = Campus::all();
+?>
 @include('includes.header')
 
 <div class="wrapper">
@@ -34,7 +40,8 @@
                 <div class="col-12">
                   <h6 class="border-bottom pb-2">Basic Information</h6>
                 </div>
-                <div class="col-md-4 mb-3">
+
+                <div class="col-md-2 mb-3">
                   <label class="form-label">Employee Code <span class="text-danger">*</span></label>
                   <input type="text" name="USER_CODE" class="form-control @error('USER_CODE') is-invalid @enderror" value="{{ old('USER_CODE') }}" required>
                   @error('USER_CODE')<div class="invalid-feedback">{{ $message }}</div>@enderror
@@ -58,9 +65,9 @@
                   <label class="form-label">Gender <span class="text-danger">*</span></label>
                   <select name="GENDER" class="form-select @error('GENDER') is-invalid @enderror" required>
                     <option value="">Select Gender</option>
-                    <option value="Male" {{ old('GENDER') == 'Male' ? 'selected' : '' }}>Male</option>
-                    <option value="Female" {{ old('GENDER') == 'Female' ? 'selected' : '' }}>Female</option>
-                    <option value="Other" {{ old('GENDER') == 'Other' ? 'selected' : '' }}>Other</option>
+                    <option value="1" {{ old('GENDER') == '1' ? 'selected' : '' }}>Male</option>
+                    <option value="2" {{ old('GENDER') == '2' ? 'selected' : '' }}>Female</option>
+                    <option value="3" {{ old('GENDER') == '3' ? 'selected' : '' }}>Other</option>
                   </select>
                   @error('GENDER')<div class="invalid-feedback">{{ $message }}</div>@enderror
                 </div>
@@ -76,7 +83,7 @@
                 </div>
                 <div class="col-md-4 mb-3">
                   <label class="form-label">Nationality</label>
-                  <select name="NATIONALITY" class="form-select @error('NATIONALITY') is-invalid @enderror">
+                  <select name="NATIONALITY" class="form-select @error('NATIONALITY') is-invalid @enderror dselect-example">
                     <option value="">Select Nationality</option>
                     @foreach($nationalities as $nationality)
                     <option value="{{ $nationality->id }}" {{ old('NATIONALITY') == $nationality->id ? 'selected' : '' }}>{{ $nationality->name }}</option>
@@ -85,10 +92,19 @@
                   @error('NATIONALITY')<div class="invalid-feedback">{{ $message }}</div>@enderror
                 </div>
                 <div class="col-md-4 mb-3">
+                  <label class="form-label">Campus <span class="text-danger">*</span></label>
+                  <select name="CAMPUS_ID" class="form-select @error('CAMPUS_ID') is-invalid @enderror" required>
+                    <option value="">Select Campus</option>
+                    @foreach($campuses as $campus)
+                    <option value="{{ $campus->id }}" {{ old('CAMPUS_ID') == $campus->id ? 'selected' : '' }}>{{ $campus->name }}</option>
+                    @endforeach
+                  </select>
+                </div>
+                <!-- <div class="col-md-4 mb-3">
                   <label class="form-label">Photo</label>
                   <input type="file" name="photo" class="form-control @error('photo') is-invalid @enderror" accept="image/*">
                   @error('photo')<div class="invalid-feedback">{{ $message }}</div>@enderror
-                </div>
+                </div> -->
               </div>
 
               <div class="row mb-4">
@@ -121,8 +137,8 @@
                 <div class="col-12">
                   <h6 class="border-bottom pb-2">Professional Details</h6>
                 </div>
-                <div class="col-md-4 mb-3">
-                  <label class="form-label">Employee Type</label>
+                <div class="col-md-2 mb-3">
+                  <label class="form-label">Employee Type <span class="text-danger">*</span></label>
                   <select name="employee_type" class="form-select @error('employee_type') is-invalid @enderror">
                     <option value="">Select Type</option>
                     <option value="permanent" {{ old('employee_type') == 'permanent' ? 'selected' : '' }}>Permanent</option>
@@ -133,12 +149,24 @@
                   </select>
                   @error('employee_type')<div class="invalid-feedback">{{ $message }}</div>@enderror
                 </div>
-                <div class="col-md-4 mb-3">
+
+                <div class="col-md-2 mb-3">
+                  <label class="form-label">User Type <span class="text-danger">*</span></label>
+                  <select name="user_type" class="form-select @error('user_type') is-invalid @enderror">
+                    <option value="">Select Type</option>
+                    <option value="1" {{ old('user_type') == '1' ? 'selected' : '' }}>Teaching Staff</option>
+                    <option value="2" {{ old('user_type') == '2' ? 'selected' : '' }}>Non-Teaching Staff</option>
+
+                  </select>
+                  @error('user_type')<div class="invalid-feedback">{{ $message }}</div>@enderror
+                </div>
+
+                <div class="col-md-3 mb-3">
                   <label class="form-label">Designation</label>
                   <input type="text" name="designation" class="form-control @error('designation') is-invalid @enderror" value="{{ old('designation') }}" placeholder="e.g., Professor, Associate Professor">
                   @error('designation')<div class="invalid-feedback">{{ $message }}</div>@enderror
                 </div>
-                <div class="col-md-4 mb-3">
+                <div class="col-md-3 mb-3">
                   <label class="form-label">Experience (Years)</label>
                   <input type="number" name="experience_years" class="form-control @error('experience_years') is-invalid @enderror" value="{{ old('experience_years') }}" min="0">
                   @error('experience_years')<div class="invalid-feedback">{{ $message }}</div>@enderror

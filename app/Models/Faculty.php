@@ -27,6 +27,9 @@ class Faculty extends Model
         'photo',
         'hr_designation_id',
         'hr_grade_level_id',
+        'user_type',
+        'CAMPUS_ID',
+        'NATIONALITY'
     ];
 
     // function timetablepivot(){

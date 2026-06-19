@@ -1,3 +1,9 @@
+<?php
+
+use App\Models\Campus;
+
+$campuses = Campus::all();
+?>
 @include('includes.header')
 
 <div class="wrapper">
@@ -29,7 +35,9 @@
               @method('PUT')
 
               <div class="row mb-4">
-                <div class="col-12"><h6 class="border-bottom pb-2">Basic Information</h6></div>
+                <div class="col-12">
+                  <h6 class="border-bottom pb-2">Basic Information</h6>
+                </div>
                 <div class="col-md-4 mb-3">
                   <label class="form-label">Employee Code <span class="text-danger">*</span></label>
                   <input type="text" name="USER_CODE" class="form-control @error('USER_CODE') is-invalid @enderror" value="{{ old('USER_CODE', $faculty->USER_CODE) }}" required>
@@ -52,9 +60,9 @@
                   <label class="form-label">Gender <span class="text-danger">*</span></label>
                   <select name="GENDER" class="form-select @error('GENDER') is-invalid @enderror" required>
                     <option value="">Select Gender</option>
-                    <option value="Male" {{ old('GENDER', $faculty->GENDER) == 'Male' ? 'selected' : '' }}>Male</option>
-                    <option value="Female" {{ old('GENDER', $faculty->GENDER) == 'Female' ? 'selected' : '' }}>Female</option>
-                    <option value="Other" {{ old('GENDER', $faculty->GENDER) == 'Other' ? 'selected' : '' }}>Other</option>
+                    <option value="1" {{ old('GENDER', $faculty->GENDER) == '1' ? 'selected' : '' }}>Male</option>
+                    <option value="2" {{ old('GENDER', $faculty->GENDER) == '2' ? 'selected' : '' }}>Female</option>
+                    <option value="3" {{ old('GENDER', $faculty->GENDER) == '3' ? 'selected' : '' }}>Other</option>
                   </select>
                   @error('GENDER')<div class="invalid-feedback">{{ $message }}</div>@enderror
                 </div>
@@ -68,24 +76,36 @@
                 </div>
                 <div class="col-md-4 mb-3">
                   <label class="form-label">Nationality</label>
-                  <select name="NATIONALITY" class="form-select">
+                  <select name="NATIONALITY" class="form-select dselect-example">
                     <option value="">Select Nationality</option>
                     @foreach($nationalities as $nationality)
-                    <option value="{{ $nationality->id }}" {{ old('NATIONALITY', $faculty->NATIONALITY) == $nationality->id ? 'selected' : '' }}>{{ $nationality->nationality_name }}</option>
+                    <option value="{{ $nationality->id }}" {{ old('NATIONALITY', $faculty->NATIONALITY) == $nationality->id ? 'selected' : '' }}>{{ $nationality->name }}</option>
                     @endforeach
                   </select>
                 </div>
                 <div class="col-md-4 mb-3">
+                  <label class="form-label">Campus <span class="text-danger">*</span></label>
+                  <select name="CAMPUS_ID" class="form-select @error('CAMPUS_ID') is-invalid @enderror" required>
+                    <option value="">Select Campus</option>
+                    @foreach($campuses as $campus)
+                    <option value="{{ $campus->id }}" {{ old('CAMPUS_ID', $faculty->CAMPUS_ID) == $campus->id ? 'selected' : '' }}>{{ $campus->name }}</option>
+                    @endforeach
+                  </select>
+                </div>
+
+                <!-- <div class="col-md-4 mb-3">
                   <label class="form-label">Photo</label>
                   <input type="file" name="photo" class="form-control" accept="image/*">
                   @if($faculty->photo)
                   <small class="text-muted">Current photo exists</small>
                   @endif
-                </div>
+                </div> -->
               </div>
 
               <div class="row mb-4">
-                <div class="col-12"><h6 class="border-bottom pb-2">Contact Information</h6></div>
+                <div class="col-12">
+                  <h6 class="border-bottom pb-2">Contact Information</h6>
+                </div>
                 <div class="col-md-6 mb-3">
                   <label class="form-label">Email <span class="text-danger">*</span></label>
                   <input type="email" name="MAIL_ID" class="form-control @error('MAIL_ID') is-invalid @enderror" value="{{ old('MAIL_ID', $faculty->MAIL_ID) }}" required>
@@ -107,7 +127,9 @@
               </div>
 
               <div class="row mb-4">
-                <div class="col-12"><h6 class="border-bottom pb-2">Professional Details</h6></div>
+                <div class="col-12">
+                  <h6 class="border-bottom pb-2">Professional Details</h6>
+                </div>
                 <div class="col-md-4 mb-3">
                   <label class="form-label">Employee Type</label>
                   <select name="employee_type" class="form-select">
@@ -138,7 +160,9 @@
               </div>
 
               <div class="row mb-4">
-                <div class="col-12"><h6 class="border-bottom pb-2">Banking & ID Details</h6></div>
+                <div class="col-12">
+                  <h6 class="border-bottom pb-2">Banking & ID Details</h6>
+                </div>
                 <div class="col-md-4 mb-3">
                   <label class="form-label">PAN Number</label>
                   <input type="text" name="pan_number" class="form-control" value="{{ old('pan_number', $faculty->pan_number) }}">
@@ -162,7 +186,9 @@
               </div>
 
               <div class="row mb-4">
-                <div class="col-12"><h6 class="border-bottom pb-2">Emergency Contact</h6></div>
+                <div class="col-12">
+                  <h6 class="border-bottom pb-2">Emergency Contact</h6>
+                </div>
                 <div class="col-md-6 mb-3">
                   <label class="form-label">Emergency Contact Name</label>
                   <input type="text" name="emergency_contact_name" class="form-control" value="{{ old('emergency_contact_name', $faculty->emergency_contact_name) }}">

@@ -38,7 +38,7 @@ class HrFacultyController extends Controller
       $query->where('IS_LEFT', 1);
     }
 
-    $faculties = $query->orderBy('FIRST_NAME')->paginate(20);
+    $faculties = $query->latest()->paginate(20);
 
     return view('hr.faculty.index', compact('faculties', 'search', 'status'));
   }
@@ -62,7 +62,7 @@ class HrFacultyController extends Controller
       'FIRST_NAME' => 'required|string|max:100',
       'MIDDLE_NAME' => 'nullable|string|max:100',
       'LAST_NAME' => 'nullable|string|max:100',
-      'GENDER' => 'required|in:Male,Female,Other',
+      'GENDER' => 'required|in:1,2,3',
       'MAIL_ID' => 'required|email|max:100|unique:faculties,MAIL_ID',
       'MOBILE_NO' => 'required|string|max:15',
       'ADDRESS' => 'nullable|string',
@@ -83,6 +83,8 @@ class HrFacultyController extends Controller
       'emergency_contact_number' => 'nullable|string|max:15',
       'permanent_address' => 'nullable|string',
       'photo' => 'nullable|image|mimes:jpg,jpeg,png|max:2048',
+      'user_type' => 'required|in:1,2',
+      'CAMPUS_ID' => 'required|exists:campuses,id',
     ]);
 
     // Handle photo upload
@@ -154,7 +156,7 @@ class HrFacultyController extends Controller
       'FIRST_NAME' => 'required|string|max:100',
       'MIDDLE_NAME' => 'nullable|string|max:100',
       'LAST_NAME' => 'nullable|string|max:100',
-      'GENDER' => 'required|in:Male,Female,Other',
+      'GENDER' => 'required|in:1,2,3',
       'MAIL_ID' => 'required|email|max:100|unique:faculties,MAIL_ID,' . $id,
       'MOBILE_NO' => 'required|string|max:15',
       'ADDRESS' => 'nullable|string',
@@ -177,6 +179,7 @@ class HrFacultyController extends Controller
       'emergency_contact_number' => 'nullable|string|max:15',
       'permanent_address' => 'nullable|string',
       'photo' => 'nullable|image|mimes:jpg,jpeg,png|max:2048',
+      'CAMPUS_ID' => 'required|exists:campuses,id',
     ]);
 
     // Handle photo upload

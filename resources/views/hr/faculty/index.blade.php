@@ -7,12 +7,12 @@
   <main class="page-content">
     <!--start breadcrumb-->
     <div class="page-breadcrumb d-none d-sm-flex align-items-center gap-2">
-      <div class="breadcrumb-title pe-3">Faculty Management</div>
+      <div class="breadcrumb-title pe-3">Employee Management</div>
       <div class="ps-2">
         <nav aria-label="breadcrumb">
           <ol class="breadcrumb mb-0 p-0">
             <li class="breadcrumb-item"><a href="{{ route('hr.dashboard') }}"><i class="bx bx-home-alt"></i></a></li>
-            <li class="breadcrumb-item active" aria-current="page">Faculty List</li>
+            <li class="breadcrumb-item active" aria-current="page">Employee List</li>
           </ol>
         </nav>
       </div>
@@ -30,11 +30,11 @@
       <div class="card-header bg-transparent">
         <div class="row align-items-center">
           <div class="col-md-6">
-            <h5 class="mb-0">Faculty Members</h5>
+            <h5 class="mb-0">Master List</h5>
           </div>
           <div class="col-md-6 text-end">
             <a href="{{ route('hr.faculty.create') }}" class="btn btn-primary">
-              <i class="fas fa-plus me-1"></i>Add Faculty
+              <i class="fas fa-plus me-1"></i>Add Employee
             </a>
           </div>
         </div>
@@ -46,13 +46,7 @@
             <div class="col-md-6">
               <input type="text" name="search" class="form-control" placeholder="Search by name, code, email, or phone" value="{{ $search }}">
             </div>
-            <div class="col-md-3">
-              <select name="status" class="form-select">
-                <option value="">All Status</option>
-                <option value="active" {{ $status == 'active' ? 'selected' : '' }}>Active</option>
-                <option value="left" {{ $status == 'left' ? 'selected' : '' }}>Left</option>
-              </select>
-            </div>
+
             <div class="col-md-3">
               <button type="submit" class="btn btn-primary w-100">
                 <i class="fas fa-search me-1"></i>Search
@@ -67,6 +61,7 @@
             <thead>
               <tr>
                 <th>Employee Code</th>
+                <th>Campus </th>
                 <th>Name</th>
                 <th>Contact</th>
                 <th>Designation</th>
@@ -78,8 +73,8 @@
               @forelse($faculties as $faculty)
               <tr>
                 <td><strong>{{ $faculty->USER_CODE }}</strong></td>
-                <td>
-                  {{ $faculty->FIRST_NAME }} {{ $faculty->MIDDLE_NAME }} {{ $faculty->LAST_NAME }}
+                <td>{{ $faculty->CAMPUS_ID == 1 ? 'Sonada' : 'Siliguri' }}</td>
+                <td>{{ $faculty->FIRST_NAME }} {{ $faculty->MIDDLE_NAME }} {{ $faculty->LAST_NAME }}
                 </td>
                 <td>
                   <small>{{ $faculty->MAIL_ID }}</small><br>

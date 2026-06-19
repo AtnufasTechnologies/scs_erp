@@ -12,7 +12,7 @@
         <nav aria-label="breadcrumb">
           <ol class="breadcrumb mb-0 p-0">
             <li class="breadcrumb-item"><a href="{{ route('hr.dashboard') }}"><i class="bx bx-home-alt"></i></a></li>
-            <li class="breadcrumb-item"><a href="{{ route('hr.faculty.index') }}">Faculty List</a></li>
+            <li class="breadcrumb-item"><a href="{{ route('hr.faculty.index') }}"></a></li>
             <li class="breadcrumb-item active" aria-current="page">{{ $faculty->FIRST_NAME }} {{ $faculty->LAST_NAME }}</li>
           </ol>
         </nav>
@@ -40,7 +40,8 @@
             </div>
             @endif
             <h5>{{ $faculty->FIRST_NAME }} {{ $faculty->MIDDLE_NAME }} {{ $faculty->LAST_NAME }}</h5>
-            <p class="text-muted mb-2">{{ $faculty->designation ?? 'Faculty Member' }}</p>
+            {{$faculty->CAMPUS_ID == 1 ? 'Sonada' : 'Siliguri' }} Campus
+            <p class="text-muted mb-2">{{ $faculty->designation ?? '' }}</p>
             <p class="text-muted small">{{ $faculty->USER_CODE }}</p>
             <div class="d-flex gap-2 justify-content-center">
               <a href="{{ route('hr.faculty.edit', $faculty->id) }}" class="btn btn-primary btn-sm"><i class="fas fa-edit me-1"></i>Edit</a>
@@ -113,7 +114,7 @@
               </tr>
               <tr>
                 <th>Gender:</th>
-                <td>{{ $faculty->GENDER }}</td>
+                <td>{{ $faculty->GENDER == 1 ? 'Male' : ($faculty->GENDER == 2 ? 'Female' : 'Other')  }}</td>
               </tr>
               <tr>
                 <th>Date of Birth:</th>

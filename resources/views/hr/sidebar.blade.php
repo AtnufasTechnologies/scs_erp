@@ -18,17 +18,17 @@
       </a>
     </li>
 
-    <li class="menu-label">Faculty Management</li>
+    <li class="menu-label">Employee Management</li>
     <li>
       <a href="{{ route('hr.faculty.index') }}">
         <div class="parent-icon"><i class="fas fa-users"></i></div>
-        <div class="menu-title">Faculty List</div>
+        <div class="menu-title">Employee List</div>
       </a>
     </li>
     <li>
       <a href="{{ route('hr.faculty.create') }}">
         <div class="parent-icon"><i class="fas fa-user-plus"></i></div>
-        <div class="menu-title">Add Faculty</div>
+        <div class="menu-title">Add Employee</div>
       </a>
     </li>
 
