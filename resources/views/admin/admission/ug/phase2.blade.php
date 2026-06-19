@@ -88,7 +88,7 @@ $selectedList = Qs::selectedApplicants('UG');
 
         <div class="dropdown mt-3">
           <div class="row">
-            <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#updateStatusModal{{ $item->id }}">Take Action</button>
+            <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#updateStatusModal{{ $item->id }}"><i class="fa fa-cog"></i> Action</button>
           </div>
 
         </div>
@@ -127,10 +127,7 @@ $selectedList = Qs::selectedApplicants('UG');
                 <div class="text-danger">{{ $message }}</div>
                 @enderror
               </div>
-              @else
-              <div class="alert alert-info">
 
-              </div>
 
               @endif
               @endif

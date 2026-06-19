@@ -1301,7 +1301,6 @@ class AdmissionController extends Controller
 
     function updateUgPhase2Status(Request $request, $id)
     {
-
         $phase2Record = AdmissionFinalPhase::with('registrationmaster:id,batch,application_type,first_name,last_name,mail_id,mobile_no')->findOrFail($id);
 
         if (empty($phase2Record->is_doc_validated)) {
@@ -1329,7 +1328,7 @@ class AdmissionController extends Controller
         }
 
 
-        if (!empty($phase2Record->contract_ecopy)) {
+        if (!empty($request->contract_ecopy)) {
             $request->validate([
                 'contract_ecopy' => 'file|mimes:pdf|max:10240', // max 10MB
             ]);
