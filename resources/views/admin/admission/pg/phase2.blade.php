@@ -18,9 +18,14 @@ $selectedList = Qs::selectedApplicants('PG');
       <h3>Admission | PG - Enrollment </h3>
       Records Found - {{ $data->count() }}
     </div>
-    <div class="col-lg-4 offset-lg-4">
+    <div class="col-lg-4 ">
 
       <input type="text" id="liveSearchInput" class="form-control mb-3" placeholder="Search by name, mobile, email, or code...">
+    </div>
+    <div class="col-lg-4 text-end">
+      <a href="{{ route('admission.pg.phase2.export') }}" class="btn btn-success">
+        <i class="fas fa-file-excel"></i> Export to Excel
+      </a>
     </div>
   </div>
   <!-- <div class="card shadow">

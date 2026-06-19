@@ -13,14 +13,18 @@ $selectedList = Qs::selectedApplicants('UG');
 @include('admin.admission.sidebar')
 
 <div class="container-fluid mb-5">
-  <div class="row">
+  <div class="row mb-3">
     <div class="col-lg-4">
       <h3>Admission | UG - Enrollment </h3>
       Records Found - {{ $selectedList->count() }}
     </div>
-    <div class="col-lg-4 offset-lg-4">
-
-      <input type="text" id="liveSearchInput" class="form-control mb-3" placeholder="Search by name, mobile, email, or code...">
+    <div class="col-lg-4">
+      <input type="text" id="liveSearchInput" class="form-control" placeholder="Search by name, mobile, email, or code...">
+    </div>
+    <div class="col-lg-4 text-end">
+      <a href="{{ route('admission.ug.phase2.export') }}" class="btn btn-success">
+        <i class="fas fa-file-excel"></i> Export to Excel
+      </a>
     </div>
   </div>
   <!-- <div class="card shadow">

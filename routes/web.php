@@ -360,6 +360,7 @@ Route::group(['prefix' => '/erp'], function () {
             Route::get('phase1/export-all', [AdmissionController::class, 'exportPhase1AllApplicants'])->name('admission.ug.phase1.export-all');
             Route::get('phase1/export-selected', [AdmissionController::class, 'exportPhase1SelectedApplicants'])->name('admission.ug.phase1.export-selected');
             Route::get('phase2', [AdmissionController::class, 'ugPhase2Registrations'])->name('admission.ug.phase2');
+            Route::get('phase2/export', [AdmissionController::class, 'exportUgPhase2'])->name('admission.ug.phase2.export');
             Route::put('phase2/update-status/{id}', [AdmissionController::class, 'updateUgPhase2Status'])->name('admission.ug.phase2.update-status');
             //controls
             Route::post('send-phase1-notification-single', [AdmissionController::class, 'sendPhase1NotificationSingle'])->name('send.phase1.notification.single');
@@ -383,6 +384,7 @@ Route::group(['prefix' => '/erp'], function () {
             Route::get('pg-phase1/export-selected', [AdmissionController::class, 'exportPgPhase1SelectedApplicants'])->name('admission.pg.phase1.export-selected');
             Route::put('pg-phase1/update-status/{id}', [AdmissionController::class, 'updatePgPhase1Status'])->name('admission.pg.phase1.update-status');
             Route::get('pg-phase2', [AdmissionController::class, 'pgPhase2Registrations'])->name('admission.pg.enrollment');
+            Route::get('pg-phase2/export', [AdmissionController::class, 'exportPgPhase2'])->name('admission.pg.phase2.export');
 
 
             //Edit Application
