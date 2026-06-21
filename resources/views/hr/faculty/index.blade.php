@@ -65,6 +65,7 @@
                 <th>Name</th>
                 <th>Contact</th>
                 <th>Designation</th>
+                <th>Employeement Type</th>
                 <th>Status</th>
                 <th>Actions</th>
               </tr>
@@ -80,22 +81,34 @@
                   <small>{{ $faculty->MAIL_ID }}</small><br>
                   <small>{{ $faculty->MOBILE_NO }}</small>
                 </td>
+                <td>{{ $faculty->employee_type ?? 'N/A' }}</td>
                 <td>{{ $faculty->designation ?? 'N/A' }}</td>
                 <td>
-                  @if($faculty->IS_LEFT)
-                  <span class="badge bg-danger">Left</span>
+                  @if($faculty->IS_LEFT == 1)
+                  <span class="badge bg-danger">Left - {{$faculty->DOL != null  ? date('d-M-Y', strtotime($faculty->DOL)) : 'Missing Info'}}</span>
                   @else
-                  <span class="badge bg-success">Active</span>
+                  <span class="badge bg-success">Active Since {{$faculty->DOJ != null ? date('d-M-Y', strtotime($faculty->DOJ)) : '-'}} </span>
                   @endif
                 </td>
                 <td>
                   <div class="btn-group btn-group-sm">
-                    <a href="{{ route('hr.faculty.show', $faculty->id) }}" class="btn btn-outline-primary" title="View">
+                    <a href="{{ route('hr.faculty.show', $faculty->id) }}" class="btn btn-outline-primary mx-2" title="View">
                       <i class="fas fa-eye"></i>
                     </a>
-                    <a href="{{ route('hr.faculty.edit', $faculty->id) }}" class="btn btn-outline-secondary" title="Edit">
+                    <a href="{{ route('hr.faculty.edit', $faculty->id) }}" class="btn btn-outline-secondary mx-2" title="Edit">
                       <i class="fas fa-edit"></i>
                     </a>
+                    <!-- Button trigger modal -->
+                    <button type="button" class="btn btn-danger" data-bs-toggle="modal" data-bs-target="#deactivateModal"
+                      data-id="{{ $faculty->id }}"
+                      data-emp_code="{{ $faculty->USER_CODE }}"
+                      data-name="{{ $faculty->FIRST_NAME }} {{ $faculty->MIDDLE_NAME }} {{ $faculty->LAST_NAME }}"
+                      data-email="{{ $faculty->MAIL_ID }}"
+                      data-dol="{{ date('Y-m-d', strtotime($faculty->DOL)) }}">
+                      Deactivate
+                    </button>
+
+
                   </div>
                 </td>
               </tr>
@@ -118,5 +131,53 @@
   </main>
   <!--end main wrapper-->
 </div>
-
+<!-- Modal -->
+<div class="modal fade" id="deactivateModal" tabindex="-1" aria-labelledby="exampleModalLabel" aria-hidden="true">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title" id="exampleModalLabel">Deactivate Staff # <span id="emp_code"></span></h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <form action="{{route('hr.faculty.left')}}" method="post">
+        @csrf
+        <div class="modal-body">
+          <input type="hidden" name="id" id="id">
+          <label>Name</label>
+          <input type="text" name="name" id="user_name" class="form-control mb-2" readonly>
+          <label>Email</label>
+          <input type="email" name="email" id="user_email" class="form-control mb-2" readonly>
+          <label>Resignation Date <span class="text-danger">*</span></label>
+          <input type="date" name="resignation_date" id="resignation_date" class="form-control mb-2">
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+          <button type="submit" class="btn btn-success">Submit</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
 @include('includes.footer')
+<script>
+  const editModal = document.getElementById('deactivateModal');
+  editModal.addEventListener('show.bs.modal', function(event) {
+    // button which opened modal
+    let button = event.relatedTarget;
+    // get data attributes
+    let id = button.getAttribute('data-id');
+    let name = button.getAttribute('data-name');
+    let email = button.getAttribute('data-email');
+    let user_code = button.getAttribute('data-emp_code');
+    let dol = button.getAttribute('data-dol');
+    // fill modal inputs
+
+    document.getElementById('id').value = id;
+    document.getElementById('user_name').value = name;
+    document.getElementById('emp_code').textContent = user_code;
+    document.getElementById('user_email').value = email;
+    document.getElementById('resignation_date').value = dol;
+
+
+  });
+</script>

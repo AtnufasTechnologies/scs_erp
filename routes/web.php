@@ -1139,7 +1139,7 @@ Route::group(['prefix' => '/erp'], function () {
         Route::delete('faculty/{id}', [HrFacultyController::class, 'destroy'])->name('hr.faculty.destroy');
         Route::post('faculty/{id}/mark-left', [HrFacultyController::class, 'markAsLeft'])->name('hr.faculty.mark-left');
         Route::post('faculty/{id}/restore', [HrFacultyController::class, 'restore'])->name('hr.faculty.restore');
-
+        Route::post('faculty/left', [HrFacultyController::class, 'deactivateFaculty'])->name('hr.faculty.left');
         // Leave Management
         Route::get('leave', [HrLeaveController::class, 'index'])->name('hr.leave.index');
         Route::get('leave/statistics', [HrLeaveController::class, 'statistics'])->name('hr.leave.statistics');

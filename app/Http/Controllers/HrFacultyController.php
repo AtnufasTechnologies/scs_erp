@@ -85,6 +85,9 @@ class HrFacultyController extends Controller
       'photo' => 'nullable|image|mimes:jpg,jpeg,png|max:2048',
       'user_type' => 'required|in:1,2',
       'CAMPUS_ID' => 'required|exists:campuses,id',
+      'responsibility' => 'nullable|string|max:255',
+      'paper_publications_count' => 'nullable|integer|min:0',
+      'orcid_id' => 'nullable|string|max:50',
     ]);
 
     // Handle photo upload
@@ -180,6 +183,9 @@ class HrFacultyController extends Controller
       'permanent_address' => 'nullable|string',
       'photo' => 'nullable|image|mimes:jpg,jpeg,png|max:2048',
       'CAMPUS_ID' => 'required|exists:campuses,id',
+      'responsibility' => 'nullable|string|max:255',
+      'paper_publications_count' => 'nullable|integer|min:0',
+      'orcid_id' => 'nullable|string|max:50',
     ]);
 
     // Handle photo upload
@@ -238,5 +244,17 @@ class HrFacultyController extends Controller
 
     return redirect()->route('hr.faculty.show', $faculty->id)
       ->with('success', 'Faculty restored to active status!');
+  }
+
+  function deactivateFaculty(Request $request)
+  {
+    $faculty = Faculty::findOrFail($request->id);
+    $faculty->update([
+      'IS_LEFT' => 1,
+      'DOL' => $request->resignation_date,
+    ]);
+
+    return redirect()->route('hr.faculty.index')
+      ->with('success', 'Staff deactivated successfully!');
   }
 }

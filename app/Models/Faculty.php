@@ -29,7 +29,24 @@ class Faculty extends Model
         'hr_grade_level_id',
         'user_type',
         'CAMPUS_ID',
-        'NATIONALITY'
+        'NATIONALITY',
+        'responsibility',
+        'paper_publications_count',
+        'orcid_id',
+        'employee_type',
+        'designation',
+        'qualification',
+        'specialization',
+        'experience_years',
+        'pan_number',
+        'aadhar_number',
+        'bank_account_number',
+        'bank_ifsc_code',
+        'bank_name',
+        'emergency_contact_name',
+        'emergency_contact_number',
+        'permanent_address',
+        'permanent_address_pin',
     ];
 
     // function timetablepivot(){

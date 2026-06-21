@@ -125,6 +125,10 @@
                 <td>{{ $faculty->DOJ ? date('d M Y', strtotime($faculty->DOJ)) : '-' }}</td>
               </tr>
               <tr>
+                <th>Date of Leaving:</th>
+                <td>{{ $faculty->DOL ? date('d M Y', strtotime($faculty->DOL)) : '-' }}</td>
+              </tr>
+              <tr>
                 <th>Nationality:</th>
                 <td>{{ $faculty->nationality->name ?? '-' }}</td>
               </tr>
@@ -197,6 +201,18 @@
               <tr>
                 <th>Experience:</th>
                 <td>{{ $faculty->experience_years ? $faculty->experience_years . ' years' : '-' }}</td>
+              </tr>
+              <tr>
+                <th>Responsibility:</th>
+                <td>{{ $faculty->responsibility ?? '-' }}</td>
+              </tr>
+              <tr>
+                <th>Paper Publications:</th>
+                <td>{{ $faculty->paper_publications_count ?? '0' }}</td>
+              </tr>
+              <tr>
+                <th>ORCID ID:</th>
+                <td>{{ $faculty->orcid_id ?? '-' }}</td>
               </tr>
             </table>
           </div>

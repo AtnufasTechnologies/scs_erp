@@ -181,6 +181,21 @@ $campuses = Campus::all();
                   <input type="text" name="specialization" class="form-control @error('specialization') is-invalid @enderror" value="{{ old('specialization') }}" placeholder="e.g., Computer Science, Mathematics">
                   @error('specialization')<div class="invalid-feedback">{{ $message }}</div>@enderror
                 </div>
+                <div class="col-md-6 mb-3">
+                  <label class="form-label">Responsibility</label>
+                  <input type="text" name="responsibility" class="form-control @error('responsibility') is-invalid @enderror" value="{{ old('responsibility') }}" placeholder="e.g., Event Coordinator, HR, Programmer Coordinator">
+                  @error('responsibility')<div class="invalid-feedback">{{ $message }}</div>@enderror
+                </div>
+                <div class="col-md-3 mb-3">
+                  <label class="form-label">Paper Publications Count</label>
+                  <input type="number" name="paper_publications_count" class="form-control @error('paper_publications_count') is-invalid @enderror" value="{{ old('paper_publications_count', 0) }}" min="0">
+                  @error('paper_publications_count')<div class="invalid-feedback">{{ $message }}</div>@enderror
+                </div>
+                <div class="col-md-3 mb-3">
+                  <label class="form-label">ORCID ID</label>
+                  <input type="text" name="orcid_id" class="form-control @error('orcid_id') is-invalid @enderror" value="{{ old('orcid_id') }}" placeholder="e.g., 0000-0002-1234-5678">
+                  @error('orcid_id')<div class="invalid-feedback">{{ $message }}</div>@enderror
+                </div>
               </div>
 
               <div class="row mb-4">
