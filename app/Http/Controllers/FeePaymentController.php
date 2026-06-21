@@ -118,6 +118,7 @@ class FeePaymentController extends Controller
                     'paymentinfo' => $payment,
                     'fee_structure_id' => $fs->id,
                     'quarter' => $fs->quarter_title,
+                    'is_payable' => $fs->is_payable == 1 ? 'Active' : 'Inactive',
                     'year' => $fs->std_current_year,
                     'total_amount' => $totalAmount,
                     'late_days' => $lateDays,
@@ -149,7 +150,6 @@ class FeePaymentController extends Controller
                 'fee_status' => $fsWithStatus
             ];
         });
-
         // ---- Return view ----
         return view('admin.accounts.fee-payment-records', [
             'data' => $students

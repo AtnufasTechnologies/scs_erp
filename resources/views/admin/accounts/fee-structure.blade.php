@@ -322,7 +322,7 @@ $batchColorPalette = [
 
         {{-- Batch badge --}}
         <span class="fc-batch-badge" style="background: {{ $batchAccentColor }};">
-          <i class="fa fa-layer-group me-1"></i>{{ $item->batch->batch_name }}
+          #{{$item->id}} <i class="fa fa-layer-group me-1"></i>{{ $item->batch->batch_name }}
         </span>
 
         {{-- Program & course --}}

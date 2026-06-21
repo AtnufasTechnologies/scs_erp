@@ -99,7 +99,8 @@ $studentPrograms = StudentProgram::with('campusmaster')->get();
 
         {{-- LEFT SIDE --}}
         <div>
-          <div class="fee-title">{{ $fee['quarter'] }}</div>
+          <b> <i><small class="text-info"> #{{ $fee['fee_structure_id'] }} For Developer Reference Only</small> </i></b>
+          <div class="fee-title">{{ $fee['quarter'] }} <span class="badge badge-{{ $fee['is_payable'] == 'Active' ? 'success' : 'warning' }}">{{ $fee['is_payable'] }}</span> </div>
           <div class="text-muted">Fee Amount: ₹{{ number_format($fee['total_amount']) }}</div>
           <div class="text-muted">Late Fee: ₹{{ $fee['late_fee'] }} / {{ $fee['late_days'] }} days</div>
           <div class="text-title">Total Payable Amount <strong>₹{{ $fee['payable_amount'] }}</strong> </div>
