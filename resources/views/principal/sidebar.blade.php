@@ -158,6 +158,15 @@ $pendingLeaveCount = $pendingLeaveQuery->count();
     </li>
     @endif
 
+    <li>
+      <a href="{{ route('principal.api-scores.reports') }}">
+        <div class="parent-icon">
+          <i class="fas fa-trophy"></i>
+        </div>
+        <div class="menu-title">API Score Reports</div>
+      </a>
+    </li>
+
     <!-- logout -->
     <li>
       <a href="{{ url('logout') }}">

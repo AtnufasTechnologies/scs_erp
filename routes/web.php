@@ -58,6 +58,7 @@ use App\Http\Controllers\HrPayMatrixController;
 use App\Http\Controllers\HrPayrollController;
 use App\Http\Controllers\HrDesignationController;
 use App\Http\Controllers\HrGradeLevelController;
+use App\Http\Controllers\Hr\ApiScoreController;
 use App\Http\Controllers\SyllabusPdfController;
 use App\Http\Controllers\SubjectController;
 use App\Http\Controllers\TestController;
@@ -1067,6 +1068,10 @@ Route::group(['prefix' => '/erp'], function () {
         Route::get('fees', [PrincipalController::class, 'studentFees'])->name('principal.fees.index');
         Route::get('fees/defaulters', [PrincipalController::class, 'feeDefaulters'])->name('principal.fees.defaulters');
 
+        // API Score Reports (Academic Performance Indicator)
+        Route::get('api-scores/reports', [ApiScoreController::class, 'reports'])->name('principal.api-scores.reports');
+        Route::get('api-scores/faculty/{facultyId}/report', [ApiScoreController::class, 'facultyReport'])->name('principal.api-scores.faculty-report');
+
         // Leave Management
         Route::get('leaves', [PrincipalController::class, 'leaves'])->name('principal.leaves.index');
         Route::post('leaves/{id}/action', [PrincipalController::class, 'leaveAction'])->name('principal.leaves.action');
@@ -1220,6 +1225,24 @@ Route::group(['prefix' => '/erp'], function () {
         Route::post('payroll/{id}/mark-paid', [HrPayrollController::class, 'markPaid'])->name('hr.payroll.mark-paid');
         Route::delete('payroll/{id}', [HrPayrollController::class, 'destroy'])->name('hr.payroll.destroy');
         Route::get('payroll/statistics/overview', [HrPayrollController::class, 'statistics'])->name('hr.payroll.statistics');
+
+        // API Score Management (Academic Performance Indicator)
+        Route::get('api-scores', [ApiScoreController::class, 'index'])->name('hr.api-scores.index');
+        Route::get('api-scores/create', [ApiScoreController::class, 'create'])->name('hr.api-scores.create');
+        Route::post('api-scores', [ApiScoreController::class, 'store'])->name('hr.api-scores.store');
+        Route::get('api-scores/{id}', [ApiScoreController::class, 'show'])->name('hr.api-scores.show');
+        Route::get('api-scores/{id}/edit', [ApiScoreController::class, 'edit'])->name('hr.api-scores.edit');
+        Route::put('api-scores/{id}', [ApiScoreController::class, 'update'])->name('hr.api-scores.update');
+        Route::delete('api-scores/{id}', [ApiScoreController::class, 'destroy'])->name('hr.api-scores.destroy');
+        Route::post('api-scores/{id}/mark-final', [ApiScoreController::class, 'markFinal'])->name('hr.api-scores.mark-final');
+        Route::get('api-scores/faculty/{facultyId}/report', [ApiScoreController::class, 'facultyReport'])->name('hr.api-scores.faculty-report');
+
+        // API Score Academic Years
+        Route::get('api-scores/years/manage', [ApiScoreController::class, 'academicYears'])->name('hr.api-scores.academic-years');
+        Route::post('api-scores/years', [ApiScoreController::class, 'storeAcademicYear'])->name('hr.api-scores.academic-years.store');
+
+        // API Score Reports
+        Route::get('api-scores/reports/analytics', [ApiScoreController::class, 'reports'])->name('hr.api-scores.reports');
     });
 
     // Public Vacancy Routes (for website)

@@ -1,0 +1,112 @@
+<?php
+
+namespace App\Models;
+
+use Illuminate\Database\Eloquent\Factories\HasFactory;
+use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\SoftDeletes;
+
+class ApiFacultyScore extends Model
+{
+    use HasFactory, SoftDeletes;
+
+    protected $fillable = [
+        'faculty_id',
+        'academic_year_id',
+        'total_score',
+        'category_i_score',
+        'category_ii_score',
+        'category_iii_score',
+        'category_iv_score',
+        'category_v_score',
+        'category_vi_score',
+        'category_vii_score',
+        'status',
+        'remarks',
+        'submitted_at',
+        'verified_at',
+        'verified_by',
+    ];
+
+    protected $casts = [
+        'total_score' => 'decimal:2',
+        'category_i_score' => 'decimal:2',
+        'category_ii_score' => 'decimal:2',
+        'category_iii_score' => 'decimal:2',
+        'category_iv_score' => 'decimal:2',
+        'category_v_score' => 'decimal:2',
+        'category_vi_score' => 'decimal:2',
+        'category_vii_score' => 'decimal:2',
+        'submitted_at' => 'datetime',
+        'verified_at' => 'datetime',
+    ];
+
+    /**
+     * Get the faculty that owns this score
+     */
+    public function faculty()
+    {
+        return $this->belongsTo(Faculty::class);
+    }
+
+    /**
+     * Get the academic year
+     */
+    public function academicYear()
+    {
+        return $this->belongsTo(ApiAcademicYear::class);
+    }
+
+    /**
+     * Get all category scores
+     */
+    public function categoryScores()
+    {
+        return $this->hasMany(ApiCategoryScore::class);
+    }
+
+    /**
+     * Get the user who verified this score
+     */
+    public function verifiedByUser()
+    {
+        return $this->belongsTo(User::class, 'verified_by');
+    }
+
+    /**
+     * Calculate and update total score
+     */
+    public function calculateTotalScore()
+    {
+        $this->total_score =
+            $this->category_i_score +
+            $this->category_ii_score +
+            $this->category_iii_score +
+            $this->category_iv_score +
+            $this->category_v_score +
+            $this->category_vi_score +
+            $this->category_vii_score;
+        $this->save();
+    }
+
+    /**
+     * Submit score for verification
+     */
+    public function submit()
+    {
+        $this->status = 'submitted';
+        $this->submitted_at = now();
+        $this->save();
+    }
+
+    /**
+     * Verify and approve score
+     */
+    public function verify($userId)
+    {
+        $this->status = 'approved';
+        $this->verified_at = now();
+        $this->verified_by = $userId;
+        $this->save();
+    }
+}
