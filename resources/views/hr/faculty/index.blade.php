@@ -64,8 +64,8 @@
                 <th>Campus </th>
                 <th>Name</th>
                 <th>Contact</th>
-                <th>Designation</th>
                 <th>Employeement Type</th>
+                <th>Designation</th>
                 <th>Status</th>
                 <th>Actions</th>
               </tr>
