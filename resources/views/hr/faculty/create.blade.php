@@ -143,6 +143,7 @@ $campuses = Campus::all();
                     <option value="">Select Type</option>
                     <option value="permanent" {{ old('employee_type') == 'permanent' ? 'selected' : '' }}>Permanent</option>
                     <option value="contractual" {{ old('employee_type') == 'contractual' ? 'selected' : '' }}>Contractual</option>
+                    <option value="probation" {{ old('employee_type') == 'probation' ? 'selected' : '' }}>Probation</option>
                     <option value="adhoc" {{ old('employee_type') == 'adhoc' ? 'selected' : '' }}>Adhoc</option>
                     <option value="guest" {{ old('employee_type') == 'guest' ? 'selected' : '' }}>Guest</option>
                     <option value="visiting" {{ old('employee_type') == 'visiting' ? 'selected' : '' }}>Visiting</option>
