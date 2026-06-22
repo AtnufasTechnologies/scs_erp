@@ -19,4 +19,9 @@ class CsoSubunit extends Model
     {
         return $this->hasMany(SubunitHasRbt::class, 'subunit_id', 'id')->with('rbtmaster');
     }
+
+    function taxomonylevel()
+    {
+        return $this->hasOne(SubunitHasRbt::class, 'subunit_id', 'id')->with('rbtmaster');
+    }
 }

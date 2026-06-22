@@ -62,7 +62,7 @@
           <select name="academic_year" class="form-select form-select-sm" style="width: 160px;" onchange="this.form.submit()">
             <option value="">All Years</option>
             @foreach($academicYears as $yr)
-            <option value="{{ $yr }}" {{ (string)$selectedAcademicYear === (string)$yr ? 'selected' : '' }}>{{ $yr }}</option>
+            <option value="{{ $yr->id }}">{{ $yr->batch_name }}</option>
             @endforeach
           </select>
           <select name="semester_id" class="form-select form-select-sm" style="width: 170px;" onchange="this.form.submit()">
@@ -77,10 +77,10 @@
             <option value="{{ $campus->id }}" {{ (string)$selectedCampus === (string)$campus->id ? 'selected' : '' }}>{{ $campus->name }}</option>
             @endforeach
           </select>
-          <select name="department_id" class="form-select form-select-sm" style="width: 190px;" onchange="this.form.submit()">
+          <select name="department_id" class=" form-select-sm dselect-example" style="width: 190px;" onchange="this.form.submit()">
             <option value="">All Departments</option>
             @foreach($departments as $dept)
-            <option value="{{ $dept->id }}" {{ (string)$selectedDepartment === (string)$dept->id ? 'selected' : '' }}>{{ $dept->name }}</option>
+            <option value="{{ $dept->id }}" {{ (string)$selectedDepartment === (string)$dept->id ? 'selected' : '' }}>{{ $dept->title }} - {{$dept->main_program_type}}</option>
             @endforeach
           </select>
           @if($selectedAcademicYear || $selectedSemester || $selectedCampus || $selectedDepartment)

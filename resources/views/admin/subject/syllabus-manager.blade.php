@@ -556,7 +556,7 @@ $batches = BatchMaster::all();
               const label = document.createElement('label');
               label.className = 'form-check-label';
               label.htmlFor = `cso_subunit_${subunit.id}`;
-              label.textContent = `${subunit.title} (${subunit.taxomonylevel ? subunit.taxomonylevel.fullname : 'N/A'})`;
+              label.textContent = `${subunit.title} (${subunit.taxomonylevel?.rbtmaster?.fullname ?? 'N/A'})`;
 
               checkboxDiv.appendChild(checkbox);
               checkboxDiv.appendChild(label);

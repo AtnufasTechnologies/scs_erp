@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\AcademicDepartment;
 use Illuminate\Http\Request;
 use App\Models\Campus;
 use App\Models\StudentMaster;
@@ -590,13 +591,12 @@ class PrincipalController extends Controller
   public function courses(Request $request)
   {
     $campuses = Campus::all();
-    $departments = DepartmentMaster::all();
+    $departments = Subject::all();
     $semesters = Semester::orderBy('id')->get();
-    $academicYears = ProgramCourseMaster::select('academic_year')
-      ->distinct()->orderBy('academic_year', 'desc')->pluck('academic_year');
+    $academicYears = BatchMaster::all();
 
     // Check if user is vice-principal
-    $userRole = auth()->user()->userroletype->role_name ?? null;
+    $userRole = StaticController::fetchUserRole();
     $isVicePrincipal = $userRole === 'vice-principal';
 
     // For vice-principals, automatically filter by their assigned campus
@@ -618,7 +618,7 @@ class PrincipalController extends Controller
 
     if ($request->filled('department_id')) {
       $query->whereHas('subject', function ($q) use ($request) {
-        $q->where('department_id', $request->department_id);
+        $q->where('id', $request->department_id);
       });
     }
 
