@@ -1280,6 +1280,10 @@ class AdminController extends Controller
     function feeStructureStdProgramUnlink(int $id)
     {
         FeeStructureHasManyProgram::findOrFail($id)->delete();
+
+        if (request()->ajax()) {
+            return response()->json(['success' => true, 'message' => 'Program unlinked successfully.']);
+        }
         return redirect()->back()->with('success', 'Deleted');
     }
 
@@ -1301,8 +1305,26 @@ class AdminController extends Controller
             $rec->fee_structure_id = $feeStructureId;
             $rec->std_program_id = $stdProgramId;
             $rec->save();
+
+            // Load the program details for AJAX response
+            if ($request->ajax()) {
+                $program = $rec->studentprogram()->with('campusmaster')->first();
+                return response()->json([
+                    'success' => true,
+                    'message' => 'Student program linked successfully.',
+                    'program' => [
+                        'id' => $rec->id,
+                        'code' => $program->code ?? '',
+                        'name' => $program->name ?? '',
+                        'campus' => $program->campusmaster->name ?? 'No Campus'
+                    ]
+                ]);
+            }
             return redirect()->back()->with('success', 'Student program linked to the fee structure successfully.');
         } else {
+            if ($request->ajax()) {
+                return response()->json(['success' => false, 'message' => 'This student program is already linked.'], 422);
+            }
             return redirect()->back()->with('error', 'This student program is already linked to the fee structure.');
         }
     }
@@ -1488,9 +1510,19 @@ class AdminController extends Controller
             FeesStructure::where('id', $id)->update([
                 'is_payable' => 0,
             ]);
+            $newStatus = 0;
         } else {
             FeesStructure::where('id', $id)->update([
                 'is_payable' => 1,
+            ]);
+            $newStatus = 1;
+        }
+
+        if (request()->ajax()) {
+            return response()->json([
+                'success' => true,
+                'message' => 'Status updated successfully.',
+                'is_payable' => $newStatus
             ]);
         }
 

@@ -306,15 +306,16 @@ $batchColorPalette = [
 
       {{-- Payable status badge --}}
       <div class="fc-status">
-        @if($item->is_payable == 1)
-        <a href="{{ url('erp/admin/accounts/update/feestructure-status/'.$item->id) }}">
-          <span class="badge bg-success"><i class="fa fa-check-circle me-1"></i>Active</span>
+        <a href="#"
+          class="status-toggle-btn"
+          data-fee-structure-id="{{ $item->id }}"
+          data-current-status="{{ $item->is_payable }}"
+          title="Click to toggle status">
+          <span class="badge {{ $item->is_payable == 1 ? 'bg-success' : 'bg-warning text-dark' }}">
+            <i class="fa {{ $item->is_payable == 1 ? 'fa-check-circle' : 'fa-ban' }} me-1"></i>
+            {{ $item->is_payable == 1 ? 'Active' : 'Inactive' }}
+          </span>
         </a>
-        @else
-        <a href="{{ url('erp/admin/accounts/update/feestructure-status/'.$item->id) }}">
-          <span class="badge bg-warning text-dark"><i class="fa fa-ban me-1"></i>Inactive</span>
-        </a>
-        @endif
       </div>
 
       {{-- Card body --}}
@@ -578,14 +579,18 @@ $batchColorPalette = [
               @if(count($item->programspivot))
               <div class="row g-3" id="linkedPrograms{{$item->id}}">
                 @foreach ($item->programspivot as $s)
-                <div class="col-lg-6 fcm-program-item" data-search-text="{{strtolower($s->studentprogram->code ?? '')}} {{strtolower($s->studentprogram->name ?? '')}} {{strtolower($s->studentprogram->campusmaster->name ?? '')}}">
+                <div class="col-lg-6 fcm-program-item" data-search-text="{{strtolower($s->studentprogram->code ?? '')}} {{strtolower($s->studentprogram->name ?? '')}} {{strtolower($s->studentprogram->campusmaster->name ?? '')}}" data-pivot-id="{{$s->id}}">
                   <div class="fcm-linked-card">
                     <div>
                       <div class="fcm-linked-code">{{ $s->studentprogram->code ?? '' }} – {{ $s->studentprogram->name ?? '-' }}
                       </div>
                       <div class="fcm-linked-name"> {{ $s->studentprogram->campusmaster->name ?? 'No Campus' }}</div>
                     </div>
-                    <a href="{{ route('delete.fee-structure.studentprogram', $s->id) }}" class="fcm-unlink-btn" title="Unlink this program" onclick="return confirm('Remove this student program?')">
+                    <a href="#"
+                      class="fcm-unlink-btn unlink-program-btn"
+                      data-pivot-id="{{$s->id}}"
+                      data-fee-structure-id="{{$item->id}}"
+                      title="Unlink this program">
                       <i class="fa fa-times"></i>
                     </a>
                   </div>
@@ -639,45 +644,6 @@ $batchColorPalette = [
         </div>
       </div>
 
-      {{-- Link student program modal --}}
-      <!-- <div class="modal fade" id="linkStudentProgModal{{$item->id}}" tabindex="-1" aria-hidden="true">
-        <div class="modal-dialog modal-lg modal-dialog-centered modal-dialog-scrollable">
-          <div class="modal-content border-0 shadow-lg" style="border-radius:14px; overflow:hidden;">
-            <div class="modal-header fcm-modal-header-view">
-              <div>
-                <h5 class="modal-title"><i class="fa fa-link me-2"></i>Link Student Programs</h5>
-                <div style="color:rgba(255,255,255,0.8); font-size:0.8rem;">{{$item->name}}</div>
-              </div>
-              <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-            </div>
-            <form action="{{url('erp/admin/accounts/link/fee-structure-group')}}" method="post">
-              @csrf
-              <input type="hidden" name="fee_structure_id" value="{{$item->id}}">
-              <div class="modal-body p-4">
-                <div class="mb-3">
-                  <label for="searchPrograms{{$item->id}}" class="form-label fw-semibold text-muted small text-uppercase">Search Programs</label>
-                  <input type="text" id="searchPrograms{{$item->id}}" class="form-control fcm-search-input" placeholder="Type to search..." data-target="availablePrograms{{$item->id}}">
-                </div>
-                <div class="row g-3" id="availablePrograms{{$item->id}}">
-                  <select name="programs[]" id="programs{{$item->id}}" class="form-select" multiple>
-                    @forelse($studentprograms as $prog)
-                    <option value="{{$prog->id}}">{{$prog->name ?? 'Unknown Program'}}</option>
-                    @empty
-                    <div class="fcm-empty" style="width:100%;">
-                      <i class="fa fa-inbox"></i>
-                      <p class="mb-0">No programs available.</p>
-                    </div>
-                    @endforelse
-                </div>
-              </div>
-              <div class="modal-footer">
-                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
-                <button type="submit" class="btn btn-primary">Link Selected Programs</button>
-              </div>
-            </form>
-          </div>
-        </div>
-      </div> -->
 
       {{-- Link new program modal --}}
       <div class="modal fade" id="linkProgModal{{$item->id}}" tabindex="-1" aria-hidden="true">
@@ -690,23 +656,24 @@ $batchColorPalette = [
               </div>
               <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
             </div>
-            <form action="{{route('connect.fees-structure.studentprogram')}}" method="post">
+            <form id="linkProgramForm{{$item->id}}" class="link-program-form" data-fee-structure-id="{{$item->id}}">
               @csrf
               <div class="modal-body p-4">
 
                 <input type="hidden" value="{{$item->id}}" name="id">
                 <label for="">Select a Program to Connect</label>
                 @if(count($studentprograms))
-                <select name="selected_program" id="linkedProgramsSelect{{$item->id}}" class="dselect-example">
+                <select name="selected_program" id="linkedProgramsSelect{{$item->id}}" class="dselect-example" required>
+                  <option value="">-- Select a program --</option>
                   @foreach ($studentprograms as $s)
                   <option value="{{$s->id}}">{{$s->code ?? 'Unknown Code'}} - {{$s->name ?? 'Unknown Program'}} | {{$s->campusmaster->name ?? 'Unknown Campus'}}</option>
                   @endforeach
                 </select>
-
+                <div class="alert alert-info mt-2 d-none" id="linkMessage{{$item->id}}"></div>
                 @else
                 <div class="fcm-empty">
                   <i class="fa fa-unlink"></i>
-                  <p class="mb-0">No student programs linked yet.</p>
+                  <p class="mb-0">No student programs available.</p>
                 </div>
                 @endif
 
@@ -714,7 +681,10 @@ $batchColorPalette = [
               </div>
               <div class="modal-footer">
                 <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
-                <button type="submit" class="btn btn-primary">Link Selected Programs</button>
+                <button type="submit" class="btn btn-primary" id="linkSubmitBtn{{$item->id}}">
+                  <span class="btn-text">Link Selected Program</span>
+                  <span class="spinner-border spinner-border-sm d-none" role="status"></span>
+                </button>
               </div>
             </form>
           </div>
@@ -791,6 +761,258 @@ $batchColorPalette = [
         var col = card.closest('[class*="col-"]');
         if (col) col.style.display = card.innerText.toLowerCase().includes(query) ? '' : 'none';
       });
+    });
+
+    // AJAX: Link Program Form Submission
+    document.querySelectorAll('.link-program-form').forEach(function(form) {
+      form.addEventListener('submit', function(e) {
+        e.preventDefault();
+
+        const feeStructureId = this.dataset.feeStructureId;
+        const submitBtn = document.getElementById('linkSubmitBtn' + feeStructureId);
+        const btnText = submitBtn.querySelector('.btn-text');
+        const spinner = submitBtn.querySelector('.spinner-border');
+        const messageDiv = document.getElementById('linkMessage' + feeStructureId);
+        const formData = new FormData(this);
+
+        // Disable button and show spinner
+        submitBtn.disabled = true;
+        btnText.classList.add('d-none');
+        spinner.classList.remove('d-none');
+        messageDiv.classList.add('d-none');
+
+        fetch("{{ route('connect.fees-structure.studentprogram') }}", {
+            method: 'POST',
+            headers: {
+              'X-CSRF-TOKEN': '{{ csrf_token() }}',
+              'Accept': 'application/json',
+              'X-Requested-With': 'XMLHttpRequest'
+            },
+            body: formData
+          })
+          .then(response => response.json())
+          .then(data => {
+            if (data.success) {
+              // Show success message
+              messageDiv.textContent = data.message;
+              messageDiv.classList.remove('alert-danger', 'd-none');
+              messageDiv.classList.add('alert-success');
+
+              // Add the new program to the linked programs list
+              const linkedProgramsContainer = document.getElementById('linkedPrograms' + feeStructureId);
+              if (linkedProgramsContainer) {
+                // Check if there's an empty state message and remove it
+                const emptyState = linkedProgramsContainer.closest('.modal-body').querySelector('.fcm-empty');
+                if (emptyState) {
+                  emptyState.remove();
+                  // Create the container if it doesn't exist
+                  const newContainer = document.createElement('div');
+                  newContainer.className = 'row g-3';
+                  newContainer.id = 'linkedPrograms' + feeStructureId;
+                  linkedProgramsContainer.parentElement.insertBefore(newContainer, linkedProgramsContainer);
+                  linkedProgramsContainer.remove();
+                }
+
+                const programItem = document.createElement('div');
+                programItem.className = 'col-lg-6 fcm-program-item';
+                programItem.dataset.searchText = (data.program.code + ' ' + data.program.name + ' ' + data.program.campus).toLowerCase();
+                programItem.dataset.pivotId = data.program.id;
+                programItem.innerHTML = `
+                <div class="fcm-linked-card">
+                  <div>
+                    <div class="fcm-linked-code">${data.program.code} – ${data.program.name}</div>
+                    <div class="fcm-linked-name">${data.program.campus}</div>
+                  </div>
+                  <a href="#" 
+                     class="fcm-unlink-btn unlink-program-btn" 
+                     data-pivot-id="${data.program.id}"
+                     data-fee-structure-id="${feeStructureId}"
+                     title="Unlink this program">
+                    <i class="fa fa-times"></i>
+                  </a>
+                </div>
+              `;
+
+                const container = document.getElementById('linkedPrograms' + feeStructureId);
+                if (container) {
+                  container.appendChild(programItem);
+
+                  // Update the count badge in the main card
+                  updateProgramCount(feeStructureId);
+                }
+              }
+
+              // Reset form
+              this.reset();
+
+              // Auto-close modal after 1.5 seconds
+              setTimeout(() => {
+                const modal = bootstrap.Modal.getInstance(document.getElementById('linkProgModal' + feeStructureId));
+                if (modal) modal.hide();
+                messageDiv.classList.add('d-none');
+              }, 1500);
+            } else {
+              // Show error message
+              messageDiv.textContent = data.message;
+              messageDiv.classList.remove('alert-success', 'd-none');
+              messageDiv.classList.add('alert-danger');
+            }
+          })
+          .catch(error => {
+            console.error('Error:', error);
+            messageDiv.textContent = 'An error occurred. Please try again.';
+            messageDiv.classList.remove('alert-success', 'd-none');
+            messageDiv.classList.add('alert-danger');
+          })
+          .finally(() => {
+            // Re-enable button and hide spinner
+            submitBtn.disabled = false;
+            btnText.classList.remove('d-none');
+            spinner.classList.add('d-none');
+          });
+      });
+    });
+
+    // AJAX: Unlink Program
+    document.addEventListener('click', function(e) {
+      if (e.target.closest('.unlink-program-btn')) {
+        e.preventDefault();
+
+        const btn = e.target.closest('.unlink-program-btn');
+        const pivotId = btn.dataset.pivotId;
+        const feeStructureId = btn.dataset.feeStructureId;
+
+        if (!confirm('Remove this student program?')) {
+          return;
+        }
+
+        // Show loading state
+        const icon = btn.querySelector('i');
+        const originalIconClass = icon.className;
+        icon.className = 'fa fa-spinner fa-spin';
+        btn.style.pointerEvents = 'none';
+
+        fetch(`{{ url('erp/admin/accounts/unlink/fee-structure-studentprogram') }}/${pivotId}`, {
+            method: 'GET',
+            headers: {
+              'X-Requested-With': 'XMLHttpRequest',
+              'Accept': 'application/json'
+            }
+          })
+          .then(response => response.json())
+          .then(data => {
+            if (data.success) {
+              // Remove the program item from DOM
+              const programItem = document.querySelector(`.fcm-program-item[data-pivot-id="${pivotId}"]`);
+              if (programItem) {
+                programItem.style.transition = 'opacity 0.3s ease';
+                programItem.style.opacity = '0';
+                setTimeout(() => {
+                  programItem.remove();
+
+                  // Check if list is now empty
+                  const container = document.getElementById('linkedPrograms' + feeStructureId);
+                  if (container && container.children.length === 0) {
+                    const emptyState = document.createElement('div');
+                    emptyState.className = 'fcm-empty';
+                    emptyState.innerHTML = `
+                    <i class="fa fa-unlink"></i>
+                    <p class="mb-0">No student programs linked yet.</p>
+                  `;
+                    container.parentElement.appendChild(emptyState);
+                    container.remove();
+                  }
+
+                  // Update the count badge in the main card
+                  updateProgramCount(feeStructureId);
+                }, 300);
+              }
+            } else {
+              alert('Failed to unlink program. Please try again.');
+              icon.className = originalIconClass;
+              btn.style.pointerEvents = '';
+            }
+          })
+          .catch(error => {
+            console.error('Error:', error);
+            alert('An error occurred. Please try again.');
+            icon.className = originalIconClass;
+            btn.style.pointerEvents = '';
+          });
+      }
+    });
+
+    // Helper function to update program count badge
+    function updateProgramCount(feeStructureId) {
+      const container = document.getElementById('linkedPrograms' + feeStructureId);
+      const count = container ? container.querySelectorAll('.fcm-program-item').length : 0;
+
+      // Find and update the count badge in the footer
+      const countBadge = document.querySelector(`a[data-bs-target="#viewProgs${feeStructureId}"]`);
+      if (countBadge) {
+        // Update the text, keeping the icon
+        countBadge.innerHTML = `<i class="fa fa-link me-1"></i> ${count}`;
+      }
+    }
+
+    // AJAX: Toggle Fee Structure Status
+    document.addEventListener('click', function(e) {
+      if (e.target.closest('.status-toggle-btn')) {
+        e.preventDefault();
+
+        const btn = e.target.closest('.status-toggle-btn');
+        const feeStructureId = btn.dataset.feeStructureId;
+        const badge = btn.querySelector('.badge');
+        const icon = btn.querySelector('i');
+
+        // Show loading state
+        const originalBadgeHTML = badge.innerHTML;
+        badge.innerHTML = '<i class="fa fa-spinner fa-spin me-1"></i>Updating...';
+        btn.style.pointerEvents = 'none';
+
+        fetch(`{{ url('erp/admin/accounts/update/feestructure-status') }}/${feeStructureId}`, {
+            method: 'GET',
+            headers: {
+              'X-Requested-With': 'XMLHttpRequest',
+              'Accept': 'application/json'
+            }
+          })
+          .then(response => response.json())
+          .then(data => {
+            if (data.success) {
+              // Update the badge based on new status
+              const isActive = data.is_payable === 1;
+
+              // Update badge classes
+              badge.className = isActive ? 'badge bg-success' : 'badge bg-warning text-dark';
+
+              // Update badge content
+              badge.innerHTML = `<i class="fa ${isActive ? 'fa-check-circle' : 'fa-ban'} me-1"></i>${isActive ? 'Active' : 'Inactive'}`;
+
+              // Update data attribute
+              btn.dataset.currentStatus = data.is_payable;
+
+              // Brief success flash
+              badge.style.transform = 'scale(1.1)';
+              setTimeout(() => {
+                badge.style.transform = 'scale(1)';
+              }, 200);
+            } else {
+              // Restore original state on error
+              badge.innerHTML = originalBadgeHTML;
+              alert('Failed to update status. Please try again.');
+            }
+          })
+          .catch(error => {
+            console.error('Error:', error);
+            badge.innerHTML = originalBadgeHTML;
+            alert('An error occurred. Please try again.');
+          })
+          .finally(() => {
+            btn.style.pointerEvents = '';
+            badge.style.transition = 'transform 0.2s ease';
+          });
+      }
     });
   });
 </script>
