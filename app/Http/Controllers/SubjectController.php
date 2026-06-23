@@ -805,28 +805,26 @@ class SubjectController extends Controller
 
     function updateCourseMaster(Request $request, $id)
     {
-        $courseMaster = ProgramCourseMaster::findOrFail($id);
+
 
         $request->validate([
-            'course_code' => 'required|string|max:100',
+            'course_code' => 'required|string|max:255',
             'course_title' => 'required|string|max:255',
             'course_type' => 'required',
-            'credits' => 'required|integer|min:0',
-            'internal' => 'required|numeric|min:0',
-            'external' => 'required|numeric|min:0',
             'paper_type' => 'required',
         ]);
 
-        $courseMaster->course_code = Str::upper($request->course_code);
-        $courseMaster->course_title = $request->course_title;
-        $courseMaster->course_type = $request->course_type;
-        $courseMaster->credits = $request->credits;
-        $courseMaster->internal = $request->internal;
-        $courseMaster->external = $request->external;
-        $courseMaster->total = $request->internal + $request->external;
-        $courseMaster->total_alloted_hours = $request->total_alloted_hours;
-        $courseMaster->paper_type_id = $request->paper_type;
-        $courseMaster->save();
+        ProgramCourseMaster::where('id', $id)->update([
+            'course_code' => Str::upper($request->course_code),
+            'course_title' => $request->course_title,
+            'course_type' => $request->course_type,
+            'credits' => $request->credits,
+            'internal' => $request->internal,
+            'external' => $request->external,
+            'total' => $request->internal + $request->external,
+            'total_alloted_hours' => $request->total_alloted_hours,
+            'paper_type_id' => $request->paper_type,
+        ]);
 
         return redirect()->back()->with('success', 'Course Master Updated');
     }

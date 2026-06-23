@@ -109,7 +109,7 @@
           </div>
           <div class="row g-3">
             @foreach($semSyllabi as $syl)
-            <div class="col-12 col-lg-6">
+            <div class="col-12 col-lg-12">
               <div class="card border h-100">
                 <div class="card-body p-3">
                   {{-- Course Header --}}

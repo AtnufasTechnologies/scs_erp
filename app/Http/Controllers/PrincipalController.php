@@ -843,13 +843,13 @@ class PrincipalController extends Controller
 
     // For each subject, get syllabus grouped by batch (year) and semester
     foreach ($subjects as $subject) {
-      $syllQuery = SubjectHasSyllabus::where('subject_id', $subject->id)
+      // Use SyllabusManager to get all CSO entries
+      $syllQuery = SyllabusManager::where('subject_id', $subject->id)
         ->with([
-          'batchmaster',
-          'semestermaster',
-          'syllabusunits.csoSubunit',
-          'courseLink.courseMaster.coursetypemaster',
-          'timetable.faculty',
+          'batch',
+          'semester',
+          'courseobjective.coursetypemaster',
+          'syllabusSubunits.csoSubunit',
         ]);
 
       if ($request->filled('batch_id')) {
@@ -860,23 +860,49 @@ class PrincipalController extends Controller
         $syllQuery->where('semester_id', $request->semester_id);
       }
 
-      $syllabi = $syllQuery->get();
+      // Group by course (co_id) to show course-wise CSOs
+      $syllabusData = $syllQuery->get()->groupBy('co_id');
 
-      // Enrich with completion stats
-      foreach ($syllabi as $syl) {
-        $total = $syl->syllabusunits->count();
-        $completed = $syl->syllabusunits->where('is_completed', 1)->count();
-        $syl->total_subunits = $total;
-        $syl->completed_subunits = $completed;
-        $syl->completion_percent = $total > 0 ? round(($completed / $total) * 100, 1) : 0;
+      $syllabi = collect();
 
-        $cm = $syl->courseLink && $syl->courseLink->courseMaster ? $syl->courseLink->courseMaster : null;
-        $syl->course_code = $cm ? $cm->course_code : '-';
-        $syl->course_title_pcm = $cm ? $cm->course_title : '-';
-        $syl->course_type_name = $cm && $cm->coursetypemaster ? $cm->coursetypemaster->title : '-';
-        $syl->faculty_name = $syl->timetable && $syl->timetable->faculty
-          ? $syl->timetable->faculty->FIRST_NAME . ' ' . $syl->timetable->faculty->LAST_NAME
-          : '-';
+      foreach ($syllabusData as $coId => $csoGroup) {
+        // Get course details from first CSO in group
+        $firstCso = $csoGroup->first();
+        $courseMaster = $firstCso->courseobjective;
+
+        // Count total and completed subunits across all CSOs for this course
+        $totalSubunits = 0;
+        $completedSubunits = 0;
+
+        foreach ($csoGroup as $csoEntry) {
+          $total = $csoEntry->syllabusSubunits->count();
+          $completed = $csoEntry->syllabusSubunits->where('is_completed', 1)->count();
+          $totalSubunits += $total;
+          $completedSubunits += $completed;
+        }
+
+        // Create a syllabus entry object for display
+        $syllabusEntry = (object)[
+          'id' => $firstCso->id,
+          'batch_id' => $firstCso->batch_id,
+          'semester_id' => $firstCso->semester_id,
+          'co_id' => $coId,
+          'batchmaster' => $firstCso->batch,
+          'semestermaster' => $firstCso->semester,
+          'course_code' => $courseMaster ? $courseMaster->course_code : '-',
+          'course_title_pcm' => $courseMaster ? $courseMaster->course_title : '-',
+          'course_type_name' => $courseMaster && $courseMaster->coursetypemaster
+            ? $courseMaster->coursetypemaster->title
+            : '-',
+          'total_subunits' => $totalSubunits,
+          'completed_subunits' => $completedSubunits,
+          'completion_percent' => $totalSubunits > 0
+            ? round(($completedSubunits / $totalSubunits) * 100, 1)
+            : 0,
+          'cso_count' => $csoGroup->count(),
+        ];
+
+        $syllabi->push($syllabusEntry);
       }
 
       // Group syllabi by batch (year)
@@ -910,15 +936,15 @@ class PrincipalController extends Controller
     $semesters = Semester::orderBy('id')->get();
     $batches = BatchMaster::orderBy('batch_name', 'desc')->get();
 
-    $syllQuery = SubjectHasSyllabus::where('subject_id', $id)
+    // Use SyllabusManager to get all CSO entries with subunits
+    $syllQuery = SyllabusManager::where('subject_id', $id)
       ->with([
-        'batchmaster',
-        'semestermaster',
-        'syllabusunits.csoSubunit.taxomonylevel',
-        'syllabusunits.learningResources',
-        'syllabusunits.questions',
-        'courseLink.courseMaster.coursetypemaster',
-        'timetable.faculty',
+        'batch',
+        'semester',
+        'courseobjective.coursetypemaster',
+        'syllabusSubunits.csoSubunit.taxomonylevel',
+        'syllabusSubunits.learningResources',
+        'syllabusSubunits.questions',
       ]);
 
     if ($request->filled('batch_id')) {
@@ -929,29 +955,71 @@ class PrincipalController extends Controller
       $syllQuery->where('semester_id', $request->semester_id);
     }
 
-    $syllabi = $syllQuery->get();
+    // Group by course to consolidate CSOs
+    $syllabusData = $syllQuery->get()->groupBy('co_id');
 
-    // Enrich each syllabus
-    foreach ($syllabi as $syl) {
-      $total = $syl->syllabusunits->count();
-      $completed = $syl->syllabusunits->where('is_completed', 1)->count();
-      $syl->total_subunits = $total;
-      $syl->completed_subunits = $completed;
-      $syl->completion_percent = $total > 0 ? round(($completed / $total) * 100, 1) : 0;
+    $syllabi = collect();
 
-      $cm = $syl->courseLink && $syl->courseLink->courseMaster ? $syl->courseLink->courseMaster : null;
-      $syl->course_code = $cm ? $cm->course_code : '-';
-      $syl->course_title_pcm = $cm ? $cm->course_title : '-';
-      $syl->course_type_name = $cm && $cm->coursetypemaster ? $cm->coursetypemaster->title : '-';
-      $syl->academic_year_val = $cm ? $cm->academic_year : '-';
-      $syl->faculty_name = $syl->timetable && $syl->timetable->faculty
-        ? $syl->timetable->faculty->FIRST_NAME . ' ' . $syl->timetable->faculty->LAST_NAME
-        : '-';
+    foreach ($syllabusData as $coId => $csoGroup) {
+      // Get course details from first CSO in group
+      $firstCso = $csoGroup->first();
+      $courseMaster = $firstCso->courseobjective;
 
-      // Per-subunit feedback
-      $subunitIds = $syl->syllabusunits->pluck('id');
-      $syl->feedback_count = SubUnitStudentFeedback::whereIn('syllabus_subunit_id', $subunitIds)->count();
-      $syl->avg_rating = SubUnitStudentFeedback::whereIn('syllabus_subunit_id', $subunitIds)->avg('rating');
+      // Collect all subunits from all CSOs for this course
+      $allSubunits = collect();
+      foreach ($csoGroup as $csoEntry) {
+        $allSubunits = $allSubunits->merge($csoEntry->syllabusSubunits);
+      }
+
+      // Calculate completion stats
+      $total = $allSubunits->count();
+      $completed = $allSubunits->where('is_completed', 1)->count();
+      $completionPercent = $total > 0 ? round(($completed / $total) * 100, 1) : 0;
+
+      // Get feedback stats
+      $subunitIds = $allSubunits->pluck('id');
+      $feedbackCount = SubUnitStudentFeedback::whereIn('syllabus_subunit_id', $subunitIds)->count();
+      $avgRating = SubUnitStudentFeedback::whereIn('syllabus_subunit_id', $subunitIds)->avg('rating');
+
+      // Get faculty name (from first CSO's timetable if exists)
+      $facultyName = '-';
+
+      // Try to find faculty from timetable for this course
+      $timetable = SubjectHasRoutine::whereHas('syllabus.subject', function ($q) use ($subject) {
+        $q->where('id', $subject->id);
+      })
+        ->where('subject_course_id', $courseMaster ? $courseMaster->course_code : null)
+        ->with('faculty')
+        ->first();
+      if ($timetable && $timetable->faculty) {
+        $facultyName = $timetable->faculty->FIRST_NAME . ' ' . $timetable->faculty->LAST_NAME;
+      }
+
+      // Create a syllabus entry object for display
+      $syllabusEntry = (object)[
+        'id' => $firstCso->id,
+        'batch_id' => $firstCso->batch_id,
+        'semester_id' => $firstCso->semester_id,
+        'co_id' => $coId,
+        'batchmaster' => $firstCso->batch,
+        'semestermaster' => $firstCso->semester,
+        'course_code' => $courseMaster ? $courseMaster->course_code : '-',
+        'course_title_pcm' => $courseMaster ? $courseMaster->course_title : '-',
+        'course_type_name' => $courseMaster && $courseMaster->coursetypemaster
+          ? $courseMaster->coursetypemaster->title
+          : '-',
+        'academic_year_val' => $courseMaster ? $courseMaster->academic_year : '-',
+        'total_subunits' => $total,
+        'completed_subunits' => $completed,
+        'completion_percent' => $completionPercent,
+        'syllabusunits' => $allSubunits,
+        'faculty_name' => $facultyName,
+        'feedback_count' => $feedbackCount,
+        'avg_rating' => $avgRating,
+        'cso_count' => $csoGroup->count(),
+      ];
+
+      $syllabi->push($syllabusEntry);
     }
 
     // Group by batch then semester

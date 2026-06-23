@@ -4,10 +4,38 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\SoftDeletes;
 
 class ProgramCourseMaster extends Model
 {
-    use HasFactory;
+    use HasFactory, SoftDeletes;
+    protected $fillable = [
+        'department',
+        'academic_year',
+        'course_type',
+        'hrs_per_week',
+        'total_alloted_hours',
+        'credits',
+        'course_title',
+        'course_code',
+        'semester_id',
+        'internal',
+        'total',
+        'paper_type',
+        'paper_type_id',
+        'exam_course_type',
+        'exam_course_type',
+        'is_active',
+        'is_nme_subject',
+        'ugc_course_type',
+        'is_compulsary',
+        'course_order',
+        'is_deleted'
+
+
+
+    ];
+
 
     function semestermaster()
     {
