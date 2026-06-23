@@ -769,6 +769,7 @@ Route::group(['prefix' => '/erp'], function () {
 
         // Syllabus PDF Store
         Route::post('syllabus-pdf/store', [SyllabusPdfController::class, 'store'])->name('department.syllabus.pdf.store');
+        Route::delete('syllabus-pdf/{id}', [SyllabusPdfController::class, 'destroy'])->name('department.syllabus.pdf.destroy');
 
         // Course Seat Manager
         Route::get('course-seats', [CourseSeatController::class, 'index'])->name('department.seats.index');
