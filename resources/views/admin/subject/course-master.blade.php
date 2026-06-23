@@ -121,7 +121,11 @@ $papertypes = PaperTypeMaster::all();
             </div>
             <div class="modal-footer">
               <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
-              <button type="submit" class="btn btn-success">Create Course</button>
+              <button type="submit" class="btn btn-success submit-btn">
+                <span class="submit-text">Create Course</span>
+                <span class="spinner-border spinner-border-sm d-none" role="status" aria-hidden="true"></span>
+                <span class="loading-text d-none">Processing...</span>
+              </button>
             </div>
           </form>
         </div>
@@ -152,7 +156,11 @@ $papertypes = PaperTypeMaster::all();
             </div>
             <div class="modal-footer">
               <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
-              <button type="submit" class="btn btn-primary">Save changes</button>
+              <button type="submit" class="btn btn-primary submit-btn">
+                <span class="submit-text">Save changes</span>
+                <span class="spinner-border spinner-border-sm d-none" role="status" aria-hidden="true"></span>
+                <span class="loading-text d-none">Processing...</span>
+              </button>
             </div>
           </form>
         </div>
@@ -222,7 +230,7 @@ $papertypes = PaperTypeMaster::all();
                       <h5 class="modal-title" id="editCourseModalLabel">Edit Course</h5>
                       <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
                     </div>
-                    <form action="{{ route('department.update.course.master',$course->courseMaster->id) }}" method="post">
+                    <form action="{{ route('department.update.course.master',$course->courseMaster->id ?? '') }}" method="post">
                       @csrf
                       @method('PUT')
                       <div class="modal-body">
@@ -230,40 +238,40 @@ $papertypes = PaperTypeMaster::all();
                           <div class="col-lg-4">
                             <div class="mb-3">
                               <label class="form-label">Course Code *</label>
-                              <input type="text" class="form-control" name="course_code" value="{{ $course->courseMaster->course_code }}" required>
+                              <input type="text" class="form-control" name="course_code" value="{{ $course->courseMaster->course_code ?? '' }}" required>
                             </div>
                           </div>
                           <div class="col-lg-4">
                             <div class="mb-3">
                               <label class="form-label">Credits *</label>
-                              <input type="number" class="form-control" name="credits" value="{{ $course->courseMaster->credits }}" step="0.5" required>
+                              <input type="number" class="form-control" name="credits" value="{{ $course->courseMaster->credits ?? '' }}" step="0.5" required>
                             </div>
                           </div>
                           <div class="col-lg-4">
                             <div class="mb-3">
                               <label class="form-label">Total Teaching Hours</label>
-                              <input type="number" class="form-control" name="total_alloted_hours" value="{{ $course->courseMaster->total_alloted_hours}}">
+                              <input type="number" class="form-control" name="total_alloted_hours" value="{{ $course->courseMaster->total_alloted_hours ?? '' }}">
                             </div>
                           </div>
 
                           <div class="col-lg-4">
                             <div class="mb-3">
                               <label class="form-label">Internal</label>
-                              <input type="number" class="form-control internal-marks" name="internal" value="{{ $course->courseMaster->internal }}" required>
+                              <input type="number" class="form-control internal-marks" name="internal" value="{{ $course->courseMaster->internal ?? '' }}" required>
                             </div>
                           </div>
 
                           <div class="col-lg-4">
                             <div class="mb-3">
                               <label class="form-label">External</label>
-                              <input type="number" class="form-control external-marks" name="external" value="{{ $course->courseMaster->external }}" required>
+                              <input type="number" class="form-control external-marks" name="external" value="{{ $course->courseMaster->external ?? '' }}" required>
                             </div>
                           </div>
 
                           <div class="col-lg-4">
                             <div class="mb-3">
                               <label class="form-label">Full</label>
-                              <input type="number" class="form-control full-marks" value="{{ $course->courseMaster->internal + $course->courseMaster->external }}" name="full" readonly>
+                              <input type="number" class="form-control full-marks" value="{{ ($course->courseMaster->internal ?? 0) + ($course->courseMaster->external ?? 0) }}" name="full" readonly>
                             </div>
                           </div>
 
@@ -303,14 +311,18 @@ $papertypes = PaperTypeMaster::all();
                           <div class="col-lg-12">
                             <div class="mb-3">
                               <label class="form-label">Course Title *</label>
-                              <input type="text" class="form-control" name="course_title" value="{{ $course->courseMaster->course_title }}" required>
+                              <input type="text" class="form-control" name="course_title" value="{{ $course->courseMaster->course_title ?? '' }}" required>
                             </div>
                           </div>
                         </div>
                       </div>
                       <div class="modal-footer">
                         <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
-                        <button type="submit" class="btn btn-success">Update Course</button>
+                        <button type="submit" class="btn btn-success submit-btn">
+                          <span class="submit-text">Update Course</span>
+                          <span class="spinner-border spinner-border-sm d-none" role="status" aria-hidden="true"></span>
+                          <span class="loading-text d-none">Processing...</span>
+                        </button>
                       </div>
                     </form>
                   </div>
@@ -338,5 +350,27 @@ $papertypes = PaperTypeMaster::all();
 </div>
 </div>
 
+<script>
+  // Prevent multiple form submissions
+  document.querySelectorAll('form').forEach(form => {
+    form.addEventListener('submit', function(e) {
+      const submitBtn = this.querySelector('.submit-btn');
+
+      if (submitBtn && !submitBtn.disabled) {
+        // Disable the button
+        submitBtn.disabled = true;
+
+        // Toggle visibility of text and spinner
+        const submitText = submitBtn.querySelector('.submit-text');
+        const spinner = submitBtn.querySelector('.spinner-border');
+        const loadingText = submitBtn.querySelector('.loading-text');
+
+        if (submitText) submitText.classList.add('d-none');
+        if (spinner) spinner.classList.remove('d-none');
+        if (loadingText) loadingText.classList.remove('d-none');
+      }
+    });
+  });
+</script>
 
 @include('includes.footer')
