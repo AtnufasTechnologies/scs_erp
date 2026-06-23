@@ -86,7 +86,7 @@ $studentPrograms = StudentProgram::with('campusmaster')->get();
         <div>
           <a href="{{ url('erp/admin/accounts/invoice/'.$item['studentinfo']['rollno']) }}"
             class="btn btn-outline-primary btn-sm">
-            View Invoice
+            All Invoices
           </a>
         </div>
       </div>
@@ -109,7 +109,7 @@ $studentPrograms = StudentProgram::with('campusmaster')->get();
         {{-- RIGHT SIDE --}}
         <div>
           @if($fee['status'] === 'success')
-          <a href="{{ url('erp/admin/accounts/print-feereciept/'.$item['studentinfo']['id'].'/'.$fee['fee_structure_id']) }}"
+          <a href="{{ url('erp/admin/accounts/print-feereciept/'.$fee['paymentinfo']['id']) }}"
             target="_blank"
             class="badge-paid">
             PAID

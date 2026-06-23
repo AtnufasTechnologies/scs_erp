@@ -151,6 +151,8 @@ class FeePaymentController extends Controller
             ];
         });
         // ---- Return view ----
+
+
         return view('admin.accounts.fee-payment-records', [
             'data' => $students
         ]);
@@ -228,42 +230,39 @@ class FeePaymentController extends Controller
         $student = StudentMaster::with([
             'campusmaster',
             'batchmaster',
-            'programGroup.feeprogpivot.feeStructure',
-            'programGroup.programInfo',
+            'stdprogramenrolled',
             'feepayment' // your payment table
         ])->where('roll_no', $rollno)->firstOrFail();
 
         $paidInvoices = [];
         $totalPaid = 0;
 
-        foreach ($student->programGroup->feeprogpivot as $pivot) {
+        foreach ($student->feepayment as $item) {
 
-            foreach ($pivot->feeStructure as $fee) {
+            // check if payment done
+            $payment = $student->feepayment
+                ->where('id', $item->id)
+                ->where('status', 'success')
+                ->first();
 
-                // check if payment done
-                $payment = $student->feepayment
-                    ->where('fee_structure_id', $fee->id)
-                    ->where('status', 'success')
-                    ->first();
+            if ($payment) {
+                $amount   = FeeStructureHasHead::where('fee_structure_id', $item->fee_structure_id)->sum('amount');
+                $lateFee  = (float)($payment->late_fee_amount ?? 0);
 
-                if ($payment) {
-                    $amount   = FeeStructureHasHead::where('fee_structure_id', $fee->id)->sum('amount');
-                    $lateFee  = (float)($payment->late_fee_amount ?? 0);
+                $paidInvoices[] = [
+                    'quarter'        => $payment->feepaymentinfo->quarter_title ?? 'N/A',
+                    'payable_amount' => $amount,
+                    'late_fee'       => $lateFee,
+                    'grand_amount'   => $amount + $lateFee,
+                    'status'         => 'PAID',
+                    'paid_on'        => $payment->transaction_date ?? 'N/A',
+                    'inv_id'         => $payment->invoice_id ?? 'N/A',
+                ];
 
-                    $paidInvoices[] = [
-                        'quarter'        => $fee->quarter_title,
-                        'payable_amount' => $amount,
-                        'late_fee'       => $lateFee,
-                        'grand_amount'   => $amount + $lateFee,
-                        'status'         => 'PAID',
-                        'paid_on'        => $payment->transaction_date ?? 'N/A',
-                        'inv_id'         => $payment->invoice_id ?? 'N/A',
-                    ];
-
-                    $totalPaid += $amount + $lateFee;
-                }
+                $totalPaid += $amount + $lateFee;
             }
         }
+
 
         return view('pdf.fee-invoice', [
             'student' => $student,
@@ -274,38 +273,26 @@ class FeePaymentController extends Controller
     }
 
 
-    function generateFeeReciept($studentId, $feeId)
+    function generateFeeReciept(int $feeId)
     {
+        $paymentRecord =    StudentPayment::find($feeId);
+
         $student = StudentMaster::with([
             'campusmaster',
             'batchmaster',
             'programGroup.feeprogpivot.feeStructure',
-            'feepayment',
-            'programGroup.programInfo'
+            'programGroup.programInfo',
+            'feepayment' // your payment table
+        ])->where('id', $paymentRecord->student_id)->firstOrFail();
 
-        ])->findOrFail($studentId);
-
-        // Find the selected fee structure
-        $fee = $student->programGroup
-            ->feeprogpivot
-            ->pluck('feeStructure')
-            ->flatten()
-            ->where('id', $feeId)
-            ->first();
-
-        if (!$fee) {
-            abort(404, "Fee structure not found");
-        }
-
-        // Find the payment for this fee
-        $payment = $student->feepayment
-            ->where('fee_structure_id', $feeId)
-            ->where('status', 'success')
-            ->first();
-
-        if (!$payment) {
+        if ($student->feepayment == null) {
             abort(404, "No successful payment found for this fee");
         }
+
+        $payment = $student->feepayment
+            ->where('id', $feeId)
+            ->where('status', 'success')
+            ->first();
 
         // Fetch late fee if present
         $lateFee = $payment->late_fee_amount ?? 0;
@@ -313,17 +300,13 @@ class FeePaymentController extends Controller
 
         // Check if a fixed late fee exemption was applied
         $fixedLateFee = null;
-        $exemption = StudentLateFeeExemption::where('student_id', $studentId)
+        $exemption = StudentLateFeeExemption::where('student_id', $student->id)
             ->where('fee_structure_id', $feeId)
             ->where('is_active', true)
             ->first();
         if ($exemption && !is_null($exemption->fixed_late_fee)) {
             $fixedLateFee = (float)$exemption->fixed_late_fee;
         }
-
-        // Pass fixedLateFee to the receipt view if you want to display it
-        // Example: return view('includes.success-page', [..., 'fixedLateFee' => $fixedLateFee]);
-        // For now, just pass to showSuccessPage as a second argument (if you update that method/view)
         return $this->showSuccessPage($payment->invoice_id, $fixedLateFee);
     }
 
@@ -848,14 +831,18 @@ class FeePaymentController extends Controller
         ])->get();
         $data = json_decode($txnrecs, true);
 
+        if (empty($data)) {
+            abort(404, "Transaction not found");
+        }
+
         return view('includes.success-page', [
-            'invoiceId' => $data[0]['invoice_id'],
-            'gatewayRef' => $data[0]['gateway_ref_code'],
-            'transactionDate' => $data[0]['transaction_date'],
-            'student' => $data[0]['studentmaster'],
+            'invoiceId' => $data[0]['invoice_id'] ?? 'N/A',
+            'gatewayRef' => $data[0]['gateway_ref_code'] ?? 'N/A',
+            'transactionDate' => $data[0]['transaction_date'] ?? now(),
+            'student' => $data[0]['studentmaster'] ?? [],
             'transactions' => $data,
-            'status' => $data[0]['status'],
-            'gatewayType' => $data[0]['gateway_type_id'],
+            'status' => $data[0]['status'] ?? 'pending',
+            'gatewayType' => $data[0]['gateway_type_id'] ?? null,
             'fixedLateFee' => $fixedLateFee,
             'downloadPdfUrl' => url('erp/student/transaction-success/' . $txnId . '/download-pdf'),
         ]);
@@ -1528,5 +1515,21 @@ class FeePaymentController extends Controller
         $grandTotal   = $payments->sum('amount');
 
         return view('admin.accounts.payment-type-report', compact('payments', 'cashTotal', 'onlineTotal', 'grandTotal'));
+    }
+
+
+    function updateTransactionDate(Request $request)
+    {
+
+        $request->validate([
+            'transaction_date' => 'required|date',
+        ]);
+
+        $id = $request->id;
+        $payment = StudentPayment::find($id);
+        $payment->transaction_date = $request->transaction_date;
+        $payment->save();
+
+        return redirect()->back()->with('success', 'Transaction date updated successfully.');
     }
 }

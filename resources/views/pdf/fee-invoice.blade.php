@@ -103,7 +103,7 @@ $timestamp = Carbon::now()
     </tr>
     <tr>
       <th>Course</th>
-      <td> {{ $student->programGroup->programInfo->name }}</td>
+      <td>{{ $student->stdprogramenrolled->code }} - {{ $student->stdprogramenrolled->name }}</td>
     </tr>
     <tr>
       <th>Batch</th>

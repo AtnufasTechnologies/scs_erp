@@ -96,10 +96,8 @@ class StudentMaster extends Model
 
     function feepayment()
     {
-        return $this->hasMany(StudentPayment::class, 'student_id', 'id');
+        return $this->hasMany(StudentPayment::class, 'student_id', 'id')->with('feepaymentinfo');
     }
-
-
 
     function programgroup()
     {

@@ -247,12 +247,12 @@ Route::group(['prefix' => '/erp'], function () {
             Route::post('manual-payment-payment', [FeePaymentController::class, 'manualFeePayment'])->name('manual.fee.payment');
 
             Route::get('invoice/{id}', [FeePaymentController::class, 'generateInvoice']);
-            Route::get('print-feereciept/{studentId}/{feeId}', [FeePaymentController::class, 'generateFeeReciept']);
+            Route::get('print-feereciept/{feeId}', [FeePaymentController::class, 'generateFeeReciept']);
             Route::get('all-payments', [FeePaymentController::class, 'allPayments'])->name('all.payments');
             Route::get('transaction-info/{id}', [FeePaymentController::class, 'showSuccessPage'])->name('transaction.info');
             Route::get('verify-transaction/{id}', [FeePaymentController::class, 'verifyTransaction']);
             Route::get('defaulters-list', [FeePaymentController::class, 'defaultersList'])->name('defaulters-list');
-
+            Route::post('update-transaction-date', [FeePaymentController::class, 'updateTransactionDate'])->name('update.transaction.date');
             // Late Fee Exemption Management
             Route::get('late-fee-exemptions', [FeePaymentController::class, 'lateFeeExemptionIndex'])->name('late.fee.exemptions');
             Route::post('late-fee-exemption/grant', [FeePaymentController::class, 'grantLateFeeExemption'])->name('grant.late.fee.exemption');
