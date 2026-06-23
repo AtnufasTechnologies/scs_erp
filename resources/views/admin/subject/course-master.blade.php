@@ -200,8 +200,8 @@ $papertypes = PaperTypeMaster::all();
               <a href="{{ route('department.view.cso', $course->course_master_id  ) }}"> <button class="btn btn-outline-success">Design Course</button></a>
             </div>
             <div class="card-body">
-              <p class="card-text "><strong>Code# </strong>{{ $course->courseMaster->course_code }}</p>
-              <p class="card-text text-muted"><strong>Name:</strong> {{ $course->courseMaster->course_title }}</p>
+              <p class="card-text "><strong>Code# </strong>{{ $course->courseMaster->course_code ?? '' }}</p>
+              <p class="card-text text-muted"><strong>Name:</strong> {{ $course->courseMaster->course_title ?? '' }}</p>
               <ul class="list-unstyled small">
                 <li><i class="far fa-quote-left text-success"></i><strong> Type:</strong> {{ $course->courseMaster->coursetypemaster->title ?? '-' }} - {{ $course->courseMaster->coursetypemaster->description ?? '-' }}
                 </li>
