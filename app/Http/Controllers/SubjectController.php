@@ -554,6 +554,40 @@ class SubjectController extends Controller
         return redirect()->back()->with('success', 'Course Master Added');
     }
 
+    function deleteCourseMaster($id)
+    {
+        $record = SubjectCourseMaster::with('courseMaster')->findOrFail($id);
+        $courseMasterId = $record->course_master_id;
+
+        // Check if course has CSOs
+        $hasCsos = CoHasCso::where('co_id', $courseMasterId)->exists();
+
+        // Check if course has attendance records
+        $hasAttendance = StudentAttendance::where('course_id', $courseMasterId)->exists();
+
+        // Check if course has timetable entries
+        $hasTimetable = SubjectHasRoutine::where('subject_course_id', $courseMasterId)->exists();
+
+        // Check if course has syllabus entries
+        $hasSyllabus = SyllabusManager::where('co_id', $courseMasterId)->exists();
+
+        if ($hasCsos || $hasAttendance || $hasTimetable || $hasSyllabus) {
+            $reasons = [];
+            if ($hasCsos) $reasons[] = 'course objectives (CSO) are defined';
+            if ($hasAttendance) $reasons[] = 'attendance records exist';
+            if ($hasTimetable) $reasons[] = 'timetable entries exist';
+            if ($hasSyllabus) $reasons[] = 'syllabus entries exist';
+
+            return redirect()->back()->with(
+                'error',
+                'Cannot delete this course — ' . implode(', ', $reasons) . '. Please clear those first.'
+            );
+        }
+
+        $record->delete();
+        return redirect()->back()->with('success', 'Course removed successfully');
+    }
+
 
     function adminCourseMaster(Request $request)
     {

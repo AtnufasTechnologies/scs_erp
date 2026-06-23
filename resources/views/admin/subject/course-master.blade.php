@@ -328,10 +328,14 @@ $papertypes = PaperTypeMaster::all();
                   </div>
                 </div>
               </div>
-              <form action="" method="POST" style="display:inline;">
+              <form action="{{ route('department.course.delete', $course->id) }}" method="POST" style="display:inline;">
                 @csrf
                 @method('DELETE')
-                <button type="submit" class="btn btn-sm btn-danger" onclick="return confirm('Delete this course?')"><i class="fa fa-trash"></i> Delete</button>
+                <button type="submit" class="btn btn-sm btn-danger submit-btn" onclick="return confirm('Delete this course?')">
+                  <span class="submit-text"><i class="fa fa-trash"></i> Delete</span>
+                  <span class="spinner-border spinner-border-sm d-none" role="status" aria-hidden="true"></span>
+                  <span class="loading-text d-none">Deleting...</span>
+                </button>
               </form>
             </div>
           </div>
