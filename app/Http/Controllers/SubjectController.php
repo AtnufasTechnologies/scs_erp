@@ -531,7 +531,7 @@ class SubjectController extends Controller
                 $query->where(function ($inner) {
                     $inner->whereNull('is_deleted')->orWhere('is_deleted', 0);
                 });
-            })
+            })->latest()
             ->get();
 
         $assignedCourseIds = SubjectCourseMaster::where('subject_id', $academicDeptId)
