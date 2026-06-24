@@ -740,7 +740,7 @@ Route::group(['prefix' => '/erp'], function () {
         Route::delete('combination/{id}/delete', [SubjectController::class, 'deleteCombination'])->name('department.combination.delete');
         Route::get('course-master/{id}/{slug}', [SubjectController::class, 'courseMaster'])->name('department.course.master');
         Route::post('my-course-master', [SubjectController::class, 'addCourseMaster'])->name('department.add.course.master');
-        Route::delete('course-master/{id}/delete', [SubjectController::class, 'deleteCourseMaster'])->name('department.course.delete');
+        Route::delete('delete/course-master/{id}', [SubjectController::class, 'deleteCourseMaster'])->name('department.course.delete');
         Route::get('delete-semester/{id}', [SubjectController::class, 'deleteSemesterFromSubject'])->name('department.delete.subject.semester');
         Route::post('add-faculty-master', [SubjectController::class, 'addFacultyMasterToSubject'])->name('dept.add.faculty.master');
         Route::put('combination-update/{id}', [SubjectController::class, 'updateCombination'])->name('department.combination.update');

@@ -518,7 +518,8 @@ class SubjectController extends Controller
             ->pluck('id');
 
         foreach ($departmentOwnedCourseIds as $courseId) {
-            SubjectCourseMaster::firstOrCreate([
+            // Respect prior deletions: if mapping exists in trash, do not recreate it.
+            SubjectCourseMaster::withTrashed()->firstOrCreate([
                 'subject_id' => $academicDeptId,
                 'course_master_id' => $courseId,
             ]);
@@ -587,6 +588,7 @@ class SubjectController extends Controller
     {
         $record = SubjectCourseMaster::with('courseMaster')->findOrFail($id);
         $courseMasterId = $record->course_master_id;
+        $subjectCourseId = $record->id;
 
         // Check if course has CSOs
         $hasCsos = CoHasCso::where('co_id', $courseMasterId)->exists();
@@ -595,7 +597,7 @@ class SubjectController extends Controller
         $hasAttendance = StudentAttendance::where('course_id', $courseMasterId)->exists();
 
         // Check if course has timetable entries
-        $hasTimetable = SubjectHasRoutine::where('subject_course_id', $courseMasterId)->exists();
+        $hasTimetable = SubjectHasRoutine::where('subject_course_id', $subjectCourseId)->exists();
 
         // Check if course has syllabus entries
         $hasSyllabus = SyllabusManager::where('co_id', $courseMasterId)->exists();
