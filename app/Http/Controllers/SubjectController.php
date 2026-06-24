@@ -506,18 +506,47 @@ class SubjectController extends Controller
     {
         $data = Subject::find($academicDeptId);
 
+        if (!$data) {
+            return redirect()->back()->with('error', 'Department not found');
+        }
+
+        // Backfill mappings for department-owned courses created without pivot rows.
+        $departmentOwnedCourseIds = ProgramCourseMaster::where('department', $academicDeptId)
+            ->where(function ($query) {
+                $query->whereNull('is_deleted')->orWhere('is_deleted', 0);
+            })
+            ->pluck('id');
+
+        foreach ($departmentOwnedCourseIds as $courseId) {
+            SubjectCourseMaster::firstOrCreate([
+                'subject_id' => $academicDeptId,
+                'course_master_id' => $courseId,
+            ]);
+        }
+
         $courses =  SubjectCourseMaster::with([
             'courseMaster',
-        ])->where('subject_id', $academicDeptId)->get();
+        ])->where('subject_id', $academicDeptId)
+            ->whereHas('courseMaster', function ($query) {
+                $query->where(function ($inner) {
+                    $inner->whereNull('is_deleted')->orWhere('is_deleted', 0);
+                });
+            })
+            ->get();
 
-        $programCourseMaster =  ProgramCourseMaster::all();
         $assignedCourseIds = SubjectCourseMaster::where('subject_id', $academicDeptId)
             ->pluck('course_master_id')
-            ->where('is_deleted', 0)
             ->toArray();
 
-        $unassignedCourses = ProgramCourseMaster::whereNotIn('id', $assignedCourseIds)
-            ->with('coursetypemaster')->get();
+        $unassignedCoursesQuery = ProgramCourseMaster::where(function ($query) {
+            $query->whereNull('is_deleted')->orWhere('is_deleted', 0);
+        });
+
+        if (!empty($assignedCourseIds)) {
+            $unassignedCoursesQuery->whereNotIn('id', $assignedCourseIds);
+        }
+
+        $unassignedCourses = $unassignedCoursesQuery->with('coursetypemaster')->get();
 
         return view('admin.subject.course-master', [
             'data' => $data,
@@ -765,6 +794,7 @@ class SubjectController extends Controller
     function addNewCourseMaster(Request $request)
     {
         $request->validate([
+            'subject_id' => 'required|exists:subjects,id',
             'batch' => 'required',
             'course_code' => 'required|string|max:100',
             'course_title' => 'required|string|max:255',
@@ -779,13 +809,20 @@ class SubjectController extends Controller
         $rec->course_code = Str::upper($request->course_code);
         $rec->course_title = $request->course_title;
         $rec->course_type = $request->course_type;
+        $rec->department = $request->subject_id;
         $rec->internal = $request->internal;
         $rec->external =  $request->external;
         $rec->total = $request->internal + $request->external;
         $rec->credits = $request->credits;
         $rec->paper_type_id = $request->paper_type;
         $rec->total_alloted_hours = $request->total_alloted_hours;
+        $rec->is_deleted = 0;
         $rec->save();
+
+        SubjectCourseMaster::firstOrCreate([
+            'subject_id' => $request->subject_id,
+            'course_master_id' => $rec->id,
+        ]);
 
         return redirect()->back()->with('success', 'New Course Master Added and Can be Used in Departments Now');
     }
