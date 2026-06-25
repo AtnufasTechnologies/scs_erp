@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\StaticController;
 use App\Models\BatchMaster;
 use App\Models\PaperTypeMaster;
 use App\Models\SubjectTypeMaster;
@@ -7,6 +8,7 @@ use App\Models\SubjectTypeMaster;
 $coursetypes = SubjectTypeMaster::all();
 $batches = BatchMaster::all();
 $papertypes = PaperTypeMaster::all();
+$userType = StaticController::fetchUserRole();
 ?>
 
 @include('includes.header')
@@ -28,10 +30,24 @@ $papertypes = PaperTypeMaster::all();
       </div>
     </nav>
 
-    <!-- Button to trigger modal for new course -->
-    <button type="button" class="btn btn-success mb-3" data-bs-toggle="modal" data-bs-target="#addCourseModal">
-      <i class="fa fa-plus-circle"></i> Add New Course
-    </button>
+    <div class="row">
+      <div class="col-lg-3">
+        <h3>MY CO List - {{ count($mycourses) }}</h3>
+      </div>
+      <div class="col-lg-2">
+        <!-- Button to trigger modal for new course -->
+        <button type="button" class="btn btn-success mb-3" data-bs-toggle="modal" data-bs-target="#addCourseModal">
+          <i class="fa fa-plus-circle"></i> Add New Course
+        </button>
+      </div>
+      <div class="col-lg-3">
+        <!-- Button to trigger modal -->
+        <button type="button" class="btn btn-warning mb-3" data-bs-toggle="modal" data-bs-target="#exampleModal">
+          <i class="fa fa-plus-circle"></i> From Existing Course Master
+        </button>
+      </div>
+    </div>
+
 
     <!-- Modal for adding new course -->
     <div class="modal fade" id="addCourseModal" tabindex="-1" aria-labelledby="addCourseModalLabel" aria-hidden="true">
@@ -167,181 +183,168 @@ $papertypes = PaperTypeMaster::all();
       </div>
     </div>
 
-    <!-- Button to trigger modal -->
-    <button type="button" class="btn btn-warning mb-3" data-bs-toggle="modal" data-bs-target="#exampleModal">
-      <i class="fa fa-plus-circle"></i> From Existing Course Master
-    </button>
-
-    <!-- Search Bar -->
-    <div class="mb-3">
-      <input type="text" class="form-control" id="courseSearch" placeholder="Search courses by code or title...">
-    </div>
-
-    <script>
-      document.getElementById('courseSearch').addEventListener('keyup', function() {
-        const searchTerm = this.value.toLowerCase();
-        const cards = document.querySelectorAll('.col-md-6.col-lg-4');
-
-        cards.forEach(card => {
-          const title = card.querySelector('.card-title')?.textContent.toLowerCase() || '';
-          const text = card.querySelector('.card-text')?.textContent.toLowerCase() || '';
-
-          if (title.includes(searchTerm) || text.includes(searchTerm)) {
-            card.style.display = '';
-          } else {
-            card.style.display = 'none';
-          }
-        });
-      });
-    </script>
-
 
     <div class="container-fluid">
-      <h3>MY CO List</h3>
 
-      <!-- Card Layout for Courses -->
-      <div class="row mt-4">
-        @forelse($mycourses as $course)
-        <div class="col-md-6 col-lg-4 mb-3">
-          <div class="card shadow-sm h-100">
-            <div class="card-header">
-              <a href="{{ route('department.view.cso', $course->course_master_id  ) }}"> <button class="btn btn-outline-success">Design Course</button></a>
-            </div>
-            <div class="card-body">
-              <p class="card-text "><strong>Code# </strong>{{ $course->courseMaster->course_code ?? '' }}</p>
-              <p class="card-text text-muted"><strong>Name:</strong> {{ $course->courseMaster->course_title ?? '' }}</p>
-              <ul class="list-unstyled small">
-                <li><i class="far fa-quote-left text-success"></i><strong> Type:</strong> {{ $course->courseMaster->coursetypemaster->title ?? '-' }} - {{ $course->courseMaster->coursetypemaster->description ?? '-' }}
-                </li>
-                <li><i class="fa fa-bookmark text-success"></i> <strong>Credits:</strong> {{ $course->courseMaster->credits ?? '-' }}</li>
-                <li><i class="fa fa-badge text-success"></i> <strong>Paper Type:</strong> {{ $course->courseMaster->papertypemaster->name ?? '-' }}</li>
-                <li><i class="fa fa-clock text-success"></i> <strong>Teaching Hours:</strong> {{ $course->courseMaster->total_alloted_hours ?? '-' }}</li>
-                <li><strong>Internal:</strong> {{ $course->courseMaster->internal ?? '-' }} | <strong>External:</strong> {{ $course->courseMaster->external ?? '-' }}</li>
-              </ul>
-            </div>
-            <div class="card-footer bg-white">
-              <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#editCourseModal{{ $course->id }}"><i class="fa fa-edit"></i></button>
+      <div class="table-responsive mt-4">
+        <table class="table table-bordered table-hover align-middle" id="exportTable">
+          <thead class="table-light">
+            <tr>
+              <th>RefId#</th>
+              <th>Code</th>
+              <th>Course Title</th>
+              <th>Type</th>
+              <th>Credits</th>
+              <th>Paper Type</th>
+              <th>Teaching Hours</th>
+              <th>Internal</th>
+              <th>External</th>
+              <th>Action</th>
+              <th>Edit</th>
+              <th>Delete</th>
+            </tr>
+          </thead>
+          <tbody>
+            @forelse($mycourses as $course)
+            <tr class="course-row">
+              <td>#{{ $course->id }}</td>
+              <td>{{ $course->courseMaster->course_code ?? '' }}</td>
+              <td>{{ $course->courseMaster->course_title ?? '' }}</td>
+              <td>{{ $course->courseMaster->coursetypemaster->title ?? '-' }} - {{ $course->courseMaster->coursetypemaster->description ?? '-' }}</td>
+              <td>{{ $course->courseMaster->credits ?? '-' }}</td>
+              <td>{{ $course->courseMaster->papertypemaster->name ?? '-' }}</td>
+              <td>{{ $course->courseMaster->total_alloted_hours ?? '-' }}</td>
+              <td>{{ $course->courseMaster->internal ?? '-' }}</td>
+              <td>{{ $course->courseMaster->external ?? '-' }}</td>
+              <td>
+                <a href="{{ route('department.view.cso', $course->course_master_id  ) }}" class="btn btn-outline-success btn-sm mb-1">Design</a>
+              </td>
+              <td>
+                <button class="btn btn-primary btn-sm mb-1" data-bs-toggle="modal" data-bs-target="#editCourseModal{{ $course->id }}"><i class="fa fa-edit"></i></button>
 
-              <!-- Edit Course Modal -->
-              <div class="modal fade" id="editCourseModal{{ $course->id }}" tabindex="-1" aria-labelledby="editCourseModalLabel" aria-hidden="true">
-                <div class="modal-dialog modal-lg">
-                  <div class="modal-content">
-                    <div class="modal-header">
-                      <h5 class="modal-title" id="editCourseModalLabel">Edit Course</h5>
-                      <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-                    </div>
-                    <form action="{{ route('department.update.course.master',$course->courseMaster->id ?? '') }}" method="post">
-                      @csrf
-                      @method('PUT')
-                      <div class="modal-body">
-                        <div class="row">
-                          <div class="col-lg-4">
-                            <div class="mb-3">
-                              <label class="form-label">Course Code *</label>
-                              <input type="text" class="form-control" name="course_code" value="{{ $course->courseMaster->course_code ?? '' }}" required>
-                            </div>
-                          </div>
-                          <div class="col-lg-4">
-                            <div class="mb-3">
-                              <label class="form-label">Credits *</label>
-                              <input type="number" class="form-control" name="credits" value="{{ $course->courseMaster->credits ?? '' }}" step="0.5" required>
-                            </div>
-                          </div>
-                          <div class="col-lg-4">
-                            <div class="mb-3">
-                              <label class="form-label">Total Teaching Hours</label>
-                              <input type="number" class="form-control" name="total_alloted_hours" value="{{ $course->courseMaster->total_alloted_hours ?? '' }}">
-                            </div>
-                          </div>
 
-                          <div class="col-lg-4">
-                            <div class="mb-3">
-                              <label class="form-label">Internal</label>
-                              <input type="number" class="form-control internal-marks" name="internal" value="{{ $course->courseMaster->internal ?? '' }}" required>
+                <!-- Edit Course Modal -->
+                <div class="modal fade" id="editCourseModal{{ $course->id }}" tabindex="-1" aria-labelledby="editCourseModalLabel" aria-hidden="true">
+                  <div class="modal-dialog modal-lg">
+                    <div class="modal-content">
+                      <div class="modal-header">
+                        <h5 class="modal-title" id="editCourseModalLabel">Edit Course</h5>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                      </div>
+                      <form action="{{ route('department.update.course.master',$course->courseMaster->id ?? '') }}" method="post">
+                        @csrf
+                        @method('PUT')
+                        <div class="modal-body">
+                          <div class="row">
+                            <div class="col-lg-4">
+                              <div class="mb-3">
+                                <label class="form-label">Course Code *</label>
+                                <input type="text" class="form-control" name="course_code" value="{{ $course->courseMaster->course_code ?? '' }}" required>
+                              </div>
                             </div>
-                          </div>
-
-                          <div class="col-lg-4">
-                            <div class="mb-3">
-                              <label class="form-label">External</label>
-                              <input type="number" class="form-control external-marks" name="external" value="{{ $course->courseMaster->external ?? '' }}" required>
+                            <div class="col-lg-4">
+                              <div class="mb-3">
+                                <label class="form-label">Credits *</label>
+                                <input type="number" class="form-control" name="credits" value="{{ $course->courseMaster->credits ?? '' }}" step="0.5" required>
+                              </div>
                             </div>
-                          </div>
-
-                          <div class="col-lg-4">
-                            <div class="mb-3">
-                              <label class="form-label">Full</label>
-                              <input type="number" class="form-control full-marks" value="{{ ($course->courseMaster->internal ?? 0) + ($course->courseMaster->external ?? 0) }}" name="full" readonly>
+                            <div class="col-lg-4">
+                              <div class="mb-3">
+                                <label class="form-label">Total Teaching Hours</label>
+                                <input type="number" class="form-control" name="total_alloted_hours" value="{{ $course->courseMaster->total_alloted_hours ?? '' }}">
+                              </div>
                             </div>
-                          </div>
 
-                          <script>
-                            document.querySelectorAll('.internal-marks, .external-marks').forEach(input => {
-                              input.addEventListener('input', function() {
-                                const parent = this.closest('.modal-content');
-                                const internal = parseFloat(parent.querySelector('.internal-marks').value) || 0;
-                                const external = parseFloat(parent.querySelector('.external-marks').value) || 0;
-                                parent.querySelector('.full-marks').value = (internal + external);
+                            <div class="col-lg-4">
+                              <div class="mb-3">
+                                <label class="form-label">Internal</label>
+                                <input type="number" class="form-control internal-marks" name="internal" value="{{ $course->courseMaster->internal ?? '' }}" required>
+                              </div>
+                            </div>
+
+                            <div class="col-lg-4">
+                              <div class="mb-3">
+                                <label class="form-label">External</label>
+                                <input type="number" class="form-control external-marks" name="external" value="{{ $course->courseMaster->external ?? '' }}" required>
+                              </div>
+                            </div>
+
+                            <div class="col-lg-4">
+                              <div class="mb-3">
+                                <label class="form-label">Full</label>
+                                <input type="number" class="form-control full-marks" value="{{ ($course->courseMaster->internal ?? 0) + ($course->courseMaster->external ?? 0) }}" name="full" readonly>
+                              </div>
+                            </div>
+
+                            <script>
+                              document.querySelectorAll('.internal-marks, .external-marks').forEach(input => {
+                                input.addEventListener('input', function() {
+                                  const parent = this.closest('.modal-content');
+                                  const internal = parseFloat(parent.querySelector('.internal-marks').value) || 0;
+                                  const external = parseFloat(parent.querySelector('.external-marks').value) || 0;
+                                  parent.querySelector('.full-marks').value = (internal + external);
+                                });
                               });
-                            });
-                          </script>
-                          <div class="col-lg-3">
-                            <div class="mb-3">
-                              <label class="form-label">Paper Type *</label>
-                              <select name="paper_type" id="paper_type" class="form-select" required>
-                                <option value="">Select Paper Type</option>
-                                @foreach($papertypes as $papertype)
-                                <option value="{{ $papertype->id }}" {{ ($course->courseMaster->papertypemaster->id ?? '') == $papertype->id ? 'selected' : '' }}>{{ $papertype->name }}</option>
-                                @endforeach
+                            </script>
+                            <div class="col-lg-3">
+                              <div class="mb-3">
+                                <label class="form-label">Paper Type *</label>
+                                <select name="paper_type" id="paper_type" class="form-select" required>
+                                  <option value="">Select Paper Type</option>
+                                  @foreach($papertypes as $papertype)
+                                  <option value="{{ $papertype->id }}" {{ ($course->courseMaster->papertypemaster->id ?? '') == $papertype->id ? 'selected' : '' }}>{{ $papertype->name }}</option>
+                                  @endforeach
 
-                              </select>
+                                </select>
+                              </div>
                             </div>
-                          </div>
-                          <div class="col-lg-9">
-                            <div class="mb-3">
-                              <label class="form-label">Course Type *</label>
-                              <select class="form-select dselect-example" name="course_type" required>
-                                <option value="">Select Course Type</option>
-                                @foreach($coursetypes as $type)
-                                <option value="{{ $type->id }}" {{ ($course->courseMaster->coursetypemaster->id ?? '') == $type->id ? 'selected' : '' }}>{{ $type->title }} - {{$type->description}}</option>
-                                @endforeach
-                              </select>
+                            <div class="col-lg-9">
+                              <div class="mb-3">
+                                <label class="form-label">Course Type *</label>
+                                <select class="form-select dselect-example" name="course_type" required>
+                                  <option value="">Select Course Type</option>
+                                  @foreach($coursetypes as $type)
+                                  <option value="{{ $type->id }}" {{ ($course->courseMaster->coursetypemaster->id ?? '') == $type->id ? 'selected' : '' }}>{{ $type->title }} - {{$type->description}}</option>
+                                  @endforeach
+                                </select>
+                              </div>
                             </div>
-                          </div>
-                          <div class="col-lg-12">
-                            <div class="mb-3">
-                              <label class="form-label">Course Title *</label>
-                              <input type="text" class="form-control" name="course_title" value="{{ $course->courseMaster->course_title ?? '' }}" required>
+                            <div class="col-lg-12">
+                              <div class="mb-3">
+                                <label class="form-label">Course Title *</label>
+                                <input type="text" class="form-control" name="course_title" value="{{ $course->courseMaster->course_title ?? '' }}" required>
+                              </div>
                             </div>
                           </div>
                         </div>
-                      </div>
-                      <div class="modal-footer">
-                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
-                        <button type="submit" class="btn btn-success submit-btn">
-                          <span class="submit-text">Update Course</span>
-                          <span class="spinner-border spinner-border-sm d-none" role="status" aria-hidden="true"></span>
-                          <span class="loading-text d-none">Processing...</span>
-                        </button>
-                      </div>
-                    </form>
+                        <div class="modal-footer">
+                          <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                          <button type="submit" class="btn btn-success submit-btn">
+                            <span class="submit-text">Update Course</span>
+                            <span class="spinner-border spinner-border-sm d-none" role="status" aria-hidden="true"></span>
+                            <span class="loading-text d-none">Processing...</span>
+                          </button>
+                        </div>
+                      </form>
+                    </div>
                   </div>
                 </div>
-              </div>
-
-              <form action="{{ route('department.course.delete', $course->id) }}" method="POST" style="display:inline;" id="citadel" onsubmit="return confirm('Delete this course?')">
-                @csrf
-                @method('DELETE')
-                <button type="submit" class="btn btn-danger"><i class="fa fa-trash"></i> Delete</button>
-              </form>
-            </div>
-          </div>
-        </div>
-        @empty
-        <div class="col-12">
-          <p class="text-center text-muted">No courses found.</p>
-        </div>
-        @endforelse
+              </td>
+              <td>
+                <form action="{{ route('department.course.delete', $course->id) }}" method="POST" style="display:inline;" id="citadel" onsubmit="return confirm('Delete this course?')">
+                  @csrf
+                  @method('DELETE')
+                  <button type="submit" class="btn btn-danger btn-sm"><i class="fa fa-trash"></i></button>
+                </form>
+              </td>
+            </tr>
+            @empty
+            <tr>
+              <td colspan="11" class="text-center text-muted">No courses found.</td>
+            </tr>
+            @endforelse
+          </tbody>
+        </table>
       </div>
 
     </div>
