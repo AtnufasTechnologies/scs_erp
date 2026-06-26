@@ -567,6 +567,14 @@ class SubjectController extends Controller
 
     function deleteCourseMaster($id)
     {
+        $record = SubjectCourseMaster::find($id);
+        if ($record != null) {
+            $record->delete();
+            return redirect()->back()->with('success', 'Course Unlinked Successfully');
+        } else {
+            return redirect()->back()->with('error', 'Course not found');
+        }
+        /*
         $record = SubjectCourseMaster::with('courseMaster')->findOrFail($id);
         $courseMasterId = $record->course_master_id;
         $subjectCourseId = $record->id;
@@ -597,7 +605,9 @@ class SubjectController extends Controller
         }
 
         $record->delete();
-        return redirect()->back()->with('success', 'Course removed successfully');
+        
+        return redirect()->back()->with('success', 'Course Unlinked Successfully');
+        */
     }
 
 
