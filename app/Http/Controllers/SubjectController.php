@@ -510,21 +510,6 @@ class SubjectController extends Controller
             return redirect()->back()->with('error', 'Department not found');
         }
 
-        // // Backfill mappings for department-owned courses created without pivot rows.
-        $departmentOwnedCourseIds = ProgramCourseMaster::where('department', $academicDeptId)
-            ->where(function ($query) {
-                $query->whereNull('is_deleted')->orWhere('is_deleted', 0);
-            })
-            ->pluck('id');
-
-        foreach ($departmentOwnedCourseIds as $courseId) {
-            // Respect prior deletions: if mapping exists in trash, do not recreate it.
-            SubjectCourseMaster::withTrashed()->firstOrCreate([
-                'subject_id' => $academicDeptId,
-                'course_master_id' => $courseId,
-            ]);
-        }
-
         $courses = SubjectCourseMaster::where('subject_id', $academicDeptId)
             ->with(['courseMaster' => function ($query) {
                 $query->withTrashed();
