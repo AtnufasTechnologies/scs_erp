@@ -112,30 +112,74 @@ $userRole = StaticController::fetchUserRole($userId);
     display: none
   }
 
+  /* TAB WRAPPER */
+  .sp-tabs-wrap {
+    background: #ffffff;
+    padding: 12px;
+    border-radius: 14px;
+    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.08);
+  }
+
+  /* TAB CONTAINER */
+  .sp-tabs {
+    display: flex;
+    gap: 10px;
+    flex-wrap: wrap;
+  }
+
+  /* TAB BUTTON */
   .sp-tab {
-    white-space: nowrap;
-    cursor: pointer;
-    padding: .75rem 1.1rem;
-    font-size: .82rem;
-    font-weight: 600;
-    color: #495057;
     border: none;
-    background: none;
-    border-bottom: 2.5px solid transparent;
-    transition: all .2s;
-    text-decoration: none;
-    display: inline-flex;
+    background: #f3f4f6;
+    color: #4b5563;
+    padding: 10px 18px;
+    border-radius: 30px;
+    font-size: 14px;
+    font-weight: 600;
+    cursor: pointer;
+    display: flex;
     align-items: center;
-    gap: .4rem
+    gap: 8px;
+    transition: all 0.3s ease;
   }
 
+  /* ICON */
+  .sp-tab i {
+    font-size: 15px;
+  }
+
+  /* HOVER */
   .sp-tab:hover {
-    color: #1a237e
+    background: #e0e7ff;
+    color: #3730a3;
+    transform: translateY(-2px);
   }
 
+  /* ACTIVE TAB */
   .sp-tab.active {
-    color: #1a237e;
-    border-bottom-color: #1a237e
+    background: linear-gradient(135deg, #4f46e5, #7c3aed);
+    color: white;
+    box-shadow: 0 5px 12px rgba(79, 70, 229, 0.35);
+  }
+
+  /* ACTIVE HOVER */
+  .sp-tab.active:hover {
+    color: white;
+    background: linear-gradient(135deg, #4338ca, #6d28d9);
+  }
+
+  /* MOBILE */
+  @media(max-width:768px) {
+
+    .sp-tabs {
+      gap: 8px;
+    }
+
+    .sp-tab {
+      padding: 9px 14px;
+      font-size: 13px;
+    }
+
   }
 
   .sp-content {
@@ -502,8 +546,7 @@ $userRole = StaticController::fetchUserRole($userId);
       </div>
     </div>
     <div>
-
-
+      @if(in_array($userRole, ['super-admin','itcell']))
       <form method="POST" action="{{ route('admin.student.create-access', $data->id) }}" class="d-inline ms-1"
         onsubmit="return confirm('Create/reset student login? Default password will be their roll number.')">
         @csrf
@@ -511,6 +554,7 @@ $userRole = StaticController::fetchUserRole($userId);
           <i class="fas fa-key me-1"></i> Create Login
         </button>
       </form>
+      @endif
     </div>
   </div>
 </div>
@@ -569,16 +613,18 @@ $userRole = StaticController::fetchUserRole($userId);
 @endif
 
 {{-- TABS --}}
-<div class="sp-tabs-wrap mt-3">
+<div class="sp-tabs-wrap mt-3 container">
   <div class="sp-tabs">
     <button class="sp-tab active" onclick="spTab(event,'tab-about')"><i class="fas fa-user"></i> About</button>
     <button class="sp-tab" onclick="spTab(event,'tab-timetable')"><i class="fas fa-calendar-alt"></i> Timetable</button>
     <button class="sp-tab" onclick="spTab(event,'tab-attendance')"><i class="fas fa-check-circle"></i> Attendance</button>
-    <button class="sp-tab" onclick="spTab(event,'tab-fa')"><i class="fas fa-pen"></i> Internal Marks</button>
+    <button class="sp-tab" onclick="spTab(event,'tab-fa')"><i class="fas fa-pen"></i> FA Marks</button>
     <!-- <button class="sp-tab" onclick="spTab(event,'tab-results')"><i class="fas fa-trophy"></i> Exam Results</button> -->
     <button class="sp-tab" onclick="spTab(event,'tab-courses')"><i class="fas fa-book"></i> Courses</button>
     <button class="sp-tab" onclick="spTab(event,'tab-fee')"><i class="fas fa-rupee-sign"></i> Fee</button>
+    @if(in_array($userRole, ['super-admin','itcell']))
     <button class="sp-tab" id="btn-tab-edit" onclick="spTab(event,'tab-edit')"><i class="fas fa-edit"></i> Edit Details</button>
+    @endif
   </div>
 </div>
 
