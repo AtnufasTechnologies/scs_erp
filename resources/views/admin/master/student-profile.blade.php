@@ -1030,8 +1030,7 @@ $userRole = StaticController::fetchUserRole($userId);
               <th>Course Title</th>
               <th>Type</th>
               <th>Cr.</th>
-              <th>Int / Ext</th>
-              <th>Status</th>
+              <th>FA / SA</th>
               <th style="text-align:center;">Actions</th>
             </tr>
           </thead>
@@ -1064,13 +1063,7 @@ $userRole = StaticController::fetchUserRole($userId);
                 {{ $course->coursemaster?->internal ?? '—' }} /
                 {{ $course->coursemaster?->external ?? '—' }}
               </td>
-              <td>
-                @if($course->course_status == 'EN')
-                <span class="pill-active">Enrolled</span>
-                @else
-                <span class="pill-inactive">Inactive</span>
-                @endif
-              </td>
+
               <td style="text-align:center;white-space:nowrap;">
                 @if($locked)
                 <span title="Marks recorded — cannot modify" style="color:#adb5bd;font-size:.8rem;">
