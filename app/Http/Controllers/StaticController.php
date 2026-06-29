@@ -7,12 +7,14 @@ use App\Models\AdminNotify;
 use App\Models\AdmissionApplication;
 use App\Models\AdmissionRegistration;
 use App\Models\AnnualSession;
+use App\Models\CiaMark;
 use App\Models\CourseCombination;
 use App\Models\Department;
 use App\Models\FeeHead;
 use App\Models\FeeStructureGroup;
 use App\Models\FeeStructureHasHead;
 use App\Models\FeeStructureHasManyProgram;
+use App\Models\InterMark;
 use App\Models\Otp;
 use App\Models\ProgramGroup;
 use App\Models\StudentPayment;
@@ -521,5 +523,22 @@ class StaticController extends Controller
       'studentprogram.campusmaster',
     ])->where('fee_structure_id', $id)->get();
     return $data;
+  }
+
+  static function getStudentCourseMarks($studentId, $courseId)
+  {
+    return CiaMark::where('STUDENT_ID', $studentId)
+      ->with([
+        'groupinfo.grouptype:id,name',
+      ])
+      ->where('course_id', $courseId)
+      ->get();
+  }
+
+  static function getStudentCourseMarkTotal($studentId, $courseId)
+  {
+    return InterMark::where('student_id', $studentId)
+      ->where('course_id', $courseId)
+      ->first()->internal_mark ?? 0;
   }
 }

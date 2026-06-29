@@ -50,6 +50,7 @@ use App\Models\UserHasPermission;
 use App\Models\UserHasRole;
 use App\Models\UserMenuPermission;
 use App\Models\UserType;
+use App\Models\CiaMark;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
@@ -166,6 +167,7 @@ class AdminController extends Controller
 
     function stdprofile(int $id, string $rollno)
     {
+
         $data = StudentMaster::where('id', $id)->with([
             'religionmaster:id,name',
             'deptmaster:id,department_code,name',
@@ -178,7 +180,10 @@ class AdminController extends Controller
             'feepayment.feepaymentinfo:id,quarter_title',
             'feepayment.gatewaytype',
         ])->firstOrFail();
-
+        $studentCourses = StudentCourseInfo::with([
+            'coursemaster'
+        ])
+            ->where('student_id', $id)->get();
         // Fetch student's courses with semester and course-type relations
         $studentCourses = StudentCourseInfo::with([
             'coursemaster.semestermaster:id,title',
@@ -200,6 +205,12 @@ class AdminController extends Controller
                 $semId = $c->semester ?? $c->coursemaster?->semester_id;
                 return $semesterMap[$semId] ?? ('Semester ' . ($semId ?? '?'));
             });
+
+        $faSegregatedMarks =  CiaMark::where('STUDENT_ID', $id)->with([
+            'studentcourseinfo.coursemaster:id,course_title,course_code,semester_id',
+            'groupinfo.grouptype:id,name',
+        ])->get()->groupBy(fn($c) => $c->SEMESTER_ID);;
+
 
         // Course IDs that have FA marks — used to lock edit/delete
         $faMarkedCourseIds = InterMark::where('student_id', $id)
@@ -339,6 +350,7 @@ class AdminController extends Controller
             'attendanceSummary'  => $attendanceSummary,
             'internalMarks'      => $internalMarks,
             'ciaMarksBySemester' => $ciaMarksBySemester,
+            'faSegregatedMarks'  => $faSegregatedMarks,
             'examResults'        => $examResults,
             'examStudent'        => $examStudent,
             'batches'            => BatchMaster::orderBy('batch_name')->get(),

@@ -1255,6 +1255,7 @@ Route::group(['prefix' => '/erp'], function () {
 
     //Testing route
     Route::group(['prefix' => '/test',], function () {
+        Route::get('fix-courses', [TestController::class, 'courseFix']);
         Route::get('fix-admission-enrollment', [TestController::class, 'fixAdmissionEnrollment']); //run once to fix enrollment number in student master table
         // Route::get('fee-issue-fix', [TestController::class, 'feesIssueFixing']); //run once to test fee structure creation logic
         // Route::get('create-student-login', [TestController::class, 'createStudentLogin']); //run once to create student login for all students in student master
