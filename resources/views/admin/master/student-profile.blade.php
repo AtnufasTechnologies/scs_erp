@@ -943,10 +943,12 @@ $userRole = StaticController::fetchUserRole($userId);
                 </div>
                 @php
                 $groupTypeId = $cm->groupinfo?->grouptype?->id;
+                $rawCourseMark = trim((string) ($cm->COURSE_GROUP_MARK ?? ''));
+                $courseMark = is_numeric($rawCourseMark) ? (float) $rawCourseMark : 0;
                 if ((int) $groupTypeId === 5) {
-                $marksarray[] = $cm->COURSE_GROUP_MARK;
+                $marksarray[] = $courseMark;
                 } else {
-                $marksarray[] = $cm->COURSE_GROUP_MARK / 2;
+                $marksarray[] = $courseMark / 2;
                 }
                 $totalFaMark = array_sum($marksarray);
                 @endphp
