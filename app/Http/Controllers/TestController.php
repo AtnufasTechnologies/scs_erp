@@ -319,4 +319,34 @@ class TestController extends Controller
             'Fixing Done No newly added courses';
         }
     }
+
+    function fixFeeStructure()
+    {
+        //find fee structure data
+        $feestructures = FeesStructure::all();
+
+        //run loop to fix all issues
+        foreach ($feestructures as $item) {
+            //check the individual Fee Structure Record
+            $feestructure_record = FeesStructure::find($item->id);
+            $fee_course_master_id = $item->course_name;
+
+            //find connected links with fee_course_masteer_id in fee_structure_groups
+            $connectedStudentPrograms = FeeStructureGroup::where('fee_course_master_id', $fee_course_master_id)->get();
+
+            //delete links in fee_structure_has_many_programs having fee_structure_id
+            $fee_structure_id = $item->id;
+            FeeStructureHasManyProgram::where('fee_structure_id', $fee_structure_id)->delete();
+
+            //now create the new corrected ones
+
+            foreach ($connectedStudentPrograms as $rec) {
+                FeeStructureHasManyProgram::create([
+                    'fee_structure_id' => $fee_structure_id,
+                    'std_program_id' => $rec->student_program_id,
+                ]);
+            }
+        }
+        dd('Fee Structure Fixing Complete');
+    }
 }
