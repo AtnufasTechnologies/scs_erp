@@ -112,30 +112,74 @@ $userRole = StaticController::fetchUserRole($userId);
     display: none
   }
 
+  /* TAB WRAPPER */
+  .sp-tabs-wrap {
+    background: #ffffff;
+    padding: 12px;
+    border-radius: 14px;
+    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.08);
+  }
+
+  /* TAB CONTAINER */
+  .sp-tabs {
+    display: flex;
+    gap: 10px;
+    flex-wrap: wrap;
+  }
+
+  /* TAB BUTTON */
   .sp-tab {
-    white-space: nowrap;
-    cursor: pointer;
-    padding: .75rem 1.1rem;
-    font-size: .82rem;
-    font-weight: 600;
-    color: #495057;
     border: none;
-    background: none;
-    border-bottom: 2.5px solid transparent;
-    transition: all .2s;
-    text-decoration: none;
-    display: inline-flex;
+    background: #f3f4f6;
+    color: #4b5563;
+    padding: 10px 18px;
+    border-radius: 30px;
+    font-size: 14px;
+    font-weight: 600;
+    cursor: pointer;
+    display: flex;
     align-items: center;
-    gap: .4rem
+    gap: 8px;
+    transition: all 0.3s ease;
   }
 
+  /* ICON */
+  .sp-tab i {
+    font-size: 15px;
+  }
+
+  /* HOVER */
   .sp-tab:hover {
-    color: #1a237e
+    background: #e0e7ff;
+    color: #3730a3;
+    transform: translateY(-2px);
   }
 
+  /* ACTIVE TAB */
   .sp-tab.active {
-    color: #1a237e;
-    border-bottom-color: #1a237e
+    background: linear-gradient(135deg, #4f46e5, #7c3aed);
+    color: white;
+    box-shadow: 0 5px 12px rgba(79, 70, 229, 0.35);
+  }
+
+  /* ACTIVE HOVER */
+  .sp-tab.active:hover {
+    color: white;
+    background: linear-gradient(135deg, #4338ca, #6d28d9);
+  }
+
+  /* MOBILE */
+  @media(max-width:768px) {
+
+    .sp-tabs {
+      gap: 8px;
+    }
+
+    .sp-tab {
+      padding: 9px 14px;
+      font-size: 13px;
+    }
+
   }
 
   .sp-content {
@@ -502,8 +546,7 @@ $userRole = StaticController::fetchUserRole($userId);
       </div>
     </div>
     <div>
-
-
+      @if(in_array($userRole, ['super-admin','itcell']))
       <form method="POST" action="{{ route('admin.student.create-access', $data->id) }}" class="d-inline ms-1"
         onsubmit="return confirm('Create/reset student login? Default password will be their roll number.')">
         @csrf
@@ -511,6 +554,7 @@ $userRole = StaticController::fetchUserRole($userId);
           <i class="fas fa-key me-1"></i> Create Login
         </button>
       </form>
+      @endif
     </div>
   </div>
 </div>
@@ -569,16 +613,18 @@ $userRole = StaticController::fetchUserRole($userId);
 @endif
 
 {{-- TABS --}}
-<div class="sp-tabs-wrap mt-3">
+<div class="sp-tabs-wrap mt-3 container">
   <div class="sp-tabs">
     <button class="sp-tab active" onclick="spTab(event,'tab-about')"><i class="fas fa-user"></i> About</button>
     <button class="sp-tab" onclick="spTab(event,'tab-timetable')"><i class="fas fa-calendar-alt"></i> Timetable</button>
     <button class="sp-tab" onclick="spTab(event,'tab-attendance')"><i class="fas fa-check-circle"></i> Attendance</button>
-    <button class="sp-tab" onclick="spTab(event,'tab-fa')"><i class="fas fa-pen"></i> Internal Marks</button>
+    <button class="sp-tab" onclick="spTab(event,'tab-fa')"><i class="fas fa-pen"></i> FA Marks</button>
     <!-- <button class="sp-tab" onclick="spTab(event,'tab-results')"><i class="fas fa-trophy"></i> Exam Results</button> -->
     <button class="sp-tab" onclick="spTab(event,'tab-courses')"><i class="fas fa-book"></i> Courses</button>
     <button class="sp-tab" onclick="spTab(event,'tab-fee')"><i class="fas fa-rupee-sign"></i> Fee</button>
+    @if(in_array($userRole, ['super-admin','itcell']))
     <button class="sp-tab" id="btn-tab-edit" onclick="spTab(event,'tab-edit')"><i class="fas fa-edit"></i> Edit Details</button>
+    @endif
   </div>
 </div>
 
@@ -800,59 +846,138 @@ $userRole = StaticController::fetchUserRole($userId);
     </div>
   </div>
 
-  {{-- ── INTERNAL MARKS (FA) ── --}}
+  {{-- ── FA Marks ── --}}
   <div class="sp-panel" id="tab-fa">
-    <div class="sp-card">
-      <div class="sp-card-header">
-        <div class="sp-icon" style="background:#fff3e0;color:#e65100;"><i class="fas fa-pen-nib"></i></div>
-        <h4>Internal Marks (FA)</h4>
-        <span class="sp-count">{{ $internalMarks->count() }} records</span>
+
+    {{-- Course type badge colours --}}
+    @php
+    $ctColors = [
+    'CC' => ['bg'=>'#e8eaf6','color'=>'#1a237e'],
+    'GE' => ['bg'=>'#e8f5e9','color'=>'#1b5e20'],
+    'SEC' => ['bg'=>'#fff3e0','color'=>'#e65100'],
+    'DSE' => ['bg'=>'#fce4ec','color'=>'#880e4f'],
+    'AECC' => ['bg'=>'#e3f2fd','color'=>'#0d47a1'],
+    'MDC' => ['bg'=>'#f3e5f5','color'=>'#4a148c'],
+    'MAJ' => ['bg'=>'#e0f7fa','color'=>'#006064'],
+    'MIN' => ['bg'=>'#fff8e1','color'=>'#f57f17'],
+    ];
+    $defaultCt = ['bg'=>'#f5f5f5','color'=>'#555'];
+    @endphp
+
+    {{-- header row: title + Enroll button --}}
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:1rem;flex-wrap:wrap;gap:.5rem;">
+      <div style="font-size:1rem;font-weight:700;color:#1a1a2e;">
+        <i class="fas fa-book-open me-1" style="color:#1a237e;"></i>
+        FA Marks
+
       </div>
-      @if($internalMarks->isEmpty())
-      <div class="sp-empty"><i class="fas fa-file-alt"></i>No internal marks recorded.</div>
-      @else
-      @php
-      $faGrouped = $internalMarks->groupBy(function($m) {
-      return $m->semester ?? 'Unknown';
-      })->sortKeys();
-      @endphp
-      @foreach($faGrouped as $semester => $marks)
-      <div style="display:flex;align-items:center;gap:.5rem;margin:.75rem 0 .5rem;">
-        <i class="fas fa-book-open" style="color:#e65100;font-size:.8rem;"></i>
-        <span style="font-weight:700;font-size:.82rem;color:#e65100;">
-          {{ $marks->first()?->getRelation('semester')?->title ?? 'Semester '.$semester }}
-        </span>
 
-
-      </div>
-      <table class="sp-table mb-3">
-        <thead>
-          <tr>
-            <th>#</th>
-            <th>Course Code</th>
-            <th>Course Title</th>
-            <th>FA Marks</th>
-            <th>SA Marks</th>
-          </tr>
-        </thead>
-        <tbody>
-          @foreach($marks->unique('course_id')->sortBy('course.course_code') as $i => $mark)
-          <tr>
-            <td style="color:#adb5bd;">{{ $loop->iteration }}</td>
-            <td><span style="background:#e8eaf6;color:#3949ab;border-radius:4px;padding:.1rem .45rem;font-size:.78rem;font-weight:600;">{{ $mark->course->course_code ?? '—' }}</span></td>
-            <td>{{ $mark->course->course_title ?? '—' }}</td>
-
-            <td>
-              <span style="font-size:1.1rem;font-weight:800;color:#e65100;">{{ $mark->internal_mark }}</span>
-              @if($mark->course?->internal_mark) <span style="font-size:.72rem;color:#adb5bd;">/ {{ $mark->course->internal_mark }}</span> @endif
-            </td>
-          </tr>
-          @endforeach
-        </tbody>
-      </table>
-      @endforeach
-      @endif
     </div>
+
+    @if($coursesBySemester->isEmpty())
+    <div class="sp-card">
+      <div class="sp-empty"><i class="fas fa-book"></i>No courses enrolled yet.</div>
+    </div>
+    @else
+
+    @foreach($coursesBySemester as $semLabel => $courses)
+    <div class="sp-card" style="margin-bottom:1rem;">
+      <div style="display:flex;align-items:center;gap:.5rem;margin-bottom:.75rem;padding-bottom:.6rem;border-bottom:1px solid #f0f0f0;">
+        <span style="background:#e8eaf6;color:#1a237e;border-radius:6px;padding:.25rem .8rem;font-weight:700;font-size:.82rem;">
+          <i class="fas fa-layer-group me-1"></i>{{ $semLabel }}
+        </span>
+        <span class="sp-count">{{ $courses->count() }} courses</span>
+      </div>
+      <div style="overflow-x:auto;">
+        <table class="sp-table" style="min-width:600px;">
+          <thead>
+            <tr>
+              <th>#</th>
+              <th>Code</th>
+              <th>Course Title</th>
+              <th>Type</th>
+              <th>Cr.</th>
+              <th>Cia Marks </th>
+              <th style="text-align:center;">Total</th>
+            </tr>
+          </thead>
+          <tbody>
+            @foreach($courses as $i => $course)
+            @php
+            $locked = in_array($course->course_id, $lockedCourseIds);
+            $typeTitle = $course->coursemaster?->coursetypemaster?->title ?? '';
+            $ctKey = preg_replace('/\s.*/', '', $typeTitle);
+            $ct = $ctColors[$ctKey] ?? $defaultCt;
+            @endphp
+            <?php
+            $courseMarks = StaticController::getStudentCourseMarks($data->id, $course->course_id);
+            // $totalFaMark = StaticController::getStudentCourseMarkTotal($data->id, $course->course_id);
+
+            ?>
+            <tr>
+              <td style="color:#adb5bd;">{{ $i+1 }}</td>
+              <td>
+                <span style="background:#e8eaf6;color:#3949ab;border-radius:4px;padding:.1rem .45rem;font-size:.78rem;font-weight:600;">
+                  {{ $course->coursemaster?->course_code ?? '—' }}
+                </span>
+              </td>
+              <td style="font-weight:500;">{{ $course->coursemaster?->course_title ?? '—' }}</td>
+              <td>
+                @if($typeTitle)
+                <span style="background:{{ $ct['bg'] }};color:{{ $ct['color'] }};border-radius:4px;padding:.1rem .5rem;font-size:.76rem;font-weight:700;white-space:nowrap;">
+                  {{ $typeTitle }}
+                </span>
+                @else —
+                @endif
+              </td>
+              <td>{{ $course->coursemaster?->credits ?? '—' }}</td>
+              <td style="font-size:.8rem;color:#6c757d;">
+                @php
+                $marksarray = [];
+                $totalFaMark = 0;
+                @endphp
+                @foreach ($courseMarks as $cm)
+                <div style="display:flex;align-items:center;gap:.5rem;margin-bottom:.2rem;">
+                  <span style="font-weight:600;">{{ $cm->groupinfo?->grouptype?->name ?? '—' }}</span>
+                  {{ $cm->COURSE_GROUP_MARK }} / {{ $cm->groupinfo?->MAX_MARK ?? '—' }}
+                </div>
+                @php
+                $groupTypeId = $cm->groupinfo?->grouptype?->id;
+                $rawCourseMark = trim((string) ($cm->COURSE_GROUP_MARK ?? ''));
+                $courseMark = is_numeric($rawCourseMark) ? (float) $rawCourseMark : 0;
+                if ((int) $groupTypeId === 5) {
+                $marksarray[] = $courseMark;
+                } else {
+                $marksarray[] = $courseMark / 2;
+                }
+                $totalFaMark = array_sum($marksarray);
+                @endphp
+
+                @endforeach
+
+              </td>
+
+              <td style="text-align:center;white-space:nowrap;">
+
+                <span style="color:black;font-size:1rem;" class="badge badge-secondary">
+
+                  {{ round( $totalFaMark) }}
+                </span>
+
+
+              </td>
+            </tr>
+            @endforeach
+          </tbody>
+        </table>
+      </div>
+    </div>
+    @endforeach
+
+    <p style="font-size:.75rem;color:#adb5bd;margin-top:.5rem;">
+      <i class="fas fa-lock me-1"></i> Locked = FA or SA marks recorded. Edit/delete not allowed.
+    </p>
+    @endif
   </div>
 
   {{-- ── EXAM RESULTS ── --}}
@@ -980,12 +1105,12 @@ $userRole = StaticController::fetchUserRole($userId);
           <thead>
             <tr>
               <th>#</th>
+              <th>RefID</th>
               <th>Code</th>
               <th>Course Title</th>
               <th>Type</th>
               <th>Cr.</th>
-              <th>Int / Ext</th>
-              <th>Status</th>
+
               <th style="text-align:center;">Actions</th>
             </tr>
           </thead>
@@ -997,8 +1122,15 @@ $userRole = StaticController::fetchUserRole($userId);
             $ctKey = preg_replace('/\s.*/', '', $typeTitle);
             $ct = $ctColors[$ctKey] ?? $defaultCt;
             @endphp
+            <?php
+            $courseMarks = StaticController::getStudentCourseMarks($data->id, $course->course_id);
+            $totalFaMark = StaticController::getStudentCourseMarkTotal($data->id, $course->course_id);
+
+            ?>
             <tr>
               <td style="color:#adb5bd;">{{ $i+1 }}</td>
+              <td>{{ $course->id ?? '—' }}</td>
+
               <td>
                 <span style="background:#e8eaf6;color:#3949ab;border-radius:4px;padding:.1rem .45rem;font-size:.78rem;font-weight:600;">
                   {{ $course->coursemaster?->course_code ?? '—' }}
@@ -1014,21 +1146,12 @@ $userRole = StaticController::fetchUserRole($userId);
                 @endif
               </td>
               <td>{{ $course->coursemaster?->credits ?? '—' }}</td>
-              <td style="font-size:.8rem;color:#6c757d;">
-                {{ $course->coursemaster?->internal ?? '—' }} /
-                {{ $course->coursemaster?->external ?? '—' }}
-              </td>
-              <td>
-                @if($course->course_status == 'EN')
-                <span class="pill-active">Enrolled</span>
-                @else
-                <span class="pill-inactive">Inactive</span>
-                @endif
-              </td>
+
+
               <td style="text-align:center;white-space:nowrap;">
-                @if($locked)
+                @if(count($courseMarks) > 0)
                 <span title="Marks recorded — cannot modify" style="color:#adb5bd;font-size:.8rem;">
-                  <i class="fas fa-lock me-1"></i>Locked
+                  <i class="fas fa-lock me-1"></i>Locked has Marks Entries
                 </span>
                 @else
                 {{-- Toggle active --}}

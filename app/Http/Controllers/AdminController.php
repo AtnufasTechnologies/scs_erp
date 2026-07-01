@@ -50,6 +50,7 @@ use App\Models\UserHasPermission;
 use App\Models\UserHasRole;
 use App\Models\UserMenuPermission;
 use App\Models\UserType;
+use App\Models\CiaMark;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
@@ -166,6 +167,7 @@ class AdminController extends Controller
 
     function stdprofile(int $id, string $rollno)
     {
+
         $data = StudentMaster::where('id', $id)->with([
             'religionmaster:id,name',
             'deptmaster:id,department_code,name',
@@ -178,22 +180,37 @@ class AdminController extends Controller
             'feepayment.feepaymentinfo:id,quarter_title',
             'feepayment.gatewaytype',
         ])->firstOrFail();
-
+        $studentCourses = StudentCourseInfo::with([
+            'coursemaster'
+        ])
+            ->where('student_id', $id)->get();
         // Fetch student's courses with semester and course-type relations
         $studentCourses = StudentCourseInfo::with([
             'coursemaster.semestermaster:id,title',
             'coursemaster.coursetypemaster:id,title',
         ])
             ->where('student_id', $id)
-            ->whereNull('deleted_at')
-            ->get();
+            ->orderByDesc('id')
+            ->get()
+            ->unique(fn($c) => ($c->semester ?? $c->coursemaster?->semester_id ?? 'na') . '_' . $c->course_id)
+            ->values();
 
         // Build semester ID → title map for grouping
         $semesterMap = Semester::pluck('title', 'id')->toArray();
 
         // Group courses by the semester stored in student_course_infos (set during enrollment)
-        $coursesBySemester = $studentCourses->sortBy(fn($c) => $c->semester ?? 999)
-            ->groupBy(fn($c) => $semesterMap[$c->semester] ?? ('Semester ' . ($c->semester ?? '?')));
+        $coursesBySemester = $studentCourses
+            ->sortBy(fn($c) => $c->semester ?? $c->coursemaster?->semester_id ?? 999)
+            ->groupBy(function ($c) use ($semesterMap) {
+                $semId = $c->semester ?? $c->coursemaster?->semester_id;
+                return $semesterMap[$semId] ?? ('Semester ' . ($semId ?? '?'));
+            });
+
+        $faSegregatedMarks =  CiaMark::where('STUDENT_ID', $id)->with([
+            'studentcourseinfo.coursemaster:id,course_title,course_code,semester_id',
+            'groupinfo.grouptype:id,name',
+        ])->get()->groupBy(fn($c) => $c->SEMESTER_ID);;
+
 
         // Course IDs that have FA marks — used to lock edit/delete
         $faMarkedCourseIds = InterMark::where('student_id', $id)
@@ -268,6 +285,49 @@ class AdminController extends Controller
             ->orderBy('semester')
             ->get();
 
+        $faMarksByCourseSemester = $internalMarks
+            ->sortByDesc('id')
+            ->groupBy(fn($m) => (string) $m->semester . '_' . (string) $m->course_id)
+            ->map(fn($rows) => $rows->first());
+
+        $saMarksByCourseSemester = DB::table('exam_marks_entries as eme')
+            ->join('exam_sessions as es', 'es.id', '=', 'eme.exam_session_id')
+            ->where('eme.erp_student_id', $id)
+            ->select(
+                'eme.erp_subject_id as course_id',
+                'es.semester as semester',
+                DB::raw('MAX(eme.marks) as sa_marks')
+            )
+            ->groupBy('eme.erp_subject_id', 'es.semester')
+            ->get()
+            ->keyBy(fn($m) => (string) $m->semester . '_' . (string) $m->course_id);
+
+        $ciaMarksBySemester = $studentCourses
+            ->groupBy(fn($c) => (string) ($c->semester ?? $c->coursemaster?->semester_id ?? 'Unknown'))
+            ->map(function ($courses, $semester) use ($faMarksByCourseSemester, $saMarksByCourseSemester, $semesterMap) {
+                $rows = $courses
+                    ->sortBy(fn($c) => $c->coursemaster?->course_code ?? 'ZZZ')
+                    ->map(function ($course) use ($semester, $faMarksByCourseSemester, $saMarksByCourseSemester) {
+                        $key = (string) $semester . '_' . (string) $course->course_id;
+                        $fa = $faMarksByCourseSemester->get($key);
+                        $sa = $saMarksByCourseSemester->get($key);
+
+                        return [
+                            'course' => $course->coursemaster,
+                            'fa_marks' => $fa?->internal_mark,
+                            'sa_marks' => $sa?->sa_marks,
+                            'semester' => $semester,
+                        ];
+                    })
+                    ->values();
+
+                return [
+                    'label' => $semesterMap[(int) $semester] ?? ('Semester ' . $semester),
+                    'rows' => $rows,
+                ];
+            })
+            ->values();
+
         // Exam Results via ExamStudent bridge
         $examStudent = ExamStudent::where('erp_student_id', $id)->first();
         $examResults = collect();
@@ -289,6 +349,8 @@ class AdminController extends Controller
             'timetableByDay'     => $timetableByDay,
             'attendanceSummary'  => $attendanceSummary,
             'internalMarks'      => $internalMarks,
+            'ciaMarksBySemester' => $ciaMarksBySemester,
+            'faSegregatedMarks'  => $faSegregatedMarks,
             'examResults'        => $examResults,
             'examStudent'        => $examStudent,
             'batches'            => BatchMaster::orderBy('batch_name')->get(),

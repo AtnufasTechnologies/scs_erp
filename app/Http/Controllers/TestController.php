@@ -22,7 +22,12 @@ use App\Models\SubjectHasDeptAdmin;
 use App\Models\User;
 use App\Models\UserCampusSetting;
 use App\Models\UserHasRole;
+use App\Models\CiaMark;
+use App\Models\CoHasCso;
+use App\Models\ProgramCourseMaster;
+use App\Models\SubjectCourseMaster;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Mail;
 
@@ -251,5 +256,97 @@ class TestController extends Controller
         }
 
         return dd('Admission final phase records created successfully for all first phase completed applications');
+    }
+
+    function courseFix()
+    {
+        //old program course list
+        $oldCourses =  DB::table('program_course_masters')->count();  // 2219
+        //find new program courses List from cp_course_root table
+        $courseRoot =  DB::table('cp_course_root')->get(); // total = 2434
+
+        //run foreach loop on courseRoot to verify 
+        foreach ($courseRoot as $item) {
+            //find program_course_masters exist or not table
+            $record =  ProgramCourseMaster::where('course_code', $item->course_code)->first();
+
+            if ($record == null) {
+                //add the course in the ProgramCourseMaster Table
+                $rec = new ProgramCourseMaster();
+                $rec->department = $item->department;
+                $rec->academic_year = $item->academic_year;
+                $rec->course_type = $item->course_type;
+                $rec->credits = $item->credits;
+                $rec->internal = $item->internal;
+                $rec->external = $item->external;
+                $rec->course_code = $item->course_code;
+                $rec->course_title = $item->course_title;
+                $rec->paper_type = $item->paper_type;
+                $rec->save();
+            } else {
+                $newlyAddedCourses = [];
+                //record found...check for ids are same or not but course_code is same
+                if ($record->id != $item->id && $record->course_code == $item->course_code) {
+                    array_push($newlyAddedCourses, $record->id);
+                    /*
+                    $course_master_id = $record->id;
+                    //find if connected to any Subject
+                    $connectedToSubjects = SubjectCourseMaster::with('courseMaster.csos')->where('course_master_id', $course_master_id)->get();
+
+                    //update the program_course_masters table with new id
+                    $record->id = $item->id;
+                    $record->save();
+
+                    //update the subject_course_masters table with new id
+                    if ($connectedToSubjects != null) {
+                        SubjectCourseMaster::where('course_master_id', $course_master_id)->update([
+                            'course_master_id' => $item->id
+                        ]);
+                    }
+                    //update the CoHasCsos Table
+                    if ($connectedToSubjects->csos != null) {
+                        CoHasCso::where('co_id', $course_master_id)->update([
+                            'course_master_id' => $item->id
+                        ]);
+                    }*/
+                }
+            }
+        }
+        //Show the list of Records Updated
+        if ($newlyAddedCourses != null) {
+            return response()->json($newlyAddedCourses);
+        } else {
+            'Fixing Done No newly added courses';
+        }
+    }
+
+    function fixFeeStructure()
+    {
+        //find fee structure data
+        $feestructures = FeesStructure::all();
+
+        //run loop to fix all issues
+        foreach ($feestructures as $item) {
+            //check the individual Fee Structure Record
+            $feestructure_record = FeesStructure::find($item->id);
+            $fee_course_master_id = $item->course_name;
+
+            //find connected links with fee_course_masteer_id in fee_structure_groups
+            $connectedStudentPrograms = FeeStructureGroup::where('fee_course_master_id', $fee_course_master_id)->get();
+
+            //delete links in fee_structure_has_many_programs having fee_structure_id
+            $fee_structure_id = $item->id;
+            FeeStructureHasManyProgram::where('fee_structure_id', $fee_structure_id)->delete();
+
+            //now create the new corrected ones
+
+            foreach ($connectedStudentPrograms as $rec) {
+                FeeStructureHasManyProgram::create([
+                    'fee_structure_id' => $fee_structure_id,
+                    'std_program_id' => $rec->student_program_id,
+                ]);
+            }
+        }
+        dd('Fee Structure Fixing Complete');
     }
 }

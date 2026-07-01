@@ -9,6 +9,7 @@ use Illuminate\Database\Eloquent\SoftDeletes;
 class StudentCourseInfo extends Model
 {
     use HasFactory, SoftDeletes;
+    protected $table = 'stu_course_info';
 
     protected $fillable = [
         'student_id',
@@ -26,6 +27,6 @@ class StudentCourseInfo extends Model
 
     function coursemaster()
     {
-        return  $this->hasOne(ProgramCourseMaster::class, 'id', 'course_id');
+        return  $this->hasOne(ProgramCourseMaster::class, 'id', 'course_id')->with('papertypemaster');
     }
 }
