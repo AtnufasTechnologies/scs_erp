@@ -1951,7 +1951,16 @@ class AdmissionController extends Controller
 
     function paymentSuccess(Request $request)
     {
-        $hash  =  $request->hash;
+        if (!$this->isValidEasebuzzResponseHash($request)) {
+            Log::warning('Rejected admission payment success callback due to invalid hash', [
+                'txnid' => $request->txnid,
+                'easepayid' => $request->easepayid,
+                'ip' => $request->ip(),
+            ]);
+
+            return redirect()->route('admission.payment.checkout')->with('error', 'Unable to verify payment response. Please contact support.');
+        }
+
         $amount = $request->amount;
         $msg = $request->error_Message;
         $easepayid = $request->easepayid;
@@ -1967,7 +1976,6 @@ class AdmissionController extends Controller
                     'captured_amount' => $amount,
                     'payment_gateway_status' => $status,
                     'msg' => $msg,
-                    'hash' => $hash,
                 ]
             );
 
@@ -1979,7 +1987,6 @@ class AdmissionController extends Controller
             'easepayid' => $easepayid,
             'user_id' => $userId,
             'amount' => $amount,
-            'hash' => $hash,
             'msg' => $msg,
             'status' => $status,
 
@@ -2021,13 +2028,22 @@ class AdmissionController extends Controller
 
     function paymentFailure(Request $request)
     {
+        if (!$this->isValidEasebuzzResponseHash($request)) {
+            Log::warning('Rejected admission payment failure callback due to invalid hash', [
+                'txnid' => $request->txnid,
+                'easepayid' => $request->easepayid,
+                'ip' => $request->ip(),
+            ]);
+
+            return redirect()->route('admission.payment.checkout')->with('error', 'Unable to verify payment response. Please contact support.');
+        }
+
         $rec = new AdmissionApplicationPaymentLog();
         $rec->application_id = $request->udf2;
         $rec->txnid = $request->txnid;
         $rec->user_id = $request->udf1;
         $rec->easepayid = $request->easepayid;
         $rec->amount = $request->amount;
-        $rec->hash = $request->hash;
         $rec->status = $request->status;
         $rec->msg = $request->error_Message;
         $rec->save();
@@ -2055,12 +2071,23 @@ class AdmissionController extends Controller
         if (!$application_code) {
             return response()->json(['status' => 'error', 'message' => 'application_code missing'], 400);
         }
+
+        if (!$this->isValidEasebuzzResponseHash($request)) {
+            Log::warning('Rejected admission webhook due to invalid hash', [
+                'txnid' => $payload['txnid'] ?? null,
+                'easepayid' => $payload['easepayid'] ?? null,
+                'ip' => $request->ip(),
+            ]);
+
+            return response()->json(['status' => 'error', 'message' => 'invalid hash'], 400);
+        }
+
         $payment = AdmissionApplication::where('application_code', $application_code)->first();
 
         if (!$payment) {
             // maybe log and create a record
             ErrorLog::create([
-                'details' => json_encode($payload)
+                'details' => json_encode($this->sanitizedEasebuzzPayload($payload))
             ]);
             return response()->json(['status' => 'ok']);
         }
@@ -2069,9 +2096,8 @@ class AdmissionController extends Controller
         $status = $payload['status'] ?? 'pending';
         $payment->update([
             'payment_gateway_ref' => $payload['easepayid'] ?? null,
-            'status' => $status,
+            'payment_gateway_status' => $status,
             'msg' => $payload['error_Message'] ?? null,
-            'hash' => $payload['hash'] ?? null,
             'captured_amount' => $payload['amount'] ?? null,
         ]);
 
@@ -2815,7 +2841,6 @@ class AdmissionController extends Controller
             'id' => 'required',
             'payment_gateway_ref' => 'required',
             'captured_amount' => 'required',
-            'hash' => 'required',
             'payment_gateway_status' => 'required',
             'msg' => 'required',
         ]);
@@ -2826,7 +2851,6 @@ class AdmissionController extends Controller
         $application->update([
             'payment_gateway_ref' => $request->payment_gateway_ref,
             'captured_amount' => $request->captured_amount,
-            'hash' => $request->hash,
             'payment_gateway_status' => $request->payment_gateway_status,
             'msg' => $request->msg,
         ]);
@@ -2840,7 +2864,6 @@ class AdmissionController extends Controller
                 'easepayid' => $request->payment_gateway_ref,
                 'user_id' => $application->user_id,
                 'amount' => $request->captured_amount,
-                'hash' => $request->hash,
                 'msg' => $request->msg,
                 'status' => $request->payment_gateway_status,
             ]);
@@ -2852,7 +2875,6 @@ class AdmissionController extends Controller
                 'easepayid' => $request->payment_gateway_ref,
                 'user_id' => $application->user_id,
                 'amount' => $request->captured_amount,
-                'hash' => $request->hash,
                 'msg' => $request->msg,
                 'status' => $request->payment_gateway_status,
 
@@ -2860,6 +2882,61 @@ class AdmissionController extends Controller
         }
 
         return back()->with('success', 'Payment status updated successfully.');
+    }
+
+    private function isValidEasebuzzResponseHash(Request $request): bool
+    {
+        $receivedHash = strtolower((string) $request->input('hash', ''));
+        $status = (string) $request->input('status', '');
+        $txnid = (string) $request->input('txnid', '');
+        $amount = (string) $request->input('amount', '');
+        $productinfo = (string) $request->input('productinfo', '');
+        $firstname = (string) $request->input('firstname', '');
+        $email = (string) $request->input('email', '');
+        $key = (string) env('EASEBUZZ_KEY');
+        $salt = (string) env('EASEBUZZ_SALT');
+
+        if ($receivedHash === '' || $status === '' || $txnid === '' || $key === '' || $salt === '') {
+            return false;
+        }
+
+        $udfs = [];
+        for ($i = 1; $i <= 10; $i++) {
+            $udfs[] = (string) $request->input("udf{$i}", '');
+        }
+
+        $reverseUdfs = implode('|', array_reverse($udfs));
+        $baseSequence = $salt
+            . '|' . $status
+            . '|' . $reverseUdfs
+            . '|' . $email
+            . '|' . $firstname
+            . '|' . $productinfo
+            . '|' . $amount
+            . '|' . $txnid
+            . '|' . $key;
+
+        $expectedHashes = [strtolower(hash('sha512', $baseSequence))];
+
+        $additionalCharges = $request->input('additionalCharges');
+        if (!is_null($additionalCharges) && $additionalCharges !== '') {
+            $expectedHashes[] = strtolower(hash('sha512', $additionalCharges . '|' . $baseSequence));
+        }
+
+        foreach ($expectedHashes as $expectedHash) {
+            if (hash_equals($expectedHash, $receivedHash)) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private function sanitizedEasebuzzPayload(array $payload): array
+    {
+        unset($payload['hash'], $payload['key'], $payload['salt']);
+
+        return $payload;
     }
 
 
@@ -3139,14 +3216,16 @@ class AdmissionController extends Controller
     function itcellAdmissionApplications()
     {
 
-        $campusId =  StaticController::fetchCampusSettings();
+        // $campusId =  StaticController::fetchCampusSettings();
         $data = AdmissionApplication::with([
             'registrationmaster',
             'stdCourseMaster',
             'academicDeptMaster',
-        ])->whereHas('registrationmaster', function ($query) use ($campusId) {
-            $query->where('campus_id', $campusId);
-        })->latest()->get();
+        ])
+            //->whereHas('registrationmaster', function ($query) use ($campusId) {
+            //     $query->where('campus_id', $campusId);
+            // })
+            ->latest()->get();
 
         return view('admin.itcell.admission-application', ['data' => $data]);
     }

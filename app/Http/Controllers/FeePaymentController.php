@@ -799,14 +799,22 @@ class FeePaymentController extends Controller
 
     public function paymentSuccess(Request $request)
     {
+        if (!$this->isValidEasebuzzResponseHash($request)) {
+            Log::warning('Rejected payment success callback due to invalid hash', [
+                'txnid' => $request->txnid,
+                'easepayid' => $request->easepayid,
+                'ip' => $request->ip(),
+            ]);
 
-        $hash  =  $request->hash;
+            return redirect('erp/student/fee-payment/')->with('error', 'Unable to verify payment response. Please contact support.');
+        }
+
         $amount = $request->amount;
         $msg = $request->error_Message;
         $easepayid = $request->easepayid;
         $status = $request->status;
         $txnid = $request->txnid;
-        $userId = $request->udf1;
+
         //Online Transaction - Update Payment Record
         StudentPayment::where('invoice_id', $txnid)
             ->update(
@@ -815,7 +823,6 @@ class FeePaymentController extends Controller
                     'captured_amount' => $amount,
                     'status' => $status,
                     'message' => $msg,
-                    'hash' => $hash,
                 ]
             );
         //show success page to Student  
@@ -876,8 +883,16 @@ class FeePaymentController extends Controller
 
     public function paymentFailure(Request $request)
     {
+        if (!$this->isValidEasebuzzResponseHash($request)) {
+            Log::warning('Rejected payment failure callback due to invalid hash', [
+                'txnid' => $request->txnid,
+                'easepayid' => $request->easepayid,
+                'ip' => $request->ip(),
+            ]);
 
-        $hash  =  $request->hash;
+            return redirect('erp/student/fee-payment/')->with('error', 'Unable to verify payment response. Please contact support.');
+        }
+
         $msg = $request->error_Message;
         $easepayid = $request->easepayid;
         $status = $request->status;
@@ -889,7 +904,6 @@ class FeePaymentController extends Controller
                     'gateway_ref_code' => $easepayid,
                     'status' => $status,
                     'message' => $msg,
-                    'hash' => $hash,
                 ]
             );
 
@@ -911,24 +925,93 @@ class FeePaymentController extends Controller
             return response()->json(['status' => 'error', 'message' => 'txnid missing'], 400);
         }
 
-        $payment = StudentPayment::where('invoice_id', $txnid)->get();
+        $payment = StudentPayment::where('invoice_id', $txnid)->first();
 
         if (!$payment) {
             // maybe log and create a record
-            Log::warning('Easebuzz webhook for unknown txn: ' . $txnid, $payload);
+            Log::warning('Easebuzz webhook for unknown txn: ' . $txnid, [
+                'txnid' => $txnid,
+                'status' => $payload['status'] ?? null,
+                'easepayid' => $payload['easepayid'] ?? null,
+            ]);
             return response()->json(['status' => 'ok']);
+        }
+
+        if (!$this->isValidEasebuzzResponseHash($request)) {
+            Log::warning('Rejected webhook due to invalid hash', [
+                'txnid' => $txnid,
+                'easepayid' => $payload['easepayid'] ?? null,
+                'ip' => $request->ip(),
+            ]);
+
+            return response()->json(['status' => 'error', 'message' => 'invalid hash'], 400);
         }
 
         // Update according to webhook payload status
         $status = $payload['status'] ?? 'pending';
         $payment->update([
             'status' => strtoupper($status),
-            'raw_response' => json_encode($payload)
+            'raw_response' => json_encode($this->sanitizedEasebuzzPayload($payload))
         ]);
 
         // perform reconciliation, ledger updates etc.
 
         return response()->json(['status' => 'ok']);
+    }
+
+    private function isValidEasebuzzResponseHash(Request $request): bool
+    {
+        $receivedHash = strtolower((string) $request->input('hash', ''));
+        $status = (string) $request->input('status', '');
+        $txnid = (string) $request->input('txnid', '');
+        $amount = (string) $request->input('amount', '');
+        $productinfo = (string) $request->input('productinfo', '');
+        $firstname = (string) $request->input('firstname', '');
+        $email = (string) $request->input('email', '');
+        $key = (string) env('EASEBUZZ_KEY');
+        $salt = (string) env('EASEBUZZ_SALT');
+
+        if ($receivedHash === '' || $status === '' || $txnid === '' || $key === '' || $salt === '') {
+            return false;
+        }
+
+        $udfs = [];
+        for ($i = 1; $i <= 10; $i++) {
+            $udfs[] = (string) $request->input("udf{$i}", '');
+        }
+
+        $reverseUdfs = implode('|', array_reverse($udfs));
+        $baseSequence = $salt
+            . '|' . $status
+            . '|' . $reverseUdfs
+            . '|' . $email
+            . '|' . $firstname
+            . '|' . $productinfo
+            . '|' . $amount
+            . '|' . $txnid
+            . '|' . $key;
+
+        $expectedHashes = [strtolower(hash('sha512', $baseSequence))];
+
+        $additionalCharges = $request->input('additionalCharges');
+        if (!is_null($additionalCharges) && $additionalCharges !== '') {
+            $expectedHashes[] = strtolower(hash('sha512', $additionalCharges . '|' . $baseSequence));
+        }
+
+        foreach ($expectedHashes as $expectedHash) {
+            if (hash_equals($expectedHash, $receivedHash)) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private function sanitizedEasebuzzPayload(array $payload): array
+    {
+        unset($payload['hash'], $payload['key'], $payload['salt']);
+
+        return $payload;
     }
 
 
