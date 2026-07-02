@@ -260,64 +260,15 @@ class TestController extends Controller
 
     function courseFix()
     {
-        //old program course list
-        $oldCourses =  DB::table('program_course_masters')->count();  // 2219
-        //find new program courses List from cp_course_root table
-        $courseRoot =  DB::table('cp_course_root')->get(); // total = 2434
-
-        //run foreach loop on courseRoot to verify 
-        foreach ($courseRoot as $item) {
-            //find program_course_masters exist or not table
-            $record =  ProgramCourseMaster::where('course_code', $item->course_code)->first();
-
-            if ($record == null) {
-                //add the course in the ProgramCourseMaster Table
-                $rec = new ProgramCourseMaster();
-                $rec->department = $item->department;
-                $rec->academic_year = $item->academic_year;
-                $rec->course_type = $item->course_type;
-                $rec->credits = $item->credits;
-                $rec->internal = $item->internal;
-                $rec->external = $item->external;
-                $rec->course_code = $item->course_code;
-                $rec->course_title = $item->course_title;
-                $rec->paper_type = $item->paper_type;
-                $rec->save();
-            } else {
-                $newlyAddedCourses = [];
-                //record found...check for ids are same or not but course_code is same
-                if ($record->id != $item->id && $record->course_code == $item->course_code) {
-                    array_push($newlyAddedCourses, $record->id);
-                    /*
-                    $course_master_id = $record->id;
-                    //find if connected to any Subject
-                    $connectedToSubjects = SubjectCourseMaster::with('courseMaster.csos')->where('course_master_id', $course_master_id)->get();
-
-                    //update the program_course_masters table with new id
-                    $record->id = $item->id;
-                    $record->save();
-
-                    //update the subject_course_masters table with new id
-                    if ($connectedToSubjects != null) {
-                        SubjectCourseMaster::where('course_master_id', $course_master_id)->update([
-                            'course_master_id' => $item->id
-                        ]);
-                    }
-                    //update the CoHasCsos Table
-                    if ($connectedToSubjects->csos != null) {
-                        CoHasCso::where('co_id', $course_master_id)->update([
-                            'course_master_id' => $item->id
-                        ]);
-                    }*/
-                }
-            }
-        }
-        //Show the list of Records Updated
-        if ($newlyAddedCourses != null) {
-            return response()->json($newlyAddedCourses);
-        } else {
-            'Fixing Done No newly added courses';
-        }
+        //finding duplicate course codes
+        return    $duplicates = ProgramCourseMaster::whereIn('course_code', function ($query) {
+            $query->select('course_code')
+                ->from('program_course_masters')
+                ->groupBy('course_code')
+                ->havingRaw('COUNT(*) > 1');
+        })->withCount('csos')
+            ->orderBy('course_code')
+            ->get();
     }
 
     function fixFeeStructure()
