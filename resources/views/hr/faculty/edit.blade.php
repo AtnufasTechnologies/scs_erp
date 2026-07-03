@@ -75,6 +75,16 @@ $campuses = Campus::all();
                   <input type="date" name="DOJ" class="form-control" value="{{ old('DOJ', $faculty->DOJ) }}">
                 </div>
                 <div class="col-md-4 mb-3">
+                  <label class="form-label">Reactivation Date</label>
+                  <input type="date" name="reactivation_date" class="form-control @error('reactivation_date') is-invalid @enderror" value="{{ old('reactivation_date', $faculty->reactivation_date) }}">
+                  @error('reactivation_date')<div class="invalid-feedback">{{ $message }}</div>@enderror
+                </div>
+                <div class="col-md-12 mb-3">
+                  <label class="form-label">HR Remark</label>
+                  <textarea name="hr_remark" class="form-control @error('hr_remark') is-invalid @enderror" rows="2" placeholder="Use for resignation/rejoin notes or status context">{{ old('hr_remark', $faculty->hr_remark) }}</textarea>
+                  @error('hr_remark')<div class="invalid-feedback">{{ $message }}</div>@enderror
+                </div>
+                <div class="col-md-4 mb-3">
                   <label class="form-label">Nationality</label>
                   <select name="NATIONALITY" class="form-select dselect-example">
                     <option value="">Select Nationality</option>

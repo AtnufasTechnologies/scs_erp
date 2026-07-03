@@ -23,6 +23,8 @@ class Faculty extends Model
         'DOB',
         'DOJ',
         'DOL',
+        'reactivation_date',
+        'hr_remark',
         'IS_LEFT',
         'photo',
         'hr_designation_id',
@@ -164,5 +166,13 @@ class Faculty extends Model
     public function hrGradeLevel()
     {
         return $this->belongsTo(HrGradeLevel::class, 'hr_grade_level_id');
+    }
+
+    /**
+     * Get status history timeline for this faculty.
+     */
+    public function statusHistories()
+    {
+        return $this->hasMany(HrFacultyStatusHistory::class, 'faculty_id');
     }
 }

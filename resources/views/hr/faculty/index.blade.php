@@ -67,6 +67,7 @@
                 <th>Employeement Type</th>
                 <th>Designation</th>
                 <th>Status</th>
+                <th>HR Remark</th>
                 <th>Actions</th>
               </tr>
             </thead>
@@ -90,6 +91,7 @@
                   <span class="badge bg-success">Active Since {{$faculty->DOJ != null ? date('d-M-Y', strtotime($faculty->DOJ)) : '-'}} </span>
                   @endif
                 </td>
+                <td>{{ $faculty->hr_remark ? \Illuminate\Support\Str::limit($faculty->hr_remark, 40) : '-' }}</td>
                 <td>
                   <div class="btn-group btn-group-sm">
                     <a href="{{ route('hr.faculty.show', $faculty->id) }}" class="btn btn-outline-primary mx-2" title="View">
@@ -98,15 +100,27 @@
                     <a href="{{ route('hr.faculty.edit', $faculty->id) }}" class="btn btn-outline-secondary mx-2" title="Edit">
                       <i class="fas fa-edit"></i>
                     </a>
-                    <!-- Button trigger modal -->
+                    @if($faculty->IS_LEFT == 1)
+                    <button type="button" class="btn btn-success" data-bs-toggle="modal" data-bs-target="#reactivateModal"
+                      data-id="{{ $faculty->id }}"
+                      data-emp_code="{{ $faculty->USER_CODE }}"
+                      data-name="{{ $faculty->FIRST_NAME }} {{ $faculty->MIDDLE_NAME }} {{ $faculty->LAST_NAME }}"
+                      data-email="{{ $faculty->MAIL_ID }}"
+                      data-doj="{{ $faculty->DOJ ? date('Y-m-d', strtotime($faculty->DOJ)) : '' }}"
+                      data-hr_remark="{{ $faculty->hr_remark }}">
+                      Reactivate
+                    </button>
+                    @else
                     <button type="button" class="btn btn-danger" data-bs-toggle="modal" data-bs-target="#deactivateModal"
                       data-id="{{ $faculty->id }}"
                       data-emp_code="{{ $faculty->USER_CODE }}"
                       data-name="{{ $faculty->FIRST_NAME }} {{ $faculty->MIDDLE_NAME }} {{ $faculty->LAST_NAME }}"
                       data-email="{{ $faculty->MAIL_ID }}"
-                      data-dol="{{ date('Y-m-d', strtotime($faculty->DOL)) }}">
+                      data-dol="{{ $faculty->DOL ? date('Y-m-d', strtotime($faculty->DOL)) : '' }}"
+                      data-hr_remark="{{ $faculty->hr_remark }}">
                       Deactivate
                     </button>
+                    @endif
 
 
                   </div>
@@ -114,7 +128,7 @@
               </tr>
               @empty
               <tr>
-                <td colspan="6" class="text-center text-muted">No faculty members found</td>
+                <td colspan="9" class="text-center text-muted">No faculty members found</td>
               </tr>
               @endforelse
             </tbody>
@@ -149,6 +163,36 @@
           <input type="email" name="email" id="user_email" class="form-control mb-2" readonly>
           <label>Resignation Date <span class="text-danger">*</span></label>
           <input type="date" name="resignation_date" id="resignation_date" class="form-control mb-2">
+          <label>HR Remark</label>
+          <textarea name="hr_remark" id="hr_remark" class="form-control mb-2" rows="2" placeholder="Optional note for resignation/deactivation"></textarea>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+          <button type="submit" class="btn btn-success">Submit</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+
+<div class="modal fade" id="reactivateModal" tabindex="-1" aria-labelledby="reactivateModalLabel" aria-hidden="true">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title" id="reactivateModalLabel">Reactivate Staff # <span id="reactivate_emp_code"></span></h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <form action="" method="post" id="reactivateForm">
+        @csrf
+        <div class="modal-body">
+          <label>Name</label>
+          <input type="text" id="reactivate_user_name" class="form-control mb-2" readonly>
+          <label>Email</label>
+          <input type="email" id="reactivate_user_email" class="form-control mb-2" readonly>
+          <label>Rejoining Date (DOJ) <span class="text-danger">*</span></label>
+          <input type="date" name="DOJ" id="reactivation_date" class="form-control mb-2" required>
+          <label>HR Remark</label>
+          <textarea name="hr_remark" id="reactivate_hr_remark" class="form-control mb-2" rows="2" placeholder="Optional note for rejoin/reactivation"></textarea>
         </div>
         <div class="modal-footer">
           <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
@@ -160,6 +204,8 @@
 </div>
 @include('includes.footer')
 <script>
+  const restoreRouteTemplate = "{{ route('hr.faculty.restore', ['id' => '__ID__']) }}";
+
   const editModal = document.getElementById('deactivateModal');
   editModal.addEventListener('show.bs.modal', function(event) {
     // button which opened modal
@@ -170,6 +216,7 @@
     let email = button.getAttribute('data-email');
     let user_code = button.getAttribute('data-emp_code');
     let dol = button.getAttribute('data-dol');
+    let hr_remark = button.getAttribute('data-hr_remark');
     // fill modal inputs
 
     document.getElementById('id').value = id;
@@ -177,7 +224,26 @@
     document.getElementById('emp_code').textContent = user_code;
     document.getElementById('user_email').value = email;
     document.getElementById('resignation_date').value = dol;
+    document.getElementById('hr_remark').value = hr_remark ?? '';
 
 
+  });
+
+  const reactivateModal = document.getElementById('reactivateModal');
+  reactivateModal.addEventListener('show.bs.modal', function(event) {
+    let button = event.relatedTarget;
+    let id = button.getAttribute('data-id');
+    let name = button.getAttribute('data-name');
+    let email = button.getAttribute('data-email');
+    let user_code = button.getAttribute('data-emp_code');
+    let doj = button.getAttribute('data-doj');
+    let hr_remark = button.getAttribute('data-hr_remark');
+
+    document.getElementById('reactivate_emp_code').textContent = user_code;
+    document.getElementById('reactivate_user_name').value = name;
+    document.getElementById('reactivate_user_email').value = email;
+    document.getElementById('reactivation_date').value = doj ?? '';
+    document.getElementById('reactivate_hr_remark').value = hr_remark ?? '';
+    document.getElementById('reactivateForm').action = restoreRouteTemplate.replace('__ID__', id);
   });
 </script>

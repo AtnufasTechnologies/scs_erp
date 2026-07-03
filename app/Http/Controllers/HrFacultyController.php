@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\Faculty;
+use App\Models\HrFacultyStatusHistory;
 use App\Models\NationalityMaster;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -68,6 +69,8 @@ class HrFacultyController extends Controller
       'ADDRESS' => 'nullable|string',
       'DOB' => 'nullable|date',
       'DOJ' => 'nullable|date',
+      'reactivation_date' => 'nullable|date|after_or_equal:DOJ',
+      'hr_remark' => 'nullable|string|max:1000',
       'NATIONALITY' => 'nullable|exists:nationality_masters,id',
       'employee_type' => 'nullable|string|max:50',
       'designation' => 'nullable|string|max:100',
@@ -109,6 +112,9 @@ class HrFacultyController extends Controller
   {
     $faculty = Faculty::with([
       'nationality',
+      'statusHistories' => function ($q) {
+        $q->latest('status_on')->latest('id');
+      },
       'leaveApplications' => function ($q) {
         $q->orderBy('created_at', 'desc')->limit(10);
       },
@@ -166,6 +172,8 @@ class HrFacultyController extends Controller
       'DOB' => 'nullable|date',
       'DOJ' => 'nullable|date',
       'DOL' => 'nullable|date',
+      'reactivation_date' => 'nullable|date|after_or_equal:DOJ',
+      'hr_remark' => 'nullable|string|max:1000',
       'IS_LEFT' => 'nullable|boolean',
       'NATIONALITY' => 'nullable|exists:nationality_masters,id',
       'employee_type' => 'nullable|string|max:50',
@@ -219,13 +227,26 @@ class HrFacultyController extends Controller
   {
     $validated = $request->validate([
       'DOL' => 'required|date',
+      'hr_remark' => 'nullable|string|max:1000',
     ]);
 
     $faculty = Faculty::findOrFail($id);
+    $oldStatus = (int) $faculty->IS_LEFT;
     $faculty->update([
       'IS_LEFT' => 1,
       'DOL' => $validated['DOL'],
+      'reactivation_date' => null,
+      'hr_remark' => $validated['hr_remark'] ?? $faculty->hr_remark,
     ]);
+
+    $this->logStatusEvent(
+      $faculty,
+      'deactivated',
+      $validated['DOL'],
+      $validated['hr_remark'] ?? null,
+      $oldStatus,
+      1
+    );
 
     return redirect()->route('hr.faculty.show', $faculty->id)
       ->with('success', 'Faculty marked as left!');
@@ -234,13 +255,31 @@ class HrFacultyController extends Controller
   /**
    * Restore faculty (mark as active)
    */
-  public function restore($id)
+  public function restore(Request $request, $id)
   {
+    $validated = $request->validate([
+      'DOJ' => 'required|date',
+      'hr_remark' => 'nullable|string|max:1000',
+    ]);
+
     $faculty = Faculty::findOrFail($id);
+    $oldStatus = (int) $faculty->IS_LEFT;
     $faculty->update([
       'IS_LEFT' => 0,
       'DOL' => null,
+      'DOJ' => $validated['DOJ'],
+      'reactivation_date' => null,
+      'hr_remark' => $validated['hr_remark'] ?? $faculty->hr_remark,
     ]);
+
+    $this->logStatusEvent(
+      $faculty,
+      'reactivated',
+      $validated['DOJ'],
+      $validated['hr_remark'] ?? null,
+      $oldStatus,
+      0
+    );
 
     return redirect()->route('hr.faculty.show', $faculty->id)
       ->with('success', 'Faculty restored to active status!');
@@ -248,13 +287,47 @@ class HrFacultyController extends Controller
 
   function deactivateFaculty(Request $request)
   {
-    $faculty = Faculty::findOrFail($request->id);
+    $validated = $request->validate([
+      'id' => 'required|exists:faculties,id',
+      'resignation_date' => 'required|date',
+      'hr_remark' => 'nullable|string|max:1000',
+    ]);
+
+    $faculty = Faculty::findOrFail($validated['id']);
+    $oldStatus = (int) $faculty->IS_LEFT;
     $faculty->update([
       'IS_LEFT' => 1,
-      'DOL' => $request->resignation_date,
+      'DOL' => $validated['resignation_date'],
+      'reactivation_date' => null,
+      'hr_remark' => $validated['hr_remark'] ?? $faculty->hr_remark,
     ]);
+
+    $this->logStatusEvent(
+      $faculty,
+      'deactivated',
+      $validated['resignation_date'],
+      $validated['hr_remark'] ?? null,
+      $oldStatus,
+      1
+    );
 
     return redirect()->route('hr.faculty.index')
       ->with('success', 'Staff deactivated successfully!');
+  }
+
+  /**
+   * Create a faculty status transition audit record.
+   */
+  private function logStatusEvent(Faculty $faculty, string $eventType, ?string $statusOn, ?string $remark, ?int $oldStatus, ?int $newStatus): void
+  {
+    HrFacultyStatusHistory::create([
+      'faculty_id' => $faculty->id,
+      'event_type' => $eventType,
+      'status_on' => $statusOn,
+      'remark' => $remark,
+      'old_status' => $oldStatus,
+      'new_status' => $newStatus,
+      'acted_by' => Auth::id(),
+    ]);
   }
 }

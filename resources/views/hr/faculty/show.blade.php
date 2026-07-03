@@ -121,7 +121,7 @@
                 <td>{{ $faculty->DOB ? date('d M Y', strtotime($faculty->DOB)) : '-' }}</td>
               </tr>
               <tr>
-                <th>Date of Joining:</th>
+                <th>Date of Joining / Rejoining:</th>
                 <td>{{ $faculty->DOJ ? date('d M Y', strtotime($faculty->DOJ)) : '-' }}</td>
               </tr>
               <tr>
@@ -141,6 +141,10 @@
                   <span class="badge bg-success">Active</span>
                   @endif
                 </td>
+              </tr>
+              <tr>
+                <th>HR Remark:</th>
+                <td>{{ $faculty->hr_remark ?? '-' }}</td>
               </tr>
             </table>
           </div>
@@ -245,6 +249,52 @@
                 <td>{{ $faculty->bank_ifsc_code ?? '-' }}</td>
               </tr>
             </table>
+          </div>
+        </div>
+
+        <div class="card mt-3">
+          <div class="card-header">
+            <h6 class="mb-0">Status History</h6>
+          </div>
+          <div class="card-body">
+            <div class="table-responsive">
+              <table class="table table-sm table-striped align-middle mb-0">
+                <thead>
+                  <tr>
+                    <th>Date</th>
+                    <th>Event</th>
+                    <th>Status Change</th>
+                    <th>Remark</th>
+                    <th>Logged At</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  @forelse($faculty->statusHistories as $history)
+                  <tr>
+                    <td>{{ $history->status_on ? date('d M Y', strtotime($history->status_on)) : '-' }}</td>
+                    <td>
+                      @if($history->event_type === 'reactivated')
+                      <span class="badge bg-success">Reactivated</span>
+                      @else
+                      <span class="badge bg-danger">Deactivated</span>
+                      @endif
+                    </td>
+                    <td>
+                      {{ (int)$history->old_status === 1 ? 'Left' : 'Active' }}
+                      to
+                      {{ (int)$history->new_status === 1 ? 'Left' : 'Active' }}
+                    </td>
+                    <td>{{ $history->remark ?: '-' }}</td>
+                    <td>{{ $history->created_at ? $history->created_at->format('d M Y h:i A') : '-' }}</td>
+                  </tr>
+                  @empty
+                  <tr>
+                    <td colspan="5" class="text-center text-muted">No status history available</td>
+                  </tr>
+                  @endforelse
+                </tbody>
+              </table>
+            </div>
           </div>
         </div>
       </div>
