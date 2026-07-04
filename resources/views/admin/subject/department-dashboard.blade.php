@@ -13,7 +13,7 @@ use Illuminate\Support\Facades\Auth;
 $batches = BatchMaster::latest()->get();
 $semesters = Semester::get();
 $course_master = SubjectCourseMaster::with('courseMaster')->where('subject_id', $data->id)->get();
-$faculties = Faculty::where('IS_LEFT', 0)->get();
+$faculties = Faculty::all();
 $mainStreams = ProgramMaster::all();
 ?>
 @include('includes.header')
