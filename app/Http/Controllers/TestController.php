@@ -25,11 +25,13 @@ use App\Models\UserHasRole;
 use App\Models\CiaMark;
 use App\Models\CoHasCso;
 use App\Models\ProgramCourseMaster;
+use App\Models\ProgramCourseMasterNew;
 use App\Models\SubjectCourseMaster;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Mail;
+use Illuminate\Support\Str;
 
 class TestController extends Controller
 {
@@ -261,14 +263,66 @@ class TestController extends Controller
     function courseFix()
     {
         //finding duplicate course codes
-        return    $duplicates = ProgramCourseMaster::whereIn('course_code', function ($query) {
-            $query->select('course_code')
-                ->from('program_course_masters')
-                ->groupBy('course_code')
-                ->havingRaw('COUNT(*) > 1');
-        })->withCount('csos')
-            ->orderBy('course_code')
-            ->get();
+        // return    $duplicates = ProgramCourseMaster::whereIn('course_code', function ($query) {
+        //     $query->select('course_code')
+        //         ->from('program_course_masters')
+        //         ->groupBy('course_code')
+        //         ->havingRaw('COUNT(*) > 1');
+        // })->withCount('csos')
+        //     ->orderBy('course_code')
+        //     ->get();
+
+
+        $olddata = ProgramCourseMaster::get();
+        // $newdata = ProgramCourseMasterNew::get();
+
+
+        foreach ($olddata as $item) {
+            //old data match the course_code with newdata course_code
+            $matchCheck =  ProgramCourseMasterNew::where('course_code', $item->course_code)->first();
+            //if match is Yes 
+            if ($matchCheck != null) {
+                //if same course existing in subjectCourseMaster
+                $checkSubjectCourseMaster = SubjectCourseMaster::where('course_master_id', $matchCheck)->get();
+                //if exist in above check then update the SubjectSourseMaster where olddata course_id to newdata course_id
+                if ($checkSubjectCourseMaster != null) {
+                    SubjectCourseMaster::where('course_master_id', $item->id)->update([
+                        'course_master_id' =>   $matchCheck->id
+                    ]);
+                }
+            } else {
+
+                //if match is no
+
+                //insert the record in the newdata table...
+                $rec = new ProgramCourseMasterNew();
+                $rec->academic_year = $item->academic_year;
+                $rec->course_code = Str::upper($item->course_code);
+                $rec->course_title = $item->course_title;
+                $rec->course_type = $item->course_type;
+                $rec->department = $item->subject_id;
+                $rec->internal = $item->internal;
+                $rec->external =  $item->external;
+                $rec->total = $item->internal + $item->external;
+                $rec->credits = $item->credits;
+                $rec->paper_type_id = $item->paper_type_id;
+                $rec->total_alloted_hours = $item->total_alloted_hours;
+                $rec->is_deleted = 0;
+                $rec->save();
+
+                //fetch the newly created record id
+                $newlyCreatedId = $rec->id;
+                //update the SubjectCourseMaster where olddata course_id to newly created course_id
+                if ($checkSubjectCourseMaster != null) {
+                    SubjectCourseMaster::where('course_master_id', $item->id)->update([
+                        'course_master_id' =>   $newlyCreatedId
+                    ]);
+                }
+            }
+        }
+
+        //Done... Check and review
+        dd('Migration Complete .... Please check and Review');
     }
 
     function fixFeeStructure()

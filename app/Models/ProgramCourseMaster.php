@@ -9,6 +9,8 @@ use Illuminate\Database\Eloquent\SoftDeletes;
 class ProgramCourseMaster extends Model
 {
     use HasFactory, SoftDeletes;
+
+    protected $table = 'program_course_master_new';
     protected $fillable = [
         'department',
         'academic_year',
