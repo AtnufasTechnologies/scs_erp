@@ -2,7 +2,7 @@
 
 use App\Models\Faculty;
 
-$faculties = Faculty::where('IS_LEFT', 0)->get();
+$faculties = Faculty::all();
 ?>
 @include('includes.header')
 @include('includes.dept-sidebar')
