@@ -80,6 +80,7 @@ $campuses = Campus::latest()->get();
         <th>Code</th>
         <th>Academic Department Name</th>
         <th>Main Program Type</th>
+        <th>Admission Form Visibility</th>
         <th>Edit</th>
         <th>View</th>
         <th>Delete</th>
@@ -95,6 +96,11 @@ $campuses = Campus::latest()->get();
         <td><span>{{$item->code}}</span></td>
         <td><span>{{$item->title}}</span></td>
         <td><span class="text-capitalize">{{$item->main_program_type}}</span></td>
+        <td><a href="{{route('toggle.subject.visibility.admission',[$item->id])}}">
+            <span class="badge {{$item->display_in_admission_form == 1? 'badge-success' : 'badge-danger'}}">
+              {{$item->display_in_admission_form == 1? 'Yes' : 'No'}}</span>
+          </a>
+        </td>
         <td>
           <!-- Button trigger modal -->
           <button type="button" class="btn btn-warning" data-bs-toggle="modal" data-bs-target="#edit{{$item->id}}">

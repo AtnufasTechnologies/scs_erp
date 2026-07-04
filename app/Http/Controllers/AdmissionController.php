@@ -410,6 +410,7 @@ class AdmissionController extends Controller
 
             $academic_departments = Subject::where('campus_id', $campusId)
                 ->where('main_program_type', 'UG')
+                ->where('display_in_admission_form', 1)
                 ->get();
 
             return view('admission.ug-application', array_merge($commonData, [

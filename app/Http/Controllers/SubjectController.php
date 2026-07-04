@@ -1765,4 +1765,14 @@ class SubjectController extends Controller
 
         return redirect()->back()->with('success', 'CSO Subunit updated successfully');
     }
+
+    function toggleAdmissionFormVisibility($id)
+    {
+        $data = Subject::find($id);
+        Subject::where('id', $id)->update([
+            'display_in_admission_form' =>  $data->display_in_admission_form === 1 ? 0 : 1,
+        ]);
+
+        return redirect()->back()->with('success', 'Department Admission Form Visibility Updated');
+    }
 }

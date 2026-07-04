@@ -171,6 +171,7 @@ Route::group(['prefix' => '/erp'], function () {
             Route::post('link-student-programs', [SubjectController::class, 'linkStdPrograms'])->name('add.programs.to.subject');
             Route::post('add-subject-semester', [SubjectController::class, 'addSemesterToSubject'])->name('add.semester.to.subject');
             Route::post('update-academic-dept/{id}', [SubjectController::class, 'updateAcademicDept'])->name('admin.master.update.academic-dept');
+            Route::get('toggle-subject-visibility/{id}', [SubjectController::class, 'toggleAdmissionFormVisibility'])->name('toggle.subject.visibility.admission');
             //lecture halls
 
             Route::get('lecturehalls', [AdminController::class, 'lectureHalls']);
@@ -1258,9 +1259,9 @@ Route::group(['prefix' => '/erp'], function () {
 
     //Testing route
     Route::group(['prefix' => '/test',], function () {
-        Route::get('fix-fee-structure', [TestController::class, 'fixFeeStructure']);
-        Route::get('fix-courses', [TestController::class, 'courseFix']);
-        Route::get('fix-admission-enrollment', [TestController::class, 'fixAdmissionEnrollment']); //run once to fix enrollment number in student master table
+        // Route::get('fix-fee-structure', [TestController::class, 'fixFeeStructure']);
+        // Route::get('fix-courses', [TestController::class, 'courseFix']);
+        // Route::get('fix-admission-enrollment', [TestController::class, 'fixAdmissionEnrollment']); //run once to fix enrollment number in student master table
         // Route::get('fee-issue-fix', [TestController::class, 'feesIssueFixing']); //run once to test fee structure creation logic
         // Route::get('create-student-login', [TestController::class, 'createStudentLogin']); //run once to create student login for all students in student master
         // Route::get('delete-student-login', [TestController::class, 'delAllStudentAccount']); //run once to delete all student login (if needed)
