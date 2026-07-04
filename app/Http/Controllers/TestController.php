@@ -290,6 +290,13 @@ class TestController extends Controller
                         'course_master_id' =>   $matchCheck->id
                     ]);
                 }
+                //check CoHasCos for subunit mapping
+                $CosdataCheck =  CoHasCso::where('co_id', $item->id)->get();
+                if ($CosdataCheck != null) {
+                    CoHasCso::where('co_id', $item->id)->update([
+                        'co_id' => $matchCheck->id
+                    ]);
+                }
             } else {
 
                 //if match is no
@@ -316,6 +323,14 @@ class TestController extends Controller
                 if ($checkSubjectCourseMaster != null) {
                     SubjectCourseMaster::where('course_master_id', $item->id)->update([
                         'course_master_id' =>   $newlyCreatedId
+                    ]);
+                }
+
+                //check CoHasCos for subunit mapping
+                $CosdataCheck =  CoHasCso::where('co_id', $item->id)->get();
+                if ($CosdataCheck != null) {
+                    CoHasCso::where('co_id', $item->id)->update([
+                        'co_id' => $newlyCreatedId
                     ]);
                 }
             }
