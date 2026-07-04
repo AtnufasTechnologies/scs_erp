@@ -41,21 +41,7 @@ Salary Slip Details
       <div class="card-body">
         <div class="d-flex justify-content-between align-items-center mb-4">
           <h4 class="mb-0">Salary Slip: {{ $salarySlip->salary_slip_number }}</h4>
-          <div>
-            @if($salarySlip->status == 'draft')
-            <form action="{{ route('hr.payroll.approve', $salarySlip->id) }}" method="POST" style="display: inline;">
-              @csrf
-              <button type="submit" class="btn btn-success">
-                <i class="fas fa-check"></i> Approve
-              </button>
-            </form>
-            @endif
-            @if($salarySlip->status == 'approved')
-            <button type="button" class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#markPaidModal">
-              <i class="fas fa-money-bill-wave"></i> Mark as Paid
-            </button>
-            @endif
-          </div>
+          <div></div>
         </div>
 
         <div class="row">
@@ -227,45 +213,6 @@ Salary Slip Details
   </div>
 </main>
 <!--end main wrapper-->
-
-<!-- Mark as Paid Modal -->
-<div class="modal fade" id="markPaidModal" tabindex="-1">
-  <div class="modal-dialog">
-    <div class="modal-content">
-      <form action="{{ route('hr.payroll.mark-paid', $salarySlip->id) }}" method="POST">
-        @csrf
-        <div class="modal-header">
-          <h5 class="modal-title">Mark Salary as Paid</h5>
-          <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
-        </div>
-        <div class="modal-body">
-          <div class="mb-3">
-            <label class="form-label">Payment Date <span class="text-danger">*</span></label>
-            <input type="date" name="payment_date" class="form-control" value="{{ date('Y-m-d') }}" required>
-          </div>
-          <div class="mb-3">
-            <label class="form-label">Payment Mode <span class="text-danger">*</span></label>
-            <select name="payment_mode" class="form-select" required>
-              <option value="">Select Payment Mode</option>
-              <option value="bank_transfer">Bank Transfer</option>
-              <option value="cash">Cash</option>
-              <option value="cheque">Cheque</option>
-            </select>
-          </div>
-          <div class="mb-3">
-            <label class="form-label">Payment Reference</label>
-            <input type="text" name="payment_reference" class="form-control"
-              placeholder="Transaction ID / Cheque Number">
-          </div>
-        </div>
-        <div class="modal-footer">
-          <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
-          <button type="submit" class="btn btn-primary">Mark as Paid</button>
-        </div>
-      </form>
-    </div>
-  </div>
-</div>
 
 @include('includes.footer')
 @endsection

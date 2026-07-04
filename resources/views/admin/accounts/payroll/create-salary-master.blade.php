@@ -93,28 +93,17 @@
             <div class="col-md-6">
               <h6 class="mb-3 text-danger"><i class="fas fa-minus-circle"></i> Deductions</h6>
 
-              <div class="mb-2">
-                <label class="form-label">PF</label>
-                <input type="number" name="pf" class="form-control" step="0.01" value="0">
+              <div class="alert alert-info">
+                <i class="fas fa-info-circle"></i>
+                <strong>Auto Applied:</strong> TDS, EPF, PT, LWF and ESIC are pulled automatically from active deduction master assignments for the selected faculty.
               </div>
-              <div class="mb-2">
-                <label class="form-label">ESI</label>
-                <input type="number" name="esi" class="form-control" step="0.01" value="0">
+
+              <div class="alert alert-light mt-3">
+                <strong>Important:</strong> Create/assign deduction masters first, then create salary master. Assigned deduction parameters will be applied automatically.
               </div>
-              <div class="mb-2">
-                <label class="form-label">Professional Tax</label>
-                <input type="number" name="professional_tax" class="form-control" step="0.01" value="0">
-              </div>
-              <div class="mb-2">
-                <label class="form-label">TDS</label>
-                <input type="number" name="tds" class="form-control" step="0.01" value="0">
-              </div>
-              <div class="mb-2">
-                <label class="form-label">Other Deductions</label>
-                <input type="number" name="other_deductions" class="form-control" step="0.01" value="0">
-              </div>
-              <div class="alert alert-info mt-3">
-                <i class="fas fa-info-circle"></i> <strong>Note:</strong> Loan deductions will be added automatically when generating monthly salary slips based on active loans.
+
+              <div class="alert alert-secondary mt-3 mb-0">
+                <i class="fas fa-info-circle"></i> Loan deductions are added separately during monthly payroll generation.
               </div>
             </div>
           </div>

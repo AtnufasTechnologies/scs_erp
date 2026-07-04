@@ -125,28 +125,45 @@ $isAssistant = $roleType === 'account-office-assistant';
 
     @if($isIncharge || StaticController::subMenuRights('faculty-pay-roll'))
     <li>
-      <a href="{{route('admin.payroll.index')}}">
-        <div class="parent-icon">
-          <i class="fas fa-chalkboard-teacher"></i>
-        </div>
-        <div class="menu-title">Faculty Payroll</div>
+      <a class="has-arrow" href="javascript:;">
+        <div class="parent-icon"><i class="far fa-wallet"></i></div>
+        <div class="menu-title">Salary Management</div>
       </a>
-    </li>
-    <li>
-      <a href="{{route('admin.payroll.loans')}}">
-        <div class="parent-icon">
-          <i class="fas fa-hand-holding-medical"></i>
-        </div>
-        <div class="menu-title">Faculty Loans</div>
-      </a>
-    </li>
-    <li>
-      <a href="{{route('admin.payroll.salary-masters')}}">
-        <div class="parent-icon">
-          <i class="fas fa-money-check-alt"></i>
-        </div>
-        <div class="menu-title">Salary Masters</div>
-      </a>
+      <ul>
+        <li>
+          <a href="{{route('admin.payroll.salary-masters')}}">
+            <div class="parent-icon">
+              <i class="fas fa-money-check-alt"></i>
+            </div>
+            <div class="menu-title">Salary Masters</div>
+          </a>
+        </li>
+        <li>
+          <a href="{{route('admin.payroll.index')}}">
+            <div class="parent-icon">
+              <i class="fas fa-chalkboard-teacher"></i>
+            </div>
+            <div class="menu-title">Faculty Payroll</div>
+          </a>
+        </li>
+        <li>
+          <a href="{{route('admin.payroll.loans')}}">
+            <div class="parent-icon">
+              <i class="fas fa-hand-holding-medical"></i>
+            </div>
+            <div class="menu-title">Faculty Loans</div>
+          </a>
+        </li>
+        <li>
+          <a href="{{route('admin.payroll.deductions')}}">
+            <div class="parent-icon">
+              <i class="fas fa-minus-circle"></i>
+            </div>
+            <div class="menu-title">Deduction Masters</div>
+          </a>
+        </li>
+
+      </ul>
     </li>
     @endif
 

@@ -4,6 +4,9 @@ namespace App\Http\Controllers;
 
 use App\Models\HrPayMatrix;
 use App\Models\FacultySalaryMaster;
+use App\Models\Faculty;
+use App\Models\HrDesignation;
+use App\Models\HrGradeLevel;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
@@ -85,13 +88,6 @@ class HrPayMatrixController extends Controller
       'medical_allowance' => 'nullable|numeric|min:0',
       'special_allowance' => 'nullable|numeric|min:0',
       'other_allowances' => 'nullable|numeric|min:0',
-      'pf_percentage' => 'nullable|numeric|min:0|max:100',
-      'pf_fixed' => 'nullable|numeric|min:0',
-      'esi_percentage' => 'nullable|numeric|min:0|max:100',
-      'esi_fixed' => 'nullable|numeric|min:0',
-      'professional_tax' => 'nullable|numeric|min:0',
-      'tds_percentage' => 'nullable|numeric|min:0|max:100',
-      'other_deductions' => 'nullable|numeric|min:0',
       'annual_increment_percentage' => 'nullable|numeric|min:0|max:100',
       'increment_month' => 'nullable|integer|min:1|max:12',
       'default_working_days' => 'required|integer|min:1|max:31',
@@ -103,6 +99,37 @@ class HrPayMatrixController extends Controller
     ]);
 
     try {
+      $validated['increment_month'] = $validated['increment_month'] ?? 7;
+      $validated['annual_increment_percentage'] = $validated['annual_increment_percentage'] ?? 0;
+      $validated['da_percentage'] = $validated['da_percentage'] ?? 0;
+      $validated['da_fixed'] = $validated['da_fixed'] ?? 0;
+      $validated['hra_percentage'] = $validated['hra_percentage'] ?? 0;
+      $validated['hra_fixed'] = $validated['hra_fixed'] ?? 0;
+      $validated['ta'] = $validated['ta'] ?? 0;
+      $validated['medical_allowance'] = $validated['medical_allowance'] ?? 0;
+      $validated['special_allowance'] = $validated['special_allowance'] ?? 0;
+      $validated['other_allowances'] = $validated['other_allowances'] ?? 0;
+      // Deductions are managed by Accounts during payroll processing.
+      $validated['pf_percentage'] = 0;
+      $validated['pf_fixed'] = 0;
+      $validated['esi_percentage'] = 0;
+      $validated['esi_fixed'] = 0;
+      $validated['professional_tax'] = 0;
+      $validated['tds_percentage'] = 0;
+      $validated['other_deductions'] = 0;
+
+      $designation = HrDesignation::findOrFail($validated['designation_id']);
+      $gradeLevel = HrGradeLevel::findOrFail($validated['grade_level_id']);
+
+      // Keep legacy string columns populated while retaining master IDs.
+      if (empty(trim((string) ($validated['designation'] ?? '')))) {
+        $validated['designation'] = $designation->name;
+      }
+
+      if (empty(trim((string) ($validated['grade_level'] ?? '')))) {
+        $validated['grade_level'] = $gradeLevel->name;
+      }
+
       $payMatrix = HrPayMatrix::create($validated);
 
       return redirect()
@@ -126,10 +153,27 @@ class HrPayMatrixController extends Controller
     // Get salary components breakdown
     $components = $payMatrix->getSalaryComponents();
 
-    // Get faculty members using this pay matrix
-    $facultyCount = $payMatrix->facultySalaries()->count();
+    // Count currently active assignments for this pay matrix.
+    $facultyCount = $payMatrix->facultySalaries()->where('status', 'active')->count();
 
-    return view('hr.pay-matrix.show', compact('payMatrix', 'components', 'facultyCount'));
+    $assignedSalaryMasters = FacultySalaryMaster::with('faculty')
+      ->where('pay_matrix_id', $payMatrix->id)
+      ->where('status', 'active')
+      ->orderByDesc('effective_from')
+      ->get();
+
+    $alreadyAssignedFacultyIds = $assignedSalaryMasters
+      ->pluck('faculty_id')
+      ->filter()
+      ->unique()
+      ->values();
+
+    $faculties = Faculty::where('IS_LEFT', 0)
+      ->whereNotIn('id', $alreadyAssignedFacultyIds)
+      ->orderBy('FIRST_NAME')
+      ->get();
+
+    return view('hr.pay-matrix.show', compact('payMatrix', 'components', 'facultyCount', 'assignedSalaryMasters', 'faculties'));
   }
 
   /**
@@ -138,8 +182,10 @@ class HrPayMatrixController extends Controller
   public function edit($id)
   {
     $payMatrix = HrPayMatrix::findOrFail($id);
+    $designations = HrDesignation::active()->ordered()->get();
+    $gradeLevels = HrGradeLevel::active()->ordered()->get();
 
-    return view('hr.pay-matrix.edit', compact('payMatrix'));
+    return view('hr.pay-matrix.edit', compact('payMatrix', 'designations', 'gradeLevels'));
   }
 
   /**
@@ -151,8 +197,10 @@ class HrPayMatrixController extends Controller
 
     $validated = $request->validate([
       'matrix_name' => 'required|string|max:255',
-      'designation' => 'required|string|max:255',
-      'grade_level' => 'required|string|max:255',
+      'designation_id' => 'required|exists:hr_designations,id',
+      'grade_level_id' => 'required|exists:hr_grade_levels,id',
+      'designation' => 'nullable|string|max:255',
+      'grade_level' => 'nullable|string|max:255',
       'pay_band' => 'nullable|integer',
       'grade_pay' => 'nullable|integer',
       'employment_type' => 'required|in:permanent,contractual,adhoc,guest,visiting',
@@ -165,13 +213,6 @@ class HrPayMatrixController extends Controller
       'medical_allowance' => 'nullable|numeric|min:0',
       'special_allowance' => 'nullable|numeric|min:0',
       'other_allowances' => 'nullable|numeric|min:0',
-      'pf_percentage' => 'nullable|numeric|min:0|max:100',
-      'pf_fixed' => 'nullable|numeric|min:0',
-      'esi_percentage' => 'nullable|numeric|min:0|max:100',
-      'esi_fixed' => 'nullable|numeric|min:0',
-      'professional_tax' => 'nullable|numeric|min:0',
-      'tds_percentage' => 'nullable|numeric|min:0|max:100',
-      'other_deductions' => 'nullable|numeric|min:0',
       'annual_increment_percentage' => 'nullable|numeric|min:0|max:100',
       'increment_month' => 'nullable|integer|min:1|max:12',
       'default_working_days' => 'required|integer|min:1|max:31',
@@ -183,6 +224,36 @@ class HrPayMatrixController extends Controller
     ]);
 
     try {
+      $validated['increment_month'] = $validated['increment_month'] ?? 7;
+      $validated['annual_increment_percentage'] = $validated['annual_increment_percentage'] ?? 0;
+      $validated['da_percentage'] = $validated['da_percentage'] ?? 0;
+      $validated['da_fixed'] = $validated['da_fixed'] ?? 0;
+      $validated['hra_percentage'] = $validated['hra_percentage'] ?? 0;
+      $validated['hra_fixed'] = $validated['hra_fixed'] ?? 0;
+      $validated['ta'] = $validated['ta'] ?? 0;
+      $validated['medical_allowance'] = $validated['medical_allowance'] ?? 0;
+      $validated['special_allowance'] = $validated['special_allowance'] ?? 0;
+      $validated['other_allowances'] = $validated['other_allowances'] ?? 0;
+      // Deductions are managed by Accounts during payroll processing.
+      $validated['pf_percentage'] = 0;
+      $validated['pf_fixed'] = 0;
+      $validated['esi_percentage'] = 0;
+      $validated['esi_fixed'] = 0;
+      $validated['professional_tax'] = 0;
+      $validated['tds_percentage'] = 0;
+      $validated['other_deductions'] = 0;
+
+      $designation = HrDesignation::findOrFail($validated['designation_id']);
+      $gradeLevel = HrGradeLevel::findOrFail($validated['grade_level_id']);
+
+      if (empty(trim((string) ($validated['designation'] ?? '')))) {
+        $validated['designation'] = $designation->name;
+      }
+
+      if (empty(trim((string) ($validated['grade_level'] ?? '')))) {
+        $validated['grade_level'] = $gradeLevel->name;
+      }
+
       $payMatrix->update($validated);
 
       return redirect()
@@ -299,11 +370,12 @@ class HrPayMatrixController extends Controller
           'medical_allowance' => $components['earnings']['medical_allowance'],
           'special_allowance' => $components['earnings']['special_allowance'],
           'other_allowances' => $components['earnings']['other_allowances'],
-          'pf' => $components['deductions']['pf'],
-          'esi' => $components['deductions']['esi'],
-          'professional_tax' => $components['deductions']['professional_tax'],
-          'tds' => $components['deductions']['tds'],
-          'other_deductions' => $components['deductions']['other_deductions'],
+          // Deductions are entered by Accounts at payroll stage.
+          'pf' => 0,
+          'esi' => 0,
+          'professional_tax' => 0,
+          'tds' => 0,
+          'other_deductions' => 0,
           'working_days' => $payMatrix->default_working_days,
           'status' => 'active',
           'effective_from' => $validated['effective_from'],

@@ -106,12 +106,6 @@
       </a>
     </li>
     <li>
-      <a href="{{ route('hr.payroll.generate') }}">
-        <div class="parent-icon"><i class="fas fa-wallet"></i></div>
-        <div class="menu-title">Generate Payroll</div>
-      </a>
-    </li>
-    <li>
       <a href="{{ route('hr.payroll.statistics') }}">
         <div class="parent-icon"><i class="fas fa-chart-bar"></i></div>
         <div class="menu-title">Payroll Statistics</div>

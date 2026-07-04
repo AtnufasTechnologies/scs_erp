@@ -131,8 +131,9 @@
                 <input type="number" name="loan_deduction" class="form-control" step="0.01" value="{{ $salarySlip->loan_deduction }}">
               </div>
               <div class="mb-2">
-                <label class="form-label">Other Deductions</label>
+                <label class="form-label">Other / Leave Deduction (Manual Monthly)</label>
                 <input type="number" name="other_deductions" class="form-control" step="0.01" value="{{ $salarySlip->other_deductions }}">
+                <small class="text-muted">Extra leave-based salary deduction should be edited manually for this month.</small>
               </div>
             </div>
           </div>

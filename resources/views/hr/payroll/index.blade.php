@@ -12,11 +12,7 @@
       </ol>
     </nav>
   </div>
-  <div class="ms-auto">
-    <a href="{{ route('hr.payroll.generate') }}" class="btn btn-primary">
-      <i class="fas fa-wallet"></i> Generate Payroll
-    </a>
-  </div>
+  <div class="ms-auto"></div>
 </div>
 <!--end breadcrumb-->
 
@@ -33,6 +29,10 @@
   <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
 </div>
 @endif
+
+<div class="alert alert-info">
+  Payroll generation, approvals, and deductions are managed by Accounts office. HR has view-only access here.
+</div>
 
 <!-- Statistics Cards -->
 <div class="row row-cols-1 row-cols-md-2 row-cols-xl-4 g-3 mb-4">
@@ -185,26 +185,6 @@
                 <a href="{{ route('hr.payroll.show', $slip->id) }}" class="btn btn-sm btn-info" title="View">
                   <i class="fas fa-eye"></i>
                 </a>
-                @if($slip->status == 'draft')
-                <form action="{{ route('hr.payroll.approve', $slip->id) }}" method="POST"
-                  style="display: inline;">
-                  @csrf
-                  <button type="submit" class="btn btn-sm btn-success" title="Approve">
-                    <i class="fas fa-check"></i>
-                  </button>
-                </form>
-                @endif
-                @if($slip->status != 'paid')
-                <form action="{{ route('hr.payroll.destroy', $slip->id) }}" method="POST"
-                  style="display: inline;"
-                  onsubmit="return confirm('Are you sure you want to delete this salary slip?');">
-                  @csrf
-                  @method('DELETE')
-                  <button type="submit" class="btn btn-sm btn-danger" title="Delete">
-                    <i class="fas fa-trash"></i>
-                  </button>
-                </form>
-                @endif
               </div>
             </td>
           </tr>

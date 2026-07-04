@@ -18,6 +18,8 @@ class HrPayMatrix extends Model
     'matrix_name',
     'designation',
     'grade_level',
+    'designation_id',
+    'grade_level_id',
     'pay_band',
     'grade_pay',
     'employment_type',
@@ -195,29 +197,18 @@ class HrPayMatrix extends Model
   // Calculate PF amount (percentage or fixed)
   public function calculatePF()
   {
-    if ($this->pf_percentage > 0) {
-      return ($this->basic_salary * $this->pf_percentage) / 100;
-    }
-    return $this->pf_fixed;
+    return 0;
   }
 
   // Calculate ESI amount (percentage or fixed)
   public function calculateESI()
   {
-    if ($this->esi_percentage > 0) {
-      $grossSalary = $this->calculateGrossSalary();
-      return ($grossSalary * $this->esi_percentage) / 100;
-    }
-    return $this->esi_fixed;
+    return 0;
   }
 
   // Calculate TDS amount
   public function calculateTDS()
   {
-    if ($this->tds_percentage > 0) {
-      $grossSalary = $this->calculateGrossSalary();
-      return ($grossSalary * $this->tds_percentage) / 100;
-    }
     return 0;
   }
 
@@ -236,11 +227,7 @@ class HrPayMatrix extends Model
   // Calculate total deductions
   public function calculateTotalDeductions()
   {
-    return $this->calculatePF()
-      + $this->calculateESI()
-      + $this->professional_tax
-      + $this->calculateTDS()
-      + $this->other_deductions;
+    return 0;
   }
 
   // Calculate net salary

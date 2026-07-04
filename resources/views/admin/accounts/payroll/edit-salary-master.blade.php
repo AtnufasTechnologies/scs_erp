@@ -91,35 +91,78 @@
             </div>
 
             <div class="col-md-6">
-              <h6 class="mb-3 text-danger"><i class="fas fa-minus-circle"></i> Deductions</h6>
+              <h6 class="mb-3 text-danger"><i class="fas fa-minus-circle"></i> Deductions (Auto Applied)</h6>
 
-              <div class="mb-2">
-                <label class="form-label">PF</label>
-                <input type="number" name="pf" class="form-control" step="0.01" value="{{ $salaryMaster->pf }}">
+              <div class="table-responsive">
+                <table class="table table-sm table-bordered align-middle">
+                  <thead class="table-light">
+                    <tr>
+                      <th>Code</th>
+                      <th>Name</th>
+                      <th class="text-end">Resolved Value</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    @forelse($assignedDeductions as $deduction)
+                    <tr>
+                      <td><span class="badge bg-secondary">{{ $deduction['code'] }}</span></td>
+                      <td>{{ $deduction['name'] }}</td>
+                      <td class="text-end">₹{{ number_format((float) ($deduction['resolved_value'] ?? 0), 2) }}</td>
+                    </tr>
+                    @empty
+                    <tr>
+                      <td colspan="3" class="text-center text-muted">No active deduction assignments found for this faculty.</td>
+                    </tr>
+                    @endforelse
+                  </tbody>
+                </table>
               </div>
-              <div class="mb-2">
-                <label class="form-label">ESI</label>
-                <input type="number" name="esi" class="form-control" step="0.01" value="{{ $salaryMaster->esi }}">
-              </div>
-              <div class="mb-2">
-                <label class="form-label">Professional Tax</label>
-                <input type="number" name="professional_tax" class="form-control" step="0.01" value="{{ $salaryMaster->professional_tax }}">
-              </div>
-              <div class="mb-2">
-                <label class="form-label">TDS</label>
-                <input type="number" name="tds" class="form-control" step="0.01" value="{{ $salaryMaster->tds }}">
-              </div>
-              <div class="mb-2">
-                <label class="form-label">Other Deductions</label>
-                <input type="number" name="other_deductions" class="form-control" step="0.01" value="{{ $salaryMaster->other_deductions }}">
+
+              <div class="row g-2 mt-2">
+                <div class="col-md-6">
+                  <div class="alert alert-light mb-0">
+                    <small class="d-block text-muted">EPF to PF</small>
+                    <strong>₹{{ number_format((float) ($assignedDeductionComponents['pf'] ?? 0), 2) }}</strong>
+                  </div>
+                </div>
+                <div class="col-md-6">
+                  <div class="alert alert-light mb-0">
+                    <small class="d-block text-muted">ESIC to ESI</small>
+                    <strong>₹{{ number_format((float) ($assignedDeductionComponents['esi'] ?? 0), 2) }}</strong>
+                  </div>
+                </div>
+                <div class="col-md-6">
+                  <div class="alert alert-light mb-0">
+                    <small class="d-block text-muted">PT to Professional Tax</small>
+                    <strong>₹{{ number_format((float) ($assignedDeductionComponents['professional_tax'] ?? 0), 2) }}</strong>
+                  </div>
+                </div>
+                <div class="col-md-6">
+                  <div class="alert alert-light mb-0">
+                    <small class="d-block text-muted">TDS</small>
+                    <strong>₹{{ number_format((float) ($assignedDeductionComponents['tds'] ?? 0), 2) }}</strong>
+                  </div>
+                </div>
+                <div class="col-md-12">
+                  <div class="alert alert-light mb-0">
+                    <small class="d-block text-muted">LWF to Other Deductions</small>
+                    <strong>₹{{ number_format((float) ($assignedDeductionComponents['other_deductions'] ?? 0), 2) }}</strong>
+                  </div>
+                </div>
               </div>
 
               <div class="alert alert-light mt-3">
-                <strong>Total Deductions:</strong> ₹{{ number_format($salaryMaster->total_deductions, 2) }}
+                <strong>Total Deductions:</strong> ₹{{ number_format((
+                  (float) ($assignedDeductionComponents['pf'] ?? 0) +
+                  (float) ($assignedDeductionComponents['esi'] ?? 0) +
+                  (float) ($assignedDeductionComponents['professional_tax'] ?? 0) +
+                  (float) ($assignedDeductionComponents['tds'] ?? 0) +
+                  (float) ($assignedDeductionComponents['other_deductions'] ?? 0)
+                ), 2) }}
               </div>
 
               <div class="alert alert-info mt-2">
-                <i class="fas fa-info-circle"></i> <strong>Note:</strong> Loan deductions will be added automatically when generating monthly salary slips based on active loans.
+                <i class="fas fa-info-circle"></i> <strong>Note:</strong> These values are auto-calculated from active deduction master assignments. Loan deductions are added during payroll generation.
               </div>
             </div>
           </div>

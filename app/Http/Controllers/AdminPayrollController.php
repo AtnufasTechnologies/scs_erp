@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\AnnualSession;
 use App\Models\Faculty;
+use App\Models\FacultyDeductionAssignment;
 use App\Models\FacultyLoan;
 use App\Models\FacultySalaryMaster;
 use App\Models\FacultySalarySlip;
@@ -146,13 +147,27 @@ class AdminPayrollController extends Controller
     $salarySlip->special_allowance = $request->special_allowance ?? 0;
     $salarySlip->other_allowances = $request->other_allowances ?? 0;
 
+    $grossSalary = $salarySlip->basic_salary
+      + $salarySlip->da
+      + $salarySlip->hra
+      + $salarySlip->ta
+      + $salarySlip->medical_allowance
+      + $salarySlip->special_allowance
+      + $salarySlip->other_allowances;
+
+    $assignedDeductions = $this->calculateAssignedDeductionComponents(
+      $request->faculty_id,
+      $salarySlip->basic_salary,
+      $grossSalary
+    );
+
     // Deductions
-    $salarySlip->pf = $request->pf ?? 0;
-    $salarySlip->esi = $request->esi ?? 0;
-    $salarySlip->professional_tax = $request->professional_tax ?? 0;
-    $salarySlip->tds = $request->tds ?? 0;
+    $salarySlip->pf = $assignedDeductions['pf'];
+    $salarySlip->esi = $assignedDeductions['esi'];
+    $salarySlip->professional_tax = $assignedDeductions['professional_tax'];
+    $salarySlip->tds = $assignedDeductions['tds'];
     $salarySlip->loan_deduction = $loanDeduction + ($request->additional_loan_deduction ?? 0);
-    $salarySlip->other_deductions = $request->other_deductions ?? 0;
+    $salarySlip->other_deductions = ($request->other_deductions ?? 0) + $assignedDeductions['other_deductions'];
 
     // Attendance
     $salarySlip->working_days = $request->working_days ?? 26;
@@ -378,12 +393,26 @@ class AdminPayrollController extends Controller
       $salarySlip->special_allowance = $salaryMaster->special_allowance;
       $salarySlip->other_allowances = $salaryMaster->other_allowances;
 
-      $salarySlip->pf = $salaryMaster->pf;
-      $salarySlip->esi = $salaryMaster->esi;
-      $salarySlip->professional_tax = $salaryMaster->professional_tax;
-      $salarySlip->tds = $salaryMaster->tds;
+      $grossSalary = $salarySlip->basic_salary
+        + $salarySlip->da
+        + $salarySlip->hra
+        + $salarySlip->ta
+        + $salarySlip->medical_allowance
+        + $salarySlip->special_allowance
+        + $salarySlip->other_allowances;
+
+      $assignedDeductions = $this->calculateAssignedDeductionComponents(
+        $salaryMaster->faculty_id,
+        $salarySlip->basic_salary,
+        $grossSalary
+      );
+
+      $salarySlip->pf = $assignedDeductions['pf'];
+      $salarySlip->esi = $assignedDeductions['esi'];
+      $salarySlip->professional_tax = $assignedDeductions['professional_tax'];
+      $salarySlip->tds = $assignedDeductions['tds'];
       $salarySlip->loan_deduction = $totalLoanDeduction;
-      $salarySlip->other_deductions = $salaryMaster->other_deductions;
+      $salarySlip->other_deductions = $assignedDeductions['other_deductions'];
 
       $salarySlip->working_days = $salaryMaster->working_days;
       $salarySlip->present_days = $salaryMaster->working_days;
@@ -530,6 +559,10 @@ class AdminPayrollController extends Controller
         ];
       });
 
+    $basicSalary = optional(FacultySalaryMaster::where('faculty_id', $facultyId)->where('status', 'active')->first())->basic_salary ?? 0;
+    $activeAssignedDeductions = $this->getActiveDeductionAssignments($facultyId);
+    $assignedDeductionTotal = $this->calculateAssignedDeductions($facultyId, $basicSalary, 0);
+
     // Get last salary slip
     $lastSalary = FacultySalarySlip::where('faculty_id', $facultyId)
       ->orderBy('year', 'desc')
@@ -539,6 +572,8 @@ class AdminPayrollController extends Controller
     return response()->json([
       'success' => true,
       'loans' => $activeLoans,
+      'assigned_deductions' => $activeAssignedDeductions,
+      'assigned_deductions_total' => $assignedDeductionTotal,
       'lastSalary' => $lastSalary ? [
         'basic_salary' => $lastSalary->basic_salary,
         'da' => $lastSalary->da,
@@ -554,6 +589,167 @@ class AdminPayrollController extends Controller
         'other_deductions' => $lastSalary->other_deductions,
       ] : null,
     ]);
+  }
+
+  /**
+   * Get active deduction assignments for a faculty.
+   */
+  private function getActiveDeductionAssignments(int $facultyId, float $basicSalary = 0, float $grossSalary = 0)
+  {
+    return $this->getActiveDeductionAssignmentModels($facultyId)
+      ->flatMap(function ($assignment) use ($basicSalary, $grossSalary) {
+        $master = $assignment->deductionMaster;
+        $resolved = $this->resolveDeductionValues($assignment, $basicSalary, $grossSalary);
+
+        return collect($resolved)
+          ->filter(fn($amount) => (float) $amount > 0)
+          ->map(function ($amount, $code) use ($assignment, $master) {
+            return [
+              'id' => $assignment->id,
+              'name' => optional($master)->title,
+              'code' => $code,
+              'amount' => $assignment->amount_override,
+              'percentage' => $assignment->percentage_override,
+              'resolved_value' => round((float) $amount, 2),
+            ];
+          })
+          ->values();
+      })
+      ->values();
+  }
+
+  /**
+   * Fetch active, in-range deduction assignments for a faculty.
+   */
+  private function getActiveDeductionAssignmentModels(int $facultyId)
+  {
+    return FacultyDeductionAssignment::with('deductionMaster')
+      ->where('faculty_id', $facultyId)
+      ->where('status', 'active')
+      ->whereHas('deductionMaster', function ($query) {
+        $query->where('status', 1);
+      })
+      ->where(function ($query) {
+        $query->whereNull('effective_from')
+          ->orWhere('effective_from', '<=', now()->toDateString());
+      })
+      ->where(function ($query) {
+        $query->whereNull('effective_to')
+          ->orWhere('effective_to', '>=', now()->toDateString());
+      })
+      ->get();
+  }
+
+  /**
+   * Calculate total assigned deductions for a faculty.
+   */
+  private function calculateAssignedDeductions(int $facultyId, float $basicSalary, float $grossSalary): float
+  {
+    $components = $this->calculateAssignedDeductionComponents($facultyId, $basicSalary, $grossSalary);
+
+    return round(
+      $components['pf']
+        + $components['esi']
+        + $components['professional_tax']
+        + $components['tds']
+        + $components['other_deductions'],
+      2
+    );
+  }
+
+  /**
+   * Calculate deduction components from assigned deduction masters.
+   */
+  private function calculateAssignedDeductionComponents(int $facultyId, float $basicSalary, float $grossSalary): array
+  {
+    $components = [
+      'pf' => 0,
+      'esi' => 0,
+      'professional_tax' => 0,
+      'tds' => 0,
+      'other_deductions' => 0,
+    ];
+
+    $assignments = $this->getActiveDeductionAssignmentModels($facultyId);
+
+    foreach ($assignments as $assignment) {
+      $master = $assignment->deductionMaster;
+
+      if (!$master) {
+        continue;
+      }
+
+      $resolved = $this->resolveDeductionValues($assignment, $basicSalary, $grossSalary);
+      $components['pf'] += (float) ($resolved['EPF'] ?? 0);
+      $components['esi'] += (float) ($resolved['ESIC'] ?? 0);
+      $components['professional_tax'] += (float) ($resolved['PT'] ?? 0);
+      $components['tds'] += (float) ($resolved['TDS'] ?? 0);
+      $components['other_deductions'] += (float) ($resolved['LWF'] ?? 0);
+    }
+
+    foreach ($components as $key => $amount) {
+      $components[$key] = round((float) $amount, 2);
+    }
+
+    return $components;
+  }
+
+  /**
+   * Resolve deduction values using standard deduction fields from assigned master.
+   */
+  private function resolveDeductionValues(FacultyDeductionAssignment $assignment, float $basicSalary, float $grossSalary): array
+  {
+    $master = $assignment->deductionMaster;
+
+    if (!$master) {
+      return [
+        'TDS' => 0,
+        'EPF' => 0,
+        'PT' => 0,
+        'LWF' => 0,
+        'ESIC' => 0,
+      ];
+    }
+
+    $values = $this->getMasterStandardDeductionValues($master);
+
+    // Compatibility: apply assignment override only when one component exists in the master.
+    $activeCodes = collect($values)
+      ->filter(fn($value) => (float) $value > 0)
+      ->keys()
+      ->values()
+      ->all();
+
+    if (count($activeCodes) === 1) {
+      $singleCode = $activeCodes[0];
+
+      if (!is_null($assignment->amount_override)) {
+        $values[$singleCode] = (float) $assignment->amount_override;
+      } elseif (!is_null($assignment->percentage_override)) {
+        // Keep legacy percentage override behavior against basic salary.
+        $values[$singleCode] = ($basicSalary * (float) $assignment->percentage_override) / 100;
+      }
+    }
+
+    foreach ($values as $code => $value) {
+      $values[$code] = round((float) $value, 2);
+    }
+
+    return $values;
+  }
+
+  /**
+   * Read standard deduction values from master (supports both uppercase and lowercase columns).
+   */
+  private function getMasterStandardDeductionValues($master): array
+  {
+    return [
+      'TDS' => (float) ($master->TDS ?? $master->tds ?? 0),
+      'EPF' => (float) ($master->EPF ?? $master->epf ?? 0),
+      'PT' => (float) ($master->PT ?? $master->pt ?? 0),
+      'LWF' => (float) ($master->LWF ?? $master->lwf ?? 0),
+      'ESIC' => (float) ($master->ESIC ?? $master->esic ?? 0),
+    ];
   }
 
   /**
@@ -621,6 +817,20 @@ class AdminPayrollController extends Controller
       return back()->with('error', 'This faculty already has an active salary master. Please deactivate it first.');
     }
 
+    $grossSalary = (float) ($request->basic_salary ?? 0)
+      + (float) ($request->da ?? 0)
+      + (float) ($request->hra ?? 0)
+      + (float) ($request->ta ?? 0)
+      + (float) ($request->medical_allowance ?? 0)
+      + (float) ($request->special_allowance ?? 0)
+      + (float) ($request->other_allowances ?? 0);
+
+    $deductionComponents = $this->calculateAssignedDeductionComponents(
+      (int) $request->faculty_id,
+      (float) $request->basic_salary,
+      $grossSalary
+    );
+
     $salaryMaster = FacultySalaryMaster::create([
       'faculty_id' => $request->faculty_id,
       'basic_salary' => $request->basic_salary,
@@ -630,11 +840,11 @@ class AdminPayrollController extends Controller
       'medical_allowance' => $request->medical_allowance ?? 0,
       'special_allowance' => $request->special_allowance ?? 0,
       'other_allowances' => $request->other_allowances ?? 0,
-      'pf' => $request->pf ?? 0,
-      'esi' => $request->esi ?? 0,
-      'professional_tax' => $request->professional_tax ?? 0,
-      'tds' => $request->tds ?? 0,
-      'other_deductions' => $request->other_deductions ?? 0,
+      'pf' => $deductionComponents['pf'],
+      'esi' => $deductionComponents['esi'],
+      'professional_tax' => $deductionComponents['professional_tax'],
+      'tds' => $deductionComponents['tds'],
+      'other_deductions' => $deductionComponents['other_deductions'],
       'working_days' => $request->working_days ?? 26,
       'effective_from' => $request->effective_from,
       'remarks' => $request->remarks,
@@ -642,7 +852,7 @@ class AdminPayrollController extends Controller
     ]);
 
     return redirect()->route('admin.payroll.salary-masters')
-      ->with('success', 'Salary master created successfully.');
+      ->with('success', 'Salary master created successfully. Assigned deduction master parameters were applied automatically.');
   }
 
   /**
@@ -653,7 +863,32 @@ class AdminPayrollController extends Controller
     $salaryMaster = FacultySalaryMaster::with('faculty')->findOrFail($id);
     $faculties = Faculty::where('IS_LEFT', 0)->orderBy('FIRST_NAME')->get();
 
-    return view('admin.accounts.payroll.edit-salary-master', compact('salaryMaster', 'faculties'));
+    $grossSalary = (float) $salaryMaster->basic_salary
+      + (float) $salaryMaster->da
+      + (float) $salaryMaster->hra
+      + (float) $salaryMaster->ta
+      + (float) $salaryMaster->medical_allowance
+      + (float) $salaryMaster->special_allowance
+      + (float) $salaryMaster->other_allowances;
+
+    $assignedDeductions = $this->getActiveDeductionAssignments(
+      (int) $salaryMaster->faculty_id,
+      (float) $salaryMaster->basic_salary,
+      $grossSalary
+    );
+
+    $assignedDeductionComponents = $this->calculateAssignedDeductionComponents(
+      (int) $salaryMaster->faculty_id,
+      (float) $salaryMaster->basic_salary,
+      $grossSalary
+    );
+
+    return view('admin.accounts.payroll.edit-salary-master', compact(
+      'salaryMaster',
+      'faculties',
+      'assignedDeductions',
+      'assignedDeductionComponents'
+    ));
   }
 
   /**
@@ -667,6 +902,20 @@ class AdminPayrollController extends Controller
       'basic_salary' => 'required|numeric|min:0',
     ]);
 
+    $grossSalary = (float) ($request->basic_salary ?? 0)
+      + (float) ($request->da ?? 0)
+      + (float) ($request->hra ?? 0)
+      + (float) ($request->ta ?? 0)
+      + (float) ($request->medical_allowance ?? 0)
+      + (float) ($request->special_allowance ?? 0)
+      + (float) ($request->other_allowances ?? 0);
+
+    $deductionComponents = $this->calculateAssignedDeductionComponents(
+      (int) $salaryMaster->faculty_id,
+      (float) $request->basic_salary,
+      $grossSalary
+    );
+
     $salaryMaster->update([
       'basic_salary' => $request->basic_salary,
       'da' => $request->da ?? 0,
@@ -675,18 +924,18 @@ class AdminPayrollController extends Controller
       'medical_allowance' => $request->medical_allowance ?? 0,
       'special_allowance' => $request->special_allowance ?? 0,
       'other_allowances' => $request->other_allowances ?? 0,
-      'pf' => $request->pf ?? 0,
-      'esi' => $request->esi ?? 0,
-      'professional_tax' => $request->professional_tax ?? 0,
-      'tds' => $request->tds ?? 0,
-      'other_deductions' => $request->other_deductions ?? 0,
+      'pf' => $deductionComponents['pf'],
+      'esi' => $deductionComponents['esi'],
+      'professional_tax' => $deductionComponents['professional_tax'],
+      'tds' => $deductionComponents['tds'],
+      'other_deductions' => $deductionComponents['other_deductions'],
       'working_days' => $request->working_days ?? 26,
       'effective_from' => $request->effective_from,
       'remarks' => $request->remarks,
     ]);
 
     return redirect()->route('admin.payroll.salary-masters')
-      ->with('success', 'Salary master updated successfully.');
+      ->with('success', 'Salary master updated successfully. Assigned deduction master parameters were applied automatically.');
   }
 
   /**

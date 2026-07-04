@@ -172,8 +172,9 @@
                 <small class="text-muted">Any extra loan amount beyond selected EMIs above</small>
               </div>
               <div class="mb-2">
-                <label class="form-label">Other Deductions</label>
+                <label class="form-label">Other / Leave Deduction (Manual Monthly)</label>
                 <input type="number" name="other_deductions" class="form-control" step="0.01" value="0">
+                <small class="text-muted">Extra leave-based salary deduction should be entered manually here each month.</small>
               </div>
             </div>
           </div>
