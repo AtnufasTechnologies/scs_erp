@@ -3,6 +3,9 @@
 use App\Models\StudentCourseInfo;
 use App\Models\Subject;
 use App\Models\StudentMaster;
+use App\Models\BatchMaster;
+
+$batches = BatchMaster::all();
 ?>
 @include('includes.header')
 @include('admin.sidebar')
@@ -15,7 +18,7 @@ use App\Models\StudentMaster;
   }
 
   .page-header {
-    background: linear-gradient(135deg, #0fb3b6 0%, #620fb6 100%);
+    background: linear-gradient(135deg, #620fb6 0%, #12b2e7 100%);
     color: white;
     padding: 30px;
     border-radius: 15px;
@@ -299,6 +302,61 @@ use App\Models\StudentMaster;
   <div class="page-header">
     <h2>👨‍🎓 Student Master</h2>
     <p style="margin: 10px 0 0 0; opacity: 0.9;">Manage and view all student records</p>
+
+    <!-- Button trigger modal -->
+    <button type="button" class="btn btn-warning" data-bs-toggle="modal" data-bs-target="#promotion">
+      Promote Students
+    </button>
+
+    <!-- Modal -->
+    <div class="modal fade" id="promotion" tabindex="-1" aria-labelledby="exampleModalLabel" aria-hidden="true">
+      <div class="modal-dialog">
+        <div class="modal-content">
+          <div class="modal-header">
+            <h5 class="modal-title text-dark" id="exampleModalLabel">Annual Promotion Management</h5>
+            <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+          </div>
+          <form action="{{route('promotion.prepare.list')}}" method="get">
+            <div class="modal-body">
+              <div class="alert alert-info">
+                <p>Semester wise promotion is automatic once the student is mapped with course enrollment</p>
+              </div>
+
+              <div class="row">
+                <div class="col-lg-6"><label for="" class="text-dark">Select Student's Batch *</label>
+                  <select name="batch" class="form-control ">
+                    <option value="">--Select--</option>
+                    @foreach ($batches as $batch)
+                    <option value="{{$batch->id}}">{{$batch->batch_name}}</option>
+                    @endforeach
+                  </select>
+                  @error('batch')
+                  <span class="text-danger">{{$message}}</span>
+                  @enderror
+                </div>
+                <div class="col-lg-6">
+                  <label for="" class="text-dark">Campus *</label>
+                  <select name="campus" class="form-control">
+                    <option value="">-- Required --</option>
+                    <option value="1">-- Sonada --</option>
+                    <option value="2">-- Siliguri --</option>
+                  </select>
+                  @error('campus')
+                  <span class="text-danger">{{$message}}</span>
+                  @enderror
+                </div>
+
+              </div>
+
+            </div>
+            <div class="modal-footer">
+              <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+              <button type="submit" class="btn btn-success">Generate List</button>
+            </div>
+          </form>
+        </div>
+      </div>
+    </div>
   </div>
 
   <div class="search-container">
@@ -370,9 +428,10 @@ use App\Models\StudentMaster;
           <span class="detail-value">{{ $item->campusmaster != null ? $item->campusmaster->name : 'N/A' }}</span>
         </div>
 
-
+        @if($item->stdprogramenrolled != null)
         <div class="detail-item">
           <span class="detail-label">Program Enrolled -
+
             @if ($item->stdprogramenrolled->program_type != null)
             <span class="text-success">{{$item->stdprogramenrolled->program_type == '1' ? 'UGC' : 'AICTE'}}</span>
             @else
@@ -382,6 +441,9 @@ use App\Models\StudentMaster;
           </span>
           <span class="detail-value">{{ $item->stdprogramenrolled != null ? $item->stdprogramenrolled->code : 'N/A' }} - {{ $item->stdprogramenrolled != null ? $item->stdprogramenrolled->name : 'N/A' }}</span>
         </div>
+        @else
+        <p> <span class="badge badge-danger">Critical Program Enrollment Issue Detected</span></p>
+        @endif
 
 
       </div>

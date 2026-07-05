@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\AcademicBlock;
 use App\Models\AcademicDepartment;
+use App\Models\AnnualPromotionLog;
 use App\Models\BatchMaster;
 use App\Models\BloodGroupMaster;
 use App\Models\Campus;
@@ -52,6 +53,7 @@ use App\Models\UserMenuPermission;
 use App\Models\UserType;
 use App\Models\CiaMark;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Http;
@@ -408,6 +410,23 @@ class AdminController extends Controller
         ]);
 
         $validated['is_roman_catholic'] = $request->boolean('is_roman_catholic');
+
+
+        //check current year is beingn updated or not 
+        if ($student->current_year < $request->current_year) {
+            //entry in promotion log
+            $userId = Auth::user()->id;
+            AnnualPromotionLog::create([
+                'batch' => $student->batch,
+                'campus' => $student->campus_id,
+                'student_id' => $student->id,
+                'promoted_from_year' =>  $student->current_year,
+                'promoted_to_year' => $request->current_year,
+                'status' => $student->current_year < $request->current_year == true ? 'promoted' : 'not promoted',
+                'created_by' => $userId,
+                'updated_by' => $userId
+            ]);
+        }
 
         $student->update($validated);
 
@@ -1916,5 +1935,12 @@ class AdminController extends Controller
         }
 
         return redirect()->back()->with('success', 'Student Programs updated successfully');
+    }
+
+    function promotionIndex()
+    {
+
+
+        return view('admin.itcell.promotion.index');
     }
 }

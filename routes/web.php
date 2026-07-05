@@ -105,8 +105,8 @@ Route::group(['prefix' => '/erp'], function () {
     //ITCELL - superuser routes
     Route::group(['prefix' => '/admin',], function () {
         Route::get('dashboard', [AdminController::class, 'index'])->name('admin.dashboard');
-        Route::get('std-master-sonada', [AdminController::class, 'stdMasterSonada']);
-        Route::get('std-master-siliguri', [AdminController::class, 'stdMasterSiliguri']);
+        Route::get('std-master-sonada', [AdminController::class, 'stdMasterSonada'])->name('sonada.studentmaster');
+        Route::get('std-master-siliguri', [AdminController::class, 'stdMasterSiliguri'])->name('siliguri.studentmaster');
         Route::get('student-search', [AdminController::class, 'searchStudents'])->name('admin.student.search');
         Route::get('faculty-master', [AdminController::class, 'facultyMaster']);
         Route::get('{id}/std-profile/{rollno}', [AdminController::class, 'stdprofile'])->name('admin.student.profile');
@@ -119,7 +119,9 @@ Route::group(['prefix' => '/erp'], function () {
         Route::get('itcell-admission-applications', [AdmissionController::class, 'itcellAdmissionApplications'])->name('itcell.admission.applications');
         Route::get('verify-payment/{id}', [ITCellController::class, 'verifyPayment'])->name('itcell.admission.verify.payment');
         Route::post('update-application-payment', [ITCellController::class, 'updateApplicationPayment'])->name('itcell.admission.update.payment');
-
+        Route::get('promotion/prepare-list', [ITCellController::class, 'promotionPrepareList'])->name('promotion.prepare.list');
+        Route::post('annual-promotion/submit', [ITCellController::class, 'annualStudentPromotion'])->name('annual.student.promotion');
+        Route::get('annual-promotion-logs/{id}', [ITCellController::class, 'annualStudentPromotionLogs'])->name('annual.student.promotionlogs');
 
         //master
         Route::group(['prefix' => '/master'], function () {

@@ -252,7 +252,7 @@ $roleType = UserHasRole::where('user_id', $userId)->value('role_name');
     <li>
       <a class="has-arrow" href="javascript:;">
         <div class="parent-icon">
-          <i class="fas fa-user-tie"></i>
+          <i class="fal fa-users-cog"></i>
         </div>
         <div class="menu-title"> Student Master</div>
       </a>
@@ -262,28 +262,55 @@ $roleType = UserHasRole::where('user_id', $userId)->value('role_name');
         <li>
           <a href="{{url('erp/admin/std-master-sonada')}}">
             <div class="parent-icon">
-              <i class="fas fa-arrow-alt-circle-right"></i>
+              <i class="fas fa-user-graduate"></i>
             </div>
             <div class="menu-title"> Sonada</div>
           </a>
         </li>
+
         @endif
 
         @if (StaticController::subMenuRights('student-master-siliguri') )
         <li>
           <a href="{{url('erp/admin/std-master-siliguri')}}">
             <div class="parent-icon">
-              <i class="fas fa-arrow-alt-circle-right"></i>
+              <i class="fad fa-user-graduate"></i>
             </div>
             <div class="menu-title">Siliguri</div>
           </a>
         </li>
+
         @endif
       </ul>
     </li>
     @endif
 
-
+    <li>
+      <a class="has-arrow" href="javascript:;">
+        <div class="parent-icon">
+          <i class="fas fa-bring-forward"></i>
+        </div>
+        <div class="menu-title"> Promotion Logs</div>
+      </a>
+      <ul>
+        <li>
+          <a href="{{url('erp/admin/annual-promotion-logs/1')}}">
+            <div class="parent-icon">
+              <i class="fas fa-forward"></i>
+            </div>
+            <div class="menu-title">Sonada Promotion Logs</div>
+          </a>
+        </li>
+        <li>
+          <a href="{{url('erp/admin/annual-promotion-logs/2')}}">
+            <div class="parent-icon">
+              <i class="fas fa-forward"></i>
+            </div>
+            <div class="menu-title">Siliguri Promotion Logs</div>
+          </a>
+        </li>
+      </ul>
+    </li>
 
 
 
