@@ -19,6 +19,7 @@ use App\Models\PoHasCo;
 use App\Models\ProgramCourseMaster;
 use App\Models\ProgramMaster;
 use App\Models\Semester;
+use App\Models\ShiftMaster;
 use App\Models\StudentMaster;
 use App\Models\StudentAttendance;
 use App\Models\StudentProgram;
@@ -51,6 +52,7 @@ use Illuminate\Support\Str;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Validator;
+use Illuminate\Validation\Rule;
 use Barryvdh\DomPDF\Facade\Pdf;
 
 class SubjectController extends Controller
@@ -239,11 +241,15 @@ class SubjectController extends Controller
 
     function addSubjectTimeTable(Request $request)
     {
+        $allowedShifts = $this->getShiftSlugs();
+        $subjectId = SubjectHasSyllabus::where('id', $request->syllabus_id)->value('subject_id');
+        $usesShifts = $this->subjectUsesShifts($subjectId);
         $validator  =  Validator::make($request->all(), [
             'syllabus_id' => 'required',
             'weekday_id' => 'required',
             'hour_id' => 'required',
             'lecturehall_id' => 'required',
+            'shift' => ['nullable', Rule::in($allowedShifts)],
 
         ]);
 
@@ -256,6 +262,7 @@ class SubjectController extends Controller
         $rec->weekday_id = $request->weekday_id;
         $rec->hour_id = $request->hour_id;
         $rec->lecturehall_id = $request->lecturehall_id;
+        $rec->shift = $usesShifts ? ($request->shift ?? $this->getDefaultShiftSlug()) : $this->getDefaultShiftSlug();
         $rec->save();
         return response()->json(['message' => 'TimeTable Created'], 201);
     }
@@ -696,28 +703,38 @@ class SubjectController extends Controller
 
     function studentProgramMaster()
     {
-        $data = StudentProgram::with(['programgroup', 'programtypemaster', 'combomap.combo1:id,title', 'combomap.combo2:id,title'])
+        $data = StudentProgram::with(['programgroup', 'programtypemaster', 'combomap.combo1:id,title', 'combomap.combo2:id,title', 'shiftmaster'])
             ->latest()->get()
             ->map(function ($program) {
                 $program->student_count = StudentMaster::where('new_program_id', $program->id)->count();
                 return $program;
             });
 
-        return view('admin.subject.student-program-master', ['data' => $data]);
+        $shiftOptions = ShiftMaster::where('is_active', 1)
+            ->orderBy('sort_order')
+            ->get(['title', 'slug']);
+
+        return view('admin.subject.student-program-master', [
+            'data' => $data,
+            'shiftOptions' => $shiftOptions,
+        ]);
     }
 
     function addNewStudentProgram(Request $request)
     {
+        $allowedShifts = $this->getShiftSlugs();
         $request->validate([
             'campus' => 'required',
             'code' => 'required|string|max:100',
             'name' => 'required|string|max:255',
             'semester_count' => 'required|integer|min:1',
             'description' => 'nullable|string',
+            'shift' => ['nullable', Rule::in($allowedShifts)],
         ]);
 
         $rec = new StudentProgram();
         $rec->campus_id = $request->campus;
+        $rec->shift = $request->shift ?: $this->getDefaultShiftSlug();
         $rec->code = Str::upper($request->code);
         $rec->name = Str::lower($request->name);
         $rec->description = Str::lower($request->description);
@@ -748,6 +765,7 @@ class SubjectController extends Controller
     function updateStudentProgram(Request $request, $id)
     {
         $data = StudentProgram::findOrFail($id);
+        $allowedShifts = $this->getShiftSlugs();
         $request->validate([
             'campus' => 'required',
             'code' => 'required|string|max:100',
@@ -755,9 +773,11 @@ class SubjectController extends Controller
             'semester_count' => 'required|integer|min:1',
             'description' => 'nullable|string',
             'program_type' => 'required',
+            'shift' => ['nullable', Rule::in($allowedShifts)],
         ]);
 
         $data->campus_id = $request->campus;
+        $data->shift = $request->shift ?: $this->getDefaultShiftSlug();
         $data->code = Str::upper($request->code);
         $data->name = $request->name;
         $data->description = $request->description;
@@ -765,7 +785,8 @@ class SubjectController extends Controller
         $data->program_type = $request->program_type;
         $data->save();
 
-        if ($request->combo_id_1 || $request->combo_id_2) {
+
+        if (!empty($request->combo_id_1) && !empty($request->combo_id_2)) {
             $existingCombo = StdProgComboMap::where('student_program_id', $id)->first();
 
             if ($existingCombo) {
@@ -822,6 +843,7 @@ class SubjectController extends Controller
 
     function viewCourseSpecificObjective($courseId)
     {
+        $defaultShift = $this->getDefaultShiftSlug();
         $course = SubjectCourseMaster::with([
             'courseMaster.coursetypemaster',
             'courseMaster.csos.csosubunits.taxonomies.rbtmaster',
@@ -831,17 +853,40 @@ class SubjectController extends Controller
             return redirect()->back()->with('error', 'Course not found');
         }
 
+        if ($course->courseMaster && $course->courseMaster->relationLoaded('csos')) {
+            $filteredCsos = $course->courseMaster->csos
+                ->whereIn('shift', [$defaultShift, null])
+                ->values();
+
+            if ($filteredCsos->isNotEmpty()) {
+                $course->courseMaster->setRelation('csos', $filteredCsos);
+            }
+        }
+
         $objectives = PoHasCo::where('co_id', $courseId)->get();
+        $shiftOptions = ShiftMaster::where('is_active', 1)
+            ->orderBy('sort_order')
+            ->get(['title', 'slug']);
 
         return view('admin.subject.course-objective', [
             'course' => $course,
             'objectives' => $objectives,
+            'shiftOptions' => $shiftOptions,
+            'subjectUsesShifts' => false,
         ]);
     }
 
-    function getCsoListForCourse($courseId)
+    function getCsoListForCourse(Request $request, $courseId)
     {
-        $csos = CoHasCso::with(['csosubunits.taxomonylevel'])->where('co_id', $courseId)->get();
+        $defaultShift = $this->getDefaultShiftSlug();
+        $query = CoHasCso::with(['csosubunits.taxomonylevel'])
+            ->where('co_id', $courseId)
+            ->where(function ($q) use ($defaultShift) {
+                $q->where('shift', $defaultShift)
+                    ->orWhereNull('shift');
+            });
+
+        $csos = $query->get();
 
         if ($csos->isEmpty()) {
             return response()->json(['error' => 'Course not found'], 404);
@@ -852,16 +897,19 @@ class SubjectController extends Controller
 
     function createCourseSpecificObjective(Request $request)
     {
+        $allowedShifts = $this->getShiftSlugs();
         $validated = $request->validate([
             'title' => 'required',
             'course_id' => 'required',
             'lectures_needed' => 'required',
+            'shift' => ['nullable', Rule::in($allowedShifts)],
         ]);
 
         CoHasCso::create([
             'co_id' => $request->course_id,
             'title' => $request->title,
             'lectures_needed' => $request->lectures_needed,
+            'shift' => $this->getDefaultShiftSlug(),
         ]);
 
         return redirect()->back()->with('success', 'CSO added successfully');
@@ -897,13 +945,16 @@ class SubjectController extends Controller
     {
         $cso = CoHasCso::findOrFail($id);
 
+        $allowedShifts = $this->getShiftSlugs();
         $validated = $request->validate([
             'title' => 'required',
             'lectures_needed' => 'required',
+            'shift' => ['nullable', Rule::in($allowedShifts)],
         ]);
 
         $cso->title = $request->title;
         $cso->lectures_needed = $request->lectures_needed;
+        $cso->shift = $this->getDefaultShiftSlug();
         $cso->save();
 
         return redirect()->back()->with('success', 'CSO updated successfully');
@@ -1023,24 +1074,25 @@ class SubjectController extends Controller
         ])->where('subject_id', $id)->get();
         $data['id'] = $id;
         $data['slug'] = $request->slug;
+        $subjectUsesShifts = $this->subjectUsesShifts($id);
+
+        $syllabusQuery = SyllabusManager::with([
+            'subject',
+            'batch',
+            'semester',
+            'courseobjective',
+            'cso.csosubunits.taxonomies.rbtmaster',
+        ])->where('subject_id', $id);
 
         if (!empty($request->filter_batch)) {
-            $syllabusData = SyllabusManager::with([
-                'subject',
-                'batch',
-                'semester',
-                'courseobjective',
-                'cso.csosubunits.taxonomies.rbtmaster',
-            ])->where('subject_id', $id)->where('batch_id', $request->filter_batch)->get();
-        } else {
-            $syllabusData = SyllabusManager::with([
-                'subject',
-                'batch',
-                'semester',
-                'courseobjective',
-                'cso.csosubunits.taxonomies.rbtmaster',
-            ])->where('subject_id', $id)->get();
+            $syllabusQuery->where('batch_id', $request->filter_batch);
         }
+
+        if ($subjectUsesShifts && !empty($request->filter_shift) && $this->isKnownShift($request->filter_shift)) {
+            $syllabusQuery->where('shift', $request->filter_shift);
+        }
+
+        $syllabusData = $syllabusQuery->get();
 
 
         // Organize data: Batch -> Semester -> Course -> CSOs
@@ -1050,7 +1102,8 @@ class SubjectController extends Controller
             $semesterName = $syllabus->semester->title ?? 'Unknown Semester';
             $courseCode = $syllabus->courseobjective->course_code ?? 'N/A';
             $courseTitle = $syllabus->courseobjective->course_title ?? 'Unknown Course';
-            $courseKey = $courseCode . ' - ' . $courseTitle;
+            $shiftLabel = Str::title($syllabus->shift ?? 'common');
+            $courseKey = $courseCode . ' - ' . $courseTitle . ' [' . $shiftLabel . ']';
 
             if (!isset($organized[$batchName])) {
                 $organized[$batchName] = [];
@@ -1069,6 +1122,9 @@ class SubjectController extends Controller
         }
 
         $data['organized_syllabus'] = $organized;
+        $shiftOptions = ShiftMaster::where('is_active', 1)
+            ->orderBy('sort_order')
+            ->get(['title', 'slug']);
 
         // Seat allocations keyed by "batch_id_semester_id_course_master_id" for quick lookup
         $seatAllocations = CourseSeatAllocation::where('subject_id', $id)
@@ -1085,6 +1141,8 @@ class SubjectController extends Controller
             'semesters'      => $semesters,
             'cos'            => $cos,
             'data'           => $data,
+            'shiftOptions'   => $shiftOptions,
+            'subjectUsesShifts' => $subjectUsesShifts,
             'seatAllocations' => $seatAllocations,
             'syllabuspdfs'   => $syllabuspdfs,
         ]);
@@ -1092,38 +1150,69 @@ class SubjectController extends Controller
 
     function createSyllabus(Request $request)
     {
+        $allowedShifts = $this->getShiftSlugs();
+        $usesShifts = $this->subjectUsesShifts((int) $request->subject_id);
         $request->validate([
             'subject_id' => 'required',
             'batch' => 'required',
             'semester' => 'required',
+            'shift' => ['nullable', Rule::in($allowedShifts)],
+            'create_all_shifts' => 'nullable|boolean',
             'co_id' => 'required',
             'cso_id' => 'required',
             'cso_subunit' => 'required|array|min:1',
 
         ]);
 
-        //save syllabus main table
-        $rec = new SyllabusManager();
-        $rec->subject_id = $request->subject_id;
-        $rec->batch_id = $request->batch;
-        $rec->semester_id = $request->semester;
-        $rec->co_id = $request->co_id;
-        $rec->cso_id = $request->cso_id;
-        $rec->save();
+        // save syllabus main table (single or all shifts)
+        $defaultShift = $this->getDefaultShiftSlug();
+        $targetShifts = [$defaultShift];
+        if ($usesShifts) {
+            if ($request->boolean('create_all_shifts')) {
+                $targetShifts = collect($this->getShiftSlugs())
+                    ->reject(fn($shift) => $shift === $defaultShift)
+                    ->values()
+                    ->all();
 
-        $syllabusId = $rec->id;
-
-        //save syllabus subunit
-        $cso_subunit = $request->cso_subunit;
-        for ($i = 0; $i < count($cso_subunit); $i++) {
-            SyllabusSubunit::create([
-                'syllabus_manager_id' => $syllabusId,
-                'unit_id' => $cso_subunit[$i],
-                'is_completed' => 0, // default value for subunit
-            ]);
+                if (empty($targetShifts)) {
+                    $targetShifts = [$defaultShift];
+                }
+            } else {
+                $targetShifts = [$request->shift ?? $defaultShift];
+            }
         }
 
-        return redirect()->back()->with('success', 'Syllabus Created');
+        $createdCount = 0;
+
+        // save syllabus subunit
+        $cso_subunit = $request->cso_subunit;
+        foreach ($targetShifts as $shiftSlug) {
+            $rec = SyllabusManager::firstOrCreate([
+                'subject_id' => $request->subject_id,
+                'batch_id' => $request->batch,
+                'semester_id' => $request->semester,
+                'shift' => $shiftSlug,
+                'co_id' => $request->co_id,
+                'cso_id' => $request->cso_id,
+            ]);
+
+            $createdCount++;
+
+            for ($i = 0; $i < count($cso_subunit); $i++) {
+                SyllabusSubunit::firstOrCreate([
+                    'syllabus_manager_id' => $rec->id,
+                    'unit_id' => $cso_subunit[$i],
+                ], [
+                    'is_completed' => 0,
+                ]);
+            }
+        }
+
+        if ($usesShifts && $request->boolean('create_all_shifts')) {
+            return redirect()->back()->with('success', 'Syllabus created/updated for all active shifts');
+        }
+
+        return redirect()->back()->with('success', $createdCount > 0 ? 'Syllabus Created' : 'Syllabus Updated');
     }
 
     function deleteSyllabusSubunit($id)
@@ -1190,26 +1279,26 @@ class SubjectController extends Controller
     {
         $id = $request->id;
         $subject = Subject::find($id);
+        $subjectUsesShifts = $this->subjectUsesShifts((int) $id);
+
+        $syllabusQuery = SyllabusManager::with([
+            'subject',
+            'batch',
+            'semester',
+            'courseobjective',
+            'cso',
+            'syllabusSubunits.csoSubunit.taxomonylevel',
+        ])->where('subject_id', $id);
 
         if (!empty($request->filter_batch)) {
-            $syllabusData = SyllabusManager::with([
-                'subject',
-                'batch',
-                'semester',
-                'courseobjective',
-                'cso',
-                'syllabusSubunits.csoSubunit.taxomonylevel',
-            ])->where('subject_id', $id)->where('batch_id', $request->filter_batch)->get();
-        } else {
-            $syllabusData = SyllabusManager::with([
-                'subject',
-                'batch',
-                'semester',
-                'courseobjective',
-                'cso',
-                'syllabusSubunits.csoSubunit.taxomonylevel',
-            ])->where('subject_id', $id)->get();
+            $syllabusQuery->where('batch_id', $request->filter_batch);
         }
+
+        if ($subjectUsesShifts && !empty($request->filter_shift) && $this->isKnownShift($request->filter_shift)) {
+            $syllabusQuery->where('shift', $request->filter_shift);
+        }
+
+        $syllabusData = $syllabusQuery->get();
 
         // Organize data: Batch -> Semester -> Course -> CSOs
         $organized = [];
@@ -1218,7 +1307,8 @@ class SubjectController extends Controller
             $semesterName = $syllabus->semester->title ?? 'Unknown Semester';
             $courseCode = $syllabus->courseobjective->course_code ?? 'N/A';
             $courseTitle = $syllabus->courseobjective->course_title ?? 'Unknown Course';
-            $courseKey = $courseCode . ' - ' . $courseTitle;
+            $shiftLabel = Str::title($syllabus->shift ?? 'common');
+            $courseKey = $courseCode . ' - ' . $courseTitle . ' [' . $shiftLabel . ']';
 
             if (!isset($organized[$batchName])) {
                 $organized[$batchName] = [];
@@ -1715,6 +1805,36 @@ class SubjectController extends Controller
         return $weeklyData;
     }
 
+    private function getShiftSlugs(): array
+    {
+        $slugs = ShiftMaster::where('is_active', 1)
+            ->orderBy('sort_order')
+            ->pluck('slug')
+            ->toArray();
+
+        if (empty($slugs)) {
+            return ['common'];
+        }
+
+        return $slugs;
+    }
+
+    private function isKnownShift(string $shift): bool
+    {
+        return ShiftMaster::where('slug', $shift)->exists();
+    }
+
+    private function getDefaultShiftSlug(): string
+    {
+        $common = ShiftMaster::where('slug', 'common')->value('slug');
+        if (!empty($common)) {
+            return $common;
+        }
+
+        $fallback = ShiftMaster::orderBy('sort_order')->value('slug');
+        return $fallback ?: 'common';
+    }
+
 
     function deleteCsoSubunitTaxonomy($id)
     {
@@ -1774,5 +1894,24 @@ class SubjectController extends Controller
         ]);
 
         return redirect()->back()->with('success', 'Department Admission Form Visibility Updated');
+    }
+
+    function toggleSubjectShiftMode($id)
+    {
+        $data = Subject::find($id);
+        Subject::where('id', $id)->update([
+            'has_shift_delivery' =>  $data->has_shift_delivery === 1 ? 0 : 1,
+        ]);
+
+        return redirect()->back()->with('success', 'Subject shift mode updated');
+    }
+
+    private function subjectUsesShifts(?int $subjectId): bool
+    {
+        if (empty($subjectId)) {
+            return false;
+        }
+
+        return Subject::where('id', $subjectId)->value('has_shift_delivery') == 1;
     }
 }

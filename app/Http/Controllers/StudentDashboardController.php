@@ -117,8 +117,21 @@ class StudentDashboardController extends Controller
       ->sortBy(fn($c) => $c->coursemaster?->semester_id ?? 999)
       ->groupBy(fn($c) => $c->coursemaster?->semestermaster?->title ?? ('Sem ' . ($c->semester ?? '?')));
 
-    // Timetable
+    // Timetable: prefer student's mapped shift, then fallback to common/null
+    $studentShift = strtolower(trim((string) ($student->programgroup?->programInfo?->shift ?? 'common')));
+    if ($studentShift === '') {
+      $studentShift = 'common';
+    }
+
     $timetable = SubjectHasRoutine::where('batch_id', $student->batch)
+      ->where(function ($q) use ($studentShift) {
+        $q->where('shift', $studentShift);
+        if ($studentShift !== 'common') {
+          $q->orWhere('shift', 'common')->orWhereNull('shift');
+        } else {
+          $q->orWhereNull('shift');
+        }
+      })
       ->with([
         'weekdaymaster:id,title',
         'hourmaster:id,title',
@@ -128,7 +141,13 @@ class StudentDashboardController extends Controller
       ])
       ->orderBy('weekday_id')
       ->orderBy('hour_id')
-      ->get();
+      ->get()
+      ->sortBy(function ($r) use ($studentShift) {
+        $priority = $r->shift === $studentShift ? 0 : (($r->shift === 'common' || $r->shift === null) ? 1 : 2);
+        return ($priority * 10000) + ((int) ($r->weekday_id ?? 0) * 100) + (int) ($r->hour_id ?? 0);
+      })
+      ->unique(fn($r) => ($r->weekday_id ?? 'x') . '_' . ($r->hour_id ?? 'x'))
+      ->values();
 
     $timetableByDay = $timetable->groupBy(fn($r) => $r->weekdaymaster->title ?? 'Unknown');
 
@@ -391,10 +410,23 @@ class StudentDashboardController extends Controller
   /**
    * Fetch and organize timetable data for student's batch.
    */
-  private function getTimetableData(int $batchId): array
+  private function getTimetableData(int $batchId, string $studentShift = 'common'): array
   {
-    // Fetch all timetable entries for the batch
+    $studentShift = strtolower(trim($studentShift));
+    if ($studentShift === '') {
+      $studentShift = 'common';
+    }
+
+    // Fetch timetable entries for the student's shift with common fallback
     $routines = SubjectHasRoutine::where('batch_id', $batchId)
+      ->where(function ($q) use ($studentShift) {
+        $q->where('shift', $studentShift);
+        if ($studentShift !== 'common') {
+          $q->orWhere('shift', 'common')->orWhereNull('shift');
+        } else {
+          $q->orWhereNull('shift');
+        }
+      })
       ->with([
         'weekdaymaster:id,title',
         'hourmaster:id,title',
@@ -405,7 +437,13 @@ class StudentDashboardController extends Controller
       ])
       ->orderBy('weekday_id')
       ->orderBy('hour_id')
-      ->get();
+      ->get()
+      ->sortBy(function ($r) use ($studentShift) {
+        $priority = $r->shift === $studentShift ? 0 : (($r->shift === 'common' || $r->shift === null) ? 1 : 2);
+        return ($priority * 10000) + ((int) ($r->weekday_id ?? 0) * 100) + (int) ($r->hour_id ?? 0);
+      })
+      ->unique(fn($r) => ($r->weekday_id ?? 'x') . '_' . ($r->hour_id ?? 'x'))
+      ->values();
 
     // Get all weekdays and hours for grid structure
     $weekdays = \App\Models\Weekday::orderBy('id')->get();

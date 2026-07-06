@@ -241,6 +241,7 @@ class FacultyDashboardController extends Controller
             'lecture_hall' => $routine->lecturehallmaster->title ?? '-',
             'course' => $routine->subjectCourse->courseMaster->course_code . '-' . $routine->subjectCourse->courseMaster->course_title,
             'course_type' => $routine->subjectCourse->courseMaster->coursetypemaster->title ?? '-',
+            'shift' => ucfirst($routine->shift ?? 'common'),
           ];
         });
     } else {
@@ -266,6 +267,7 @@ class FacultyDashboardController extends Controller
             'lecture_hall' => $routine->lecturehallmaster->title ?? '-',
             'course' => $routine->subjectCourse->courseMaster->course_code . '-' . $routine->subjectCourse->courseMaster->course_title,
             'course_type' => $routine->subjectCourse->courseMaster->coursetypemaster->title ?? '-',
+            'shift' => ucfirst($routine->shift ?? 'common'),
           ];
         });
     }

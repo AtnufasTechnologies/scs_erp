@@ -176,7 +176,7 @@ $userRoleType = StaticController::fetchUserRole();
           </h5>
           <form id="historyFilterForm">
             <div class="row g-3 align-items-end">
-              <div class="col-md-3">
+              <div class="col-md-2">
                 <label class="form-label">
                   <i class="fas fa-users me-1"></i>Batch
                 </label>
@@ -187,7 +187,18 @@ $userRoleType = StaticController::fetchUserRole();
                   @endforeach
                 </select>
               </div>
-              <div class="col-md-3">
+              <div class="col-md-2">
+                <label class="form-label">
+                  <i class="fas fa-clock me-1"></i>Shift
+                </label>
+                <select name="shift" class="form-select" id="shiftFilter">
+                  <option value="">All Shifts</option>
+                  @foreach ($shiftOptions as $shiftOption)
+                  <option value="{{ $shiftOption->slug }}">{{ $shiftOption->title }}</option>
+                  @endforeach
+                </select>
+              </div>
+              <div class="col-md-2">
                 <label class="form-label">
                   <i class="fas fa-user me-1"></i>Faculty
                 </label>
@@ -389,6 +400,7 @@ $userRoleType = StaticController::fetchUserRole();
             <tr>
               <th>Date</th>
               <th>Day</th>
+              <th>Shift</th>
               <th>Hour</th>
               <th>Subject/Course</th>
               <th>Semester</th>
@@ -408,6 +420,7 @@ $userRoleType = StaticController::fetchUserRole();
             <strong>${new Date(history.substitution_date).toLocaleDateString()}</strong>
           </td>
           <td><span class="badge bg-info">${history.day_of_week}</span></td>
+          <td><span class="badge bg-dark text-capitalize">${history.shift || 'common'}</span></td>
           <td><span class="badge bg-primary">Hour ${history.hour_number}</span></td>
           <td>
             <strong>${history.subject_title}</strong><br>

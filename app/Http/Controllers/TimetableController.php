@@ -15,6 +15,7 @@ use App\Models\SubjectFacultyMaster;
 use App\Models\SubjectHasRoutine;
 use App\Models\SubjectHasSemester;
 use App\Models\SubjectHasSyllabus;
+use App\Models\ShiftMaster;
 use App\Models\Weekday;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -27,6 +28,10 @@ class TimetableController extends Controller
     function index($id)
     {
         $data = Subject::find($id);
+        $subjectUsesShifts = (int) ($data->has_shift_delivery ?? 0) === 1;
+        $shiftOptions = ShiftMaster::where('is_active', 1)
+            ->orderBy('sort_order')
+            ->get(['title', 'slug']);
         $subjectSemesters = SubjectHasSemester::where('subject_id', $id)
             ->with([
                 'semestermaster:id,title',
@@ -43,6 +48,8 @@ class TimetableController extends Controller
             'subjectSemesters' => $subjectSemesters,
             'semesterMasters' => $semesterMasters,
             'batches' => $batches,
+            'subjectUsesShifts' => $subjectUsesShifts,
+            'shiftOptions' => $shiftOptions,
         ]);
     }
 
@@ -81,9 +88,11 @@ class TimetableController extends Controller
         ]);
     }
 
-    function getTimetableData($subjectId, $batchId, $semesterId)
+    function getTimetableData(Request $request, $subjectId, $batchId, $semesterId)
     {
         try {
+            $activeShift = $this->resolveTimetableShift($request, (int) $subjectId);
+
             // Get all syllabi for this subject/batch/semester
             $syllabi = SubjectHasSyllabus::where('subject_id', $subjectId)
                 ->where('batch_id', $batchId)
@@ -100,7 +109,9 @@ class TimetableController extends Controller
 
             // Get routine data for all syllabi
             $syllabusIds = $syllabi->pluck('id');
-            $routines = SubjectHasRoutine::whereIn('syllabus_id', $syllabusIds)->get();
+            $routines = SubjectHasRoutine::whereIn('syllabus_id', $syllabusIds)
+                ->where('shift', $activeShift)
+                ->get();
 
             $weekdays = [1 => 'Monday', 2 => 'Tuesday', 3 => 'Wednesday', 4 => 'Thursday', 5 => 'Friday', 6 => 'Saturday'];
             $timetableData = [];
@@ -171,6 +182,7 @@ class TimetableController extends Controller
                         'routine_id' => $routine->id, // Include routine ID for direct deletion
                         'hour_number' => $routine->hour_id,
                         'day_of_week' => $dayName,
+                        'shift' => $routine->shift,
                         'subject_id' => $lookupCourseId ?: $syllabus->subject_id, // Return proper course id
                         'teacher_id' => $facultyId,
                         'subject_name' => $courseName ?: ($syllabus->subject->subject_title ?? $syllabus->subject->title ?? 'Subject'),
@@ -217,9 +229,11 @@ class TimetableController extends Controller
         }
     }
 
-    function clearAllRoutines($subjectId, $batchId, $semesterId)
+    function clearAllRoutines(Request $request, $subjectId, $batchId, $semesterId)
     {
         try {
+            $activeShift = $this->resolveTimetableShift($request, (int) $subjectId);
+
             // Get all syllabi for this subject/batch/semester
             $syllabusIds = SubjectHasSyllabus::where('subject_id', $subjectId)
                 ->where('batch_id', $batchId)
@@ -234,15 +248,21 @@ class TimetableController extends Controller
             }
 
             // Get routine IDs to delete associated substitutions
-            $routineIds = SubjectHasRoutine::whereIn('syllabus_id', $syllabusIds)->pluck('id');
+            $routineIds = SubjectHasRoutine::whereIn('syllabus_id', $syllabusIds)
+                ->where('shift', $activeShift)
+                ->pluck('id');
 
             // Delete associated substitutions first
             $substitutionsDeleted = FacultySubstitution::whereIn('routine_id', $routineIds)->count();
             FacultySubstitution::whereIn('routine_id', $routineIds)->delete();
 
             // Delete all routines for these syllabi
-            $deletedCount = SubjectHasRoutine::whereIn('syllabus_id', $syllabusIds)->count();
-            SubjectHasRoutine::whereIn('syllabus_id', $syllabusIds)->delete();
+            $deletedCount = SubjectHasRoutine::whereIn('syllabus_id', $syllabusIds)
+                ->where('shift', $activeShift)
+                ->count();
+            SubjectHasRoutine::whereIn('syllabus_id', $syllabusIds)
+                ->where('shift', $activeShift)
+                ->delete();
 
             $message = "Successfully cleared {$deletedCount} timetable entries";
             if ($substitutionsDeleted > 0) {
@@ -264,9 +284,11 @@ class TimetableController extends Controller
     function storeSemesterTimetable(Request $request, $subjectId, $batchId, $semesterId)
     {
         try {
+            $activeShift = $this->resolveTimetableShift($request, (int) $subjectId);
+
             // Handle bulk timetable save from grid
             if ($request->has('timetable')) {
-                return $this->storeBulkTimetableNew($request, $subjectId, $batchId, $semesterId);
+                return $this->storeBulkTimetableNew($request, $subjectId, $batchId, $semesterId, $activeShift);
             }
 
             // Handle individual slot save
@@ -299,6 +321,7 @@ class TimetableController extends Controller
             })
                 ->where('weekday_id', $validated['weekday_id'])
                 ->where('hour_id', $validated['hour_id'])
+                ->where('shift', $activeShift)
                 ->exists();
 
             if ($timeSlotConflict) {
@@ -312,6 +335,7 @@ class TimetableController extends Controller
             $alreadyExists = SubjectHasRoutine::where('syllabus_id', $validated['syllabus_id'])
                 ->where('weekday_id', $validated['weekday_id'])
                 ->where('hour_id', $validated['hour_id'])
+                ->where('shift', $activeShift)
                 ->exists();
 
             if ($alreadyExists) {
@@ -325,6 +349,7 @@ class TimetableController extends Controller
             $routineData = [
                 'syllabus_id' => $validated['syllabus_id'],
                 'batch_id' => $batchId, // Add batch_id for substitution
+                'shift' => $activeShift,
                 'weekday_id' => $validated['weekday_id'],
                 'hour_id' => $validated['hour_id'],
             ];
@@ -348,7 +373,7 @@ class TimetableController extends Controller
         }
     }
 
-    private function storeBulkTimetableNew(Request $request, $subjectId, $batchId, $semesterId)
+    private function storeBulkTimetableNew(Request $request, $subjectId, $batchId, $semesterId, string $activeShift)
     {
         try {
             $timetable = $request->input('timetable', []);
@@ -370,7 +395,9 @@ class TimetableController extends Controller
                 ->where('semester_id', $semesterId)
                 ->pluck('id');
 
-            SubjectHasRoutine::whereIn('syllabus_id', $existingSyllabi)->delete();
+            SubjectHasRoutine::whereIn('syllabus_id', $existingSyllabi)
+                ->where('shift', $activeShift)
+                ->delete();
 
             foreach ($timetable as $slot) {
                 if (empty($slot['subject_id']) || empty($slot['day_of_week']) || empty($slot['hour_number'])) {
@@ -404,6 +431,7 @@ class TimetableController extends Controller
                 SubjectHasRoutine::create([
                     'syllabus_id' => $syllabus->id,
                     'batch_id' => $batchId, // Add batch_id for substitution
+                    'shift' => $activeShift,
                     'weekday_id' => $weekdayId,
                     'hour_id' => $hourNumber,
                     'faculty_id' => $facultyId, // Use proper faculty_id column
@@ -496,16 +524,25 @@ class TimetableController extends Controller
     {
         $data = Subject::findOrFail($subjectId);
         $batches = BatchMaster::latest()->get();
+        $subjectUsesShifts = (int) ($data->has_shift_delivery ?? 0) === 1;
+        $shiftOptions = ShiftMaster::where('is_active', 1)
+            ->orderBy('sort_order')
+            ->get(['title', 'slug']);
 
         return view('admin.subject.substitution', [
             'data' => $data,
             'batches' => $batches,
+            'subjectUsesShifts' => $subjectUsesShifts,
+            'shiftOptions' => $shiftOptions,
         ]);
     }
 
-    function getSubstitutionSchedule($batchId, $day)
+    function getSubstitutionSchedule(Request $request, $batchId, $day)
     {
         try {
+            $subjectId = (int) $request->get('subject_id');
+            $activeShift = $this->resolveTimetableShift($request, $subjectId);
+
             // Get weekday ID from day name
             $weekdays = [
                 'Monday' => 1,
@@ -528,6 +565,7 @@ class TimetableController extends Controller
             // Get all routines for the specific batch and day
             $routines = SubjectHasRoutine::where('batch_id', $batchId)
                 ->where('weekday_id', $weekdayId)
+                ->where('shift', $activeShift)
                 ->with([
                     'faculty:id,FIRST_NAME,LAST_NAME,USER_CODE',
                     'substitutionFaculty:id,FIRST_NAME,LAST_NAME,USER_CODE',
@@ -547,6 +585,7 @@ class TimetableController extends Controller
                 $scheduleData[] = [
                     'routine_id' => $routine->id,
                     'hour_number' => $routine->hour_id,
+                    'shift' => $routine->shift,
                     'subject_title' => $routine->subjectCourse->subject->title ?? 'N/A',
                     'subject_code' => $routine->subjectCourse->subject->code ?? 'N/A',
                     'course_title' => $routine->subjectCourse->courseMaster->course_title ?? 'N/A',
@@ -601,9 +640,12 @@ class TimetableController extends Controller
         }
     }
 
-    function getTeacherConflicts($hourNumber, $day)
+    function getTeacherConflicts(Request $request, $hourNumber, $day)
     {
         try {
+            $subjectId = (int) $request->get('subject_id');
+            $activeShift = $this->resolveTimetableShift($request, $subjectId);
+
             // Get weekday ID from day name
             $weekdays = [
                 'Monday' => 1,
@@ -626,6 +668,7 @@ class TimetableController extends Controller
             // Get all faculty IDs that are already booked at this specific hour and day
             $bookedFaculties = SubjectHasRoutine::where('weekday_id', $weekdayId)
                 ->where('hour_id', $hourNumber)
+                ->where('shift', $activeShift)
                 ->whereNotNull('faculty_id')
                 ->pluck('faculty_id')
                 ->toArray();
@@ -640,6 +683,47 @@ class TimetableController extends Controller
                 'message' => 'Failed to check teacher conflicts: ' . $e->getMessage()
             ], 500);
         }
+    }
+
+    private function resolveTimetableShift(Request $request, int $subjectId): string
+    {
+        $defaultShift = $this->getDefaultShiftSlug();
+        $requestedShift = $request->get('shift');
+
+        if (!$this->subjectUsesShifts($subjectId)) {
+            return $defaultShift;
+        }
+
+        if (!empty($requestedShift) && $this->isKnownShift($requestedShift)) {
+            return $requestedShift;
+        }
+
+        return $defaultShift;
+    }
+
+    private function subjectUsesShifts(int $subjectId): bool
+    {
+        if ($subjectId <= 0) {
+            return false;
+        }
+
+        return Subject::where('id', $subjectId)->value('has_shift_delivery') == 1;
+    }
+
+    private function isKnownShift(string $shift): bool
+    {
+        return ShiftMaster::where('slug', $shift)->exists();
+    }
+
+    private function getDefaultShiftSlug(): string
+    {
+        $common = ShiftMaster::where('slug', 'common')->value('slug');
+        if (!empty($common)) {
+            return $common;
+        }
+
+        $fallback = ShiftMaster::orderBy('sort_order')->value('slug');
+        return $fallback ?: 'common';
     }
 
     function saveSubstitutions(Request $request)
@@ -753,6 +837,7 @@ class TimetableController extends Controller
         try {
             $validated = $request->validate([
                 'batch_id' => 'nullable|exists:batch_masters,id',
+                'shift' => 'nullable|string|max:20',
                 'start_date' => 'nullable|date',
                 'end_date' => 'nullable|date|after_or_equal:start_date',
                 'faculty_id' => 'nullable|exists:faculties,id',
@@ -775,6 +860,12 @@ class TimetableController extends Controller
             if (!empty($validated['batch_id'])) {
                 $query->whereHas('routine', function ($q) use ($validated) {
                     $q->where('batch_id', $validated['batch_id']);
+                });
+            }
+
+            if (!empty($validated['shift']) && $this->isKnownShift($validated['shift'])) {
+                $query->whereHas('routine', function ($q) use ($validated) {
+                    $q->where('shift', $validated['shift']);
                 });
             }
 
@@ -803,6 +894,7 @@ class TimetableController extends Controller
                     'formatted_date' => $substitution->substitution_date->format('l, F j, Y'),
                     'day_of_week' => $substitution->day_of_week,
                     'hour_number' => $substitution->hour_number,
+                    'shift' => $substitution->routine->shift ?? 'common',
                     'subject_title' => $substitution->routine->subjectCourse->subject->title ?? 'N/A',
                     'course_title' => $substitution->routine->subjectCourse->courseMaster->course_title ?? 'N/A',
                     'semester_title' => $substitution->routine->syllabus->semestermaster->title ?? 'N/A',
@@ -844,10 +936,14 @@ class TimetableController extends Controller
     {
         $batches = BatchMaster::latest()->get();
         $faculties = Faculty::orderBy('FIRST_NAME')->get();
+        $shiftOptions = ShiftMaster::where('is_active', 1)
+            ->orderBy('sort_order')
+            ->get(['title', 'slug']);
 
         return view('admin.subject.substitution-history', [
             'batches' => $batches,
             'faculties' => $faculties,
+            'shiftOptions' => $shiftOptions,
         ]);
     }
 
@@ -856,6 +952,7 @@ class TimetableController extends Controller
         try {
             $validated = $request->validate([
                 'batch_id' => 'nullable|exists:batch_masters,id',
+                'shift' => 'nullable|string|max:20',
                 'start_date' => 'nullable|date',
                 'end_date' => 'nullable|date|after_or_equal:start_date',
                 'faculty_id' => 'nullable|exists:faculties,id'
@@ -877,6 +974,12 @@ class TimetableController extends Controller
             if (!empty($validated['batch_id'])) {
                 $query->whereHas('routine', function ($q) use ($validated) {
                     $q->where('batch_id', $validated['batch_id']);
+                });
+            }
+
+            if (!empty($validated['shift']) && $this->isKnownShift($validated['shift'])) {
+                $query->whereHas('routine', function ($q) use ($validated) {
+                    $q->where('shift', $validated['shift']);
                 });
             }
 
@@ -962,6 +1065,7 @@ class TimetableController extends Controller
                         'weekday' => $routine->weekdaymaster->title ?? '-',
                         'hour' => $routine->hourmaster->title ?? '-',
                         'subject' => $routine->syllabus->subject->title ?? '-',
+                        'shift' => ucfirst($routine->shift ?? 'common'),
                         'batch' => $routine->syllabus->batchmaster->batch_name ?? '-',
                         'semester' => $routine->syllabus->semestermaster->title ?? '-',
                         'lecture_hall' => $routine->lecturehallmaster->title ?? '-',
@@ -987,6 +1091,7 @@ class TimetableController extends Controller
                         'weekday' => $routine->weekdaymaster->title ?? '-',
                         'hour' => $routine->hourmaster->title ?? '-',
                         'subject' => $routine->syllabus->subject->title ?? '-',
+                        'shift' => ucfirst($routine->shift ?? 'common'),
                         'batch' => $routine->syllabus->batchmaster->batch_name ?? '-',
                         'semester' => $routine->syllabus->semestermaster->title ?? '-',
                         'lecture_hall' => $routine->lecturehallmaster->title ?? '-',

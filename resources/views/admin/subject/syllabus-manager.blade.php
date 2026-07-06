@@ -1,8 +1,11 @@
 <?php
 
 use App\Models\BatchMaster;
+use Illuminate\Support\Str;
 
 $batches = BatchMaster::all();
+$subjectUsesShifts = $subjectUsesShifts ?? false;
+$shiftTitleMap = collect($shiftOptions ?? [])->pluck('title', 'slug')->toArray();
 
 ?>
 @include('includes.header')
@@ -64,6 +67,14 @@ $batches = BatchMaster::all();
             <option value="{{$batch->id}}" {{ request('batch') == $batch->id ? 'selected' : '' }}>{{$batch->batch_name}}</option>
             @endforeach
           </select>
+          @if($subjectUsesShifts)
+          <select name="filter_shift" class="form-select">
+            <option value="" selected>--Shift--</option>
+            @foreach ($shiftOptions as $shiftOption)
+            <option value="{{ $shiftOption->slug }}" {{ request('filter_shift') === $shiftOption->slug ? 'selected' : '' }}>{{ $shiftOption->title }}</option>
+            @endforeach
+          </select>
+          @endif
           <input type="hidden" name="id" value="{{$data['id']}}">
           <input type="hidden" name="slug" value="{{$data['slug']}}">
           <button class="btn btn-outline-success"><i class="fa fa-search"></i></button>
@@ -71,6 +82,10 @@ $batches = BatchMaster::all();
 
       </form>
     </div>
+
+
+
+
   </div>
 
   <!-- PDF Batch Select Modal -->
@@ -92,6 +107,15 @@ $batches = BatchMaster::all();
               <option value="{{ $batch->id }}">{{ $batch->batch_name }}</option>
               @endforeach
             </select>
+            @if($subjectUsesShifts)
+            <label for="pdf_filter_shift" class="form-label fw-semibold mt-3">Select Shift</label>
+            <select name="filter_shift" id="pdf_filter_shift" class="form-select">
+              <option value="">All</option>
+              @foreach ($shiftOptions as $shiftOption)
+              <option value="{{ $shiftOption->slug }}">{{ $shiftOption->title }}</option>
+              @endforeach
+            </select>
+            @endif
             <small class="text-muted mt-2 d-block">Only the selected batch's syllabus will be included in the PDF.</small>
           </div>
           <div class="modal-footer">
@@ -129,6 +153,30 @@ $batches = BatchMaster::all();
                   @enderror
 
                 </div>
+
+                @if($subjectUsesShifts)
+                <div class="col-lg-4">
+                  <label for="">Shift *</label>
+                  <select name="shift" id="syllabus_shift" class="form-select mb-3">
+                    @foreach ($shiftOptions as $shiftOption)
+                    <option value="{{ $shiftOption->slug }}" {{ $shiftOption->slug === 'common' ? 'selected' : '' }}>{{ $shiftOption->title }}</option>
+                    @endforeach
+                  </select>
+                  @error('shift')
+                  <small class="text-danger">{{$message}}</small>
+                  @enderror
+                </div>
+
+                <div class="col-lg-4">
+                  <label class="form-label d-block">Create Mode</label>
+                  <div class="form-check mt-2">
+                    <input class="form-check-input" type="checkbox" value="1" id="create_all_shifts" name="create_all_shifts">
+                    <label class="form-check-label" for="create_all_shifts">
+                      Create this syllabus for all active shifts
+                    </label>
+                  </div>
+                </div>
+                @endif
 
                 <div class="col-lg-4">
                   <label for="">Select Semester *</label>
@@ -213,14 +261,32 @@ $batches = BatchMaster::all();
             $seatKey  = $firstCso ? "{$firstCso->batch_id}_{$firstCso->semester_id}_{$firstCso->co_id}" : null;
             $seatAlloc = $seatKey ? ($seatAllocations[$seatKey] ?? null) : null;
             $refPdf    = $seatKey ? ($syllabuspdfs[$seatKey] ?? null) : null;
+            $shiftSlug = $firstCso->shift ?? 'common';
+            $shiftTitle = $shiftTitleMap[$shiftSlug] ?? Str::title($shiftSlug);
+
+            $totalUnits = 0;
+            $completedUnits = 0;
+            foreach (($courseData['csos'] ?? []) as $courseSyllabus) {
+              $subunits = collect($courseSyllabus->syllabusSubunits ?? []);
+              $totalUnits += $subunits->count();
+              $completedUnits += $subunits->where('is_completed', 1)->count();
+            }
+            $completionPercent = $totalUnits > 0 ? (int) round(($completedUnits / $totalUnits) * 100) : 0;
+            $isLowCompletion = $totalUnits > 0 && $completionPercent < 50;
+            $progressBarClass = $completionPercent >= 75 ? 'bg-success' : ($completionPercent >= 50 ? 'bg-warning' : 'bg-danger');
             ?>
-            <div class="accordion-item">
+            <div class="accordion-item {{ $isLowCompletion ? 'border border-danger' : '' }}">
               <div class="accordion-header d-flex align-items-center">
                 <button class="accordion-button collapsed flex-grow-1" type="button" data-bs-toggle="collapse"
                   data-bs-target="#course{{ Str::slug($batchName . $semesterName . $courseKey) }}"
                   aria-expanded="false">
                   <strong>{{ $courseData['course']->course_code ?? 'N/A' }}</strong>
                   <span class="ms-2">{{ $courseData['course']->course_title ?? 'Unknown Course' }}</span>
+                  @if($subjectUsesShifts)
+                  <span class="badge bg-info text-dark ms-2">Shift: {{ $shiftTitle }}</span>
+                  @endif
+                  <span class="badge bg-light text-dark ms-2">{{ $completedUnits }}/{{ $totalUnits }} Units</span>
+                  <span class="badge {{ $isLowCompletion ? 'bg-danger' : 'bg-success' }} ms-2">{{ $completionPercent }}% Complete</span>
                   <span class="badge bg-secondary ms-auto me-2">{{ $courseData['course']->credits ?? '0' }} Credits</span>
                   @if($seatAlloc)
                   <span class="badge {{ $seatAlloc->is_open ? 'bg-success' : 'bg-secondary' }} me-2" title="Total Seats">
@@ -247,7 +313,7 @@ $batches = BatchMaster::all();
                 @if($firstCso)
                 <form action="{{ route('department.syllabus.co.delete', [$data['id'], $firstCso->batch_id, $firstCso->semester_id, $firstCso->co_id]) }}"
                   method="POST" class="no-print me-2"
-                  onsubmit="return confirm('Remove \'{{ addslashes($courseData['course']->course_title ?? 'this course') }}\' and ALL its CSOs & subunits from this batch/semester?')">
+                  onsubmit="return confirm('Remove this course and all its CSOs & subunits from this batch/semester?')">
                   @csrf
                   @method('DELETE')
                   <button type="submit" class="btn btn-sm btn-danger" title="Remove course from this batch & semester">
@@ -260,6 +326,23 @@ $batches = BatchMaster::all();
                 class="accordion-collapse collapse"
                 data-bs-parent="#accordion{{ Str::slug($batchName . $semesterName) }}">
                 <div class="accordion-body">
+                  <!-- Course Completion Analytics -->
+                  <div class="mb-3">
+                    <div class="d-flex justify-content-between align-items-center mb-1">
+                      <small class="text-muted">Course Completion Progress</small>
+                      <small class="fw-semibold">{{ $completionPercent }}%</small>
+                    </div>
+                    <progress class="w-100" value="{{ $completionPercent }}" max="100"></progress>
+                    <small class="text-muted">Completed {{ $completedUnits }} of {{ $totalUnits }} learning units</small>
+                  </div>
+
+                  @if($isLowCompletion)
+                  <div class="alert alert-danger py-2" role="alert">
+                    <i class="fa fa-exclamation-triangle me-1"></i>
+                    This course is below 50% completion. Consider prioritizing pending units.
+                  </div>
+                  @endif
+
                   <!-- Reference PDF Panel -->
                   <div class="alert {{ $refPdf ? 'alert-danger' : 'alert-light border' }} d-flex align-items-center justify-content-between py-2 mb-3 no-print" role="alert">
                     <div>
@@ -322,7 +405,16 @@ $batches = BatchMaster::all();
                   <div class="card mb-3">
                     <div class="card-header bg-info text-white">
                       <div class="d-flex justify-content-between align-items-center">
-                        <span><strong>{{ $syllabus->cso->title ?? 'N/A' }}</strong></span>
+                        <span>
+                          <strong>{{ $syllabus->cso->title ?? 'N/A' }}</strong>
+                          @if($subjectUsesShifts)
+                          @php
+                          $csoShiftSlug = $syllabus->shift ?? 'common';
+                          $csoShiftTitle = $shiftTitleMap[$csoShiftSlug] ?? Str::title($csoShiftSlug);
+                          @endphp
+                          <span class="badge bg-dark ms-1">{{ $csoShiftTitle }}</span>
+                          @endif
+                        </span>
                         <span class="badge bg-light text-dark">{{ $syllabus->cso->lectures_needed ?? '0' }} Lectures</span>
                       </div>
                     </div>
@@ -484,7 +576,11 @@ $batches = BatchMaster::all();
         csoSelect.innerHTML = '<option value="" selected>Loading CSOs...</option>';
 
         // Fetch CSOs for the selected course
-        fetch(`/erp/deptartment/course/${courseId}/cso-list`)
+        const shiftSelect = document.getElementById('syllabus_shift');
+        const selectedShift = shiftSelect ? shiftSelect.value : '';
+        const endpoint = `/erp/deptartment/course/${courseId}/cso-list${selectedShift ? `?shift=${selectedShift}` : ''}`;
+
+        fetch(endpoint)
           .then(response => response.json())
           .then(data => {
 
@@ -582,6 +678,15 @@ $batches = BatchMaster::all();
           }
         } catch (e) {
           csoSubunitCheckboxes.innerHTML = '<p class="text-muted text-danger">Error loading sub units</p>';
+        }
+      });
+    }
+
+    const shiftSelect = document.getElementById('syllabus_shift');
+    if (shiftSelect && courseSelect) {
+      shiftSelect.addEventListener('change', function() {
+        if (courseSelect.value) {
+          courseSelect.dispatchEvent(new Event('change'));
         }
       });
     }

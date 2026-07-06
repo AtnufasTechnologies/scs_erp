@@ -15,6 +15,7 @@ class SyllabusManager extends Model
         'subject_id',
         'batch_id',
         'semester_id',
+        'shift',
         'co_id',
         'cso_id',
     ];

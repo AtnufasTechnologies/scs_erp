@@ -36,8 +36,11 @@ class AttendanceController extends Controller
         'syllabus.semestermaster:id,title',
         'syllabus.courseLink.courseMaster:id,course_title,course_code',
       ])
+      ->orderBy('syllabus_id')
+      ->orderBy('shift')
       ->get()
-      ->unique('syllabus_id');
+      ->unique(fn($routine) => (string) ($routine->syllabus_id ?? '0') . '_' . strtolower(trim((string) ($routine->shift ?? 'common'))))
+      ->values();
 
     return view('faculty.attendance.index', [
       'syllabusAssignments' => $syllabusAssignments
@@ -176,35 +179,57 @@ class AttendanceController extends Controller
     $hourId = $request->input('hour_id');
     $attendanceDate = $request->input('attendance_date', date('Y-m-d'));
     $semesterId = $request->input('semester_id');
-    $batch = $request->input('batch_id');
+    $batchId = (int) $request->input('batch_id');
 
     $record =  SubjectHasSyllabus::find($syllabus_id); // Validate syllabus_id
     if (!$record) {
       return back()->with('error', 'Invalid syllabus selected.');
     }
 
+    $routine = SubjectHasRoutine::find($id);
+    if (!$routine) {
+      return back()->with('error', 'Invalid routine selected.');
+    }
+
+    $routineShift = strtolower(trim((string) ($routine->shift ?? 'common')));
+
     $course_id = $record->course_id;
     $campusId = $record->subject->campus_id;
+    $effectiveBatchId = !empty($batchId) ? $batchId : (int) ($record->batch_id ?? 0);
 
+    if (empty($effectiveBatchId)) {
+      return back()->with('error', 'Invalid batch selected.');
+    }
 
-    $students = DB::table('student_masters as sm')
+    $baseQuery = DB::table('student_masters as sm')
       ->join('student_course_infos as sci', 'sm.id', '=', 'sci.student_id')
+      ->join('student_program as sp', 'sm.new_program_id', '=', 'sp.id')
       ->select(
         'sm.id',
         'sm.roll_no',
         'sm.first_name',
         'sm.last_name',
-        'sci.id as course_info_id'
+        'sci.id as course_info_id',
+        'sp.shift as program_shift'
       )
       ->where('sm.is_left', 0)
       ->where('sm.is_deleted', 0)
+      ->where('sm.batch', $effectiveBatchId)
       ->where('sci.course_id', $course_id)
-      ->where('sci.academic_year', $batch)
       ->where('sci.semester', $semesterId)
       ->where('sci.campus_id', $campusId)
       ->where('sci.is_deleted', 0)
-      ->distinct()
+      ->distinct();
+
+    // 1) Prefer strict shift match so day/morning student sets stay isolated.
+    $students = (clone $baseQuery)
+      ->whereRaw('LOWER(COALESCE(sp.shift, ?)) = ?', ['common', $routineShift])
       ->get();
+
+    // 2) Backward-compatible fallback for legacy program records without valid shift mapping.
+    if ($students->isEmpty()) {
+      $students = (clone $baseQuery)->get();
+    }
 
     $syllabusAssignment = SubjectHasSyllabus::with([
       'courseLink.courseMaster.coursetypemaster',
@@ -218,15 +243,17 @@ class AttendanceController extends Controller
       ->where('hour_id', $hourId)
       ->get()
       ->keyBy('student_id');
+
     if ($request->attendance_type == 'regular') {
 
       return view('faculty.attendance.take', [
         'students' => $students,
         'recordId' => $id,
+        'routineShift' => ucfirst($routineShift),
         'syllabusId' => $syllabus_id,
         'hourId' => $hourId,
         'attendanceDate' => $attendanceDate,
-        'batchId' => $batch,
+        'batchId' => $effectiveBatchId,
         'syllabusAssignment' => $syllabusAssignment,
         'course_id' => $course_id,
         'semesterId' => $semesterId,
@@ -236,10 +263,11 @@ class AttendanceController extends Controller
       return view('faculty.attendance.extra.take', [
         'students' => $students,
         'recordId' => $id,
+        'routineShift' => ucfirst($routineShift),
         'syllabusId' => $syllabus_id,
         'hourId' => $hourId,
         'attendanceDate' => $attendanceDate,
-        'batchId' => $batch,
+        'batchId' => $effectiveBatchId,
         'syllabusAssignment' => $syllabusAssignment,
         'course_id' => $course_id,
         'semesterId' => $semesterId,

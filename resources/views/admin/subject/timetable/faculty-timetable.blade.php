@@ -67,6 +67,11 @@ $batches = BatchMaster::latest()->get();
       color: #fffde7;
     }
 
+    .calendar-block .shift {
+      font-size: 0.85em;
+      color: #ffd5f7;
+    }
+
     .calendar-block .lecture {
       font-size: 0.85em;
       color: #fff;
@@ -125,9 +130,10 @@ $batches = BatchMaster::latest()->get();
             <div class="calendar-block">
               <div>{{ $entry['course_type'] ?? '-' }}</div>
               <div class="course">{{ $entry['course'] ?? '-' }}</div>
-              <div class="semester">{{ $entry['semester'] ?? '-' }}</div>
-              <div class="batch">Batch: {{ $entry['batch'] ?? '-' }}</div>
-              <div class="lecture">Hall: {{ $entry['lecture_hall'] ?? '-' }}</div>
+              <div class="semester">Batch: {{ $entry['batch'] ?? '-' }} -{{ $entry['semester'] ?? '-' }}</div>
+              <div class="shift">Shift: {{ $entry['shift'] ?? 'Common' }}</div>
+              <div class="batch"></div>
+              <!-- <div class="lecture">Hall: {{ $entry['lecture_hall'] ?? '-' }}</div> -->
             </div>
             @endforeach
             @else

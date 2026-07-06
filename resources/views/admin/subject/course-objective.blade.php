@@ -3,6 +3,17 @@
 use App\Models\CognitiveLevelMaster;
 
 $taxonomylevels = CognitiveLevelMaster::all();
+$selectedShift = request('shift', 'all');
+$subjectUsesShifts = $subjectUsesShifts ?? false;
+$shiftOptions = $shiftOptions ?? collect();
+$shiftSlugs = $shiftOptions->pluck('slug')->toArray();
+$defaultShift = in_array('common', $shiftSlugs, true) ? 'common' : ($shiftSlugs[0] ?? 'common');
+$newCsoShift = in_array($selectedShift, $shiftSlugs, true) ? $selectedShift : $defaultShift;
+$allCsos = $course->courseMaster->csos ?? collect();
+$filteredCsos = $allCsos;
+if (in_array($selectedShift, $shiftSlugs, true)) {
+  $filteredCsos = $allCsos->where('shift', $selectedShift)->values();
+}
 
 ?>
 @include('includes.header')
@@ -36,6 +47,19 @@ $taxonomylevels = CognitiveLevelMaster::all();
       <i class="fa fa-plus-circle"></i> New CSO
     </button>
 
+    @if($subjectUsesShifts)
+    <form action="{{ route('department.view.cso', $course->courseMaster->id) }}" method="get" class="row g-2 mb-3">
+      <div class="col-md-3">
+        <select name="shift" class="form-select" onchange="this.form.submit()">
+          <option value="all" {{ $selectedShift === 'all' ? 'selected' : '' }}>All Shifts</option>
+          @foreach ($shiftOptions as $shiftOption)
+          <option value="{{ $shiftOption->slug }}" {{ $selectedShift === $shiftOption->slug ? 'selected' : '' }}>{{ $shiftOption->title }}</option>
+          @endforeach
+        </select>
+      </div>
+    </form>
+    @endif
+
     <!-- Modal for adding new objective -->
     <div class="modal fade" id="addObjectiveModal" tabindex="-1" aria-labelledby="addObjectiveModalLabel" aria-hidden="true">
       <div class="modal-dialog modal-lg">
@@ -48,6 +72,19 @@ $taxonomylevels = CognitiveLevelMaster::all();
             @csrf
             <div class="modal-body">
               <div class="row">
+
+                @if($subjectUsesShifts)
+                <div class="col-lg-3">
+                  <div class="mb-3">
+                    <label for="csoShift" class="form-label">Shift*</label>
+                    <select class="form-select" id="csoShift" name="shift" required>
+                      @foreach ($shiftOptions as $shiftOption)
+                      <option value="{{ $shiftOption->slug }}" {{ $newCsoShift === $shiftOption->slug ? 'selected' : '' }}>{{ $shiftOption->title }}</option>
+                      @endforeach
+                    </select>
+                  </div>
+                </div>
+                @endif
 
                 <div class="col-lg-3">
                   <div class="mb-3">
@@ -118,7 +155,7 @@ $taxonomylevels = CognitiveLevelMaster::all();
           <h5 class="mb-0">Course Specific Objectives</h5>
 
           <div class="card-body">
-            @forelse ($course->courseMaster->csos as $cso)
+            @forelse ($filteredCsos as $cso)
             <div class="card mb-3 border">
               <div class="card-body">
                 <div class="row">
@@ -126,6 +163,9 @@ $taxonomylevels = CognitiveLevelMaster::all();
                     <h6 class="card-title mb-2">{{ $loop->iteration }}. {!! $cso->title !!}</h6>
                     <p class="card-text text-muted mb-0">
                       <strong>Lectures Needed:</strong> {{ $cso->lectures_needed }}
+                      @if($subjectUsesShifts)
+                      <span class="ms-2 badge bg-info text-dark">{{ ucfirst($cso->shift ?? 'common') }}</span>
+                      @endif
                     </p>
                   </div>
                   <div class="col-md-3 text-end">
@@ -145,6 +185,18 @@ $taxonomylevels = CognitiveLevelMaster::all();
                             @method('PUT')
                             <div class="modal-body">
                               <div class="row">
+                                @if($subjectUsesShifts)
+                                <div class="col-lg-3">
+
+                                  <label for="csoShift{{ $cso->id }}" class="form-label">Shift*</label>
+                                  <select class="form-select" id="csoShift{{ $cso->id }}" name="shift" required>
+                                    @foreach ($shiftOptions as $shiftOption)
+                                    <option value="{{ $shiftOption->slug }}" {{ ($cso->shift ?? $defaultShift) === $shiftOption->slug ? 'selected' : '' }}>{{ $shiftOption->title }}</option>
+                                    @endforeach
+                                  </select>
+
+                                </div>
+                                @endif
                                 <div class="col-lg-3">
 
                                   <label for="lecturesNeeded" class="form-label">Lectures Needed*</label>
@@ -338,7 +390,7 @@ $taxonomylevels = CognitiveLevelMaster::all();
             @endforelse
           </div>
           <div class="card-footer bg-light">
-            <p class="mb-0 text-muted small">Total CSOs: {{ count($course->courseMaster->csos) }}</p>
+            <p class="mb-0 text-muted small">Total CSOs: {{ count($filteredCsos) }}</p>
           </div>
         </div>
       </div>

@@ -15,6 +15,7 @@ class StudentProgram extends Model
         'description',
         'semester_count',
         'campus_id',
+        'shift',
         'department',
         'programme',
         'program_type'
@@ -51,5 +52,10 @@ class StudentProgram extends Model
     function combomap()
     {
         return $this->hasOne(StdProgComboMap::class, 'student_program_id', 'id');
+    }
+
+    function shiftmaster()
+    {
+        return $this->hasOne(ShiftMaster::class, 'slug', 'shift');
     }
 }

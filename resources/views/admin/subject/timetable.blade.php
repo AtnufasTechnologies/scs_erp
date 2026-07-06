@@ -181,11 +181,27 @@ $faculties = SubjectFacultyMaster::where('subject_id', $data->id)->with('faculty
                     @endforeach
                   </select>
                 </div>
+                @if($subjectUsesShifts)
+                <div class="col-md-2">
+                  <label class="form-label">Shift</label>
+                  <select name="shift" class="form-select" id="shiftSelect" style="border-radius:0.5em;">
+                    @foreach ($shiftOptions as $shiftOption)
+                    <option value="{{ $shiftOption->slug }}" {{ $shiftOption->slug === 'common' ? 'selected' : '' }}>{{ $shiftOption->title }}</option>
+                    @endforeach
+                  </select>
+                </div>
+                <div class="col-md-2">
+                  <button type="button" class="btn btn-primary w-100" id="generateTimetableBtn" style="border-radius:0.5em;">
+                    <i class="fa fa-table"></i> Generate Timetable
+                  </button>
+                </div>
+                @else
                 <div class="col-md-4">
                   <button type="button" class="btn btn-primary w-100" id="generateTimetableBtn" style="border-radius:0.5em;">
                     <i class="fa fa-table"></i> Generate Timetable
                   </button>
                 </div>
+                @endif
               </div>
             </form>
           </div>
@@ -238,6 +254,21 @@ $faculties = SubjectFacultyMaster::where('subject_id', $data->id)->with('faculty
     const totalHours = 6;
     const days = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
 
+    function getActiveShift() {
+      const shiftSelect = document.getElementById('shiftSelect');
+      return shiftSelect ? shiftSelect.value : 'common';
+    }
+
+    function getActiveShiftLabel() {
+      const shiftSelect = document.getElementById('shiftSelect');
+      if (!shiftSelect) {
+        return 'Common';
+      }
+
+      const option = shiftSelect.options[shiftSelect.selectedIndex];
+      return option ? option.text : 'Common';
+    }
+
     // Global function to test remove slot
     window.testRemoveSlot = function(routineId, hour, day) {
       console.log('Testing remove slot with routine ID:', routineId, 'Hour:', hour, 'Day:', day);
@@ -253,6 +284,7 @@ $faculties = SubjectFacultyMaster::where('subject_id', $data->id)->with('faculty
     function loadTimetable() {
       const batchId = document.getElementById('batchSelect')?.value;
       const semesterId = document.getElementById('semesterSelect')?.value;
+      const shift = getActiveShift();
 
       if (!batchId || !semesterId) {
         alert('Please select Batch and Semester');
@@ -263,8 +295,9 @@ $faculties = SubjectFacultyMaster::where('subject_id', $data->id)->with('faculty
 
       // Fetch existing timetable data from backend
       const loadUrl = '{{ route("department.timetable.data", [$data->id, "BATCH_ID", "SEMESTER_ID"]) }}'.replace('BATCH_ID', batchId).replace('SEMESTER_ID', semesterId);
+      const queryUrl = `${loadUrl}?shift=${encodeURIComponent(shift)}`;
 
-      fetch(loadUrl, {
+      fetch(queryUrl, {
           method: 'GET',
           headers: {
             'Accept': 'application/json',
@@ -341,7 +374,10 @@ $faculties = SubjectFacultyMaster::where('subject_id', $data->id)->with('faculty
       timetableGridArea.innerHTML = `
         <div class='card custom-card'>
           <div class='card-body'>
-            <h5 class='card-title text-dark mb-3'>Timetable Grid</h5>
+            <h5 class='card-title text-dark mb-3'>
+              Timetable Grid
+              <span class="badge bg-info ms-2">Shift: ${getActiveShiftLabel()}</span>
+            </h5>
             <div class="mb-3">
               <button type="button" class="btn btn-warning btn-sm me-2" onclick="copyFromDay()">
                 <i class="fa fa-copy"></i> Copy Day
@@ -407,7 +443,7 @@ $faculties = SubjectFacultyMaster::where('subject_id', $data->id)->with('faculty
 
       fetch(`{{ route('department.timetable.conflicts', ['HOUR', 'DAY']) }}`
           .replace('HOUR', hourNumber)
-          .replace('DAY', day), {
+          .replace('DAY', day) + `?subject_id={{ $data->id }}&shift=${encodeURIComponent(getActiveShift())}`, {
             method: 'GET',
             headers: {
               'Accept': 'application/json',
@@ -542,6 +578,7 @@ $faculties = SubjectFacultyMaster::where('subject_id', $data->id)->with('faculty
     function saveTimetable() {
       const batchId = document.getElementById('batchSelect').value;
       const semesterId = document.getElementById('semesterSelect').value;
+      const shift = getActiveShift();
 
       if (!batchId || !semesterId) {
         alert('Please select Batch and Semester');
@@ -556,6 +593,7 @@ $faculties = SubjectFacultyMaster::where('subject_id', $data->id)->with('faculty
       const data = {
         batch_id: batchId,
         semester_id: semesterId,
+        shift: shift,
         timetable: timetableData
       };
 
@@ -631,6 +669,7 @@ $faculties = SubjectFacultyMaster::where('subject_id', $data->id)->with('faculty
         const subjectId = document.getElementById('subjectIdInput').value;
         const batchId = document.getElementById('batchSelect').value;
         const semesterId = document.getElementById('semesterSelect').value;
+        const shift = getActiveShift();
 
         if (!batchId || !semesterId) {
           alert('Please select Batch and Semester first');
@@ -646,7 +685,7 @@ $faculties = SubjectFacultyMaster::where('subject_id', $data->id)->with('faculty
         fetch(`{{ route('department.timetable.clear', ['subjectId' => 'SUBJECT_ID', 'batchId' => 'BATCH_ID', 'semesterId' => 'SEMESTER_ID']) }}`
             .replace('SUBJECT_ID', subjectId)
             .replace('BATCH_ID', batchId)
-            .replace('SEMESTER_ID', semesterId), {
+            .replace('SEMESTER_ID', semesterId) + `?shift=${encodeURIComponent(shift)}`, {
               method: 'DELETE',
               headers: {
                 'X-CSRF-TOKEN': '{{ csrf_token() }}',

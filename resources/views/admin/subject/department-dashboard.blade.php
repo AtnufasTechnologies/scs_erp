@@ -8,6 +8,7 @@ use App\Models\Semester;
 use App\Models\StudentProgram;
 use App\Models\SubjectCourseMaster;
 use App\Models\SubjectHasDeptAdmin;
+use App\Models\SubjectHasRoutine;
 use Illuminate\Support\Facades\Auth;
 
 $batches = BatchMaster::latest()->get();
@@ -15,6 +16,19 @@ $semesters = Semester::get();
 $course_master = SubjectCourseMaster::with('courseMaster')->where('subject_id', $data->id)->get();
 $faculties = Faculty::all();
 $mainStreams = ProgramMaster::all();
+
+$deptFacultyIds = collect($deptfaculties ?? [])->pluck('faculty_id')->filter()->unique()->values()->all();
+$facultyIdsWithTimetable = [];
+if (!empty($deptFacultyIds)) {
+  $facultyIdsWithTimetable = SubjectHasRoutine::whereIn('faculty_id', $deptFacultyIds)
+    ->whereHas('syllabus', function ($query) use ($data) {
+      $query->where('subject_id', $data->id);
+    })
+    ->distinct()
+    ->pluck('faculty_id')
+    ->map(fn($id) => (int) $id)
+    ->all();
+}
 ?>
 @include('includes.header')
 @include('includes.dept-sidebar')
@@ -278,7 +292,7 @@ $mainStreams = ProgramMaster::all();
       <div class="table-responsive">
         <table class="table table-hover">
           <thead>
-            <tr style="border-bottom: 2px solid #f0f0f0;">
+            <tr style="border-bottom: 2px solid #fac01f;">
               <th style="color: #e9ebef; font-weight: 600; padding: 16px;">#</th>
               <th style="color: #e9ebef; font-weight: 600;">Tracking ID</th>
               <th style="color: #e9ebef; font-weight: 600;">Batch</th>
@@ -394,19 +408,23 @@ $mainStreams = ProgramMaster::all();
       <div class="table-responsive">
         <table class="table table-hover">
           <thead>
-            <tr style="border-bottom: 2px solid #f0f0f0;">
-              <th style="color: #6b7280; font-weight: 600; padding: 16px;">#</th>
-              <th style="color: #6b7280; font-weight: 600;">Faculty Code</th>
-              <th style="color: #6b7280; font-weight: 600;">Faculty</th>
-              <th style="color: #6b7280; font-weight: 600;">Joining Date</th>
-              <th style="color: #6b7280; font-weight: 600;">Mobile</th>
-              <th style="color: #6b7280; font-weight: 600;">Mail</th>
-              <th style="color: #6b7280; font-weight: 600;">Timetable</th>
-              <th style="color: #6b7280; font-weight: 600;">Action</th>
+            <tr style="border-bottom: 2px solid #fac01f;">
+              <th style="color: #fff; font-weight: 600; padding: 16px;">#</th>
+              <th style="color: #fff; font-weight: 600;">Faculty Code</th>
+              <th style="color: #fff; font-weight: 600;">Faculty</th>
+              <th style="color: #fff; font-weight: 600;">Joining Date</th>
+              <th style="color: #fff; font-weight: 600;">Mobile</th>
+              <th style="color: #fff; font-weight: 600;">Mail</th>
+              <th style="color: #fff; font-weight: 600;">Timetable</th>
+              <th style="color: #fff; font-weight: 600;">Action</th>
             </tr>
           </thead>
           <tbody>
             @foreach($deptfaculties as $faculty)
+            @php
+            $facultyUserId = (int) ($faculty->faculty->id ?? 0);
+            $hasTimetable = in_array($facultyUserId, $facultyIdsWithTimetable, true);
+            @endphp
             <tr style="border-bottom: 1px solid #f5f5f5;">
               <td style="padding: 16px; color: #1a1a1a; font-weight: 500;">{{ $loop->iteration }}</td>
               <td style="color: #1a1a1a;">{{ $faculty->faculty->USER_CODE ?? '-' }}</td>
@@ -415,8 +433,9 @@ $mainStreams = ProgramMaster::all();
               <td style="color: #6b7280;">{{$faculty->faculty->MOBILE_NO ?? '-'}}</td>
               <td style="color: #6b7280;">{{$faculty->faculty->MAIL_ID ?? '-'}}</td>
               <td>
-                <a href="{{ route('department.faculty.timetable', $faculty->faculty->id) }}" class="btn btn-sm btn-modern" style="background: #5b4cdb; color: white;">
-                  <i class="fas fa-calendar me-1"></i> Timetable
+                <a href="{{ route('department.faculty.timetable', $faculty->faculty->id) }}" class="btn btn-sm btn-modern" style="background: {{ $hasTimetable ? '#16a34a' : '#dc2626' }}; color: white;">
+                  <i class="fas {{ $hasTimetable ? 'fa-calendar-check' : 'fa-calendar-times' }} me-1"></i>
+                  {{ $hasTimetable ? 'Timetable' : 'No Timetable' }}
                 </a>
               </td>
               <td>

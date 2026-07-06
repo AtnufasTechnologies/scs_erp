@@ -201,12 +201,26 @@ $faculties = SubjectFacultyMaster::where('subject_id', $data->id)->with('faculty
                   </label>
                   <input type="date" name="substitution_date" class="form-control" id="dateSelect" style="border-radius:0.5em;" required>
                 </div>
-                <div class="col-md-4">
-                  <button type="button" class="btn btn-primary w-100" id="generateSubstitutionBtn" style="border-radius:0.5em;">
-                    <i class="fa fa-search me-2"></i>Generate Schedule
-                  </button>
+                @if($subjectUsesShifts)
+                <div class="col-md-2">
+                  <label class="form-label">
+                    <i class="fas fa-clock me-1"></i>Shift
+                  </label>
+                  <select name="shift" class="form-select" id="shiftSelect" style="border-radius:0.5em;">
+                    @foreach ($shiftOptions as $shiftOption)
+                    <option value="{{ $shiftOption->slug }}" {{ $shiftOption->slug === 'common' ? 'selected' : '' }}>{{ $shiftOption->title }}</option>
+                    @endforeach
+                  </select>
                 </div>
-              </div>
+                <div class="col-md-2">
+                  @else
+                  <div class="col-md-4">
+                    @endif
+                    <button type="button" class="btn btn-primary w-100" id="generateSubstitutionBtn" style="border-radius:0.5em;">
+                      <i class="fa fa-search me-2"></i>Generate Schedule
+                    </button>
+                  </div>
+                </div>
             </form>
           </div>
         </div>
@@ -285,6 +299,21 @@ $faculties = SubjectFacultyMaster::where('subject_id', $data->id)->with('faculty
     let substitutionData = [];
     let originalScheduleData = [];
 
+    function getActiveShift() {
+      const shiftSelect = document.getElementById('shiftSelect');
+      return shiftSelect ? shiftSelect.value : 'common';
+    }
+
+    function getActiveShiftLabel() {
+      const shiftSelect = document.getElementById('shiftSelect');
+      if (!shiftSelect) {
+        return 'Common';
+      }
+
+      const option = shiftSelect.options[shiftSelect.selectedIndex];
+      return option ? option.text : 'Common';
+    }
+
     // Helper function to get day of week from selected date
     function getDayFromSelectedDate() {
       const date = document.getElementById('dateSelect')?.value;
@@ -331,6 +360,7 @@ $faculties = SubjectFacultyMaster::where('subject_id', $data->id)->with('faculty
 
     function loadOriginalSchedule(batchId, day, date) {
       console.log('Loading schedule for batch:', batchId, 'day:', day, 'date:', date);
+      const activeShift = getActiveShift();
 
       // Show loading state
       const generateBtn = document.getElementById('generateSubstitutionBtn');
@@ -340,7 +370,7 @@ $faculties = SubjectFacultyMaster::where('subject_id', $data->id)->with('faculty
       // Fetch substitution schedule data using the new endpoint
       const loadUrl = `{{ route("department.substitution.schedule", ["BATCH_ID", "DAY"]) }}`
         .replace('BATCH_ID', batchId)
-        .replace('DAY', day);
+        .replace('DAY', day) + `?subject_id={{ $data->id }}&shift=${encodeURIComponent(activeShift)}`;
 
       fetch(loadUrl, {
           method: 'GET',
@@ -383,7 +413,7 @@ $faculties = SubjectFacultyMaster::where('subject_id', $data->id)->with('faculty
         month: 'long',
         day: 'numeric'
       });
-      scheduleDetails.textContent = `${batchName} - ${day}, ${formattedDate}`;
+      scheduleDetails.textContent = `${batchName} - ${day}, ${formattedDate} - Shift: ${getActiveShiftLabel()}`;
 
       if (originalScheduleData.length === 0) {
         substitutionGrid.innerHTML = `

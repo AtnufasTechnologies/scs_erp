@@ -68,12 +68,15 @@ $hourMaster = HourMaster::all();
                   @foreach($syllabusAssignments as $item)
                   <option value="{{ $item->id }}"
                     data-semester-id="{{ $item->syllabus->semester_id ?? '' }}"
-                    data-batch-id="{{ $item->syllabus->batchmaster->batch_name ?? '' }}"
-                    data-syllabus-id="{{ $item->syllabus->id ?? '' }}">
+                    data-batch-id="{{ $item->syllabus->batch_id ?? '' }}"
+                    data-batch-name="{{ $item->syllabus->batchmaster->batch_name ?? '' }}"
+                    data-syllabus-id="{{ $item->syllabus->id ?? '' }}"
+                    data-shift="{{ strtolower($item->shift ?? 'common') }}">
                     {{ $item->syllabus->courseLink->courseMaster->course_title ?? 'N/A' }}
                     ({{ $item->syllabus->courseLink->courseMaster->course_code ?? 'N/A' }})
                     - {{ $item->syllabus->semestermaster->title ?? 'N/A' }}
                     | Batch: {{ $item->syllabus->batchmaster->batch_name ?? 'N/A' }}
+                    | Shift: {{ ucfirst($item->shift ?? 'common') }}
                   </option>
                   @endforeach
                 </select>
@@ -94,7 +97,7 @@ $hourMaster = HourMaster::all();
                 </div>
                 <div class="col-lg-3">
                   <label for="attendanceType" class="form-label fw-bold">Attendance Type</label>
-                  <select id="attendance_type" class="form-select">
+                  <select id="attendance_type" class="form-select" name="attendance_type">
                     <option value="regular" selected>Regular</option>
                     <option value="remedial">Remedial</option>
                   </select>
@@ -125,6 +128,7 @@ $hourMaster = HourMaster::all();
     const subjectSelect = document.getElementById('subjectSelect');
     const hourSelect = document.getElementById('hourSelect');
     const attendanceDate = document.getElementById('attendanceDate');
+    const attendanceTypeSelect = document.getElementById('attendance_type');
     const btnLoadStudents = document.getElementById('btnLoadStudents');
 
     function checkEnableButton() {
@@ -147,9 +151,10 @@ $hourMaster = HourMaster::all();
       const semesterId = selectedOption.dataset.semesterId;
       const batchId = selectedOption.dataset.batchId;
       const syllabusId = selectedOption.dataset.syllabusId;
+      const attendanceType = attendanceTypeSelect ? attendanceTypeSelect.value : 'regular';
       // Redirect or fetch students as needed
       // Example: redirect to attendance creation page with params
-      const url = `{{ url('erp/faculty/attendance/create') }}?rec_id=${recId}&syllabus_id=${syllabusId}&hour_id=${hourId}&attendance_date=${date}&semester_id=${semesterId}&batch_id=${batchId}`;
+      const url = `{{ url('erp/faculty/attendance/create') }}?rec_id=${recId}&syllabus_id=${syllabusId}&hour_id=${hourId}&attendance_date=${date}&semester_id=${semesterId}&batch_id=${batchId}&attendance_type=${encodeURIComponent(attendanceType)}`;
       window.location.href = url;
     });
   });

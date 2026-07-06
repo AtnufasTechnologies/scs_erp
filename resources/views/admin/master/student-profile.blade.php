@@ -620,7 +620,7 @@ $userRole = StaticController::fetchUserRole($userId);
     <button class="sp-tab" onclick="spTab(event,'tab-attendance')"><i class="fas fa-check-circle"></i> Attendance</button>
     <button class="sp-tab" onclick="spTab(event,'tab-fa')"><i class="fas fa-pen"></i> FA Marks</button>
     <!-- <button class="sp-tab" onclick="spTab(event,'tab-results')"><i class="fas fa-trophy"></i> Exam Results</button> -->
-    <button class="sp-tab" onclick="spTab(event,'tab-courses')"><i class="fas fa-book"></i> Courses</button>
+    <button class="sp-tab" id="btn-tab-courses" onclick="spTab(event,'tab-courses')"><i class="fas fa-book"></i> Courses</button>
     <button class="sp-tab" onclick="spTab(event,'tab-fee')"><i class="fas fa-rupee-sign"></i> Fee</button>
     @if(in_array($userRole, ['super-admin','itcell']))
     <button class="sp-tab" id="btn-tab-edit" onclick="spTab(event,'tab-edit')"><i class="fas fa-edit"></i> Edit Details</button>
@@ -1058,135 +1058,15 @@ $userRole = StaticController::fetchUserRole($userId);
 
   {{-- ── COURSES ── --}}
   <div class="sp-panel" id="tab-courses">
-
-    {{-- Course type badge colours --}}
-    @php
-    $ctColors = [
-    'CC' => ['bg'=>'#e8eaf6','color'=>'#1a237e'],
-    'GE' => ['bg'=>'#e8f5e9','color'=>'#1b5e20'],
-    'SEC' => ['bg'=>'#fff3e0','color'=>'#e65100'],
-    'DSE' => ['bg'=>'#fce4ec','color'=>'#880e4f'],
-    'AECC' => ['bg'=>'#e3f2fd','color'=>'#0d47a1'],
-    'MDC' => ['bg'=>'#f3e5f5','color'=>'#4a148c'],
-    'MAJ' => ['bg'=>'#e0f7fa','color'=>'#006064'],
-    'MIN' => ['bg'=>'#fff8e1','color'=>'#f57f17'],
-    ];
-    $defaultCt = ['bg'=>'#f5f5f5','color'=>'#555'];
-    @endphp
-
-    {{-- header row: title + Enroll button --}}
-    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:1rem;flex-wrap:wrap;gap:.5rem;">
-      <div style="font-size:1rem;font-weight:700;color:#1a1a2e;">
-        <i class="fas fa-book-open me-1" style="color:#1a237e;"></i>
-        Enrolled Courses
-        <span class="sp-count ms-2">{{ $studentCourses->count() }}</span>
-      </div>
-      <button type="button" class="btn btn-sm btn-primary" data-bs-toggle="modal" data-bs-target="#enrollCourseModal">
-        <i class="fas fa-plus me-1"></i> Enroll Course
-      </button>
+    <div id="courseAjaxAlert"></div>
+    <div id="courseListContainer">
+      @include('admin.master.partials.student-courses-list', [
+      'data' => $data,
+      'studentCourses' => $studentCourses,
+      'coursesBySemester' => $coursesBySemester,
+      'lockedCourseIds' => $lockedCourseIds,
+      ])
     </div>
-
-    @if($coursesBySemester->isEmpty())
-    <div class="sp-card">
-      <div class="sp-empty"><i class="fas fa-book"></i>No courses enrolled yet.</div>
-    </div>
-    @else
-
-    @foreach($coursesBySemester as $semLabel => $courses)
-    <div class="sp-card" style="margin-bottom:1rem;">
-      <div style="display:flex;align-items:center;gap:.5rem;margin-bottom:.75rem;padding-bottom:.6rem;border-bottom:1px solid #f0f0f0;">
-        <span style="background:#e8eaf6;color:#1a237e;border-radius:6px;padding:.25rem .8rem;font-weight:700;font-size:.82rem;">
-          <i class="fas fa-layer-group me-1"></i>{{ $semLabel }}
-        </span>
-        <span class="sp-count">{{ $courses->count() }} courses</span>
-      </div>
-      <div style="overflow-x:auto;">
-        <table class="sp-table" style="min-width:600px;">
-          <thead>
-            <tr>
-              <th>#</th>
-              <th>RefID</th>
-              <th>Code</th>
-              <th>Course Title</th>
-              <th>Type</th>
-              <th>Cr.</th>
-
-              <th style="text-align:center;">Actions</th>
-            </tr>
-          </thead>
-          <tbody>
-            @foreach($courses as $i => $course)
-            @php
-            $locked = in_array($course->course_id, $lockedCourseIds);
-            $typeTitle = $course->coursemaster?->coursetypemaster?->title ?? '';
-            $ctKey = preg_replace('/\s.*/', '', $typeTitle);
-            $ct = $ctColors[$ctKey] ?? $defaultCt;
-            @endphp
-            <?php
-            $courseMarks = StaticController::getStudentCourseMarks($data->id, $course->course_id);
-            $totalFaMark = StaticController::getStudentCourseMarkTotal($data->id, $course->course_id);
-
-            ?>
-            <tr>
-              <td style="color:#adb5bd;">{{ $i+1 }}</td>
-              <td>{{ $course->id ?? '—' }}</td>
-
-              <td>
-                <span style="background:#e8eaf6;color:#3949ab;border-radius:4px;padding:.1rem .45rem;font-size:.78rem;font-weight:600;">
-                  {{ $course->coursemaster?->course_code ?? '—' }}
-                </span>
-              </td>
-              <td style="font-weight:500;">{{ $course->coursemaster?->course_title ?? '—' }}</td>
-              <td>
-                @if($typeTitle)
-                <span style="background:{{ $ct['bg'] }};color:{{ $ct['color'] }};border-radius:4px;padding:.1rem .5rem;font-size:.76rem;font-weight:700;white-space:nowrap;">
-                  {{ $typeTitle }}
-                </span>
-                @else —
-                @endif
-              </td>
-              <td>{{ $course->coursemaster?->credits ?? '—' }}</td>
-
-
-              <td style="text-align:center;white-space:nowrap;">
-                @if(count($courseMarks) > 0)
-                <span title="Marks recorded — cannot modify" style="color:#adb5bd;font-size:.8rem;">
-                  <i class="fas fa-lock me-1"></i>Locked has Marks Entries
-                </span>
-                @else
-                {{-- Toggle active --}}
-                <form method="POST" action="{{ route('admin.student.courses.update', [$data->id, $course->id]) }}" class="d-inline">
-                  @csrf @method('PUT')
-                  <button type="submit" class="btn btn-xs"
-                    style="font-size:.76rem;padding:.2rem .55rem;background:{{ $course->is_active ? '#fff3e0' : '#e8f5e9' }};color:{{ $course->is_active ? '#e65100' : '#2e7d32' }};border:1px solid {{ $course->is_active ? '#ffccbc' : '#c8e6c9' }};border-radius:4px;"
-                    title="{{ $course->is_active ? 'Deactivate' : 'Activate' }}">
-                    <i class="fas {{ $course->is_active ? 'fa-toggle-off' : 'fa-toggle-on' }}"></i>
-                  </button>
-                </form>
-                {{-- Delete --}}
-                <form method="POST" action="{{ route('admin.student.courses.destroy', [$data->id, $course->id]) }}" class="d-inline ms-1"
-                  onsubmit="return confirm('Remove this course enrollment?')">
-                  @csrf @method('DELETE')
-                  <button type="submit" class="btn btn-xs"
-                    style="font-size:.76rem;padding:.2rem .55rem;background:#fce4ec;color:#c62828;border:1px solid #f8bbd9;border-radius:4px;"
-                    title="Remove enrollment">
-                    <i class="fas fa-trash"></i>
-                  </button>
-                </form>
-                @endif
-              </td>
-            </tr>
-            @endforeach
-          </tbody>
-        </table>
-      </div>
-    </div>
-    @endforeach
-
-    <p style="font-size:.75rem;color:#adb5bd;margin-top:.5rem;">
-      <i class="fas fa-lock me-1"></i> Locked = FA or SA marks recorded. Edit/delete not allowed.
-    </p>
-    @endif
   </div>
 
   {{-- Enroll Course Modal --}}
@@ -1195,41 +1075,36 @@ $userRole = StaticController::fetchUserRole($userId);
       <div class="modal-content">
         <div class="modal-header" style="background:#1a237e;">
           <h5 class="modal-title text-white" id="enrollCourseModalLabel">
-            <i class="fas fa-plus-circle me-2"></i>Enroll Courses — {{ $data->first_name }} {{ $data->last_name }}
+            <i class="fas fa-plus-circle me-2"></i>New Course Enrollment - {{ $data->first_name }} {{ $data->last_name }}
           </h5>
           <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
         </div>
         <form method="POST" action="{{ route('admin.student.courses.store', $data->id) }}" id="enrollForm">
           @csrf
           <div class="modal-body" style="padding:1.25rem;">
-
+            <div class="alert alert-info">
+              <p>Selection of Semester connects the student to that particular semesters. This can also be considered as Semester Changing</p>
+            </div>
             <div class="row g-3 mb-3 align-items-end">
               <div class="col-md-6">
+                <label class="form-label fw-semibold">Roll No</label>
+                <input type="text" class="form-control text-uppercase" value=" {{ $data->roll_no }} " readonly>
+              </div>
+              <div class=" col-md-6">
                 <label class="form-label fw-semibold">Select Semester</label>
-                <select class="form-select form-select-sm" name="semester_id">
+                <select class="form-select" name="semester_id" id="enrollSemFilter">
                   <option value="">All Semesters</option>
                   @foreach($availableSemesters as $sem)
                   <option value="{{ $sem->id }}">{{ $sem->title }}</option>
                   @endforeach
                 </select>
               </div>
-
-              <div class="col-md-6">
-                <label class="form-label fw-semibold">Academic Year</label>
-                <input type="number" class="form-select  radius-20 dark" name="academic_year" value="{{old('academic_year')}}" min="2022" max="{{date('Y')}}" placeholder="YYYY">
-              </div>
-
               <div class="col-lg-12">
-                <select name="course_ids[]" class="form-select select-multiple" size="12" multiple>
-                  @foreach($availableCourses as $semId => $semCourses)
-                  <optgroup label="{{ $semCourses->first()?->semestermaster?->title ?? 'Semester '.$semId }}" data-sem="{{ $semId }}">
-                    @foreach($semCourses as $ac)
-                    <option value="{{ $ac->id }}">{{ $ac->course_code }} — {{ $ac->course_title }}{{ $ac->coursetypemaster ? ' ('.$ac->coursetypemaster->title.')' : '' }}</option>
-                    @endforeach
-                  </optgroup>
-                  @endforeach
+                <select name="course_ids[]" class="form-select select-multiple" id="enrollCourseSelect" size="12" multiple>
+                  @include('admin.master.partials.student-course-options', ['availableCourses' => $availableCourses])
                 </select>
               </div>
+              <input type="hidden" name="batch" value="{{$data->batch}}">
 
             </div>
 
@@ -1238,7 +1113,7 @@ $userRole = StaticController::fetchUserRole($userId);
           </div>
           <div class="modal-footer">
             <button type="button" class="btn btn-outline-secondary btn-sm" data-bs-dismiss="modal">Cancel</button>
-            <button type="submit" class="btn btn-primary btn-sm">
+            <button type="submit" class="btn btn-primary btn-sm" id="enrollSubmitBtn">
               <i class="fas fa-save me-1"></i> Enroll
             </button>
           </div>
@@ -1246,21 +1121,6 @@ $userRole = StaticController::fetchUserRole($userId);
       </div>
     </div>
   </div>
-
-  <script>
-    function filterEnrollOptions() {
-      var semVal = document.getElementById('enrollSemFilter').value;
-      var groups = document.querySelectorAll('#enrollCourseSelect optgroup');
-      for (var i = 0; i < groups.length; i++) {
-        var match = !semVal || groups[i].getAttribute('data-sem') === semVal;
-        var opts = groups[i].querySelectorAll('option');
-        for (var j = 0; j < opts.length; j++) {
-          opts[j].hidden = !match;
-          if (!match) opts[j].selected = false;
-        }
-      }
-    }
-  </script>
 
   {{-- ── FEE ── --}}
   <div class="sp-panel" id="tab-fee">
@@ -1593,6 +1453,135 @@ $userRole = StaticController::fetchUserRole($userId);
       behavior: 'smooth'
     });
   }
+
+  function filterEnrollOptions() {
+    var semFilter = document.getElementById('enrollSemFilter');
+    var select = document.getElementById('enrollCourseSelect');
+    if (!semFilter || !select) return;
+
+    var semVal = semFilter.value;
+    var groups = select.querySelectorAll('optgroup');
+    for (var i = 0; i < groups.length; i++) {
+      var group = groups[i];
+      var match = !semVal || group.getAttribute('data-sem') === semVal;
+      var opts = group.querySelectorAll('option');
+      var hasVisible = false;
+
+      for (var j = 0; j < opts.length; j++) {
+        opts[j].hidden = !match;
+        if (!match) opts[j].selected = false;
+        if (match) hasVisible = true;
+      }
+
+      group.hidden = !hasVisible;
+    }
+  }
+
+  function showCourseAjaxAlert(type, message) {
+    var alertBox = document.getElementById('courseAjaxAlert');
+    if (!alertBox) return;
+
+    var alertClass = type === 'error' ? 'danger' : 'success';
+    var iconClass = type === 'error' ? 'fa-exclamation-circle' : 'fa-check-circle';
+    alertBox.innerHTML = '<div class="alert alert-' + alertClass + ' alert-dismissible fade show" role="alert">' +
+      '<i class="fas ' + iconClass + ' me-1"></i> ' + message +
+      '<button type="button" class="btn-close" data-bs-dismiss="alert"></button>' +
+      '</div>';
+  }
+
+  async function submitCourseAjaxForm(form, confirmMessage) {
+    if (!form) return;
+    if (confirmMessage && !window.confirm(confirmMessage)) return;
+
+    var listContainer = document.getElementById('courseListContainer');
+    var enrollBtn = document.getElementById('enrollSubmitBtn');
+    var isEnroll = form.id === 'enrollForm';
+    if (isEnroll && enrollBtn) {
+      enrollBtn.disabled = true;
+      enrollBtn.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i> Saving...';
+    }
+
+    try {
+      var response = await fetch(form.action, {
+        method: 'POST',
+        headers: {
+          'X-Requested-With': 'XMLHttpRequest',
+          'Accept': 'application/json'
+        },
+        body: new FormData(form)
+      });
+
+      var payload = await response.json();
+
+      if (!response.ok || !payload.success) {
+        var errorMessage = payload.message || 'Unable to complete course action.';
+        if (payload.errors) {
+          var firstErrorKey = Object.keys(payload.errors)[0];
+          if (firstErrorKey && payload.errors[firstErrorKey] && payload.errors[firstErrorKey][0]) {
+            errorMessage = payload.errors[firstErrorKey][0];
+          }
+        }
+        showCourseAjaxAlert('error', errorMessage);
+        return;
+      }
+
+      if (listContainer && payload.course_list_html) {
+        listContainer.innerHTML = payload.course_list_html;
+      }
+
+      var courseSelect = document.getElementById('enrollCourseSelect');
+      if (courseSelect && payload.available_courses_html) {
+        courseSelect.innerHTML = payload.available_courses_html;
+      }
+
+      if (isEnroll) {
+        form.reset();
+        filterEnrollOptions();
+        var modalEl = document.getElementById('enrollCourseModal');
+        var modal = modalEl ? bootstrap.Modal.getInstance(modalEl) : null;
+        if (modal) modal.hide();
+      }
+
+      showCourseAjaxAlert('success', payload.message || 'Course action completed successfully.');
+      openTab('tab-courses');
+    } catch (error) {
+      showCourseAjaxAlert('error', 'Network error. Please try again.');
+    } finally {
+      if (isEnroll && enrollBtn) {
+        enrollBtn.disabled = false;
+        enrollBtn.innerHTML = '<i class="fas fa-save me-1"></i> Enroll';
+      }
+    }
+  }
+
+  document.addEventListener('DOMContentLoaded', function() {
+    var semFilter = document.getElementById('enrollSemFilter');
+    var enrollForm = document.getElementById('enrollForm');
+    var listContainer = document.getElementById('courseListContainer');
+
+    if (semFilter) {
+      semFilter.addEventListener('change', filterEnrollOptions);
+      filterEnrollOptions();
+    }
+
+    if (enrollForm) {
+      enrollForm.addEventListener('submit', function(e) {
+        e.preventDefault();
+        submitCourseAjaxForm(enrollForm);
+      });
+    }
+
+    if (listContainer) {
+      listContainer.addEventListener('submit', function(e) {
+        var form = e.target.closest('form[data-ajax-course-action]');
+        if (!form) return;
+
+        e.preventDefault();
+        var confirmMessage = form.getAttribute('data-confirm') || '';
+        submitCourseAjaxForm(form, confirmMessage);
+      });
+    }
+  });
 </script>
 @if($errors-> any())
 <script>

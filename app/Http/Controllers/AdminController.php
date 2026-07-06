@@ -215,8 +215,13 @@ class AdminController extends Controller
 
 
         // Course IDs that have FA marks — used to lock edit/delete
-        $faMarkedCourseIds = InterMark::where('student_id', $id)
+        $interMarkedCourseIds = InterMark::where('student_id', $id)
             ->pluck('course_id')
+            ->unique()
+            ->toArray();
+
+        $ciaMarkedCourseIds = CiaMark::where('STUDENT_ID', $id)
+            ->pluck('COURSE_ID')
             ->unique()
             ->toArray();
 
@@ -227,7 +232,7 @@ class AdminController extends Controller
             ->unique()
             ->toArray();
 
-        $lockedCourseIds = array_unique(array_merge($faMarkedCourseIds, $saMarkedCourseIds));
+        $lockedCourseIds = array_unique(array_merge($interMarkedCourseIds, $ciaMarkedCourseIds, $saMarkedCourseIds));
 
         // Available courses for enrollment modal — grouped by semester
         $enrolledCourseIds = $studentCourses->pluck('course_id')->toArray();
@@ -242,8 +247,21 @@ class AdminController extends Controller
         // All semesters for the modal filter tabs
         $availableSemesters = Semester::orderBy('id')->get();
 
-        // Timetable: all routines for the student's batch
+        // Timetable: prefer student's mapped shift, then fallback to common/null
+        $studentShift = strtolower(trim((string) ($data->programgroup?->programInfo?->shift ?? 'common')));
+        if ($studentShift === '') {
+            $studentShift = 'common';
+        }
+
         $timetable = SubjectHasRoutine::where('batch_id', $data->batch)
+            ->where(function ($q) use ($studentShift) {
+                $q->where('shift', $studentShift);
+                if ($studentShift !== 'common') {
+                    $q->orWhere('shift', 'common')->orWhereNull('shift');
+                } else {
+                    $q->orWhereNull('shift');
+                }
+            })
             ->with([
                 'weekdaymaster:id,title',
                 'hourmaster:id,title',
@@ -253,7 +271,13 @@ class AdminController extends Controller
             ])
             ->orderBy('weekday_id')
             ->orderBy('hour_id')
-            ->get();
+            ->get()
+            ->sortBy(function ($r) use ($studentShift) {
+                $priority = $r->shift === $studentShift ? 0 : (($r->shift === 'common' || $r->shift === null) ? 1 : 2);
+                return ($priority * 10000) + ((int) ($r->weekday_id ?? 0) * 100) + (int) ($r->hour_id ?? 0);
+            })
+            ->unique(fn($r) => ($r->weekday_id ?? 'x') . '_' . ($r->hour_id ?? 'x'))
+            ->values();
 
         // Group timetable by weekday
         $timetableByDay = $timetable->groupBy(fn($r) => $r->weekdaymaster->title ?? 'Unknown');
@@ -364,6 +388,86 @@ class AdminController extends Controller
         ]);
     }
 
+    private function buildStudentCourseContext(int $studentId): array
+    {
+        $studentCourses = StudentCourseInfo::with([
+            'coursemaster.semestermaster:id,title',
+            'coursemaster.coursetypemaster:id,title',
+        ])
+            ->where('student_id', $studentId)
+            ->orderByDesc('id')
+            ->get()
+            ->unique(fn($c) => ($c->semester ?? $c->coursemaster?->semester_id ?? 'na') . '_' . $c->course_id)
+            ->values();
+
+        $semesterMap = Semester::pluck('title', 'id')->toArray();
+
+        $coursesBySemester = $studentCourses
+            ->sortBy(fn($c) => $c->semester ?? $c->coursemaster?->semester_id ?? 999)
+            ->groupBy(function ($c) use ($semesterMap) {
+                $semId = $c->semester ?? $c->coursemaster?->semester_id;
+                return $semesterMap[$semId] ?? ('Semester ' . ($semId ?? '?'));
+            });
+
+        $interMarkedCourseIds = InterMark::where('student_id', $studentId)
+            ->pluck('course_id')
+            ->unique()
+            ->toArray();
+
+        $ciaMarkedCourseIds = CiaMark::where('STUDENT_ID', $studentId)
+            ->pluck('COURSE_ID')
+            ->unique()
+            ->toArray();
+
+        $saMarkedCourseIds = DB::table('exam_marks_entries')
+            ->where('erp_student_id', $studentId)
+            ->pluck('erp_subject_id')
+            ->unique()
+            ->toArray();
+
+        $lockedCourseIds = array_unique(array_merge($interMarkedCourseIds, $ciaMarkedCourseIds, $saMarkedCourseIds));
+
+        $enrolledCourseIds = $studentCourses->pluck('course_id')->toArray();
+        $availableCourses  = ProgramCourseMaster::where('is_deleted', 0)
+            ->whereNotIn('id', $enrolledCourseIds)
+            ->with('semestermaster:id,title', 'coursetypemaster:id,title')
+            ->orderBy('semester_id')
+            ->orderBy('course_title')
+            ->get()
+            ->groupBy(fn($c) => $c->semester_id);
+
+        return [
+            'studentCourses' => $studentCourses,
+            'coursesBySemester' => $coursesBySemester,
+            'lockedCourseIds' => $lockedCourseIds,
+            'availableCourses' => $availableCourses,
+        ];
+    }
+
+    private function stdCoursesAjaxResponse(int $studentId, string $message, int $status = 200)
+    {
+        $student = StudentMaster::findOrFail($studentId);
+        $context = $this->buildStudentCourseContext($studentId);
+
+        $courseListHtml = view('admin.master.partials.student-courses-list', [
+            'data' => $student,
+            'studentCourses' => $context['studentCourses'],
+            'coursesBySemester' => $context['coursesBySemester'],
+            'lockedCourseIds' => $context['lockedCourseIds'],
+        ])->render();
+
+        $availableCoursesHtml = view('admin.master.partials.student-course-options', [
+            'availableCourses' => $context['availableCourses'],
+        ])->render();
+
+        return response()->json([
+            'success' => $status >= 200 && $status < 300,
+            'message' => $message,
+            'course_list_html' => $courseListHtml,
+            'available_courses_html' => $availableCoursesHtml,
+        ], $status);
+    }
+
     /**
      * Update student details from admin profile edit form.
      */
@@ -444,11 +548,12 @@ class AdminController extends Controller
         $request->validate([
             'course_ids'    => 'required|array|min:1',
             'course_ids.*'  => 'integer|exists:program_course_masters,id',
-            'academic_year' => 'required|string|max:20',
+            'batch' => 'required',
             'semester_id'   => 'required|integer|exists:semesters,id',
         ]);
 
-        $academicYear = $request->academic_year;
+        $batchinfo  = BatchMaster::find($request->batch);
+        $academicYear = $batchinfo->batch_name;
         $semesterId   = $request->semester_id;
         $enrolled = 0;
         $skipped  = 0;
@@ -482,6 +587,10 @@ class AdminController extends Controller
         $msg = "{$enrolled} course(s) enrolled successfully.";
         if ($skipped) $msg .= " {$skipped} already enrolled (skipped).";
 
+        if ($request->ajax() || $request->expectsJson()) {
+            return $this->stdCoursesAjaxResponse($studentId, $msg);
+        }
+
         return redirect()->route('admin.student.profile', ['id' => $studentId, 'rollno' => $student->roll_no])
             ->with('success', $msg)
             ->withFragment('tab-courses');
@@ -493,16 +602,24 @@ class AdminController extends Controller
 
         // Check marks lock
         $hasFA = InterMark::where('student_id', $studentId)->where('course_id', $sci->course_id)->exists();
+        $hasCia = CiaMark::where('STUDENT_ID', $studentId)->where('COURSE_ID', $sci->course_id)->exists();
         $hasSA = DB::table('exam_marks_entries')
             ->where('erp_student_id', $studentId)
             ->where('erp_subject_id', $sci->course_id)
             ->exists();
 
-        if ($hasFA || $hasSA) {
+        if ($hasFA || $hasCia || $hasSA) {
+            if ($request->ajax() || $request->expectsJson()) {
+                return $this->stdCoursesAjaxResponse($studentId, 'Cannot modify a course that has marks recorded.', 422);
+            }
             return back()->with('error', 'Cannot modify a course that has marks recorded.')->withFragment('tab-courses');
         }
 
         $sci->update(['is_active' => $sci->is_active ? 0 : 1]);
+
+        if ($request->ajax() || $request->expectsJson()) {
+            return $this->stdCoursesAjaxResponse($studentId, 'Course status updated.');
+        }
 
         $student = StudentMaster::findOrFail($studentId);
         return redirect()->route('admin.student.profile', ['id' => $studentId, 'rollno' => $student->roll_no])
@@ -516,16 +633,24 @@ class AdminController extends Controller
 
         // Check marks lock
         $hasFA = InterMark::where('student_id', $studentId)->where('course_id', $sci->course_id)->exists();
+        $hasCia = CiaMark::where('STUDENT_ID', $studentId)->where('COURSE_ID', $sci->course_id)->exists();
         $hasSA = DB::table('exam_marks_entries')
             ->where('erp_student_id', $studentId)
             ->where('erp_subject_id', $sci->course_id)
             ->exists();
 
-        if ($hasFA || $hasSA) {
+        if ($hasFA || $hasCia || $hasSA) {
+            if ($request->ajax() || $request->expectsJson()) {
+                return $this->stdCoursesAjaxResponse($studentId, 'Cannot remove a course that has marks recorded.', 422);
+            }
             return back()->with('error', 'Cannot remove a course that has marks recorded.')->withFragment('tab-courses');
         }
 
         $sci->delete();
+
+        if ($request->ajax() || $request->expectsJson()) {
+            return $this->stdCoursesAjaxResponse($studentId, 'Course enrollment removed.');
+        }
 
         $student = StudentMaster::findOrFail($studentId);
         return redirect()->route('admin.student.profile', ['id' => $studentId, 'rollno' => $student->roll_no])
@@ -1293,10 +1418,29 @@ class AdminController extends Controller
     {
 
         $request->validate([
+            'batch' => 'required|exists:batch_masters,id',
             'progs' => 'required|array|min:1',
         ]);
         $courseMasterId =  $request->coursemasterId;   //single Id 9 (Course Master Id)
         $progs = $request->progs; //multiple student program ids [1,2,3,4,5]
+
+        $eligibleProgramIds = StudentMaster::where('batch', $request->batch)
+            ->whereNotNull('new_program_id')
+            ->distinct()
+            ->pluck('new_program_id')
+            ->map(fn($id) => (int) $id)
+            ->toArray();
+
+        $progs = collect($progs)
+            ->map(fn($id) => (int) $id)
+            ->filter(fn($id) => in_array($id, $eligibleProgramIds))
+            ->unique()
+            ->values()
+            ->toArray();
+
+        if (empty($progs)) {
+            return redirect()->back()->with('error', 'No eligible student programs found for the selected batch.');
+        }
 
 
         // Add to FeeStructureGroup, associate course master with student programs directly, prevent duplicates
@@ -1337,6 +1481,25 @@ class AdminController extends Controller
         }
 
         return redirect()->back()->with('success', 'Connected Successfully');
+    }
+
+    function fetchStudentProgramsByBatch($batchId)
+    {
+        $programIds = StudentMaster::where('batch', $batchId)
+            ->whereNotNull('new_program_id')
+            ->distinct()
+            ->pluck('new_program_id')
+            ->toArray();
+
+        $programs = StudentProgram::with('campusmaster')
+            ->whereIn('id', $programIds)
+            ->orderBy('name')
+            ->get(['id', 'code', 'name', 'campus_id']);
+
+        return response()->json([
+            'success' => true,
+            'programs' => $programs,
+        ]);
     }
 
     function feeStructureGroupUnlink(int $id)
@@ -1552,8 +1715,9 @@ class AdminController extends Controller
             $data = FeeCourseMaster::with('feegroups.programgroup')->latest()->get();
         }
         $allcourses = FeeCourseMaster::latest()->get();
+        $batches = BatchMaster::orderBy('batch_name', 'desc')->get(['id', 'batch_name']);
 
-        return view('admin.accounts.fee-course-master', ['data' => $data, 'allcourses' => $allcourses]);
+        return view('admin.accounts.fee-course-master', ['data' => $data, 'allcourses' => $allcourses, 'batches' => $batches]);
     }
 
     function addCourseFeeMaster(Request $request)

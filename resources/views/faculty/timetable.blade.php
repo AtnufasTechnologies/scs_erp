@@ -144,9 +144,10 @@ $batches = BatchMaster::latest()->get();
                 <div class="calendar-block">
                   <div>{{ $entry['course_type'] ?? '-' }}</div>
                   <div class="course">{{ $entry['course'] ?? '-' }}</div>
-                  <div class="semester">{{ $entry['semester'] ?? '-' }}</div>
-                  <div class="batch">Batch: {{ $entry['batch'] ?? '-' }}</div>
-                  <div class="lecture">Hall: {{ $entry['lecture_hall'] ?? '-' }}</div>
+                  <div class="semester">{{ $entry['batch'] ?? '-' }} - {{ $entry['semester'] ?? '-' }}</div>
+                  <div class="shift">Shift: {{ $entry['shift'] ?? 'Common' }}</div>
+                  <!-- <div class="batch">Batch: </div>
+                  <div class="lecture">Hall: {{ $entry['lecture_hall'] ?? '-' }}</div> -->
                 </div>
                 @endforeach
                 @else

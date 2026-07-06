@@ -169,6 +169,14 @@ $roleType = UserHasRole::where('user_id', $userId)->value('role_name');
       </a>
       <ul>
         <li>
+          <a href="{{url('erp/admin/master/shift-master')}}">
+            <div class="parent-icon">
+              <i class="far fa-layer-plus"></i>
+            </div>
+            <div class="menu-title">Shifts</div>
+          </a>
+        </li>
+        <li>
           <a href="{{url('erp/admin/master/cognitive-lvl')}}">
             <div class="parent-icon">
               <i class="fas fa-arrow-alt-circle-right"></i>

@@ -14,6 +14,7 @@ class CoHasCso extends Model
         'co_id',
         'title',
         'lectures_needed',
+        'shift',
     ];
 
     function csosubunits()

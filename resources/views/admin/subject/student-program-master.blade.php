@@ -44,11 +44,19 @@ $subjects = Subject::latest()->get();
               </select>
             </div>
             <div class="col-lg-4">
+              <label for=""> Shift *</label>
+              <select name="shift" class="form-control" required>
+                @foreach(($shiftOptions ?? []) as $shift)
+                <option value="{{$shift->slug}}" {{$shift->slug === 'common' ? 'selected' : ''}}>{{$shift->title}}</option>
+                @endforeach
+              </select>
+            </div>
+            <div class="col-lg-4">
               <label for=""> Program Code *</label>
               <input type="text" name="code" class="form-control" required>
             </div>
 
-            <div class="col-lg-4">
+            <div class="col-lg-4 mt-2">
               <label for=""> No of Semesters *</label>
               <input type="number" name="semester_count" class="form-control" min="1" required>
             </div>
@@ -81,6 +89,7 @@ $subjects = Subject::latest()->get();
         <th>Campus</th>
         <th>Program Code</th>
         <th>Program Name</th>
+        <th>Shift</th>
         <th>Description</th>
         <th>No of Semesters</th>
         <th>Total Enrolled Students</th>
@@ -99,6 +108,7 @@ $subjects = Subject::latest()->get();
         <td>{{$d->campus_id == 1 ? 'Sonada' : 'Siliguri Campus'}}</td>
         <td>{{$d->code}}</td>
         <td>{{$d->name}}</td>
+        <td><span class="badge badge-info">{{ucfirst($d->shiftmaster->title ?? $d->shift ?? 'common')}}</span></td>
         <td>{{$d->description}}</td>
         <td>{{$d->semester_count}}</td>
         <td>{{$d->student_count}}</td>
@@ -140,6 +150,14 @@ $subjects = Subject::latest()->get();
                           <option value="" selected>--Select--</option>
                           <option value="1" {{$d->campus_id == 1 ? 'selected' : ''}}>Sonada</option>
                           <option value="2" {{$d->campus_id == 2 ? 'selected' : ''}}>Siliguri Campus</option>
+                        </select>
+                      </div>
+                      <div class="col-lg-4 mb-3">
+                        <label for=""> Shift *</label>
+                        <select name="shift" class="form-control" required>
+                          @foreach(($shiftOptions ?? []) as $shift)
+                          <option value="{{$shift->slug}}" {{$d->shift == $shift->slug ? 'selected' : ''}}>{{$shift->title}}</option>
+                          @endforeach
                         </select>
                       </div>
                       <div class="col-lg-4 mb-3">
@@ -204,7 +222,7 @@ $subjects = Subject::latest()->get();
       @endforeach
       @else
       <tr>
-        <td colspan="6" class="text-center">No data found</td>
+        <td colspan="10" class="text-center">No data found</td>
       </tr>
       @endif
     </tbody>

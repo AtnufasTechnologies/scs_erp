@@ -62,6 +62,7 @@ use App\Http\Controllers\HrGradeLevelController;
 use App\Http\Controllers\Hr\ApiScoreController;
 use App\Http\Controllers\SyllabusPdfController;
 use App\Http\Controllers\SubjectController;
+use App\Http\Controllers\ShiftMasterController;
 use App\Http\Controllers\TestController;
 use App\Http\Controllers\TimetableController;
 use App\Http\Controllers\ITCellController;
@@ -166,6 +167,10 @@ Route::group(['prefix' => '/erp'], function () {
             //Subject (Also known as Academic Departments)
             Route::get('subjects', [SubjectController::class, 'index']);
             Route::get('subject-type', [SubjectController::class, 'subjectType']);
+            Route::get('shift-master', [ShiftMasterController::class, 'index'])->name('admin.shift-master.index');
+            Route::post('shift-master', [ShiftMasterController::class, 'store'])->name('admin.shift-master.store');
+            Route::put('shift-master/{id}', [ShiftMasterController::class, 'update'])->name('admin.shift-master.update');
+            Route::post('shift-master/{id}/toggle', [ShiftMasterController::class, 'toggle'])->name('admin.shift-master.toggle');
 
             Route::post('subject', [SubjectController::class, 'addSubject']);
             Route::get('view-subject', [SubjectController::class, 'subjectSingle'])->name('admin.dept-view');
@@ -174,6 +179,7 @@ Route::group(['prefix' => '/erp'], function () {
             Route::post('add-subject-semester', [SubjectController::class, 'addSemesterToSubject'])->name('add.semester.to.subject');
             Route::post('update-academic-dept/{id}', [SubjectController::class, 'updateAcademicDept'])->name('admin.master.update.academic-dept');
             Route::get('toggle-subject-visibility/{id}', [SubjectController::class, 'toggleAdmissionFormVisibility'])->name('toggle.subject.visibility.admission');
+            Route::get('toggle-subject-shift-mode/{id}', [SubjectController::class, 'toggleSubjectShiftMode'])->name('toggle.subject.shift.mode');
             //lecture halls
 
             Route::get('lecturehalls', [AdminController::class, 'lectureHalls']);
@@ -245,6 +251,7 @@ Route::group(['prefix' => '/erp'], function () {
             Route::post('update-fee-structure', [AdminController::class, 'updateFeeStructure']);
             Route::get('del-headpvt/{id}', [AdminController::class, 'delFeeHeadPvt']);
             Route::post('add-coursemaster-group', [AdminController::class, 'addCourseMasterGroup'])->name('link.coursemaster.prggroup');
+            Route::get('batch-student-programs/{batchId}', [AdminController::class, 'fetchStudentProgramsByBatch'])->name('accounts.batch.student-programs');
             Route::get('latefee', [AdminController::class, 'latefee']);
 
             Route::get('std-fee-payments', [FeePaymentController::class, 'index'])->name('student.fee.payments');

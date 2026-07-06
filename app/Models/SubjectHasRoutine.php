@@ -13,6 +13,7 @@ class SubjectHasRoutine extends Model
     protected $fillable = [
         'syllabus_id',
         'batch_id',
+        'shift',
         'weekday_id',
         'hour_id',
         'lecturehall_id',

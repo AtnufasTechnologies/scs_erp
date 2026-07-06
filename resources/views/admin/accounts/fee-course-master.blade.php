@@ -2,8 +2,6 @@
 
 use App\Http\Controllers\StaticController;
 
-$fetchPrograms = StaticController::fetchProgramGroupNew();
-
 ?>
 @include('includes.header')
 @include('admin.accounts.sidebar')
@@ -198,7 +196,7 @@ $fetchPrograms = StaticController::fetchProgramGroupNew();
             </button>
 
             <div class="modal fade" id="linkAddModal{{$item->id}}" aria-hidden="true" tabindex="-1">
-              <div class="modal-dialog modal-lg modal-dialog-centered">
+              <div class="modal-dialog modal-lg">
                 <div class="modal-content border-0 shadow-lg" style="border-radius:14px; overflow:auto;">
                   <div class="modal-header fcm-modal-header-link">
                     <div>
@@ -210,13 +208,22 @@ $fetchPrograms = StaticController::fetchProgramGroupNew();
                   <form action="{{route('link.coursemaster.prggroup')}}" method="post">
                     @csrf
                     <div class="modal-body p-4">
+                      <div class="mb-3">
+                        <label class="form-label fw-semibold text-muted small text-uppercase">Select Batch <span class="text-danger">*</span></label>
+                        <select name="batch" class="form-select fcm-batch-selector" data-program-target="programSelect{{$item->id}}" required>
+                          <option value="">-- Select Batch --</option>
+                          @foreach(($batches ?? []) as $batch)
+                          <option value="{{$batch->id}}">{{$batch->batch_name}}</option>
+                          @endforeach
+                        </select>
+                      </div>
+
                       <label class="form-label fw-semibold text-muted small text-uppercase">Select Student Programs <span class="text-danger">*</span></label>
 
-                      <select name="progs[]" class="select-multiple" multiple>
-                        @foreach ($fetchPrograms as $p)
-                        <option value="{{$p->id}}">{{$p->code ?? ''}} — {{$p->name ?? ''}} | {{$p->campusmaster->name ?? ''}}</option>
-                        @endforeach
+                      <select name="progs[]" id="programSelect{{$item->id}}" class="select-multiple " multiple required>
+                        <option value="" disabled>Choose batch to load programs</option>
                       </select>
+                      <small class="text-muted d-block mt-2">Programs are loaded from students available in selected batch.</small>
 
                       <input type="hidden" name="coursemasterId" value="{{$item->id}}">
                     </div>
@@ -287,6 +294,18 @@ $fetchPrograms = StaticController::fetchProgramGroupNew();
 
 @include('includes.footer')
 <script>
+  function initFeeCourseMultiSelect(selectEl) {
+    if (!selectEl || !window.jQuery || typeof jQuery.fn.bsMultiSelect === 'undefined') return;
+
+    const $select = jQuery(selectEl);
+    try {
+      $select.bsMultiSelect('Dispose');
+    } catch (e) {
+      // Ignore if plugin has not been initialized yet.
+    }
+    $select.bsMultiSelect();
+  }
+
   document.addEventListener('DOMContentLoaded', function() {
     const searchInput = document.getElementById('liveSearchCards');
     if (searchInput) {
@@ -299,6 +318,18 @@ $fetchPrograms = StaticController::fetchProgramGroupNew();
         });
       });
     }
+
+    document.querySelectorAll('.fcm-program-selector').forEach(function(selectEl) {
+      initFeeCourseMultiSelect(selectEl);
+    });
+
+    document.querySelectorAll('.modal').forEach(function(modalEl) {
+      modalEl.addEventListener('shown.bs.modal', function() {
+        modalEl.querySelectorAll('.fcm-program-selector').forEach(function(selectEl) {
+          initFeeCourseMultiSelect(selectEl);
+        });
+      });
+    });
   });
 
   function filterPrograms(input, tableId) {
@@ -308,4 +339,65 @@ $fetchPrograms = StaticController::fetchProgramGroupNew();
       row.style.display = text.includes(term) ? '' : 'none';
     });
   }
+
+  document.querySelectorAll('.fcm-batch-selector').forEach(function(batchSelect) {
+    batchSelect.addEventListener('change', function() {
+      const batchId = this.value;
+      const programTargetId = this.getAttribute('data-program-target');
+      const programSelect = document.getElementById(programTargetId);
+      if (!programSelect) return;
+
+      programSelect.innerHTML = '';
+
+      if (!batchId) {
+        const emptyOpt = document.createElement('option');
+        emptyOpt.textContent = 'Choose batch to load programs';
+        emptyOpt.disabled = true;
+        programSelect.appendChild(emptyOpt);
+        return;
+      }
+
+      const loadingOpt = document.createElement('option');
+      loadingOpt.textContent = 'Loading programs...';
+      loadingOpt.disabled = true;
+      programSelect.appendChild(loadingOpt);
+
+      fetch("{{ url('erp/admin/accounts/batch-student-programs') }}/" + batchId, {
+          headers: {
+            'X-Requested-With': 'XMLHttpRequest',
+            'Accept': 'application/json'
+          }
+        })
+        .then(res => res.json())
+        .then(data => {
+          programSelect.innerHTML = '';
+          if (!data.success || !Array.isArray(data.programs) || data.programs.length === 0) {
+            const noOpt = document.createElement('option');
+            noOpt.textContent = 'No programs found for selected batch';
+            noOpt.disabled = true;
+            programSelect.appendChild(noOpt);
+            initFeeCourseMultiSelect(programSelect);
+            return;
+          }
+
+          data.programs.forEach(function(program) {
+            const opt = document.createElement('option');
+            opt.value = program.id;
+            const campusName = program.campus_id === 1 ? 'Sonada' : 'Siliguri';
+            opt.textContent = (program.code || '') + ' - ' + (program.name || '') + ' | ' + campusName;
+            programSelect.appendChild(opt);
+          });
+
+          initFeeCourseMultiSelect(programSelect);
+        })
+        .catch(() => {
+          programSelect.innerHTML = '';
+          const errOpt = document.createElement('option');
+          errOpt.textContent = 'Unable to load programs';
+          errOpt.disabled = true;
+          programSelect.appendChild(errOpt);
+          initFeeCourseMultiSelect(programSelect);
+        });
+    });
+  });
 </script>

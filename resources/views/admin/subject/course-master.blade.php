@@ -185,7 +185,7 @@ $userType = StaticController::fetchUserRole();
 
 
     <div class="container-fluid">
-
+      @if(count($mycourses))
       <div class="table-responsive mt-4">
         <table class="table table-bordered table-hover align-middle" id="exportTable">
           <thead class="table-light">
@@ -346,7 +346,9 @@ $userType = StaticController::fetchUserRole();
           </tbody>
         </table>
       </div>
-
+      @else
+      <p class="text-center display-5 mt-5">No Records Found</p>
+      @endif
     </div>
   </div>
 </div>

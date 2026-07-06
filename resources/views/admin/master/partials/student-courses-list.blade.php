@@ -1,0 +1,116 @@
+{{-- Course type badge colours --}}
+@php
+$ctColors = [
+'CC' => ['bg'=>'#e8eaf6','color'=>'#1a237e'],
+'GE' => ['bg'=>'#e8f5e9','color'=>'#1b5e20'],
+'SEC' => ['bg'=>'#fff3e0','color'=>'#e65100'],
+'DSE' => ['bg'=>'#fce4ec','color'=>'#880e4f'],
+'AECC' => ['bg'=>'#e3f2fd','color'=>'#0d47a1'],
+'MDC' => ['bg'=>'#f3e5f5','color'=>'#4a148c'],
+'MAJ' => ['bg'=>'#e0f7fa','color'=>'#006064'],
+'MIN' => ['bg'=>'#fff8e1','color'=>'#f57f17'],
+];
+$defaultCt = ['bg'=>'#f5f5f5','color'=>'#555'];
+@endphp
+
+<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:1rem;flex-wrap:wrap;gap:.5rem;">
+  <div style="font-size:1rem;font-weight:700;color:#1a1a2e;">
+    <i class="fas fa-book-open me-1" style="color:#1a237e;"></i>
+    Enrolled Courses
+    <span class="sp-count ms-2">{{ $studentCourses->count() }}</span>
+  </div>
+  <button type="button" class="btn btn-sm btn-success" data-bs-toggle="modal" data-bs-target="#enrollCourseModal">
+    <i class="fas fa-plus me-1"></i> Enroll Course
+  </button>
+</div>
+
+@if($coursesBySemester->isEmpty())
+<div class="sp-card">
+  <div class="sp-empty"><i class="fas fa-book"></i>No courses enrolled yet.</div>
+</div>
+@else
+@foreach($coursesBySemester as $semLabel => $courses)
+<div class="sp-card" style="margin-bottom:1rem;">
+  <div style="display:flex;align-items:center;gap:.5rem;margin-bottom:.75rem;padding-bottom:.6rem;border-bottom:1px solid #f0f0f0;">
+    <span style="background:#e8eaf6;color:#1a237e;border-radius:6px;padding:.25rem .8rem;font-weight:700;font-size:.82rem;">
+      <i class="fas fa-layer-group me-1"></i>{{ $semLabel }}
+    </span>
+    <span class="sp-count">{{ $courses->count() }} courses</span>
+  </div>
+  <div style="overflow-x:auto;">
+    <table class="sp-table" style="min-width:600px;">
+      <thead>
+        <tr>
+          <th>#</th>
+          <th>RefID</th>
+          <th>Code</th>
+          <th>Course Title</th>
+          <th>Type</th>
+          <th>Cr.</th>
+          <th style="text-align:center;">Actions</th>
+        </tr>
+      </thead>
+      <tbody>
+        @foreach($courses as $i => $course)
+        @php
+        $locked = in_array($course->course_id, $lockedCourseIds);
+        $typeTitle = $course->coursemaster?->coursetypemaster?->title ?? '';
+        $ctKey = preg_replace('/\s.*/', '', $typeTitle);
+        $ct = $ctColors[$ctKey] ?? $defaultCt;
+        @endphp
+        <tr>
+          <td style="color:#adb5bd;">{{ $i+1 }}</td>
+          <td>{{ $course->id ?? '—' }}</td>
+          <td>
+            <span style="background:#e8eaf6;color:#3949ab;border-radius:4px;padding:.1rem .45rem;font-size:.78rem;font-weight:600;">
+              {{ $course->coursemaster?->course_code ?? '—' }}
+            </span>
+          </td>
+          <td style="font-weight:500;">{{ $course->coursemaster?->course_title ?? '—' }}</td>
+          <td>
+            @if($typeTitle)
+            <span style="background:{{ $ct['bg'] }};color:{{ $ct['color'] }};border-radius:4px;padding:.1rem .5rem;font-size:.76rem;font-weight:700;white-space:nowrap;">
+              {{ $typeTitle }}
+            </span>
+            @else —
+            @endif
+          </td>
+          <td>{{ $course->coursemaster?->credits ?? '—' }}</td>
+          <td style="text-align:center;white-space:nowrap;">
+            @if($locked)
+            <span title="Marks recorded — cannot modify" style="color:#adb5bd;font-size:.8rem;">
+              <i class="fas fa-lock me-1"></i>Locked has Marks Entries
+            </span>
+            @else
+            <form method="POST" action="{{ route('admin.student.courses.update', [$data->id, $course->id]) }}" class="d-inline" data-ajax-course-action="1">
+              @csrf
+              @method('PUT')
+              <button type="submit" class="btn btn-xs"
+                style="font-size:.76rem;padding:.2rem .55rem;background:{{ $course->is_active ? '#fff3e0' : '#e8f5e9' }};color:{{ $course->is_active ? '#e65100' : '#2e7d32' }};border:1px solid {{ $course->is_active ? '#ffccbc' : '#c8e6c9' }};border-radius:4px;"
+                title="{{ $course->is_active ? 'Deactivate' : 'Activate' }}">
+                <i class="fas {{ $course->is_active ? 'fa-toggle-off' : 'fa-toggle-on' }}"></i>
+              </button>
+            </form>
+            <form method="POST" action="{{ route('admin.student.courses.destroy', [$data->id, $course->id]) }}" class="d-inline ms-1" data-ajax-course-action="1" data-confirm="Remove this course enrollment?">
+              @csrf
+              @method('DELETE')
+              <button type="submit" class="btn btn-xs"
+                style="font-size:.76rem;padding:.2rem .55rem;background:#fce4ec;color:#c62828;border:1px solid #f8bbd9;border-radius:4px;"
+                title="Remove enrollment">
+                <i class="fas fa-trash"></i>
+              </button>
+            </form>
+            @endif
+          </td>
+        </tr>
+        @endforeach
+      </tbody>
+    </table>
+  </div>
+</div>
+@endforeach
+
+<p style="font-size:.75rem;color:#adb5bd;margin-top:.5rem;">
+  <i class="fas fa-lock me-1"></i> Locked = FA or SA marks recorded. Edit/delete not allowed.
+</p>
+@endif

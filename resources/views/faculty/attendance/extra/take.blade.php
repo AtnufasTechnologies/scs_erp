@@ -47,6 +47,7 @@ $hourmaster = HourMaster::all();
           <p class="text-muted mb-1">
             <strong> Code:</strong> {{ $syllabusAssignment->courseLink->courseMaster->course_code ?? 'N/A' }}
             | <strong>{{ $syllabusAssignment->semestermaster->title ?? 'N/A' }} - ({{$syllabusAssignment->batchmaster->batch_name ?? 'N/A' }})</strong>
+            | <strong>Shift:</strong> {{ $routineShift ?? 'Common' }}
           </p>
           <p class="text-muted">
             <strong>Course:</strong> {{ $syllabusAssignment->courseLink->courseMaster->course_title ?? 'N/A' }}
