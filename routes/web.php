@@ -431,6 +431,8 @@ Route::group(['prefix' => '/erp'], function () {
             //Test Incharge Dashboard
             Route::get('test-incharge/dashboard', [AdmissionController::class, 'testInchargeDashboard'])->name('admission.testincharge.dashboard');
             Route::get('activate-application-payment/{id}', [AdmissionController::class, 'activateApplicationPayment'])->name('activate.admission.payment');
+
+            Route::post('enrolled-student-shifter', [AdmissionController::class, 'enrolledStudentShiter'])->name('enrolled.student.shifter');
         });
 
         // Exam Registrations Management

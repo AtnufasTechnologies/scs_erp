@@ -3,11 +3,13 @@
 use App\Helpers\Qs;
 use App\Models\StudentProgram;
 use App\Http\Controllers\StaticController;
+use App\Models\MainProgram;
 use App\Models\StudentMaster;
 
 $userRoleType = StaticController::fetchUserRole();
 $programs = Qs::getProgramGroups();
 $selectedList = Qs::selectedApplicants('UG');
+$campus = MainProgram::with('campus')->get();
 ?>
 @include('includes.header')
 @include('admin.admission.sidebar')
@@ -62,6 +64,10 @@ $selectedList = Qs::selectedApplicants('UG');
           @endphp
           @if($rollNo != null)
           <span class="badge bg-success mb-2">Roll No: {{ $rollNo }}</span>
+          <!-- Button trigger modal -->
+          <span data-bs-toggle="modal" data-bs-target="#programShifter{{$item->id}}" class="mx-5 badge badge-warning">
+            <i class="fa fa-user-cog"></i>
+          </span>
           @endif
 
           <div class="profile-title"> Application Code# <b>{{ $item->applicationinfo->application_code ?? '-' }} </b> </div>
@@ -166,6 +172,103 @@ $selectedList = Qs::selectedApplicants('UG');
             </div>
           </form>
         </div>
+      </div>
+    </div>
+
+    <!-- Modal -->
+    <div class="modal fade" id="programShifter{{ $item->id }}" tabindex="-1" aria-labelledby="programShifter" aria-hidden="true">
+      <div class="modal-dialog">
+        <form method="POST" action="{{ route('enrolled.student.shifter') }}">
+          @csrf
+          <div class="modal-content">
+            <div class="modal-header">
+              <h5 class="modal-title" id="campusShifterLabel{{ $item->id }}"> Shift <span class="text-capitalize">{{ $item->registrationmaster->first_name }} {{ $item->registrationmaster->last_name }}</span></h5>
+              <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+              <div class="alert alert-info">
+                <p> <u>Warning:</u> Feature to be used <span class="badge badge-danger">Cautiously</span>
+                </p>
+                <p>This Action will update the Student's enrolled Program and <b>Generate a New RollNo </b>...Old RollNo will be Replaced. <br>
+                  Inform Account office since fee structure will also get updated.</p>
+              </div>
+              <div class="mb-3">
+                <label for="">Select Campus <span class="text-danger">*</span></label>
+                <select name="campus" class="form-select" required id="transferCampus{{ $item->id }}">
+                  <option value="">--Select--</option>
+                  @foreach ($campus as $c)
+                  <option value="{{ $c->id }}">
+                    {{$c->campus->name}} - {{ $c->name }}
+                  </option>
+                  @endforeach
+
+                </select>
+              </div>
+              <div class="mb-3">
+                <label for="">Select Department <span class="text-danger">*</span></label>
+                <select name="department" class="form-select" required id="transferDepartment{{ $item->id }}">
+                  <option value="">--Select--</option>
+                </select>
+              </div>
+
+              <script>
+                document.getElementById('transferCampus{{ $item->id }}').addEventListener('change', function() {
+                  const campusId = this.value;
+                  const departmentSelect = document.getElementById('transferDepartment{{ $item->id }}');
+
+                  if (campusId) {
+                    fetch("{{ route('get.departments.by.campusprogram', '') }}/" + campusId)
+                      .then(response => response.json())
+                      .then(data => {
+                        departmentSelect.innerHTML = '<option value="">--Select--</option>';
+                        data.forEach(dept => {
+                          const option = document.createElement('option');
+                          option.value = dept.id;
+                          option.textContent = dept.title;
+                          departmentSelect.appendChild(option);
+                        });
+                      })
+                      .catch(error => console.error('Error:', error));
+                  }
+                });
+              </script>
+
+              <div class="mb-3">
+                <label for="">Select Course <span class="text-danger">*</span></label>
+                <select name="course" class="form-select" required id="transferCourse{{ $item->id }}">
+                  <option value="">--Select--</option>
+                </select>
+              </div>
+
+              <script>
+                document.getElementById('transferDepartment{{ $item->id }}').addEventListener('change', function() {
+                  const departmentId = this.value;
+                  const campusId = document.getElementById('transferCampus{{ $item->id }}').value;
+                  const courseSelect = document.getElementById('transferCourse{{ $item->id }}');
+
+                  if (departmentId) {
+                    fetch("{{ route('get.programs.bydepartment', ['', '']) }}/" + departmentId + "/" + campusId)
+                      .then(response => response.json())
+                      .then(data => {
+                        courseSelect.innerHTML = '<option value="">--Select--</option>';
+                        data.forEach(program => {
+                          const option = document.createElement('option');
+                          option.value = program.student_program_id;
+                          option.textContent = program.studentprograminfo.code + ' - ' + program.studentprograminfo.name;
+                          courseSelect.appendChild(option);
+                        });
+                      })
+                      .catch(error => console.error('Error:', error));
+                  }
+                });
+              </script>
+              <input type="hidden" name="application_id" value="{{ $item->applicationinfo->id }}">
+            </div>
+            <div class="modal-footer">
+              <button type="submit" class="btn btn-success">Shift and Generate RollNo</button>
+            </div>
+          </div>
+        </form>
       </div>
     </div>
     @endforeach

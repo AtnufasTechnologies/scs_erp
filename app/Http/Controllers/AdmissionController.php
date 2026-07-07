@@ -2818,6 +2818,7 @@ class AdmissionController extends Controller
         return redirect()->back()->with('success', 'Applicant campus shift successful.');
     }
 
+
     function verifyPayment($id)
     {
         $applicationRecord = AdmissionApplication::find($id);
@@ -3087,6 +3088,100 @@ class AdmissionController extends Controller
 
         return back()->with('success', "Bulk override completed successfully for {$successCount} applicant(s).");
     }
+
+    function enrolledStudentShiter(Request $request)
+    {
+        //  return $request->all();
+        $request->validate([
+            'application_id' => 'required',
+            'campus' => 'required',
+            'department' => 'required',
+            'course' => 'required',
+        ]);
+
+        $data = AdmissionApplication::with('registrationmaster')->find($request->application_id);
+        $studnetData = AdmissionRegistration::with('applicationmaster.stdCourseMaster')->find($data->registrationmaster->id);
+
+        //add student to master table
+        $applicationData = $studnetData->applicationmaster;
+        if (!$applicationData) {
+            DB::rollBack();
+            return back()->with('error', 'Application data not found for this student.');
+        }
+
+        // Check if student already exists
+        $existingStudent = StudentMaster::where('user_code', $applicationData->application_code)->first();
+        if ($existingStudent) {
+
+            $progInfo = MainProgram::where('id', $request->campus)->first();
+
+            //update Registration
+            $studnetData->update([
+                'campus_id' => $progInfo->campus_id,
+                'application_type' => $progInfo->name,
+            ]);
+
+            //Update Application
+            $data->update([
+                'department' => $request->department,
+                'course' => $request->course
+            ]);
+            //fetching updated Record
+            $studnetDataFresh = AdmissionRegistration::with('applicationmaster.stdCourseMaster')->find($data->registrationmaster->id);
+
+
+
+            //generate Rollno based on the last roll no of the department and course
+            if ($studnetDataFresh->application_type == 'UG') {
+                $P = 'U';
+                if ($studnetDataFresh->campus_id == 1) {
+                    $prefix = $P . "SO";
+                } else {
+                    $prefix = $P . "SL";
+                }
+            } else {
+                $P = 'P';
+                if ($studnetDataFresh->campus_id == 1) {
+                    $prefix = $P . "SO";
+                } else {
+                    $prefix = $P . "SL";
+                }
+            }
+
+            $batch = $studnetDataFresh->batch;
+            $batch_id =  BatchMaster::where('batch_name', $batch)->value('id');
+            $courseInfo = StudentProgram::find($request->course);
+            $programCode = $courseInfo->code;
+            //now fetch the last roll no for the same department and course
+            $lastRollNo = StudentMaster::where('academic_dept_id', $request->department)
+                ->where('new_program_id', $request->course)
+                ->where('batch', $batch_id)
+                ->whereHas('campusmaster', function ($query) use ($studnetDataFresh) {
+                    $query->where('id', $studnetDataFresh->campus_id);
+                })
+                ->orderBy('roll_no', 'desc')
+                ->value('roll_no');
+            if ($lastRollNo == null) {
+                $newRollNo = $prefix . $batch . $programCode . '001';
+            } else {
+                $lastRollNoNumber = (int) substr($lastRollNo, -3);
+                $newRollNoNumber = $lastRollNoNumber + 1;
+                $newRollNo = $prefix . $batch . $programCode  . str_pad($newRollNoNumber, 3, '0', STR_PAD_LEFT);
+            }
+
+            //Finally update StudentMaster record 
+            $existingStudent->update([
+                'campus_id' => $progInfo->campus_id,
+                'department' => $request->department,
+                'academic_dept_id' => $request->department,
+                'new_program_id' => $request->course,
+                'roll_no' => $newRollNo
+            ]);
+        }
+
+        return back()->with('success', 'Shift Successfull with New RollNo Generated.');
+    }
+
 
     function activateApplicationPayment($id)
     {

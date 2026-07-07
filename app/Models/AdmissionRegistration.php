@@ -10,6 +10,11 @@ class AdmissionRegistration extends Authenticatable
 {
     use HasFactory;
 
+    protected $fillable = [
+        'campus_id',
+        'application_type'
+    ];
+
     function studentInfo()
     {
         return  $this->hasOne(User::class, 'id', 'user_id');
