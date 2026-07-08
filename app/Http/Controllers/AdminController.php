@@ -52,6 +52,11 @@ use App\Models\UserHasRole;
 use App\Models\UserMenuPermission;
 use App\Models\UserType;
 use App\Models\CiaMark;
+use App\Models\Subject;
+use App\Models\SubjectCourseMaster;
+use App\Models\SubjectFacultyMaster;
+use App\Models\SubjectHasStudentProgam;
+use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
@@ -2101,10 +2106,80 @@ class AdminController extends Controller
         return redirect()->back()->with('success', 'Student Programs updated successfully');
     }
 
-    function promotionIndex()
+    function subjectSingle(Request $request)
     {
+        $subjectId = $request->id;
+        $subject = Subject::with(['semesters'])->find($subjectId);
 
+        // Check if subject exists
+        if (!$subject) {
+            return redirect()->back()->with('error', 'Subject not found');
+        }
 
-        return view('admin.itcell.promotion.index');
+        // Course Master
+        $courseMaster = $subject;
+
+        // Number of Students (total students in all batches for this subject/department)
+        $studentsCount = 0;
+        $batchWiseStudents = [];
+        $semestersCount = $subject->semesters?->count() ?? 0;
+
+        // Get all batches
+        $batches = BatchMaster::all();
+        foreach ($batches as $batch) {
+            $studentCount = \App\Models\StudentMaster::where('department', $subjectId)
+                ->where('batch', $batch->id)
+                ->count();
+            $batchWiseStudents[] = [
+                'batch_name' => $batch->batch_name,
+                'student_count' => $studentCount
+            ];
+            $studentsCount += $studentCount;
+        }
+
+        // For combinations modal
+        if (!empty($request->batch)) {
+            $activeBatch = $request->batch;
+        } else {
+            $activeBatch = BatchMaster::where('admission_active_batch', 1)->value('id');
+        }
+
+        $combinations = SubjectHasStudentProgam::where('subject_id', $subjectId)
+            ->with(['studentprograminfo', 'batchmaster'])
+            ->where('batch_id', $activeBatch)
+            ->get();
+        $programs = StudentProgram::where('campus_id', $subject->campus_id)->get();
+        $course_masters = SubjectCourseMaster::with([
+            'courseMaster',
+            'courseMaster.csos',
+            'courseMaster.csos.csosubunits'
+        ])->where('subject_id', $subjectId)->get();
+        $syllabusByCourse = \App\Models\SubjectHasSyllabus::with(['batchmaster:id,batch_name', 'semestermaster:id,title'])
+            ->where('subject_id', $subjectId)
+            ->whereNotNull('course_id')
+            ->orderByDesc('id')
+            ->get()
+            ->groupBy('course_id');
+        $faculties = SubjectFacultyMaster::with('faculty')->where('subject_id', $subjectId)->get();
+
+        return view('admin.itcell.dept-manager', [
+            'data' => $courseMaster,
+            'students_count' => $studentsCount,
+            'semesters_count' => $semestersCount,
+            'batchWiseStudents' => $batchWiseStudents,
+            'combinations' => $combinations,
+            'programs' => $programs,
+            'course_masters' => $course_masters,
+            'syllabus_by_course' => $syllabusByCourse,
+            'deptfaculties' => $faculties,
+        ]);
+    }
+
+    function subjectCourseUnlinker(int $id)
+    {
+        $data = SubjectCourseMaster::find($id);
+        SubjectCourseMaster::where('id', $id)->delete();
+
+        return redirect()->back()->with('success', 'Course Unlinked Successfully');
     }
 }

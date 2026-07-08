@@ -72,7 +72,15 @@ $campuses = Campus::latest()->get();
 
 <div class="container-fluid card shdaow">
 
-  <table class="table mt-3 mb-3 table-hover" id="exportTable">
+
+  <div class="row mt-3">
+    <div class="col-md-4 col-sm-12">
+      <input type="text" id="subjectTableSearch" class="form-control" placeholder="Search academic departments...">
+    </div>
+  </div>
+
+
+  <table class="table mt-3 mb-3 table-hover" id="subjectTable">
     <thead>
       <tr>
         <th>#</th>
@@ -89,10 +97,10 @@ $campuses = Campus::latest()->get();
     </thead>
     <tbody>
       @if (count($data))
-      <?php $sl = 1 ?>
+
       @foreach ($data as $item)
       <tr>
-        <td>{{$sl++}}</td>
+        <td>{{$loop->iteration}}</td>
         <td>{{$item->campusmaster->name}}</td>
         <td><span>{{$item->code}}</span></td>
         <td><span>{{$item->title}}</span></td>
@@ -185,5 +193,27 @@ $campuses = Campus::latest()->get();
 
   </table>
 </div>
+
+<script>
+  document.addEventListener('DOMContentLoaded', function() {
+    const searchInput = document.getElementById('subjectTableSearch');
+    const tableBody = document.querySelector('#subjectTable tbody');
+
+    if (!searchInput || !tableBody) {
+      return;
+    }
+
+    const rows = Array.from(tableBody.querySelectorAll('tr'));
+
+    searchInput.addEventListener('input', function() {
+      const query = this.value.trim().toLowerCase();
+
+      rows.forEach(function(row) {
+        const text = row.textContent.toLowerCase();
+        row.style.display = text.includes(query) ? '' : 'none';
+      });
+    });
+  });
+</script>
 
 @include('includes.footer')

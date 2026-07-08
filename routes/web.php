@@ -173,13 +173,14 @@ Route::group(['prefix' => '/erp'], function () {
             Route::post('shift-master/{id}/toggle', [ShiftMasterController::class, 'toggle'])->name('admin.shift-master.toggle');
 
             Route::post('subject', [SubjectController::class, 'addSubject']);
-            Route::get('view-subject', [SubjectController::class, 'subjectSingle'])->name('admin.dept-view');
+            Route::get('view-subject', [AdminController::class, 'subjectSingle'])->name('admin.dept-view');
             Route::get('delete-subject/{id}', [SubjectController::class, 'deleteSubject']);
             Route::post('link-student-programs', [SubjectController::class, 'linkStdPrograms'])->name('add.programs.to.subject');
             Route::post('add-subject-semester', [SubjectController::class, 'addSemesterToSubject'])->name('add.semester.to.subject');
             Route::post('update-academic-dept/{id}', [SubjectController::class, 'updateAcademicDept'])->name('admin.master.update.academic-dept');
             Route::get('toggle-subject-visibility/{id}', [SubjectController::class, 'toggleAdmissionFormVisibility'])->name('toggle.subject.visibility.admission');
             Route::get('toggle-subject-shift-mode/{id}', [SubjectController::class, 'toggleSubjectShiftMode'])->name('toggle.subject.shift.mode');
+            Route::get('unlink-subject-course/{id}', [AdminController::class, 'subjectCourseUnlinker'])->name('subject.course.unlinker');
             //lecture halls
 
             Route::get('lecturehalls', [AdminController::class, 'lectureHalls']);
