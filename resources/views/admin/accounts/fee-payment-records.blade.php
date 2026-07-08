@@ -3,12 +3,23 @@
 use App\Models\BatchMaster;
 use App\Models\Campus;
 use App\Models\ProgramGroup;
+use App\Models\StudentMaster;
 use App\Models\StudentProgram;
 
 $batches = BatchMaster::all();
 
 // $programgroups = ProgramGroup::with(['programInfo', 'campus'])->where('campus_id', 2)->get();
 $studentPrograms = StudentProgram::with('campusmaster')->get();
+
+$batchProgramMap = StudentMaster::query()
+  ->select('batch', 'new_program_id')
+  ->whereNotNull('batch')
+  ->whereNotNull('new_program_id')
+  ->distinct()
+  ->get()
+  ->groupBy('batch')
+  ->map(fn($rows) => $rows->pluck('new_program_id')->values()->all())
+  ->toArray();
 ?>
 @include('includes.header')
 @include('admin.accounts.sidebar')
@@ -20,19 +31,19 @@ $studentPrograms = StudentProgram::with('campusmaster')->get();
     <form action="{{url('erp/admin/accounts/std-fee-payments')}}" method="get">
       <div class="row">
         <div class="col-lg-7">
-          <select name="filter_pgr" class="form-control dselect-example">
+          <select id="filter_pgr" name="filter_pgr" class="form-control dselect-example">
             <option value="">--Select Group--</option>
             @foreach ($studentPrograms as $prg)
-            <option value="{{$prg->id}}">{{$prg->code}} - {{$prg->name}} | {{$prg->campusmaster->name ?? ''}} </option>
+            <option value="{{$prg->id}}" {{ request('filter_pgr') == $prg->id ? 'selected' : '' }}>{{$prg->code}} - {{$prg->name}} | {{$prg->campusmaster->name ?? ''}} </option>
             @endforeach
           </select>
         </div>
         <div class="col-lg-3">
           <div class="input-group">
-            <select name="filter_batch" class="form-control select-example">
+            <select id="filter_batch" name="filter_batch" class="form-control select-example">
               <option value="">--Select Batch--</option>
               @foreach ($batches as $b)
-              <option value="{{$b->id}}">{{$b->batch_name}} </option>
+              <option value="{{$b->id}}" {{ request('filter_batch') == $b->id ? 'selected' : '' }}>{{$b->batch_name}} </option>
               @endforeach
             </select>
             <button class="btn btn-info"><i class="fa fa-search"></i></button>
@@ -144,6 +155,58 @@ $studentPrograms = StudentProgram::with('campusmaster')->get();
 </div>
 <script>
   document.addEventListener("DOMContentLoaded", () => {
+    const batchProgramMap = @json($batchProgramMap);
+    const batchSelect = document.getElementById("filter_batch");
+    const programSelect = document.getElementById("filter_pgr");
+
+    if (batchSelect && programSelect) {
+      const defaultOption = {
+        value: "",
+        text: "--Select Group--"
+      };
+
+      const allProgramOptions = Array.from(programSelect.options)
+        .filter(option => option.value !== "")
+        .map(option => ({
+          value: option.value,
+          text: option.text,
+        }));
+
+      const renderProgramOptions = () => {
+        const selectedBatch = batchSelect.value;
+        const allowedPrograms = selectedBatch ?
+          (batchProgramMap[selectedBatch] || []).map(String) :
+          allProgramOptions.map(option => option.value);
+
+        const existingSelection = programSelect.value;
+        const fragment = document.createDocumentFragment();
+
+        const placeholder = document.createElement("option");
+        placeholder.value = defaultOption.value;
+        placeholder.textContent = defaultOption.text;
+        fragment.appendChild(placeholder);
+
+        allProgramOptions.forEach(option => {
+          if (allowedPrograms.includes(String(option.value))) {
+            const optionEl = document.createElement("option");
+            optionEl.value = option.value;
+            optionEl.textContent = option.text;
+            fragment.appendChild(optionEl);
+          }
+        });
+
+        programSelect.innerHTML = "";
+        programSelect.appendChild(fragment);
+
+        const hasSelection = Array.from(programSelect.options).some(option => option.value === existingSelection);
+        programSelect.value = hasSelection ? existingSelection : "";
+        programSelect.dispatchEvent(new Event("change"));
+      };
+
+      batchSelect.addEventListener("change", renderProgramOptions);
+      renderProgramOptions();
+    }
+
     document.querySelectorAll(".copy-btn").forEach(btn => {
       btn.addEventListener("click", () => {
         const text = btn.dataset.copy;
