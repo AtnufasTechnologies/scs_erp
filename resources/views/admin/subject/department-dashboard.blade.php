@@ -284,7 +284,7 @@ if (!empty($deptFacultyIds)) {
           <thead>
             <tr style="border-bottom: 2px solid #fac01f;">
               <th style="color: #e9ebef; font-weight: 600; padding: 16px;">#</th>
-              <th style="color: #e9ebef; font-weight: 600;">Semester Wise Courses</th>
+              <th style="color: #e9ebef; font-weight: 600;">Curriculam</th>
               <th style="color: #e9ebef; font-weight: 600;">Tracking ID</th>
               <th style="color: #e9ebef; font-weight: 600;">Batch</th>
               <th style="color: #e9ebef; font-weight: 600;">Code</th>
