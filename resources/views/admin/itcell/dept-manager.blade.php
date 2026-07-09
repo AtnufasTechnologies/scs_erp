@@ -233,11 +233,11 @@ $departmentCode = $data->code ?? $data->subject_code ?? $data->short_code ?? '-'
             <thead>
               <tr>
                 <th>#</th>
-                <th>Combination ID</th>
+                <th>Ref ID</th>
                 <th>Batch</th>
-                <th>Program ID</th>
-                <th>Program Name</th>
-                <th>Program Type</th>
+                <th> Code</th>
+                <th> Name</th>
+                <th> Type</th>
                 <th>Total Seats</th>
                 <th>Available Seats</th>
 
@@ -249,7 +249,7 @@ $departmentCode = $data->code ?? $data->subject_code ?? $data->short_code ?? '-'
                 <td>{{ $loop->iteration }}</td>
                 <td>{{ $combination->id ?? '-' }}</td>
                 <td>{{ $combination->batchmaster->batch_name ?? '-' }}</td>
-                <td>{{ $combination->studentprograminfo->id ?? $combination->student_program_id ?? '-' }}</td>
+                <td>{{ $combination->studentprograminfo->code ?? '-' }}</td>
                 <td>{{ $combination->studentprograminfo->name ?? '-' }}</td>
                 <td>{{ $combination->program_type ?? '-' }}</td>
                 <td>{{ $combination->total_seats ?? '-' }}</td>
@@ -419,8 +419,6 @@ $departmentCode = $data->code ?? $data->subject_code ?? $data->short_code ?? '-'
     </div>
 
   </div>
-
-
 
 </div>
 

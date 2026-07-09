@@ -294,6 +294,15 @@ $roleType = UserHasRole::where('user_id', $userId)->value('role_name');
     @endif
 
     <li>
+      <a href="{{route('bulk.student.course.enrollment')}}">
+        <div class="parent-icon">
+          <i class="far fa-ellipsis-h-alt"></i>
+        </div>
+        <div class="menu-title">Bulk Course Enrollment </div>
+      </a>
+    </li>
+
+    <li>
       <a class="has-arrow" href="javascript:;">
         <div class="parent-icon">
           <i class="fas fa-bring-forward"></i>

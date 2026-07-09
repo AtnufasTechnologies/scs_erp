@@ -86,9 +86,107 @@ if (!empty($deptFacultyIds)) {
 
 
   <div class="row g-4">
+    <div class="row">
+      <!-- Quick Stats -->
+      <div class="col-md-2">
+        <div class="stats-card gradient-green">
+          <div class="d-flex justify-content-between align-items-start">
+            <div>
+              <div style="font-size: 14px; opacity: 0.9; margin-bottom: 8px;">Course Master</div>
+              <div style="font-size: 36px; font-weight: 700;">{{ $data->courseMasterPivot->count() ?? 0 }}</div>
+              <a href="{{route('department.course.master',[$data->id,$data->slug])}}" style="color: white; opacity: 0.9; font-size: 13px; text-decoration: none;">View Details →</a>
+            </div>
+            <div style="width: 56px; height: 56px; background: rgba(255, 255, 255, 0.2); border-radius: 14px; display: flex; align-items: center; justify-content: center;">
+              <i class="fas fa-book" style="font-size: 28px;"></i>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="col-md-2">
+        <div class="stats-card gradient-red">
+          <div class="d-flex justify-content-between align-items-start">
+            <div>
+              <div style="font-size: 14px; opacity: 0.9; margin-bottom: 8px;">Syllabus </div>
+              <div style="font-size: 36px; font-weight: 700;">{{ $syllabusCount ?? 0 }}</div>
+              <div style="opacity: 0.9; font-size: 13px;">
+                <a href="{{route('department.syllabus.manager',['id'=>$data->id,'slug'=>$data->slug])}}" style="color: white; opacity: 0.9; font-size: 13px; text-decoration: none;">Manager →</a>
+              </div>
+            </div>
+            <div style="width: 56px; height: 56px; background: rgba(255, 255, 255, 0.2); border-radius: 14px; display: flex; align-items: center; justify-content: center;">
+              <i class="fas fa-box" style="font-size: 28px;"></i>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="col-md-2">
+        <div class="stats-card gradient-yellow">
+          <div class="d-flex justify-content-between align-items-start">
+            <div>
+              <div style="font-size: 14px; opacity: 0.9; margin-bottom: 8px;">Faculty Members</div>
+              <div style="font-size: 36px; font-weight: 700;">{{ count($deptfaculties) ?? 0 }}</div>
+              <div style="opacity: 0.9; font-size: 13px;">Active</div>
+            </div>
+            <div style="width: 56px; height: 56px; background: rgba(255, 255, 255, 0.2); border-radius: 14px; display: flex; align-items: center; justify-content: center;">
+              <i class="fas fa-chalkboard-teacher" style="font-size: 28px;"></i>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="col-md-2">
+        <div class="stats-card gradient-purple">
+          <div class="d-flex justify-content-between align-items-start">
+            <div>
+              <div style="font-size: 14px; opacity: 0.9; margin-bottom: 8px;">Time Table</div>
+              <div style="font-size: 36px; font-weight: 700;">
+                <a href="{{ route('department.timetable', [$data->id]) }}" style="color: white; text-decoration: none;">Schedule</a>
+              </div>
+              <div style="opacity: 0.9; font-size: 13px;">Manager</div>
+            </div>
+            <div style="width: 56px; height: 56px; background: rgba(255, 255, 255, 0.2); border-radius: 14px; display: flex; align-items: center; justify-content: center;">
+              <i class="fas fa-calendar-alt" style="font-size: 28px;"></i>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="col-md-2">
+        <a href="{{ route('department.substitution', [$data->id]) }}" style="text-decoration: none;">
+          <div class="action-card gradient-orange">
+            <div class="action-card-icon">
+              <i class="fas fa-exchange-alt"></i>
+            </div>
+            <div>
+              <h6 class="mb-1" style="font-weight: 700;">Manage Substitution</h6>
+              <p class="mb-0" style="font-size: 13px; opacity: 0.9;">Get a reminder to help with your studying process.</p>
+            </div>
+            <div class="mt-2">
+              <a href="{{ route('department.substitution.history.page') }}" style="color: white; font-size: 13px; opacity: 0.9;">View History →</a>
+            </div>
+          </div>
+        </a>
+      </div>
+
+      <div class="col-md-2">
+        <a href="{{route('department.admission.list')}}" style="text-decoration: none;">
+          <div class="action-card gradient-pink">
+            <div class="action-card-icon">
+              <i class="fas fa-certificate"></i>
+            </div>
+            <div>
+              <h6 class="mb-1" style="font-weight: 700;">Admission Portal</h6>
+              <p class="mb-0" style="font-size: 13px; opacity: 0.9;">Set targets, see reminders, analyze your study habits.</p>
+            </div>
+            <div class="mt-2" style="font-size: 13px; opacity: 0.9;">View Applications →</div>
+          </div>
+        </a>
+      </div>
+
+    </div>
+
     <!-- Left Column: Today's Course -->
     <div class="col-lg-5">
-
       <!-- Upcoming Activities Section -->
       @if(count($upcomingActivities) > 0)
       <div class="mb-4">
@@ -143,15 +241,6 @@ if (!empty($deptFacultyIds)) {
           </div>
         </div>
       </div>
-      @else
-      <div class="card shadow">
-        <div class="d-flex justify-content-between align-items-center mb-4">
-          <h5 style="color: #1a1a1a; font-weight: 700; margin: 0;">
-            <i class="fas fa-calendar-star me-2" style="color: #fbbf24;"></i>No Upcoming Activities
-          </h5>
-        </div>
-      </div>
-
       @endif
 
     </div>
@@ -159,105 +248,6 @@ if (!empty($deptFacultyIds)) {
     <!-- Right Column: Stats and Actions -->
     <div class="col-lg-7">
       <div class="row g-3 mb-4">
-        <!-- Quick Stats -->
-        <div class="col-md-6">
-          <div class="stats-card gradient-green">
-            <div class="d-flex justify-content-between align-items-start">
-              <div>
-                <div style="font-size: 14px; opacity: 0.9; margin-bottom: 8px;">Course Master</div>
-                <div style="font-size: 36px; font-weight: 700;">{{ $data->courseMasterPivot->count() ?? 0 }}</div>
-                <a href="{{route('department.course.master',[$data->id,$data->slug])}}" style="color: white; opacity: 0.9; font-size: 13px; text-decoration: none;">View Details →</a>
-              </div>
-              <div style="width: 56px; height: 56px; background: rgba(255, 255, 255, 0.2); border-radius: 14px; display: flex; align-items: center; justify-content: center;">
-                <i class="fas fa-book" style="font-size: 28px;"></i>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        <div class="col-md-6">
-          <div class="stats-card gradient-red">
-            <div class="d-flex justify-content-between align-items-start">
-              <div>
-                <div style="font-size: 14px; opacity: 0.9; margin-bottom: 8px;">Syllabus </div>
-                <div style="font-size: 36px; font-weight: 700;">{{ $syllabusCount ?? 0 }}</div>
-                <div style="opacity: 0.9; font-size: 13px;">
-                  <a href="{{route('department.syllabus.manager',['id'=>$data->id,'slug'=>$data->slug])}}" style="color: white; opacity: 0.9; font-size: 13px; text-decoration: none;">Manager →</a>
-                </div>
-              </div>
-              <div style="width: 56px; height: 56px; background: rgba(255, 255, 255, 0.2); border-radius: 14px; display: flex; align-items: center; justify-content: center;">
-                <i class="fas fa-box" style="font-size: 28px;"></i>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        <div class="col-md-6">
-          <div class="stats-card gradient-yellow">
-            <div class="d-flex justify-content-between align-items-start">
-              <div>
-                <div style="font-size: 14px; opacity: 0.9; margin-bottom: 8px;">Faculty Members</div>
-                <div style="font-size: 36px; font-weight: 700;">{{ count($deptfaculties) ?? 0 }}</div>
-                <div style="opacity: 0.9; font-size: 13px;">Active</div>
-              </div>
-              <div style="width: 56px; height: 56px; background: rgba(255, 255, 255, 0.2); border-radius: 14px; display: flex; align-items: center; justify-content: center;">
-                <i class="fas fa-chalkboard-teacher" style="font-size: 28px;"></i>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        <div class="col-md-6">
-          <div class="stats-card gradient-purple">
-            <div class="d-flex justify-content-between align-items-start">
-              <div>
-                <div style="font-size: 14px; opacity: 0.9; margin-bottom: 8px;">Time Table</div>
-                <div style="font-size: 36px; font-weight: 700;">
-                  <a href="{{ route('department.timetable', [$data->id]) }}" style="color: white; text-decoration: none;">Schedule</a>
-                </div>
-                <div style="opacity: 0.9; font-size: 13px;">Manager</div>
-              </div>
-              <div style="width: 56px; height: 56px; background: rgba(255, 255, 255, 0.2); border-radius: 14px; display: flex; align-items: center; justify-content: center;">
-                <i class="fas fa-calendar-alt" style="font-size: 28px;"></i>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      <!-- Action Cards -->
-      <div class="row g-3">
-        <div class="col-md-6">
-          <a href="{{ route('department.substitution', [$data->id]) }}" style="text-decoration: none;">
-            <div class="action-card gradient-orange">
-              <div class="action-card-icon">
-                <i class="fas fa-exchange-alt"></i>
-              </div>
-              <div>
-                <h6 class="mb-1" style="font-weight: 700;">Manage Substitution</h6>
-                <p class="mb-0" style="font-size: 13px; opacity: 0.9;">Get a reminder to help with your studying process.</p>
-              </div>
-              <div class="mt-2">
-                <a href="{{ route('department.substitution.history.page') }}" style="color: white; font-size: 13px; opacity: 0.9;">View History →</a>
-              </div>
-            </div>
-          </a>
-        </div>
-
-        <div class="col-md-6">
-          <a href="{{route('department.admission.list')}}" style="text-decoration: none;">
-            <div class="action-card gradient-pink">
-              <div class="action-card-icon">
-                <i class="fas fa-certificate"></i>
-              </div>
-              <div>
-                <h6 class="mb-1" style="font-weight: 700;">Admission Portal</h6>
-                <p class="mb-0" style="font-size: 13px; opacity: 0.9;">Set targets, see reminders, analyze your study habits.</p>
-              </div>
-              <div class="mt-2" style="font-size: 13px; opacity: 0.9;">View Applications →</div>
-            </div>
-          </a>
-        </div>
 
       </div>
     </div>
@@ -294,6 +284,7 @@ if (!empty($deptFacultyIds)) {
           <thead>
             <tr style="border-bottom: 2px solid #fac01f;">
               <th style="color: #e9ebef; font-weight: 600; padding: 16px;">#</th>
+              <th style="color: #e9ebef; font-weight: 600;">Semester Wise Courses</th>
               <th style="color: #e9ebef; font-weight: 600;">Tracking ID</th>
               <th style="color: #e9ebef; font-weight: 600;">Batch</th>
               <th style="color: #e9ebef; font-weight: 600;">Code</th>
@@ -311,8 +302,14 @@ if (!empty($deptFacultyIds)) {
             <tr style="border-bottom: 1px solid #f5f5f5;">
               <td style="padding: 16px; color: #1a1a1a; font-weight: 500;">{{ $loop->iteration }}</td>
               <td>
-                <span class="badge" style="background: #43cea2; padding: 6px 12px; border-radius: 8px;">ID: {{ $combination->studentprograminfo->id ?? '-' }}</span>
+                <a href="{{route('program.wise.semester.course.design',[$combination->id])}}">
+                  <button class="btn-sm btn-dark"><i class="fa fa-palette"></i> Design</button>
+                </a>
               </td>
+              <td>
+                <span class="badge" style="background: #43cea2; padding: 6px 12px; border-radius: 8px;">ID: {{ $combination->id ?? '-' }}</span>
+              </td>
+
               <td style="color: #1a1a1a;">{{$combination->batchmaster->batch_name ?? '-'}}</td>
               <td style="color: #1a1a1a;">
                 <a href="{{ route('department.show.student.list', ['program_id' => $combination->studentprograminfo->id,

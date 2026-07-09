@@ -29,6 +29,7 @@ use App\Models\SubjectCourseMaster;
 use App\Models\SubjectFacultyMaster;
 use App\Models\SubjectHasCombination;
 use App\Models\SubjectHasDeptAdmin;
+use App\Models\CiaMark;
 use App\Models\InterMark;
 use App\Models\StudentCourseInfo;
 use App\Models\SubjectHasRoutine;
@@ -41,6 +42,7 @@ use App\Models\SubjectHasSyllabus;
 use App\Models\SubjectTypeMaster;
 use App\Models\SyllabusHasFaculty;
 use App\Models\CourseSeatAllocation;
+use App\Models\ProgramWiseSemesterCourse;
 use App\Models\StdProgComboMap;
 use App\Models\SubunitHasRbt;
 use App\Models\SyllabusPdfUpload;
@@ -51,6 +53,7 @@ use App\Models\UserHasRole;
 use Illuminate\Support\Str;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Validation\Rule;
 use Barryvdh\DomPDF\Facade\Pdf;
@@ -1913,5 +1916,243 @@ class SubjectController extends Controller
         }
 
         return Subject::where('id', $subjectId)->value('has_shift_delivery') == 1;
+    }
+
+    function programSemesterCourseDesign($id)
+    {
+
+        $data = SubjectHasStudentProgam::with([
+            'studentprograminfo:id,code,name',
+            'batchmaster:id,batch_name'
+
+        ])->find($id);
+
+        $coursesBySemester = ProgramWiseSemesterCourse::with([
+            'semestermaster:id,title',
+            'programinfo:id,course_code,course_title'
+        ])
+            ->where('program_combo_refid', $id)
+            ->orderBy('semester')
+            ->get()
+            ->groupBy('semester');
+
+        return view('admin.subject.semester-wise-courses', [
+            'data' => $data,
+            'coursesBySemester' => $coursesBySemester,
+        ]);
+    }
+
+    function storeProgramSemesterCoursesMapping(Request $request)
+    {
+
+        $request->validate([
+            'semester' => 'required',
+            'course' => 'required|array|min:1',
+        ]);
+
+        if (empty($request->toggleType)) {
+            $courseType = 'compulsary';
+        } else {
+            $courseType = 'elective';
+        }
+        $refid = $request->id;
+        $semester = $request->semester;
+        $course = $request->course;
+        $batch = $request->batch;
+
+        $combination = SubjectHasStudentProgam::with('batchmaster:id,batch_name')->find($refid);
+        $eligibleStudents = collect();
+        if ($courseType === 'compulsary' && $combination) {
+            $eligibleStudents = $this->getEligibleStudentsForCombination($combination);
+        }
+
+        for ($i = 0; $i < count($course); $i++) {
+            $checkIfAlreadyAdded = ProgramWiseSemesterCourse::where('program_combo_refid', $refid)
+                ->where('batch', $batch)
+                ->where('semester', $semester)
+                ->where('course_id', $course[$i])
+                ->where('course_type', $courseType)->first();
+
+            if ($checkIfAlreadyAdded == null) {
+                $mapping = ProgramWiseSemesterCourse::create([
+                    'program_combo_refid' => $refid,
+                    'batch' => $batch,
+                    'semester' => $semester,
+                    'course_id' => $course[$i],
+                    'course_type' => $courseType
+                ]);
+
+                if ($courseType === 'compulsary' && $combination && $eligibleStudents->isNotEmpty()) {
+                    $this->enrollMappedCompulsaryCourse($combination, $mapping, $eligibleStudents);
+                }
+            }
+        }
+
+        $message = 'Created';
+        if ($courseType === 'compulsary' && $combination && $eligibleStudents->isEmpty()) {
+            $message .= '. No students found for this program and batch, so no enrollment was performed.';
+        }
+
+        return redirect()->back()->with('success', $message);
+    }
+
+    function deleteProgramSemesterCourseMapping($id)
+    {
+        $mapping = ProgramWiseSemesterCourse::findOrFail($id);
+        $combination = SubjectHasStudentProgam::with('batchmaster:id,batch_name')->find($mapping->program_combo_refid);
+        $impact = $this->getMappingDeletionImpact($mapping, $combination);
+
+        if ($mapping->course_type === 'compulsary' && $combination) {
+            if (!$impact['can_delete']) {
+                return redirect()->back()->with('error', 'Cannot delete mapping. Marks or attendance exist for students in this mapped course and semester.');
+            }
+
+            $this->removeMappedCompulsaryCourseEnrollments($combination, $mapping, $impact['student_ids']);
+        }
+
+        $mapping->delete();
+
+        return redirect()->back()->with('success', 'Mapping deleted and enrollments synced.');
+    }
+
+    private function enrollMappedCompulsaryCourse(SubjectHasStudentProgam $combination, ProgramWiseSemesterCourse $mapping, $students = null): void
+    {
+        $academicYear = (string) optional($combination->batchmaster)->batch_name;
+        if ($academicYear === '') {
+            $academicYear = (string) date('Y');
+        }
+
+        if ($students === null) {
+            $students = $this->getEligibleStudentsForCombination($combination);
+        }
+
+        if ($students->isEmpty()) {
+            return;
+        }
+
+        foreach ($students as $student) {
+            $alreadyEnrolled = StudentCourseInfo::where('student_id', $student->id)
+                ->where('course_id', $mapping->course_id)
+                ->where('semester', $mapping->semester)
+                ->where('academic_year', $academicYear)
+                ->exists();
+
+            if ($alreadyEnrolled) {
+                continue;
+            }
+
+            StudentCourseInfo::create([
+                'student_id' => $student->id,
+                'course_id' => $mapping->course_id,
+                'semester' => $mapping->semester,
+                'campus_id' => $student->campus_id,
+                'is_active' => 1,
+                'academic_year' => $academicYear,
+                'course_status' => 'EN',
+                'is_elective' => 0,
+            ]);
+        }
+    }
+
+    private function removeMappedCompulsaryCourseEnrollments(SubjectHasStudentProgam $combination, ProgramWiseSemesterCourse $mapping, ?array $studentIds = null): void
+    {
+        $academicYear = (string) optional($combination->batchmaster)->batch_name;
+        if ($academicYear === '') {
+            $academicYear = (string) date('Y');
+        }
+
+        if ($studentIds === null) {
+            $studentIds = $this->getEligibleStudentsForCombination($combination)->pluck('id')->toArray();
+        }
+
+        if (empty($studentIds)) {
+            return;
+        }
+
+        StudentCourseInfo::whereIn('student_id', $studentIds)
+            ->where('course_id', $mapping->course_id)
+            ->where('semester', $mapping->semester)
+            ->where('academic_year', $academicYear)
+            ->delete();
+    }
+
+    private function getEligibleStudentsForCombination(SubjectHasStudentProgam $combination)
+    {
+        return StudentMaster::where('new_program_id', $combination->student_program_id)
+            ->where('batch', $combination->batch_id)
+            ->where('campus_id', $combination->campus_id)
+            ->where('is_deleted', 0)
+            ->where('is_left', 0)
+            ->get(['id', 'campus_id']);
+    }
+
+    private function getMappingDeletionImpact(ProgramWiseSemesterCourse $mapping, ?SubjectHasStudentProgam $combination): array
+    {
+        if (!$combination || $mapping->course_type !== 'compulsary') {
+            return [
+                'eligible_students' => 0,
+                'affected_enrollments' => 0,
+                'marked_students' => 0,
+                'can_delete' => true,
+                'student_ids' => [],
+            ];
+        }
+
+        $academicYear = (string) optional($combination->batchmaster)->batch_name;
+        if ($academicYear === '') {
+            $academicYear = (string) date('Y');
+        }
+
+        $studentIds = $this->getEligibleStudentsForCombination($combination)->pluck('id')->toArray();
+        if (empty($studentIds)) {
+            return [
+                'eligible_students' => 0,
+                'affected_enrollments' => 0,
+                'marked_students' => 0,
+                'can_delete' => true,
+                'student_ids' => [],
+            ];
+        }
+
+        $affectedEnrollments = StudentCourseInfo::whereIn('student_id', $studentIds)
+            ->where('course_id', $mapping->course_id)
+            ->where('semester', $mapping->semester)
+            ->where('academic_year', $academicYear)
+            ->count();
+
+        $faStudentIds = InterMark::whereIn('student_id', $studentIds)
+            ->where('course_id', $mapping->course_id)
+            ->where('semester', $mapping->semester)
+            ->pluck('student_id')
+            ->toArray();
+
+        $ciaStudentIds = CiaMark::whereIn('STUDENT_ID', $studentIds)
+            ->where('COURSE_ID', $mapping->course_id)
+            ->where('SEMESTER_ID', $mapping->semester)
+            ->pluck('STUDENT_ID')
+            ->toArray();
+
+        $saStudentIds = DB::table('exam_marks_entries as eme')
+            ->join('exam_sessions as es', 'es.id', '=', 'eme.exam_session_id')
+            ->whereIn('eme.erp_student_id', $studentIds)
+            ->where('eme.erp_subject_id', $mapping->course_id)
+            ->where('es.semester', $mapping->semester)
+            ->pluck('eme.erp_student_id')
+            ->toArray();
+
+        $attendanceStudentIds = StudentAttendance::whereIn('student_id', $studentIds)
+            ->where('course_id', $mapping->course_id)
+            ->pluck('student_id')
+            ->toArray();
+
+        $lockedStudents = count(array_unique(array_merge($faStudentIds, $ciaStudentIds, $saStudentIds, $attendanceStudentIds)));
+
+        return [
+            'eligible_students' => count($studentIds),
+            'affected_enrollments' => $affectedEnrollments,
+            'marked_students' => $lockedStudents,
+            'can_delete' => $lockedStudents === 0,
+            'student_ids' => $studentIds,
+        ];
     }
 }

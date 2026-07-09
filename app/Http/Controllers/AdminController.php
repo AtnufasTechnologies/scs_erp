@@ -29,6 +29,7 @@ use App\Models\MenuMaster;
 use App\Models\NationalityMaster;
 use App\Models\PaperTypeMaster;
 use App\Models\ProgramCourseMaster;
+use App\Models\ProgramWiseSemesterCourse;
 use App\Models\ProgramGroup;
 use App\Models\ProgramMaster;
 use App\Models\ReligionMaster;
@@ -661,6 +662,215 @@ class AdminController extends Controller
         return redirect()->route('admin.student.profile', ['id' => $studentId, 'rollno' => $student->roll_no])
             ->with('success', 'Course enrollment removed.')
             ->withFragment('tab-courses');
+    }
+
+    function bulkStudentCourseEnrollment(Request $request)
+    {
+        $combinations = SubjectHasStudentProgam::with([
+            'studentprograminfo:id,code,name',
+            'batchmaster:id,batch_name',
+            'campusmaster:id,name',
+        ])
+            ->orderByDesc('id')
+            ->get();
+
+        $selectedCombinationId = (int) $request->query('combination_id');
+        $selectedSemesterId = (int) $request->query('semester_id');
+
+        $selectedCombination = null;
+        $mappedSemesters = collect();
+        $mappedCourses = collect();
+        $eligibleStudents = collect();
+
+        if ($selectedCombinationId > 0) {
+            $selectedCombination = SubjectHasStudentProgam::with([
+                'studentprograminfo:id,code,name',
+                'batchmaster:id,batch_name',
+                'campusmaster:id,name',
+            ])->find($selectedCombinationId);
+
+            if ($selectedCombination) {
+                $mappedSemesters = ProgramWiseSemesterCourse::with('semestermaster:id,title')
+                    ->where('program_combo_refid', $selectedCombinationId)
+                    ->select('semester')
+                    ->distinct()
+                    ->orderBy('semester')
+                    ->get();
+
+                if ($selectedSemesterId > 0) {
+                    $mappedCourses = ProgramWiseSemesterCourse::with('programinfo:id,course_code,course_title')
+                        ->where('program_combo_refid', $selectedCombinationId)
+                        ->where('semester', $selectedSemesterId)
+                        ->orderBy('course_type')
+                        ->orderBy('course_id')
+                        ->get();
+
+                    $eligibleStudents = StudentMaster::where('new_program_id', $selectedCombination->student_program_id)
+                        ->where('batch', $selectedCombination->batch_id)
+                        ->where('campus_id', $selectedCombination->campus_id)
+                        ->where('is_deleted', 0)
+                        ->where('is_left', 0)
+                        ->orderBy('roll_no')
+                        ->get(['id', 'first_name', 'last_name', 'roll_no']);
+                }
+            }
+        }
+
+        return view('admin.itcell.bulk-enrollment', [
+            'combinations' => $combinations,
+            'selectedCombinationId' => $selectedCombinationId,
+            'selectedSemesterId' => $selectedSemesterId,
+            'selectedCombination' => $selectedCombination,
+            'mappedSemesters' => $mappedSemesters,
+            'mappedCourses' => $mappedCourses,
+            'eligibleStudents' => $eligibleStudents,
+        ]);
+    }
+
+    function bulkStudentCourseEnrollmentStore(Request $request)
+    {
+        $request->validate([
+            'combination_id' => 'required|integer|exists:subject_has_student_progams,id',
+            'semester_id' => 'required|integer|exists:semesters,id',
+            'target_scope' => 'required|in:all,single',
+            'student_id' => 'nullable|required_if:target_scope,single|integer|exists:student_masters,id',
+            'elective_course_ids' => 'nullable|array',
+            'elective_course_ids.*' => 'integer|exists:program_course_masters,id',
+        ]);
+
+        $combinationId = (int) $request->combination_id;
+        $semesterId = (int) $request->semester_id;
+
+        $combination = SubjectHasStudentProgam::with('batchmaster:id,batch_name')->findOrFail($combinationId);
+
+        $mappedCourses = ProgramWiseSemesterCourse::where('program_combo_refid', $combinationId)
+            ->where('semester', $semesterId)
+            ->get(['course_id', 'course_type']);
+
+        if ($mappedCourses->isEmpty()) {
+            return redirect()->route('bulk.student.course.enrollment', [
+                'combination_id' => $combinationId,
+                'semester_id' => $semesterId,
+            ])->with('error', 'No mapped courses found for the selected combination and semester.');
+        }
+
+        $compulsaryCourseIds = $mappedCourses
+            ->where('course_type', 'compulsary')
+            ->pluck('course_id')
+            ->map(fn($id) => (int) $id)
+            ->unique()
+            ->values();
+
+        $mappedElectiveIds = $mappedCourses
+            ->where('course_type', 'elective')
+            ->pluck('course_id')
+            ->map(fn($id) => (int) $id)
+            ->unique()
+            ->values();
+
+        $selectedElectiveIds = collect($request->input('elective_course_ids', []))
+            ->map(fn($id) => (int) $id)
+            ->unique()
+            ->intersect($mappedElectiveIds)
+            ->values();
+
+        $finalCourseIds = $compulsaryCourseIds
+            ->merge($selectedElectiveIds)
+            ->unique()
+            ->values();
+
+        if ($finalCourseIds->isEmpty()) {
+            return redirect()->route('bulk.student.course.enrollment', [
+                'combination_id' => $combinationId,
+                'semester_id' => $semesterId,
+            ])->with('error', 'No valid courses selected for enrollment.');
+        }
+
+        $studentsQuery = StudentMaster::where('new_program_id', $combination->student_program_id)
+            ->where('batch', $combination->batch_id)
+            ->where('campus_id', $combination->campus_id)
+            ->where('is_deleted', 0)
+            ->where('is_left', 0);
+
+        if ($request->target_scope === 'single') {
+            $studentsQuery->where('id', (int) $request->student_id);
+        }
+
+        $students = $studentsQuery->get(['id', 'campus_id']);
+
+        if ($students->isEmpty()) {
+            $errorMessage = $request->target_scope === 'single'
+                ? 'Selected student is not eligible in this mapped combination.'
+                : 'No eligible students found for the selected combination.';
+
+            return redirect()->route('bulk.student.course.enrollment', [
+                'combination_id' => $combinationId,
+                'semester_id' => $semesterId,
+            ])->with('error', $errorMessage);
+        }
+
+        $academicYear = (string) optional($combination->batchmaster)->batch_name;
+        if ($academicYear === '') {
+            $academicYear = (string) date('Y');
+        }
+
+        $studentIds = $students->pluck('id')->toArray();
+        $courseIds = $finalCourseIds->toArray();
+
+        $existingEnrollments = StudentCourseInfo::whereIn('student_id', $studentIds)
+            ->whereIn('course_id', $courseIds)
+            ->where('semester', $semesterId)
+            ->where('academic_year', $academicYear)
+            ->get(['student_id', 'course_id'])
+            ->mapWithKeys(fn($row) => [((int) $row->student_id) . '_' . ((int) $row->course_id) => true]);
+
+        $selectedElectiveIdArray = $selectedElectiveIds->toArray();
+        $insertRows = [];
+        $newEnrollments = 0;
+        $skippedEnrollments = 0;
+        $now = now();
+
+        foreach ($students as $student) {
+            foreach ($courseIds as $courseId) {
+                $key = ((int) $student->id) . '_' . ((int) $courseId);
+                if (isset($existingEnrollments[$key])) {
+                    $skippedEnrollments++;
+                    continue;
+                }
+
+                $insertRows[] = [
+                    'student_id' => $student->id,
+                    'course_id' => $courseId,
+                    'semester' => $semesterId,
+                    'campus_id' => $student->campus_id,
+                    'is_active' => 1,
+                    'academic_year' => $academicYear,
+                    'is_elective' => in_array((int) $courseId, $selectedElectiveIdArray, true) ? 1 : 0,
+                    'created_at' => $now,
+                    'updated_at' => $now,
+                ];
+
+                $newEnrollments++;
+
+                if (count($insertRows) >= 1000) {
+                    DB::table('student_course_infos')->insert($insertRows);
+                    $insertRows = [];
+                }
+            }
+        }
+
+        if (!empty($insertRows)) {
+            DB::table('student_course_infos')->insert($insertRows);
+        }
+
+        $message = $students->count() . ' student(s) processed. '
+            . $newEnrollments . ' enrollment(s) added. '
+            . $skippedEnrollments . ' already enrolled (skipped).';
+
+        return redirect()->route('bulk.student.course.enrollment', [
+            'combination_id' => $combinationId,
+            'semester_id' => $semesterId,
+        ])->with('success', $message);
     }
 
     /**

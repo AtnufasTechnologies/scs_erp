@@ -206,6 +206,8 @@ Route::group(['prefix' => '/erp'], function () {
 
             Route::get('student-program-master', [AdminController::class, 'studentProgramMaster'])->name('itcell.student-program-master');
             Route::post('student-program-type/multi-update', [AdminController::class, 'studentProgramTypeMultiUpdate'])->name('itcell.student-program-type.multi.update');
+            Route::get('bulk-student-course-enrollment', [AdminController::class, 'bulkStudentCourseEnrollment'])->name('bulk.student.course.enrollment');
+            Route::post('bulk-student-course-enrollment', [AdminController::class, 'bulkStudentCourseEnrollmentStore'])->name('bulk.student.course.enrollment.store');
         });
 
         //account
@@ -864,6 +866,11 @@ Route::group(['prefix' => '/erp'], function () {
 
         // Faculty Attendance Monitoring
         Route::get('attendance-monitor', [SubjectController::class, 'attendanceMonitor'])->name('department.attendance.monitor');
+
+        //program wise semester courses
+        Route::get('program-semester-course-design/{id}', [SubjectController::class, 'programSemesterCourseDesign'])->name('program.wise.semester.course.design');
+        Route::post('store.program.semster.courses.mapping', [SubjectController::class, 'storeProgramSemesterCoursesMapping'])->name('store.program.semster.courses.mapping');
+        Route::delete('program-semester-course-mapping/{id}', [SubjectController::class, 'deleteProgramSemesterCourseMapping'])->name('delete.program.semster.courses.mapping');
     });
     // ========================================================
     // Faculty routes
