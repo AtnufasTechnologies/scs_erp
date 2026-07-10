@@ -861,9 +861,7 @@ class SubjectController extends Controller
                 ->whereIn('shift', [$defaultShift, null])
                 ->values();
 
-            if ($filteredCsos->isNotEmpty()) {
-                $course->courseMaster->setRelation('csos', $filteredCsos);
-            }
+            $course->courseMaster->setRelation('csos', $this->dedupeCsosByTitle($filteredCsos));
         }
 
         $objectives = PoHasCo::where('co_id', $courseId)->get();
@@ -889,7 +887,7 @@ class SubjectController extends Controller
                     ->orWhereNull('shift');
             });
 
-        $csos = $query->get();
+        $csos = $this->dedupeCsosByTitle($query->orderBy('id')->get());
 
         if ($csos->isEmpty()) {
             return response()->json(['error' => 'Course not found'], 404);
@@ -908,11 +906,25 @@ class SubjectController extends Controller
             'shift' => ['nullable', Rule::in($allowedShifts)],
         ]);
 
+        $normalizedTitle = $this->normalizeTitle($request->title);
+        $defaultShift = $this->getDefaultShiftSlug();
+
+        $hasDuplicate = CoHasCso::where('co_id', $request->course_id)
+            ->where(function ($q) use ($defaultShift) {
+                $q->where('shift', $defaultShift)->orWhereNull('shift');
+            })
+            ->get(['title'])
+            ->contains(fn($cso) => $this->normalizeTitle($cso->title) === $normalizedTitle);
+
+        if ($hasDuplicate) {
+            return redirect()->back()->with('error', 'This unit already exists for the selected course and shift.');
+        }
+
         CoHasCso::create([
             'co_id' => $request->course_id,
             'title' => $request->title,
             'lectures_needed' => $request->lectures_needed,
-            'shift' => $this->getDefaultShiftSlug(),
+            'shift' => $defaultShift,
         ]);
 
         return redirect()->back()->with('success', 'CSO added successfully');
@@ -955,9 +967,24 @@ class SubjectController extends Controller
             'shift' => ['nullable', Rule::in($allowedShifts)],
         ]);
 
+        $normalizedTitle = $this->normalizeTitle($request->title);
+        $defaultShift = $this->getDefaultShiftSlug();
+
+        $hasDuplicate = CoHasCso::where('co_id', $cso->co_id)
+            ->where('id', '!=', $cso->id)
+            ->where(function ($q) use ($defaultShift) {
+                $q->where('shift', $defaultShift)->orWhereNull('shift');
+            })
+            ->get(['title'])
+            ->contains(fn($existing) => $this->normalizeTitle($existing->title) === $normalizedTitle);
+
+        if ($hasDuplicate) {
+            return redirect()->back()->with('error', 'Another unit with the same title already exists for this course and shift.');
+        }
+
         $cso->title = $request->title;
         $cso->lectures_needed = $request->lectures_needed;
-        $cso->shift = $this->getDefaultShiftSlug();
+        $cso->shift = $defaultShift;
         $cso->save();
 
         return redirect()->back()->with('success', 'CSO updated successfully');
@@ -1074,7 +1101,19 @@ class SubjectController extends Controller
         $semesters = Semester::all();
         $cos =  SubjectCourseMaster::with([
             'courseMaster.coursetypemaster'
-        ])->where('subject_id', $id)->get();
+        ])
+            ->where('subject_id', $id)
+            ->get()
+            ->unique('course_master_id')
+            ->values();
+
+        $mappedCourseIds = $cos
+            ->pluck('course_master_id')
+            ->filter()
+            ->map(fn($courseId) => (int) $courseId)
+            ->unique()
+            ->values();
+
         $data['id'] = $id;
         $data['slug'] = $request->slug;
         $subjectUsesShifts = $this->subjectUsesShifts($id);
@@ -1093,6 +1132,12 @@ class SubjectController extends Controller
 
         if ($subjectUsesShifts && !empty($request->filter_shift) && $this->isKnownShift($request->filter_shift)) {
             $syllabusQuery->where('shift', $request->filter_shift);
+        }
+
+        if ($mappedCourseIds->isNotEmpty()) {
+            $syllabusQuery->whereIn('co_id', $mappedCourseIds->all());
+        } else {
+            $syllabusQuery->whereRaw('1 = 0');
         }
 
         $syllabusData = $syllabusQuery->get();
@@ -1820,6 +1865,36 @@ class SubjectController extends Controller
         }
 
         return $slugs;
+    }
+
+    private function normalizeTitle(?string $value): string
+    {
+        $normalized = mb_strtolower((string) $value);
+        $normalized = preg_replace('/\s+/', ' ', $normalized);
+        return trim((string) $normalized);
+    }
+
+    private function dedupeCsosByTitle($csos)
+    {
+        return collect($csos)
+            ->groupBy(fn($cso) => $this->normalizeTitle($cso->title))
+            ->map(function ($group) {
+                $primary = $group->sortBy('id')->first();
+
+                $mergedSubunits = $group
+                    ->flatMap(fn($cso) => collect($cso->csosubunits ?? []))
+                    ->groupBy(fn($subunit) => $this->normalizeTitle($subunit->title))
+                    ->map(fn($items) => $items->sortBy('id')->first())
+                    ->values();
+
+                if ($primary) {
+                    $primary->setRelation('csosubunits', $mergedSubunits);
+                }
+
+                return $primary;
+            })
+            ->filter()
+            ->values();
     }
 
     private function isKnownShift(string $shift): bool

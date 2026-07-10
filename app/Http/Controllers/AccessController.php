@@ -257,8 +257,16 @@ class AccessController extends Controller
 
     function facultyAccessList($departmentId, $departmentSlug)
     {
-        $faculties = SubjectFacultyMaster::with('faculty')->where('subject_id', $departmentId)->get();
-        $data = SubjectFacultyMaster::with(['useraccess'])->where('access_id', '!=', null)->get();
+        $faculties = SubjectFacultyMaster::with('faculty')
+            ->where('subject_id', $departmentId)
+            ->get();
+
+        $data = SubjectFacultyMaster::with(['useraccess', 'faculty'])
+            ->where('subject_id', $departmentId)
+            ->whereNotNull('access_id')
+            ->orderByDesc('id')
+            ->get();
+
         return view('admin.subject.dept-faculty-access', [
             'faculties' => $faculties,
             'data' => $data,

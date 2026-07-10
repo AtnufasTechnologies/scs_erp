@@ -57,6 +57,7 @@ use App\Models\Subject;
 use App\Models\SubjectCourseMaster;
 use App\Models\SubjectFacultyMaster;
 use App\Models\SubjectHasStudentProgam;
+use App\Models\SyllabusManager;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -2364,12 +2365,17 @@ class AdminController extends Controller
             'courseMaster.csos',
             'courseMaster.csos.csosubunits'
         ])->where('subject_id', $subjectId)->get();
-        $syllabusByCourse = \App\Models\SubjectHasSyllabus::with(['batchmaster:id,batch_name', 'semestermaster:id,title'])
+        $syllabusByCourse = SyllabusManager::with([
+            'batch:id,batch_name',
+            'semester:id,title',
+            'cso:id,title',
+            'syllabusSubunits.csoSubunit:id,title',
+        ])
             ->where('subject_id', $subjectId)
-            ->whereNotNull('course_id')
+            ->whereNotNull('co_id')
             ->orderByDesc('id')
             ->get()
-            ->groupBy('course_id');
+            ->groupBy('co_id');
         $faculties = SubjectFacultyMaster::with('faculty')->where('subject_id', $subjectId)->get();
 
         return view('admin.itcell.dept-manager', [

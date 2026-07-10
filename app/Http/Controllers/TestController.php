@@ -27,6 +27,7 @@ use App\Models\CoHasCso;
 use App\Models\ProgramCourseMaster;
 use App\Models\ProgramCourseMasterNew;
 use App\Models\SubjectCourseMaster;
+use App\Models\SyllabusManager;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
@@ -368,5 +369,31 @@ class TestController extends Controller
             }
         }
         dd('Fee Structure Fixing Complete');
+    }
+
+
+    function fixSyllabusIssue()
+    {
+
+        $syllabusManager = SyllabusManager::all();
+
+        foreach ($syllabusManager as $item) {
+            //match with old Program Master
+            $record = DB::table('program_course_masters_old')->where('id', $item->co_id)->first();
+            if ($record != null) {
+
+                //get the course_code
+                $course_code = $record->course_code;
+                //Match it in the new Table to find the ID
+                $newRecord  =   DB::table('program_course_masters')->where('course_code', $course_code)->first();
+
+                //update the Syllabus Mapping
+                SyllabusManager::where('co_id', $item->co_id)->update([
+                    'co_id' => $newRecord->id
+                ]);
+            }
+        }
+
+        dd('all corrections done');
     }
 }

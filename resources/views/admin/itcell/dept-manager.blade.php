@@ -294,7 +294,7 @@ $departmentCode = $data->code ?? $data->subject_code ?? $data->short_code ?? '-'
   </div>
 
   <div class="row">
-    <div class="col-lg-8">
+    <div class="col-lg-12">
       <div class="card p-2 shadow">
 
         <h5>Courses - {{count($course_masters)}}</h5>
@@ -370,7 +370,7 @@ $departmentCode = $data->code ?? $data->subject_code ?? $data->short_code ?? '-'
       </div>
     </div>
 
-    <div class="col-lg-4">
+    <div class="col-lg-12">
       <div class="card p-2 shadow">
         <div class="card-header">
           <h5 class="mb-0">Syllabus Status</h5>
@@ -383,6 +383,7 @@ $departmentCode = $data->code ?? $data->subject_code ?? $data->short_code ?? '-'
           @foreach ($course_masters as $course)
           @php
           $courseSyllabi = $syllabus_by_course[$course->course_master_id] ?? collect();
+          $courseAccordionId = 'courseSyllabusAccordion' . $course->id;
           @endphp
           <div class="border rounded p-2 mb-2 syllabus-search-item" data-syllabus-search="{{ strtolower(($course->courseMaster->course_code ?? '') . ' ' . ($course->courseMaster->course_title ?? '')) }}">
             <div class="d-flex justify-content-between align-items-start gap-2">
@@ -398,16 +399,41 @@ $departmentCode = $data->code ?? $data->subject_code ?? $data->short_code ?? '-'
             </div>
 
             @if($courseSyllabi->count())
-            <div class="mt-2">
+            <div class="accordion mt-2" id="{{ $courseAccordionId }}">
               @foreach($courseSyllabi as $syllabus)
-              <div class="small mb-1">
-                <span class="badge bg-light text-dark border">Batch: {{ $syllabus->batchmaster->batch_name ?? '-' }}</span>
-                <span class="badge bg-light text-dark border">Semester: {{ $syllabus->semestermaster->title ?? '-' }}</span>
+              @php
+              $syllabusCollapseId = 'syllabusCollapse' . $course->id . '_' . $loop->index;
+              $syllabusHeaderId = 'syllabusHeading' . $course->id . '_' . $loop->index;
+              @endphp
+              <div class="accordion-item mb-1">
+                <h2 class="accordion-header" id="{{ $syllabusHeaderId }}">
+                  <button class="accordion-button collapsed py-2" type="button" data-bs-toggle="collapse" data-bs-target="#{{ $syllabusCollapseId }}" aria-expanded="false" aria-controls="{{ $syllabusCollapseId }}">
+                    <div class="small">
+                      <span class="badge bg-light text-dark border me-1">{{ $syllabus->batch->batch_name ?? '-' }}</span>
+                      <span class="badge bg-light text-dark border me-1">{{ $syllabus->semester->title ?? '-' }}</span>
+                      <span class="badge bg-light text-dark border me-1">{{ \Illuminate\Support\Str::title($syllabus->shift ?? 'common') }}</span>
+                      <span class="badge bg-info text-dark">{{ $syllabus->cso->title ?? 'CSO' }}</span>
+                    </div>
+                  </button>
+                </h2>
+                <div id="{{ $syllabusCollapseId }}" class="accordion-collapse collapse" aria-labelledby="{{ $syllabusHeaderId }}" data-bs-parent="#{{ $courseAccordionId }}">
+                  <div class="accordion-body py-2">
+                    @if(($syllabus->syllabusSubunits ?? collect())->count())
+                    <ul class="mb-0 ps-3 small">
+                      @foreach($syllabus->syllabusSubunits as $subunit)
+                      <li>{{ $subunit->csoSubunit->title ?? 'Subunit' }}</li>
+                      @endforeach
+                    </ul>
+                    @else
+                    <div class="small text-muted">No subunits mapped.</div>
+                    @endif
+                  </div>
+                </div>
               </div>
               @endforeach
             </div>
             @else
-            <div class="small text-muted mt-2">No syllabus added yet for any semester or batch.</div>
+            <div class="small text-muted mt-2">No syllabus created for this course.</div>
             @endif
           </div>
           @endforeach
