@@ -7,6 +7,7 @@ use App\Faculty\Http\Controllers\WorkDiaryController as WorkDiaryController;
 use App\Faculty\Http\Controllers\FacultyLeaveController;
 use App\Faculty\Http\Controllers\InternalMarksController;
 use App\Faculty\Http\Controllers\MentorshipController;
+use App\Faculty\Http\Controllers\QuizController as FacultyQuizController;
 use App\Faculty\Http\Controllers\PayrollController as FacultyPayrollController;
 use App\Faculty\Http\Controllers\RequestApplicationController as FacultyRequestApplicationController;
 use App\Http\Controllers\AccessController;
@@ -42,6 +43,7 @@ use App\Http\Controllers\StudentResultController;
 use App\Http\Controllers\InvigilationDutyController;
 use App\Http\Controllers\LoginController;
 use App\Http\Controllers\StudentAuthController;
+use App\Http\Controllers\StudentQuizController;
 use App\Http\Controllers\ModerationDutyController;
 use App\Http\Controllers\PaymentBatchController;
 use App\Http\Controllers\PrincipalController;
@@ -739,6 +741,12 @@ Route::group(['prefix' => '/erp'], function () {
         Route::post('payment-failure', [FeePaymentController::class, 'paymentFailure'])->name('payment.failure');
         Route::get('transaction-success/{id}', [FeePaymentController::class, 'showSuccessPage']);
         Route::get('transaction-success/{id}/download-pdf', [FeePaymentController::class, 'downloadInvoice']);
+
+        // Quiz Routes
+        Route::get('quiz', [StudentQuizController::class, 'index'])->name('student.quiz.index');
+        Route::get('quiz/{id}', [StudentQuizController::class, 'show'])->name('student.quiz.show');
+        Route::post('quiz/{id}/save-answer', [StudentQuizController::class, 'saveAnswer'])->name('student.quiz.save-answer');
+        Route::post('quiz/{id}/submit', [StudentQuizController::class, 'submit'])->name('student.quiz.submit');
     });
 
     //admission
@@ -972,6 +980,12 @@ Route::group(['prefix' => '/erp'], function () {
         Route::get('internal-marks/enter', [InternalMarksController::class, 'enter'])->name('faculty.internal-marks.enter');
         Route::post('internal-marks', [InternalMarksController::class, 'store'])->name('faculty.internal-marks.store');
         Route::get('internal-marks/view', [InternalMarksController::class, 'view'])->name('faculty.internal-marks.view');
+
+        // Moodle-style Quiz Routes
+        Route::get('quiz', [FacultyQuizController::class, 'index'])->name('faculty.quiz.index');
+        Route::post('quiz', [FacultyQuizController::class, 'store'])->name('faculty.quiz.store');
+        Route::get('quiz/{id}/results', [FacultyQuizController::class, 'results'])->name('faculty.quiz.results');
+        Route::post('quiz/{id}/allow-attempts', [FacultyQuizController::class, 'allowAttempts'])->name('faculty.quiz.allow-attempts');
     });
 
 
