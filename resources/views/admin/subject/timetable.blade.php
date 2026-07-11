@@ -222,7 +222,7 @@ $faculties = SubjectFacultyMaster::where('subject_id', $data->id)->with('faculty
         <div class="modal-body">
           <div class="mb-3">
             <label class="form-label">Course</label>
-            <select class="form-select" id="modalCourse" style="border-radius:0.5em;">
+            <select class="form-select dselect-example" id="modalCourse" style="border-radius:0.5em;">
               <option value="">Select Course</option>
               @foreach ($courses ?? [] as $course)
               <option value="{{ $course->courseMaster->id ?? $course->id }}">{{$course->courseMaster->coursetypemaster->title ?? ''}} - {{ $course->courseMaster->course_code ??'-'}} - {{ $course->courseMaster->course_title ?? $course->courseMaster->course_title}}</option>
