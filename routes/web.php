@@ -211,6 +211,11 @@ Route::group(['prefix' => '/erp'], function () {
             Route::post('student-program-type/multi-update', [AdminController::class, 'studentProgramTypeMultiUpdate'])->name('itcell.student-program-type.multi.update');
             Route::get('bulk-student-course-enrollment', [AdminController::class, 'bulkStudentCourseEnrollment'])->name('bulk.student.course.enrollment');
             Route::post('bulk-student-course-enrollment', [AdminController::class, 'bulkStudentCourseEnrollmentStore'])->name('bulk.student.course.enrollment.store');
+
+            Route::get('semester-engine', [AdminController::class, 'semesterEngine'])->name('itcell.semester.engine');
+            Route::post('semester-engine', [AdminController::class, 'semesterEngineStore'])->name('itcell.semester.engine.store');
+            Route::post('semester-engine/{id}/update', [AdminController::class, 'semesterEngineUpdate'])->name('itcell.semester.engine.update');
+            Route::post('semester-engine/{id}/delete', [AdminController::class, 'semesterEngineDelete'])->name('itcell.semester.engine.delete');
         });
 
         //account

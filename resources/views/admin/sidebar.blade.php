@@ -146,15 +146,15 @@ $roleType = UserHasRole::where('user_id', $userId)->value('role_name');
             <div class="menu-title">Paper Type</div>
           </a>
         </li>
-
         <li>
           <a href="{{route('itcell.student-program-master')}}">
             <div class="parent-icon">
               <i class="fas fa-arrow-alt-circle-right"></i>
             </div>
-            <div class="menu-title">Student Program Type</div>
+            <div class="menu-title">Affiliation Settings</div>
           </a>
         </li>
+
 
       </ul>
     </li>
@@ -231,7 +231,7 @@ $roleType = UserHasRole::where('user_id', $userId)->value('role_name');
         </li>
 
         <li>
-          <a href="{{route('itcell.admission.combination-master')}}">
+          <a href="{{route('itcell.semester.engine')}}">
             <div class="parent-icon">
               <i class="fal fa-drafting-compass"></i>
             </div>

@@ -53,6 +53,9 @@ use App\Models\UserHasRole;
 use App\Models\UserMenuPermission;
 use App\Models\UserType;
 use App\Models\CiaMark;
+use App\Models\AcademicPathwayMaster;
+use App\Models\DegreeTrackMaster;
+use App\Models\ProgramTrackConfiguration;
 use App\Models\Subject;
 use App\Models\SubjectCourseMaster;
 use App\Models\SubjectFacultyMaster;
@@ -2435,5 +2438,154 @@ class AdminController extends Controller
         SubjectCourseMaster::where('id', $id)->delete();
 
         return redirect()->back()->with('success', 'Course Unlinked Successfully');
+    }
+
+    function semesterEngine()
+    {
+        $data = ProgramTrackConfiguration::latest()->get();
+        $pathways = AcademicPathwayMaster::orderBy('name')->get();
+        $degreeTracks = DegreeTrackMaster::orderBy('name')->get();
+
+        return view('admin.itcell.semester-engine', [
+            'data' => $data,
+            'pathways' => $pathways,
+            'degreeTracks' => $degreeTracks,
+        ]);
+    }
+
+    function semesterEngineStore(Request $request)
+    {
+        $request->validate([
+            'programs' => 'required|array|min:1',
+            'programs.*' => 'required|integer|exists:student_program,id',
+            'configs' => 'required|array|min:1',
+            'configs.*.effective_semester' => 'required|integer|min:1|max:20',
+            'configs.*.allowed_pathway_id' => 'required|integer|exists:academic_pathway_masters,id',
+            'configs.*.allowed_degree_track_id' => 'required|integer|exists:degree_track_masters,id',
+        ]);
+
+        $selectedProgramIds = collect($request->programs)
+            ->filter(fn($id) => !empty($id))
+            ->map(fn($id) => (int) $id)
+            ->unique()
+            ->values();
+
+        if ($selectedProgramIds->isEmpty()) {
+            return redirect()->back()->with('error', 'Please select at least one program.');
+        }
+
+        $selectedPrograms = StudentProgram::whereIn('id', $selectedProgramIds)->get()->keyBy('id');
+
+        $normalizedConfigs = collect($request->configs)
+            ->filter(function ($row) {
+                return !empty($row['effective_semester']) && !empty($row['allowed_pathway_id']) && !empty($row['allowed_degree_track_id']);
+            })
+            ->map(function ($row) {
+                return [
+                    'effective_semester' => (int) $row['effective_semester'],
+                    'allowed_pathway_id' => (int) $row['allowed_pathway_id'],
+                    'allowed_degree_track_id' => (int) $row['allowed_degree_track_id'],
+                ];
+            })
+            ->unique(function ($row) {
+                return $row['effective_semester'] . '-' . $row['allowed_pathway_id'] . '-' . $row['allowed_degree_track_id'];
+            })
+            ->values();
+
+        if ($normalizedConfigs->isEmpty()) {
+            return redirect()->back()->with('error', 'Please add at least one valid configuration row.');
+        }
+
+        $createdCount = 0;
+        $updatedCount = 0;
+
+        DB::beginTransaction();
+        try {
+            foreach ($selectedProgramIds as $programId) {
+                $program = $selectedPrograms->get($programId);
+                if (!$program) {
+                    continue;
+                }
+
+                foreach ($normalizedConfigs as $row) {
+                    $record = ProgramTrackConfiguration::withTrashed()->where([
+                        'program_id' => $program->id,
+                        'effective_semester' => $row['effective_semester'],
+                        'allowed_pathway_id' => (string) $row['allowed_pathway_id'],
+                        'allowed_degree_track_id' => (string) $row['allowed_degree_track_id'],
+                    ])->first();
+
+                    if ($record) {
+                        $wasDeleted = !is_null($record->deleted_at);
+                        $record->coode = $program->code;
+                        $record->title = $program->name;
+                        if ($wasDeleted) {
+                            $record->deleted_at = null;
+                        }
+                        $record->save();
+                        $updatedCount++;
+                        continue;
+                    }
+
+                    $newRecord = new ProgramTrackConfiguration();
+                    $newRecord->program_id = $program->id;
+                    $newRecord->coode = $program->code;
+                    $newRecord->title = $program->name;
+                    $newRecord->effective_semester = $row['effective_semester'];
+                    $newRecord->allowed_pathway_id = (string) $row['allowed_pathway_id'];
+                    $newRecord->allowed_degree_track_id = (string) $row['allowed_degree_track_id'];
+                    $newRecord->save();
+                    $createdCount++;
+                }
+            }
+
+            DB::commit();
+            return redirect()->back()->with('success', "Semester Engine settings saved. Created: {$createdCount}, Updated: {$updatedCount}.");
+        } catch (\Throwable $e) {
+            DB::rollBack();
+            return redirect()->back()->with('error', 'Failed to save Semester Engine settings: ' . $e->getMessage());
+        }
+    }
+
+    function semesterEngineUpdate(Request $request, int $id)
+    {
+        $request->validate([
+            'program_id' => 'required|integer|exists:student_program,id',
+            'effective_semester' => 'required|integer|min:1|max:20',
+            'allowed_pathway_id' => 'required|integer|exists:academic_pathway_masters,id',
+            'allowed_degree_track_id' => 'required|integer|exists:degree_track_masters,id',
+        ]);
+
+        $record = ProgramTrackConfiguration::findOrFail($id);
+        $program = StudentProgram::findOrFail((int) $request->program_id);
+
+        $duplicate = ProgramTrackConfiguration::where('id', '!=', $record->id)
+            ->where('program_id', (int) $request->program_id)
+            ->where('effective_semester', (int) $request->effective_semester)
+            ->where('allowed_pathway_id', (string) $request->allowed_pathway_id)
+            ->where('allowed_degree_track_id', (string) $request->allowed_degree_track_id)
+            ->exists();
+
+        if ($duplicate) {
+            return redirect()->back()->with('error', 'Duplicate configuration exists for this program and semester track combination.');
+        }
+
+        $record->program_id = (int) $request->program_id;
+        $record->coode = $program->code;
+        $record->title = $program->name;
+        $record->effective_semester = (int) $request->effective_semester;
+        $record->allowed_pathway_id = (string) $request->allowed_pathway_id;
+        $record->allowed_degree_track_id = (string) $request->allowed_degree_track_id;
+        $record->save();
+
+        return redirect()->back()->with('success', 'Semester engine rule updated successfully.');
+    }
+
+    function semesterEngineDelete(int $id)
+    {
+        $record = ProgramTrackConfiguration::findOrFail($id);
+        $record->delete();
+
+        return redirect()->back()->with('success', 'Semester engine rule deleted successfully.');
     }
 }
