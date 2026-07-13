@@ -215,6 +215,15 @@ $batchColorPalette = [
               </select>
             </div>
 
+            <div class="col-lg-12">
+              <label for="">Major Type *</label>
+              <select name="academic_pathway_id" class="form-control mb-3" required>
+                <option value="">--Select--</option>
+                <option value="1">Single Major</option>
+                <option value="2">Dual Major</option>
+              </select>
+            </div>
+
             <div class="col-lg-6">
               <label for="">Quarter Title *</label>
               <input type="text" name="quarter_title" class="form-control mb-3" placeholder="example : Admisson Time July ">
@@ -332,6 +341,7 @@ $batchColorPalette = [
           <i class="fa fa-map-marker-alt me-1"></i>{{ $item->program->campus->name ?? '—' }}
           &nbsp;&bull;&nbsp;
           <i class="fa fa-book me-1"></i>{{ $item->feecoursemaster->name ?? '—' }}
+          <span class="badge {{$item->academic_pathway_id == 1 ? 'badge-paid' : 'badge-unpaid'}}"> {{$item->academic_pathway_id == 1 ? 'Single Major': 'Dual Major'}}</span>
         </div>
 
         {{-- Dates --}}
@@ -518,6 +528,13 @@ $batchColorPalette = [
                   <div class="col-12">
                     <label class="form-label">Course Name</label>
                     <input type="text" class="form-control bg-light" value="{{ $item->feecoursemaster->name ?? '-'}}" readonly>
+                  </div>
+                  <div class="col-12">
+                    <label class="form-label">Major Type *</label>
+                    <select name="academic_pathway_id" class="form-select" required>
+                      <option value="1" {{ (int)($item->academic_pathway_id ?? 0) === 1 ? 'selected' : '' }}>Single Major</option>
+                      <option value="2" {{ (int)($item->academic_pathway_id ?? 0) === 2 ? 'selected' : '' }}>Dual Major</option>
+                    </select>
                   </div>
                   <div class="col-12">
                     <hr class="my-1">

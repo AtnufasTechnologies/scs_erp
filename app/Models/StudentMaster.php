@@ -132,4 +132,26 @@ class StudentMaster extends Model
     {
         return $this->hasMany(StudentCourseInfo::class, 'student_id', 'id');
     }
+
+    function academicpathway()
+    {
+        return $this->hasOne(AcademicPathwayMaster::class, 'id', 'academic_pathway_id');
+    }
+
+    function degreetrack()
+    {
+        return $this->hasOne(DegreeTrackMaster::class, 'id', 'degree_track_id');
+    }
+
+    function singleselection()
+    {
+        return $this->hasOne(Subject::class, 'id', 'selected_combo_id');
+    }
+
+    function activeSemesterConfig()
+    {
+        return $this->hasOne(StudentSemesterConfig::class, 'student_id', 'id')
+            ->where('current_semester', 1)
+            ->orderByDesc('semester_id');
+    }
 }

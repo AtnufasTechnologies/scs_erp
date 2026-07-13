@@ -1,6 +1,5 @@
 <?php
 
-use App\Models\StudentCourseInfo;
 use App\Models\Subject;
 use App\Models\StudentMaster;
 use App\Models\BatchMaster;
@@ -76,6 +75,29 @@ $batches = BatchMaster::all();
     align-items: center;
     color: #64748b;
     font-size: 14px;
+  }
+
+  .search-filters {
+    display: grid;
+    grid-template-columns: 2fr 1fr;
+    gap: 12px;
+    margin-bottom: 16px;
+  }
+
+  .search-filters select {
+    width: 100%;
+    padding: 15px 12px;
+    border: 2px solid #e1e8ed;
+    border-radius: 10px;
+    font-size: 16px;
+    transition: all 0.3s ease;
+    background: #fff;
+  }
+
+  .search-filters select:focus {
+    outline: none;
+    border-color: #667eea;
+    box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
   }
 
   .cards-grid {
@@ -288,6 +310,10 @@ $batches = BatchMaster::all();
   }
 
   @media (max-width: 768px) {
+    .search-filters {
+      grid-template-columns: 1fr;
+    }
+
     .cards-grid {
       grid-template-columns: 1fr;
     }
@@ -307,6 +333,12 @@ $batches = BatchMaster::all();
     <button type="button" class="btn btn-warning" data-bs-toggle="modal" data-bs-target="#promotion">
       Promote Students
     </button>
+
+    <button type="button" class="btn btn-info text-white" data-bs-toggle="modal" data-bs-target="#semesterPromotion" style="margin-left:8px;">
+      Promote Semester
+    </button>
+
+
 
     <!-- Modal -->
     <div class="modal fade" id="promotion" tabindex="-1" aria-labelledby="exampleModalLabel" aria-hidden="true">
@@ -357,12 +389,64 @@ $batches = BatchMaster::all();
         </div>
       </div>
     </div>
+
+    <div class="modal fade" id="semesterPromotion" tabindex="-1" aria-labelledby="semesterPromotionLabel" aria-hidden="true">
+      <div class="modal-dialog">
+        <div class="modal-content">
+          <div class="modal-header">
+            <h5 class="modal-title text-dark" id="semesterPromotionLabel">Bulk Semester Promotion</h5>
+            <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+          </div>
+          <form action="{{ route('semester.promotion.prepare.list') }}" method="get">
+            <div class="modal-body">
+              <div class="alert alert-info">
+                <p>Generate a batch-wise student list and promote semester in bulk.</p>
+              </div>
+
+              <div class="row">
+                <div class="col-lg-6"><label for="" class="text-dark">Select Student's Batch *</label>
+                  <select name="batch" class="form-control ">
+                    <option value="">--Select--</option>
+                    @foreach ($batches as $batch)
+                    <option value="{{$batch->id}}">{{$batch->batch_name}}</option>
+                    @endforeach
+                  </select>
+                </div>
+                <div class="col-lg-6">
+                  <label for="" class="text-dark">Campus *</label>
+                  <select name="campus" class="form-control">
+                    <option value="">-- Required --</option>
+                    <option value="1">-- Sonada --</option>
+                    <option value="2">-- Siliguri --</option>
+                  </select>
+                </div>
+              </div>
+            </div>
+            <div class="modal-footer">
+              <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+              <button type="submit" class="btn btn-success">Generate List</button>
+            </div>
+          </form>
+        </div>
+      </div>
+    </div>
   </div>
 
   <div class="search-container">
-    <div class="search-box">
-      <input type="text" id="searchInput" placeholder="Search by name, roll no, register no, email..." autocomplete="off">
-      <i class="fas fa-search"></i>
+    <?php $selectedBatchId = request()->input('batch_id'); ?>
+    <div class="search-filters">
+      <div class="search-box">
+        <input type="text" id="searchInput" placeholder="Search by name, roll no, register no, email..." autocomplete="off">
+        <i class="fas fa-search"></i>
+      </div>
+      <div>
+        <select id="batchFilter" class="form-control" aria-label="Filter by batch">
+          <option value="">All Batches</option>
+          @foreach ($batches as $batch)
+          <option value="{{ $batch->id }}" {{ (string)$selectedBatchId === (string)$batch->id ? 'selected' : '' }}>{{ $batch->batch_name }}</option>
+          @endforeach
+        </select>
+      </div>
     </div>
     <div class="search-stats">
       <span id="resultCount">Showing <strong>{{ count($data) }}</strong> students</span>
@@ -374,12 +458,7 @@ $batches = BatchMaster::all();
   <div class="cards-grid" id="studentsGrid">
     @if (count($data))
     @foreach ($data as $item)
-    <?php
-    $semester = StudentCourseInfo::where('student_id', $item->id)
-      ->distinct('semester')
-      ->orderby('semester', 'desc')
-      ->value('semester');
-    ?>
+    <?php $semester = $item->activeSemesterConfig->semester_id ?? null; ?>
 
     <div class="student-card" data-search-content="{{ strtolower($item->first_name . ' ' . $item->last_name . ' ' . $item->roll_no . ' ' . $item->register_no . ' ' . $item->mail_id . ' ' . ($item->deptmaster != null ? $item->deptmaster->name : '') . ' ' . ($item->stdprogramenrolled != null ? $item->stdprogramenrolled->code : '') . ' ' . ($item->stdprogramenrolled != null ? $item->stdprogramenrolled->name : '') . ' ' . ($item->campusmaster != null ? $item->campusmaster->name : '') . ' ' . ($item->batchmaster != null ? $item->batchmaster->batch_name : '')) }}">
 
@@ -389,10 +468,14 @@ $batches = BatchMaster::all();
           <a href="{{ url('erp/admin/'.$item->id.'/std-profile/'.$item->roll_no) }}" class="student-roll">
             {{ $item->roll_no }}
           </a>
+          <span class="badge badge-primary">{{ $item->academicpathway->name ?? ''}} - {{ $item->degreetrack->name ?? '' }}</span>
+          <span class="badge badge-primary">{{ $item->singleselection->title ?? '' }}</span>
         </div>
         <span class="gender-badge {{ $item->gender == '1' ? 'gender-male' : 'gender-female' }}">
           {{ $item->gender == '1' ? 'Male' : 'Female' }}
         </span>
+
+
       </div>
 
       <div class="student-details">
@@ -452,8 +535,17 @@ $batches = BatchMaster::all();
       <div class="academic-info">
         <div class="academic-tags">
           <span class="academic-tag">📅 Batch: {{ $item->batchmaster != null ? $item->batchmaster->batch_name : 'N/A' }}</span>
-          <span class="academic-tag">📖 Sem: {{ $semester ?? 'N/A' }}</span>
+          <span class="academic-tag">📖 Active Sem: {{ $semester ?? 'Not Set' }} </span>
           <span class="academic-tag">📊 Year: {{ $item->current_year }}</span>
+          <button
+            type="button"
+            class="btn btn-sm btn-outline-danger demote-semester-btn"
+            data-student-id="{{ $item->id }}"
+            data-student-name="{{ trim(($item->first_name ?? '') . ' ' . ($item->last_name ?? '')) }}"
+            data-semester="{{ $semester ?? 0 }}"
+            {{ (int)($semester ?? 0) <= 1 ? 'disabled' : '' }}>
+            Demote Semester
+          </button>
         </div>
       </div>
     </div>
@@ -487,12 +579,17 @@ $batches = BatchMaster::all();
   const searchStatus = document.getElementById('searchStatus');
   const noResultsMessage = document.getElementById('noResultsMessage');
   const searchBox = document.querySelector('.search-box');
+  const batchFilter = document.getElementById('batchFilter');
   const studentMasterContainer = document.querySelector('.student-master-container');
 
   let searchTimeout;
   let isSearching = false;
   const currentUrl = window.location.pathname;
   const campusId = currentUrl.includes('sonada') ? 1 : 2;
+  const initialBatchId = new URLSearchParams(window.location.search).get('batch_id') || '';
+  if (batchFilter && initialBatchId) {
+    batchFilter.value = initialBatchId;
+  }
   const totalStudents = parseInt(document.getElementById('totalStudents').value) || 0;
 
   function showLoading() {
@@ -504,6 +601,8 @@ $batches = BatchMaster::all();
     searchBox.classList.remove('loading');
   }
 
+  const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '{{ csrf_token() }}';
+
   function renderStudentCard(student) {
     return `
       <div class="student-card" style="opacity: 0; transform: translateY(20px);">
@@ -513,6 +612,9 @@ $batches = BatchMaster::all();
             <a href="/erp/admin/${student.id}/std-profile/${student.roll_no}" class="student-roll">
               ${student.roll_no}
             </a>
+              ${student.academicpathway?.name || student.degreetrack?.name ? `<span class="badge badge-primary">${student.academicpathway?.name || ''}${student.academicpathway?.name && student.degreetrack?.name ? ' - ' : ''}${student.degreetrack?.name || ''}</span>` : ''}
+              ${student.singleselection?.title ? `<span class="badge badge-primary">${student.singleselection.title}</span>` : ''}
+           
           </div>
           <span class="gender-badge ${student.gender == '1' ? 'gender-male' : 'gender-female'}">
             ${student.gender == '1' ? 'Male' : 'Female'}
@@ -553,8 +655,8 @@ $batches = BatchMaster::all();
           </div>
 
           <div class="detail-item">
-            <span class="detail-label ">Program Enrolled ${student.stdprogramenrolled.program_type == null ? '<span class="text-danger">UNMAPPED</span>' : 
-            student.stdprogramenrolled.program_type == '1' ? '<span class="text-success">UGC</span>' : '<span class="text-success">AICTE</span>'
+            <span class="detail-label ">Program Enrolled ${student.stdprogramenrolled?.program_type == null ? '<span class="text-danger">UNMAPPED</span>' : 
+            student.stdprogramenrolled?.program_type == '1' ? '<span class="text-success">UGC</span>' : '<span class="text-success">AICTE</span>'
             }</span>
             <span class="detail-value">${student.stdprogramenrolled ? `${student.stdprogramenrolled.code} - ${student.stdprogramenrolled.name}` : 'N/A'}</span>
           </div>
@@ -563,8 +665,17 @@ $batches = BatchMaster::all();
         <div class="academic-info">
           <div class="academic-tags">
             <span class="academic-tag">📅 Batch: ${student.batchmaster?.batch_name || 'N/A'}</span>
-            <span class="academic-tag">📖 Sem: ${student.current_semester || 'N/A'}</span>
+            <span class="academic-tag">📖 Active Sem: ${student.current_semester || 'Not Set'}</span>
             <span class="academic-tag">📊 Year: ${student.current_year || 'N/A'}</span>
+            <button
+              type="button"
+              class="btn btn-sm btn-outline-danger demote-semester-btn"
+              data-student-id="${student.id}"
+              data-student-name="${(student.first_name || '')} ${(student.last_name || '')}" 
+              data-semester="${student.current_semester || 0}"
+              ${(parseInt(student.current_semester || 0, 10) <= 1) ? 'disabled' : ''}>
+              Demote Semester
+            </button>
           </div>
         </div>
       </div>
@@ -588,7 +699,17 @@ $batches = BatchMaster::all();
     isSearching = true;
     showLoading();
 
-    fetch(`/erp/admin/student-search?search=${encodeURIComponent(searchTerm)}&campus_id=${campusId}`, {
+    const selectedBatch = batchFilter ? batchFilter.value : '';
+    const queryParams = new URLSearchParams({
+      search: searchTerm,
+      campus_id: campusId
+    });
+
+    if (selectedBatch) {
+      queryParams.append('batch_id', selectedBatch);
+    }
+
+    fetch(`/erp/admin/student-search?${queryParams.toString()}`, {
         method: 'GET',
         headers: {
           'X-Requested-With': 'XMLHttpRequest',
@@ -637,16 +758,114 @@ $batches = BatchMaster::all();
 
     const searchTerm = this.value.trim();
 
-    if (searchTerm === '') {
-      // Reload page to show all students with pagination
-      searchStatus.textContent = '';
-      window.location.href = currentUrl;
-      return;
-    }
-
     searchTimeout = setTimeout(() => {
       performSearch(searchTerm);
     }, 500); // Debounce for 500ms
+  });
+
+  if (batchFilter) {
+    batchFilter.addEventListener('change', function() {
+      const selectedBatch = this.value;
+      const queryParams = new URLSearchParams(window.location.search);
+
+      if (selectedBatch) {
+        queryParams.set('batch_id', selectedBatch);
+      } else {
+        queryParams.delete('batch_id');
+      }
+
+      const nextUrl = queryParams.toString() ? `${currentUrl}?${queryParams.toString()}` : currentUrl;
+      window.history.replaceState({}, '', nextUrl);
+
+      clearTimeout(searchTimeout);
+      performSearch(searchInput.value.trim());
+    });
+  }
+
+  studentsGrid.addEventListener('click', function(event) {
+    const demoteButton = event.target.closest('.demote-semester-btn');
+    if (!demoteButton) return;
+
+    const studentId = demoteButton.dataset.studentId;
+    const studentName = (demoteButton.dataset.studentName || '').trim() || 'this student';
+    const semester = parseInt(demoteButton.dataset.semester || '0', 10);
+
+    if (semester <= 1) {
+      alert('Semester cannot be demoted below 1.');
+      return;
+    }
+
+    const doDemotion = () => {
+      demoteButton.disabled = true;
+
+      fetch(`/erp/admin/student/${studentId}/semester-demote`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'X-CSRF-TOKEN': csrfToken,
+            'X-Requested-With': 'XMLHttpRequest',
+            'Accept': 'application/json'
+          },
+          body: JSON.stringify({})
+        })
+        .then(async response => {
+          const payload = await response.json();
+          if (!response.ok) {
+            throw new Error(payload.message || 'Failed to demote semester.');
+          }
+          return payload;
+        })
+        .then(payload => {
+          searchStatus.innerHTML = `<span style="color: #10b981;">✓ ${payload.message}</span>`;
+
+          if (typeof Swal !== 'undefined') {
+            Swal.fire({
+              icon: 'success',
+              title: 'Done',
+              text: payload.message,
+              timer: 1400,
+              showConfirmButton: false
+            });
+          }
+
+          performSearch(searchInput.value.trim());
+        })
+        .catch(error => {
+          demoteButton.disabled = false;
+
+          if (typeof Swal !== 'undefined') {
+            Swal.fire({
+              icon: 'error',
+              title: 'Demotion Failed',
+              text: error.message || 'Failed to demote semester.'
+            });
+          } else {
+            alert(error.message || 'Failed to demote semester.');
+          }
+        });
+    };
+
+    if (typeof Swal !== 'undefined') {
+      Swal.fire({
+        title: 'Confirm Demotion',
+        html: `<strong>${studentName}</strong><br>Semester ${semester} → ${semester - 1}`,
+        icon: 'warning',
+        showCancelButton: true,
+        confirmButtonText: 'Yes, Demote',
+        cancelButtonText: 'Cancel',
+        confirmButtonColor: '#d33',
+        reverseButtons: true
+      }).then((result) => {
+        if (result.isConfirmed) {
+          doDemotion();
+        }
+      });
+    } else {
+      const confirmed = confirm(`Demote ${studentName} from semester ${semester} to ${semester - 1}?`);
+      if (confirmed) {
+        doDemotion();
+      }
+    }
   });
 
   // Initial animation for cards on page load

@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\AdmissionApplication;
 use App\Models\AnnualPromotionLog;
+use App\Models\StudentSemesterConfig;
 use App\Models\StudentMaster;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -11,6 +12,11 @@ use Illuminate\Support\Facades\DB;
 
 class ITCellController extends Controller
 {
+
+    private function deriveCurrentYearFromSemester(int $semester): int
+    {
+        return max(1, (int) ceil($semester / 2));
+    }
 
     function verifyPayment(int $id)
     {
@@ -158,5 +164,153 @@ class ITCellController extends Controller
         ])->where('campus', $campusid)->latest()->get();
 
         return view('admin.itcell.promotion-logs', ['data' => $data]);
+    }
+
+    function semesterPromotionPrepareList(Request $request)
+    {
+        $request->validate([
+            'batch' => 'required',
+            'campus' => 'required'
+        ]);
+
+        $batch = $request->batch;
+        $campus = $request->campus;
+
+        $students = StudentMaster::with([
+            'batchmaster',
+            'activeSemesterConfig'
+        ])->where('batch', $batch)
+            ->where('campus_id', $campus)
+            ->get();
+
+        return view('admin.itcell.semester-promotion-list', [
+            'students' => $students,
+            'batch' => $batch,
+            'campus' => $campus
+        ]);
+    }
+
+    function bulkSemesterPromotion(Request $request)
+    {
+        $request->validate([
+            'batch' => 'required',
+            'campus' => 'required',
+            'student' => 'required|array|min:1'
+        ]);
+
+        $campus = $request->campus;
+        $student = $request->student;
+
+        DB::beginTransaction();
+        try {
+            foreach ($student as $studentId => $status) {
+                $studentInfo = StudentMaster::with('activeSemesterConfig')->find($studentId);
+                if (!$studentInfo) {
+                    continue;
+                }
+
+                $currentSemester = (int) ($studentInfo->activeSemesterConfig->semester_id ?? 1);
+                $promotedTo = $status === 'present' ? $currentSemester + 1 : $currentSemester;
+
+                StudentSemesterConfig::where('student_id', $studentId)->update([
+                    'current_semester' => 0,
+                ]);
+
+                StudentSemesterConfig::updateOrCreate(
+                    [
+                        'student_id' => $studentId,
+                        'semester_id' => (string) $promotedTo,
+                    ],
+                    [
+                        'current_semester' => 1,
+                    ]
+                );
+
+                $studentInfo->update([
+                    'current_year' => $this->deriveCurrentYearFromSemester($promotedTo),
+                ]);
+            }
+
+            DB::commit();
+
+            if ($campus == 1) {
+                return redirect()
+                    ->route('sonada.studentmaster')
+                    ->with('success', 'Semester promotion completed successfully.');
+            }
+
+            if ($campus == 2) {
+                return redirect()
+                    ->route('siliguri.studentmaster')
+                    ->with('success', 'Semester promotion completed successfully.');
+            }
+
+            return redirect()->back()->with('success', 'Semester promotion completed successfully.');
+        } catch (\Exception $e) {
+            DB::rollBack();
+            return back()->with('error', 'Failed to promote semester in bulk. Please try again.');
+        }
+    }
+
+    function demoteStudentSemester(int $studentId, Request $request)
+    {
+        DB::beginTransaction();
+        try {
+            $studentInfo = StudentMaster::with('activeSemesterConfig')->findOrFail($studentId);
+            $currentSemester = (int) ($studentInfo->activeSemesterConfig->semester_id ?? 1);
+
+            if ($currentSemester <= 1) {
+                $message = 'Semester cannot be demoted below 1.';
+                if ($request->ajax() || $request->expectsJson()) {
+                    return response()->json(['message' => $message], 422);
+                }
+                return back()->with('error', $message);
+            }
+
+            $demotedSemester = $currentSemester - 1;
+
+            $targetSemesterConfig = StudentSemesterConfig::where('student_id', $studentId)
+                ->where('semester_id', (string) $demotedSemester)
+                ->first();
+
+            if (!$targetSemesterConfig) {
+                $message = 'Demotion target semester record not found. No new record was created.';
+                if ($request->ajax() || $request->expectsJson()) {
+                    return response()->json(['message' => $message], 422);
+                }
+                return back()->with('error', $message);
+            }
+
+            StudentSemesterConfig::where('student_id', $studentId)->update([
+                'current_semester' => 0,
+            ]);
+
+            $targetSemesterConfig->update([
+                'current_semester' => 1,
+            ]);
+
+            $studentInfo->update([
+                'current_year' => $this->deriveCurrentYearFromSemester($demotedSemester),
+            ]);
+
+            DB::commit();
+
+            $message = 'Semester demoted successfully.';
+            if ($request->ajax() || $request->expectsJson()) {
+                return response()->json([
+                    'message' => $message,
+                    'semester' => $demotedSemester,
+                    'current_year' => $studentInfo->current_year,
+                ]);
+            }
+
+            return back()->with('success', $message);
+        } catch (\Exception $e) {
+            DB::rollBack();
+            if ($request->ajax() || $request->expectsJson()) {
+                return response()->json(['message' => 'Failed to demote semester.'], 500);
+            }
+            return back()->with('error', 'Failed to demote semester.');
+        }
     }
 }

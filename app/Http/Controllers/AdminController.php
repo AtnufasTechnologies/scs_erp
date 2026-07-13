@@ -77,6 +77,8 @@ class AdminController extends Controller
 
     function stdMasterSonada()
     {
+        $batchId = request()->input('batch_id');
+
         $data = StudentMaster::with([
             'religionmaster:id,name',
             'deptmaster:id,department_code,name',
@@ -85,15 +87,28 @@ class AdminController extends Controller
             'usertype:id,name',
             'bloodgroup',
             'batchmaster:id,batch_name',
-            'programgroup'
+            'programgroup',
+            'stdprogramenrolled',
+            'academicpathway',
+            'degreetrack',
+            'singleselection',
+            'activeSemesterConfig'
 
-        ])->where('campus_id', 1)->paginate(12);
+        ])->where('campus_id', 1);
+
+        if (!empty($batchId)) {
+            $data->where('batch', $batchId);
+        }
+
+        $data = $data->paginate(12)->appends(request()->query());
 
         return view('admin.students.student-master', ['data' => $data]);
     }
 
     function stdMasterSiliguri()
     {
+        $batchId = request()->input('batch_id');
+
         $data = StudentMaster::with([
             'religionmaster:id,name',
             'campusmaster:id,slug,name',
@@ -102,8 +117,18 @@ class AdminController extends Controller
             'bloodgroup',
             'batchmaster:id,batch_name',
             'stdprogramenrolled',
+            'academicpathway',
+            'degreetrack',
+            'singleselection',
+            'activeSemesterConfig'
 
-        ])->where('campus_id', 2)->paginate(12);
+        ])->where('campus_id', 2);
+
+        if (!empty($batchId)) {
+            $data->where('batch', $batchId);
+        }
+
+        $data = $data->paginate(12)->appends(request()->query());
 
         return view('admin.students.student-master', ['data' => $data]);
     }
@@ -112,6 +137,7 @@ class AdminController extends Controller
     {
         $searchTerm = $request->input('search');
         $campusId = $request->input('campus_id', 2); // Default to Siliguri
+        $batchId = $request->input('batch_id');
 
         $query = StudentMaster::with([
             'religionmaster:id,name',
@@ -122,8 +148,16 @@ class AdminController extends Controller
             'bloodgroup',
             'batchmaster:id,batch_name',
             'stdprogramenrolled',
-            'programgroup'
+            'programgroup',
+            'academicpathway',
+            'degreetrack',
+            'singleselection',
+            'activeSemesterConfig'
         ])->where('campus_id', $campusId);
+
+        if (!empty($batchId)) {
+            $query->where('batch', $batchId);
+        }
 
         if (!empty($searchTerm)) {
             $query->where(function ($q) use ($searchTerm) {
@@ -154,12 +188,9 @@ class AdminController extends Controller
 
         $students = $query->paginate(50);
 
-        // Add semester information to each student
+        // Add active semester information to each student from student_semester_configs
         foreach ($students as $student) {
-            $student->current_semester = StudentCourseInfo::where('student_id', $student->id)
-                ->distinct('semester')
-                ->orderBy('semester', 'desc')
-                ->value('semester');
+            $student->current_semester = $student->activeSemesterConfig->semester_id ?? null;
         }
 
         if ($request->ajax()) {
@@ -188,6 +219,9 @@ class AdminController extends Controller
             'programgroup.programInfo',
             'feepayment.feepaymentinfo:id,quarter_title',
             'feepayment.gatewaytype',
+            'academicpathway',
+            'degreetrack',
+            'singleselection'
         ])->firstOrFail();
         $studentCourses = StudentCourseInfo::with([
             'coursemaster'
@@ -1470,6 +1504,7 @@ class AdminController extends Controller
             'program' => 'required',
             'batch' => 'required',
             'course' => 'required',
+            'academic_pathway_id' => 'required|in:1,2',
             'heads' => 'required|array|min:1',
             'amounts' => 'required|array|min:1',
             'reminder_date' => 'required',
@@ -1496,6 +1531,7 @@ class AdminController extends Controller
 
         $rec = new FeesStructure();
         $rec->program_id = $request->program; //ug pg
+        $rec->academic_pathway_id = $request->academic_pathway_id; //1 single major, 2 dual major
         $rec->batch_id = $request->batch; //batch master: id
         $rec->course_name = $request->course; //fee course master: id
         $rec->reminder_date = $request->reminder_date;
@@ -1886,11 +1922,13 @@ class AdminController extends Controller
         $request->validate([
             'program' => 'required',
             'batch' => 'required',
+            'academic_pathway_id' => 'required|in:1,2',
         ]);
         $id = $request->id;
 
         FeesStructure::where('id', $id)->update([
             'program_id' => $request->program,
+            'academic_pathway_id' => $request->academic_pathway_id,
             'batch_id' => $request->batch,
             'reminder_date' => $request->reminder_date,
             'due_date' => $request->due_date,

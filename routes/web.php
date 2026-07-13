@@ -122,6 +122,9 @@ Route::group(['prefix' => '/erp'], function () {
         Route::post('update-application-payment', [ITCellController::class, 'updateApplicationPayment'])->name('itcell.admission.update.payment');
         Route::get('promotion/prepare-list', [ITCellController::class, 'promotionPrepareList'])->name('promotion.prepare.list');
         Route::post('annual-promotion/submit', [ITCellController::class, 'annualStudentPromotion'])->name('annual.student.promotion');
+        Route::get('semester-promotion/prepare-list', [ITCellController::class, 'semesterPromotionPrepareList'])->name('semester.promotion.prepare.list');
+        Route::post('semester-promotion/submit', [ITCellController::class, 'bulkSemesterPromotion'])->name('bulk.semester.promotion');
+        Route::post('student/{studentId}/semester-demote', [ITCellController::class, 'demoteStudentSemester'])->name('student.semester.demote');
         Route::get('annual-promotion-logs/{id}', [ITCellController::class, 'annualStudentPromotionLogs'])->name('annual.student.promotionlogs');
 
         //master
@@ -1278,6 +1281,7 @@ Route::group(['prefix' => '/erp'], function () {
 
     //Testing route
     Route::group(['prefix' => '/test',], function () {
+        Route::get('fix-student-semester', [TestController::class, 'fixStudentSemester']);
         Route::get('fix-syllabus', [TestController::class, 'fixSyllabusIssue']);
         // Route::get('fix-fee-structure', [TestController::class, 'fixFeeStructure']);
         Route::get('fix-courses', [TestController::class, 'courseFix']);

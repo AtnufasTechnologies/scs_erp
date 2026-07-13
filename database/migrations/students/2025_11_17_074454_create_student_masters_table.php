@@ -13,21 +13,23 @@ return new class extends Migration
     {
         Schema::create('student_masters', function (Blueprint $table) {
             $table->id();
-            $table->integer('user_code');
+            $table->unsignedBigInteger('user_code')->nullable();
             $table->string('first_name');
-            $table->string('last_name');
+            $table->string('last_name')->nullable();
             $table->string('full_name')->nullable();
             $table->string('gender');
             $table->string('dob')->nullable();
             $table->string('user_type')->nullable();
             $table->string('community')->nullable();
-            $table->string('nationality')->nullable();
+            $table->unsignedBigInteger('nationality')->nullable();
             $table->string('caste')->nullable();
-            $table->string('religion')->nullable();
-            $table->string('department')->nullable();
-            $table->string('programme')->nullable();
-            $table->string('class_id')->nullable();
-            $table->string('batch')->nullable(); //session
+            $table->unsignedBigInteger('religion')->nullable();
+            $table->unsignedBigInteger('department')->nullable();
+            $table->unsignedBigInteger('academic_dept_id')->nullable();
+            $table->unsignedBigInteger('programme')->nullable();
+            $table->unsignedBigInteger('new_program_id')->nullable();
+            $table->unsignedBigInteger('class_id')->nullable();
+            $table->unsignedBigInteger('batch')->nullable(); // session
             $table->string('category')->nullable();
             $table->string('mobile_no')->nullable();
             $table->string('mail_id')->nullable();
@@ -35,7 +37,7 @@ return new class extends Migration
             $table->string('rfid')->nullable();
             $table->string('doj')->nullable();
             $table->string('dol')->nullable();
-            $table->string('campus_id')->nullable();
+            $table->unsignedBigInteger('campus_id')->nullable();
             $table->string('photo_path')->nullable();
             $table->text('address')->nullable();
             $table->string('admission_date')->nullable();
@@ -44,11 +46,11 @@ return new class extends Migration
             $table->string('father_name')->nullable();
             $table->string('mother_name')->nullable();
             $table->string('guardian_name')->nullable();
-            $table->string('is_active')->default(0);
-            $table->string('is_deleted')->default(0);
-            $table->string('is_left')->default(0);
+            $table->boolean('is_active')->default(false);
+            $table->boolean('is_deleted')->default(false);
+            $table->boolean('is_left')->default(false);
             $table->string('hsc_percentage')->nullable();
-            $table->string('blood_group_id')->nullable();
+            $table->unsignedBigInteger('blood_group_id')->nullable();
             $table->string('is_physically_challenged')->nullable();
             $table->string('mother_tongue')->nullable();
             $table->string('fr_mobile_no')->nullable();
@@ -58,10 +60,22 @@ return new class extends Migration
             $table->string('mr_occupation')->nullable();
             $table->string('university_register_no')->nullable();
             $table->string('annual_income')->nullable();
-            $table->string('is_roman_catholic')->default(0);
-            $table->string('status')->default(0);
-            $table->string('graduation_year');
+            $table->boolean('is_roman_catholic')->default(false);
+            $table->unsignedTinyInteger('current_year')->nullable();
+            $table->unsignedSmallInteger('graduation_year')->nullable();
+            $table->string('status')->default('0');
             $table->text('remarks')->nullable();
+            $table->index('user_code');
+            $table->index('roll_no');
+            $table->index('register_no');
+            $table->index('batch');
+            $table->index('campus_id');
+            $table->index('department');
+            $table->index('academic_dept_id');
+            $table->index('programme');
+            $table->index('new_program_id');
+            $table->index('is_deleted');
+            $table->index('is_left');
             $table->timestamps();
             $table->softDeletes();
         });

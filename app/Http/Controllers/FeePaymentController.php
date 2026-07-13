@@ -26,6 +26,15 @@ use App\Models\CollegeBankAccount;
 
 class FeePaymentController extends Controller
 {
+    private function applyAcademicPathwayFilter($query, StudentMaster $student)
+    {
+        if (!empty($student->academic_pathway_id)) {
+            $query->where('academic_pathway_id', $student->academic_pathway_id);
+        }
+
+        return $query;
+    }
+
     function index(Request $request)
     {
         // ---- Base Query ----
@@ -71,8 +80,9 @@ class FeePaymentController extends Controller
                 ->whereHas('programspivot', function ($q) use ($student) {
                     $q->where('std_program_id', $student->new_program_id);
                 })
-                ->whereIn('std_current_year', range(1, $student->current_year))
-                ->get();
+                ->whereIn('std_current_year', range(1, $student->current_year));
+
+            $applicableFS = $this->applyAcademicPathwayFilter($applicableFS, $student)->get();
             $lateFeePerDay = LateFee::where('status', 1)->value('late_fee_amount'); // 100
 
             $fsWithStatus = $applicableFS->map(function ($fs) use ($student, $lateFeePerDay) {
@@ -146,6 +156,9 @@ class FeePaymentController extends Controller
                 'programgroup' => $student->programgroup->program_code ?? '',
                 'programinfo' => $student->programgroup->programInfo->name ?? '',
                 'stdprogramenrolled' => $student->stdprogramenrolled,
+                'academic_pathway_label' => ((int) ($student->academic_pathway_id ?? 0) === 1)
+                    ? 'Single Major'
+                    : (((int) ($student->academic_pathway_id ?? 0) === 2) ? 'Dual Major' : 'Not Set'),
                 'current_year' => $student->current_year,
                 'fee_status' => $fsWithStatus
             ];
@@ -449,8 +462,9 @@ class FeePaymentController extends Controller
                 $q->where('std_program_id', $student->new_program_id);
             })
             ->whereIn('std_current_year', range(1, $student->current_year))
-            ->orderBy('std_current_year')
-            ->get();
+            ->orderBy('std_current_year');
+
+        $applicableFS = $this->applyAcademicPathwayFilter($applicableFS, $student)->get();
         // ---- PREPARE FEE STATUS ----
         $feeStatus = $applicableFS->map(function ($fs) use ($student, $lateFeePerDay, $exemptions, $hasBlanketExemption) {
             // Success payment
@@ -682,6 +696,16 @@ class FeePaymentController extends Controller
 
         // ---- STUDENT ----
         $student = StudentMaster::find($studentId);
+
+        $allowedFeeIds = $this->applyAcademicPathwayFilter(
+            FeesStructure::whereIn('id', $feeStructureIds),
+            $student
+        )->pluck('id')->map(fn($id) => (int) $id)->toArray();
+
+        $invalidFeeIds = array_diff(array_map('intval', $feeStructureIds), $allowedFeeIds);
+        if (!empty($invalidFeeIds)) {
+            return back()->withErrors('Selected fee structure does not match the student major pathway.');
+        }
 
         // ---- INVOICE ----
         $prefix = $gateway === 'easebuzz' ? 'EZ' : 'BL';
@@ -1206,8 +1230,9 @@ class FeePaymentController extends Controller
             ->whereIn('std_current_year', range(1, $student->current_year))
             ->select('id', 'quarter_title', 'std_current_year', 'quarter_no')
             ->orderBy('std_current_year')
-            ->orderBy('quarter_no')
-            ->get();
+            ->orderBy('quarter_no');
+
+        $feeStructures = $this->applyAcademicPathwayFilter($feeStructures, $student)->get();
 
         return response()->json($feeStructures);
     }
@@ -1251,8 +1276,9 @@ class FeePaymentController extends Controller
                 $q->where('std_program_id', $student->new_program_id);
             })
             ->whereIn('std_current_year', range(1, $student->current_year))
-            ->orderBy('std_current_year')
-            ->get();
+            ->orderBy('std_current_year');
+
+        $applicableFS = $this->applyAcademicPathwayFilter($applicableFS, $student)->get();
 
         // Only show fee structures for which late fee has been paid
         $paidFeeStructureIds = \App\Models\StudentPayment::where('late_fee_amount', '>', 0)
@@ -1443,8 +1469,9 @@ class FeePaymentController extends Controller
                     $q->where('std_program_id', $student->new_program_id);
                 })
                 ->whereIn('std_current_year', range(1, $student->current_year))
-                ->where('is_payable', 1)
-                ->get();
+                ->where('is_payable', 1);
+
+            $applicableFS = $this->applyAcademicPathwayFilter($applicableFS, $student)->get();
 
             foreach ($applicableFS as $fs) {
                 $payment = $student->feepayment

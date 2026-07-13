@@ -90,8 +90,9 @@ $batchProgramMap = StudentMaster::query()
 
             </div>
           </td>
-          <div class="meta-line"> Batch {{ $item['batch'] }} | Current Year: {{ $item['current_year'] }}</div>
+          <div class="meta-line"> Batch {{ $item['batch'] }} | Current Year: {{ $item['current_year'] }} |</div>
           <div class="meta-line">{{ $item['stdprogramenrolled']->code ?? '—' }} - {{ $item['stdprogramenrolled']->name ?? '—' }} </div>
+          <div class="meta-line">Major Type: {{ $item['academic_pathway_label'] ?? 'Not Set' }}</div>
         </div>
 
         <div>

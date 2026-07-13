@@ -3091,7 +3091,6 @@ class AdmissionController extends Controller
 
     function enrolledStudentShiter(Request $request)
     {
-        //  return $request->all();
         $request->validate([
             'application_id' => 'required',
             'campus' => 'required',
@@ -3099,77 +3098,60 @@ class AdmissionController extends Controller
             'course' => 'required',
         ]);
 
-        $data = AdmissionApplication::with('registrationmaster')->find($request->application_id);
-        $studnetData = AdmissionRegistration::with('applicationmaster.stdCourseMaster')->find($data->registrationmaster->id);
+        try {
+            DB::beginTransaction();
 
-        //add student to master table
-        $applicationData = $studnetData->applicationmaster;
-        if (!$applicationData) {
-            DB::rollBack();
-            return back()->with('error', 'Application data not found for this student.');
-        }
+            $data = AdmissionApplication::with('registrationmaster')->find($request->application_id);
+            if (!$data || !$data->registrationmaster) {
+                DB::rollBack();
+                return back()->with('error', 'Admission application or registration record not found.');
+            }
 
-        // Check if student already exists
-        $existingStudent = StudentMaster::where('user_code', $applicationData->application_code)->first();
-        if ($existingStudent) {
+            $studnetData = AdmissionRegistration::with('applicationmaster.stdCourseMaster')->find($data->registrationmaster->id);
+            $applicationData = $studnetData?->applicationmaster;
+            if (!$studnetData || !$applicationData) {
+                DB::rollBack();
+                return back()->with('error', 'Application data not found for this student.');
+            }
+
+            $existingStudent = StudentMaster::where('user_code', $applicationData->application_code)->first();
+            if (!$existingStudent) {
+                DB::rollBack();
+                return back()->with('error', 'Student is not enrolled yet. Unable to shift roll number.');
+            }
 
             $progInfo = MainProgram::where('id', $request->campus)->first();
+            if (!$progInfo) {
+                DB::rollBack();
+                return back()->with('error', 'Invalid campus/program selection.');
+            }
 
-            //update Registration
+            // Update registration first so roll generation uses latest application type/campus.
             $studnetData->update([
                 'campus_id' => $progInfo->campus_id,
                 'application_type' => $progInfo->name,
             ]);
 
-            //Update Application
             $data->update([
                 'department' => $request->department,
                 'course' => $request->course
             ]);
-            //fetching updated Record
-            $studnetDataFresh = AdmissionRegistration::with('applicationmaster.stdCourseMaster')->find($data->registrationmaster->id);
 
-
-
-            //generate Rollno based on the last roll no of the department and course
-            if ($studnetDataFresh->application_type == 'UG') {
-                $P = 'U';
-                if ($studnetDataFresh->campus_id == 1) {
-                    $prefix = $P . "SO";
-                } else {
-                    $prefix = $P . "SL";
-                }
-            } else {
-                $P = 'P';
-                if ($studnetDataFresh->campus_id == 1) {
-                    $prefix = $P . "SO";
-                } else {
-                    $prefix = $P . "SL";
-                }
+            $studnetDataFresh = AdmissionRegistration::find($data->registrationmaster->id);
+            if (!$studnetDataFresh) {
+                DB::rollBack();
+                return back()->with('error', 'Updated registration record not found.');
             }
 
-            $batch = $studnetDataFresh->batch;
-            $batch_id =  BatchMaster::where('batch_name', $batch)->value('id');
-            $courseInfo = StudentProgram::find($request->course);
-            $programCode = $courseInfo->code;
-            //now fetch the last roll no for the same department and course
-            $lastRollNo = StudentMaster::where('academic_dept_id', $request->department)
-                ->where('new_program_id', $request->course)
-                ->where('batch', $batch_id)
-                ->whereHas('campusmaster', function ($query) use ($studnetDataFresh) {
-                    $query->where('id', $studnetDataFresh->campus_id);
-                })
-                ->orderBy('roll_no', 'desc')
-                ->value('roll_no');
-            if ($lastRollNo == null) {
-                $newRollNo = $prefix . $batch . $programCode . '001';
-            } else {
-                $lastRollNoNumber = (int) substr($lastRollNo, -3);
-                $newRollNoNumber = $lastRollNoNumber + 1;
-                $newRollNo = $prefix . $batch . $programCode  . str_pad($newRollNoNumber, 3, '0', STR_PAD_LEFT);
-            }
+            [$newRollNo] = $this->generateUniqueRollNo(
+                $studnetDataFresh->application_type,
+                (int) $studnetDataFresh->campus_id,
+                $studnetDataFresh->batch,
+                (int) $request->department,
+                (int) $request->course,
+                $existingStudent->id
+            );
 
-            //Finally update StudentMaster record 
             $existingStudent->update([
                 'campus_id' => $progInfo->campus_id,
                 'department' => $request->department,
@@ -3177,9 +3159,17 @@ class AdmissionController extends Controller
                 'new_program_id' => $request->course,
                 'roll_no' => $newRollNo
             ]);
-        }
 
-        return back()->with('success', 'Shift Successfull with New RollNo Generated.');
+            DB::commit();
+            return back()->with('success', 'Shift successful with a unique roll number generated.');
+        } catch (\Throwable $e) {
+            DB::rollBack();
+            Log::error('Failed to shift enrolled student', [
+                'application_id' => $request->application_id,
+                'error' => $e->getMessage(),
+            ]);
+            return back()->with('error', 'Shift failed: ' . $e->getMessage());
+        }
     }
 
 
@@ -3202,45 +3192,15 @@ class AdmissionController extends Controller
                 DB::rollBack();
                 return back()->with('error', 'Student already exists in the master table with this application code.');
             }
-
-
-            //generate Rollno based on the last roll no of the department and course
-            if ($studnetData->application_type == 'UG') {
-                $P = 'U';
-                if ($studnetData->campus_id == 1) {
-                    $prefix = $P . "SO";
-                } else {
-                    $prefix = $P . "SL";
-                }
-            } else {
-                $P = 'P';
-                if ($studnetData->campus_id == 1) {
-                    $prefix = $P . "SO";
-                } else {
-                    $prefix = $P . "SL";
-                }
-            }
-
-
+            [$newRollNo, $batch_id] = $this->generateUniqueRollNo(
+                $studnetData->application_type,
+                (int) $studnetData->campus_id,
+                $studnetData->batch,
+                (int) $applicationData->department,
+                (int) $applicationData->course
+            );
 
             $batch = $studnetData->batch;
-            $batch_id =  BatchMaster::where('batch_name', $batch)->value('id');
-            $programCode = $applicationData->stdCourseMaster->code;
-            //now fetch the last roll no for the same department and course
-            $lastRollNo = StudentMaster::where('academic_dept_id', $applicationData->department)
-                ->where('new_program_id', $applicationData->course)
-                ->whereHas('campusmaster', function ($query) use ($studnetData) {
-                    $query->where('id', $studnetData->campus_id);
-                })
-                ->orderBy('roll_no', 'desc')
-                ->value('roll_no');
-            if ($lastRollNo == null) {
-                $newRollNo = $prefix . $batch . $programCode . '001';
-            } else {
-                $lastRollNoNumber = (int) substr($lastRollNo, -3);
-                $newRollNoNumber = $lastRollNoNumber + 1;
-                $newRollNo = $prefix . $batch . $programCode  . str_pad($newRollNoNumber, 3, '0', STR_PAD_LEFT);
-            }
 
             // Calculate graduation year (batch + program duration, default 4 years for UG, 2 for PG)
             $programDuration = $studnetData->application_type == 'UG' ? 4 : 2;
@@ -3307,6 +3267,70 @@ class AdmissionController extends Controller
             ]);
             return back()->with('error', 'Failed to enroll student: ' . $e->getMessage());
         }
+    }
+
+    private function buildRollPrefix(string $applicationType, int $campusId): string
+    {
+        $programPrefix = strtoupper($applicationType) === 'UG' ? 'U' : 'P';
+        $campusPrefix = $campusId === 1 ? 'SO' : 'SL';
+
+        return $programPrefix . $campusPrefix;
+    }
+
+    private function generateUniqueRollNo(
+        string $applicationType,
+        int $campusId,
+        string $batch,
+        int $departmentId,
+        int $courseId,
+        ?int $excludeStudentId = null
+    ): array {
+        $batchId = BatchMaster::where('batch_name', $batch)->value('id');
+        if (!$batchId) {
+            throw new \RuntimeException('Batch mapping not found for roll number generation.');
+        }
+
+        $programCode = StudentProgram::where('id', $courseId)->value('code');
+        if (!$programCode) {
+            throw new \RuntimeException('Program code not found for roll number generation.');
+        }
+
+        $prefix = $this->buildRollPrefix($applicationType, $campusId);
+        $rollPrefix = $prefix . $batch . $programCode;
+
+        $existingRollNos = StudentMaster::where('academic_dept_id', $departmentId)
+            ->where('new_program_id', $courseId)
+            ->where('batch', $batchId)
+            ->where('campus_id', $campusId)
+            ->where('roll_no', 'like', $rollPrefix . '%')
+            ->when($excludeStudentId, function ($query) use ($excludeStudentId) {
+                $query->where('id', '!=', $excludeStudentId);
+            })
+            ->lockForUpdate()
+            ->pluck('roll_no');
+
+        $maxNumber = 0;
+        foreach ($existingRollNos as $rollNo) {
+            if (strpos($rollNo, $rollPrefix) !== 0) {
+                continue;
+            }
+
+            $suffix = substr($rollNo, strlen($rollPrefix));
+            if ($suffix !== '' && ctype_digit($suffix)) {
+                $maxNumber = max($maxNumber, (int) $suffix);
+            }
+        }
+
+        $nextNumber = $maxNumber + 1;
+        do {
+            $candidate = $rollPrefix . str_pad((string) $nextNumber, 3, '0', STR_PAD_LEFT);
+            $alreadyUsed = StudentMaster::when($excludeStudentId, function ($query) use ($excludeStudentId) {
+                $query->where('id', '!=', $excludeStudentId);
+            })->where('roll_no', $candidate)->exists();
+            $nextNumber++;
+        } while ($alreadyUsed);
+
+        return [$candidate, $batchId];
     }
 
     function itcellAdmissionApplications()
