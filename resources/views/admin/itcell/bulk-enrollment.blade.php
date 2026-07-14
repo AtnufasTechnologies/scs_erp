@@ -59,8 +59,10 @@
 </style>
 
 @php
-$compulsaryCourses = collect($mappedCourses ?? [])->where('course_type', 'compulsary')->values();
-$electiveCourses = collect($mappedCourses ?? [])->where('course_type', 'elective')->values();
+$autoCourses = collect($mappedCourses ?? [])->where('course_type', 'AUTO')->values();
+$studentChoiceCourses = collect($mappedCourses ?? [])->where('course_type', 'STUDENT_CHOICE')->values();
+$departmentChoiceCourses = collect($mappedCourses ?? [])->where('course_type', 'DEPARTMENT_CHOICE')->values();
+$choiceCourses = $studentChoiceCourses->merge($departmentChoiceCourses)->values();
 $oldElectives = collect(old('elective_course_ids', []))->map(fn($id) => (int) $id)->toArray();
 $oldTargetScope = old('target_scope', 'all');
 $oldSelectedStudent = (int) old('student_id', 0);
@@ -71,7 +73,7 @@ $oldSelectedStudent = (int) old('student_id', 0);
     <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3">
       <div>
         <h4 class="mb-1">Bulk Course Enrollment</h4>
-        <p class="text-muted mb-0">Auto-enroll mapped compulsary courses for all students in the selected program combination.</p>
+        <p class="text-muted mb-0">Auto-enroll mapped AUTO courses for all students in the selected program combination.</p>
       </div>
     </div>
 
@@ -127,10 +129,10 @@ $oldSelectedStudent = (int) old('student_id', 0);
         <div class="stat-pill">Students: <strong>{{ ($eligibleStudents ?? collect())->count() }}</strong></div>
       </div>
       <div class="col-lg-4">
-        <div class="stat-pill">Compulsary Courses: <strong>{{ $compulsaryCourses->count() }}</strong></div>
+        <div class="stat-pill">AUTO Courses: <strong>{{ $autoCourses->count() }}</strong></div>
       </div>
       <div class="col-lg-4">
-        <div class="stat-pill">Elective Courses: <strong>{{ $electiveCourses->count() }}</strong></div>
+        <div class="stat-pill">Choice Courses: <strong>{{ $choiceCourses->count() }}</strong></div>
       </div>
     </div>
 
@@ -178,9 +180,9 @@ $oldSelectedStudent = (int) old('student_id', 0);
 
         <div class="col-lg-6">
           <div class="bulk-card p-3 h-100">
-            <div class="mini-title mb-2">Auto-Enroll Compulsary Courses</div>
-            @if($compulsaryCourses->isEmpty())
-            <div class="empty-box">No compulsary mapped courses found for this semester.</div>
+            <div class="mini-title mb-2">Auto-Enroll AUTO Courses</div>
+            @if($autoCourses->isEmpty())
+            <div class="empty-box">No AUTO mapped courses found for this semester.</div>
             @else
             <div class="table-responsive">
               <table class="table table-sm table-striped align-middle mb-0">
@@ -192,11 +194,11 @@ $oldSelectedStudent = (int) old('student_id', 0);
                   </tr>
                 </thead>
                 <tbody>
-                  @foreach($compulsaryCourses as $index => $course)
+                  @foreach($autoCourses as $index => $course)
                   <tr>
                     <td>{{ $index + 1 }}</td>
                     <td>{{ optional($course->programinfo)->course_code }} - {{ optional($course->programinfo)->course_title }}</td>
-                    <td><span class="bulk-badge badge-comp">Compulsary</span></td>
+                    <td><span class="bulk-badge badge-comp">AUTO</span></td>
                   </tr>
                   @endforeach
                 </tbody>
@@ -208,9 +210,9 @@ $oldSelectedStudent = (int) old('student_id', 0);
 
         <div class="col-lg-6">
           <div class="bulk-card p-3 h-100">
-            <div class="mini-title mb-2">Elective Options (Select To Enroll)</div>
-            @if($electiveCourses->isEmpty())
-            <div class="empty-box">No elective mapped courses found for this semester.</div>
+            <div class="mini-title mb-2">Choice Options (Select To Enroll)</div>
+            @if($choiceCourses->isEmpty())
+            <div class="empty-box">No choice mapped courses found for this semester.</div>
             @else
             <div class="table-responsive">
               <table class="table table-sm table-striped align-middle mb-0">
@@ -222,16 +224,17 @@ $oldSelectedStudent = (int) old('student_id', 0);
                   </tr>
                 </thead>
                 <tbody>
-                  @foreach($electiveCourses as $course)
+                  @foreach($choiceCourses as $course)
                   @php
                   $courseId = (int) $course->course_id;
+                  $courseTypeLabel = strtoupper((string) $course->course_type);
                   @endphp
                   <tr>
                     <td>
                       <input type="checkbox" name="elective_course_ids[]" value="{{ $courseId }}" {{ in_array($courseId, $oldElectives, true) ? 'checked' : '' }}>
                     </td>
                     <td>{{ optional($course->programinfo)->course_code }} - {{ optional($course->programinfo)->course_title }}</td>
-                    <td><span class="bulk-badge badge-elec">Elective</span></td>
+                    <td><span class="bulk-badge badge-elec">{{ $courseTypeLabel }}</span></td>
                   </tr>
                   @endforeach
                 </tbody>
@@ -246,7 +249,7 @@ $oldSelectedStudent = (int) old('student_id', 0);
         <div class="row g-3 align-items-center">
           <div class="col-lg-9">
             <div class="small text-muted">
-              All eligible students in this mapped batch/program/campus will be processed. Compulsary courses are always enrolled automatically. Selected electives above will also be enrolled.
+              All eligible students in this mapped batch/program/campus will be processed. AUTO courses are always enrolled automatically. Selected choice courses above will also be enrolled.
             </div>
           </div>
           <div class="col-lg-3 text-lg-end">

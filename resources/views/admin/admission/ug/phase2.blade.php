@@ -148,7 +148,8 @@ $campus = MainProgram::with('campus')->get();
               <div class="mb-3">
                 <label for="enroll_status{{ $item->id }}" class="form-label">Enrollment Status <b>(Warning : Use Carefully)</b> <br>
                   <small class="text-danger">*This will Auto Add Applicant
-                    to Student List and Activate RollNo
+                    to Student List and Activate RollNo.
+                    The system will first fill any vacant RollNo sequence, then generate the next new RollNo.
                   </small></label>
                 <select class="form-select" id="enroll_status{{ $item->id }}" name="enroll_status">
                   <option value="0" {{ $item->enroll_status == 0 ? 'selected' : '' }}>Pending</option>
@@ -189,7 +190,9 @@ $campus = MainProgram::with('campus')->get();
               <div class="alert alert-info">
                 <p> <u>Warning:</u> Feature to be used <span class="badge badge-danger">Cautiously</span>
                 </p>
-                <p>This Action will update the Student's enrolled Program and <b>Generate a New RollNo </b>...Old RollNo will be Replaced. <br>
+                <p>This Action will update the Student's enrolled Program and reassign RollNo. <br>
+                  Roll assignment is gap-first: vacant sequence numbers are filled before generating a new number. <br>
+                  Old RollNo will be replaced. <br>
                   Inform Account office since fee structure will also get updated.</p>
               </div>
               <div class="mb-3">
@@ -265,7 +268,7 @@ $campus = MainProgram::with('campus')->get();
               <input type="hidden" name="application_id" value="{{ $item->applicationinfo->id }}">
             </div>
             <div class="modal-footer">
-              <button type="submit" class="btn btn-success">Shift and Generate RollNo</button>
+              <button type="submit" class="btn btn-success">Shift and Reassign RollNo</button>
             </div>
           </div>
         </form>

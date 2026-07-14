@@ -10,13 +10,26 @@ class ProgramWiseSemesterCourse extends Model
 {
     use HasFactory, SoftDeletes;
 
+    public const TYPE_AUTO = 'AUTO';
+    public const TYPE_STUDENT_CHOICE = 'STUDENT_CHOICE';
+    public const TYPE_DEPARTMENT_CHOICE = 'DEPARTMENT_CHOICE';
+
     protected $fillable = [
 
         'program_combo_refid',
         'semester',
         'batch',
         'course_id',
+        'academic_pathway_id',
+        'degree_track_id',
         'course_type',
+        'display_order',
+        'is_active',
+    ];
+
+    protected $casts = [
+        'display_order' => 'integer',
+        'is_active' => 'boolean',
     ];
 
     function batchmaster()

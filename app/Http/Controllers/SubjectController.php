@@ -2023,21 +2023,22 @@ class SubjectController extends Controller
         $request->validate([
             'semester' => 'required',
             'course' => 'required|array|min:1',
+            'course_type' => 'required|in:AUTO,STUDENT_CHOICE,DEPARTMENT_CHOICE',
+            'academic_pathway_id' => 'nullable|integer|exists:academic_pathway_masters,id',
+            'degree_track_id' => 'nullable|integer|exists:degree_track_masters,id',
         ]);
 
-        if (empty($request->toggleType)) {
-            $courseType = 'compulsary';
-        } else {
-            $courseType = 'elective';
-        }
+        $courseType = strtoupper((string) $request->course_type);
         $refid = $request->id;
         $semester = $request->semester;
         $course = $request->course;
         $batch = $request->batch;
+        $academicPathwayId = $request->academic_pathway_id;
+        $degreeTrackId = $request->degree_track_id;
 
         $combination = SubjectHasStudentProgam::with('batchmaster:id,batch_name')->find($refid);
         $eligibleStudents = collect();
-        if ($courseType === 'compulsary' && $combination) {
+        if ($courseType === ProgramWiseSemesterCourse::TYPE_AUTO && $combination) {
             $eligibleStudents = $this->getEligibleStudentsForCombination($combination);
         }
 
@@ -2046,6 +2047,8 @@ class SubjectController extends Controller
                 ->where('batch', $batch)
                 ->where('semester', $semester)
                 ->where('course_id', $course[$i])
+                ->where('academic_pathway_id', $academicPathwayId)
+                ->where('degree_track_id', $degreeTrackId)
                 ->where('course_type', $courseType)->first();
 
             if ($checkIfAlreadyAdded == null) {
@@ -2054,17 +2057,21 @@ class SubjectController extends Controller
                     'batch' => $batch,
                     'semester' => $semester,
                     'course_id' => $course[$i],
-                    'course_type' => $courseType
+                    'academic_pathway_id' => $academicPathwayId,
+                    'degree_track_id' => $degreeTrackId,
+                    'course_type' => $courseType,
+                    'display_order' => ($i + 1),
+                    'is_active' => true,
                 ]);
 
-                if ($courseType === 'compulsary' && $combination && $eligibleStudents->isNotEmpty()) {
+                if ($courseType === ProgramWiseSemesterCourse::TYPE_AUTO && $combination && $eligibleStudents->isNotEmpty()) {
                     $this->enrollMappedCompulsaryCourse($combination, $mapping, $eligibleStudents);
                 }
             }
         }
 
         $message = 'Created';
-        if ($courseType === 'compulsary' && $combination && $eligibleStudents->isEmpty()) {
+        if ($courseType === ProgramWiseSemesterCourse::TYPE_AUTO && $combination && $eligibleStudents->isEmpty()) {
             $message .= '. No students found for this program and batch, so no enrollment was performed.';
         }
 
@@ -2077,7 +2084,7 @@ class SubjectController extends Controller
         $combination = SubjectHasStudentProgam::with('batchmaster:id,batch_name')->find($mapping->program_combo_refid);
         $impact = $this->getMappingDeletionImpact($mapping, $combination);
 
-        if ($mapping->course_type === 'compulsary' && $combination) {
+        if ($mapping->course_type === ProgramWiseSemesterCourse::TYPE_AUTO && $combination) {
             if (!$impact['can_delete']) {
                 return redirect()->back()->with('error', 'Cannot delete mapping. Marks or attendance exist for students in this mapped course and semester.');
             }
@@ -2088,6 +2095,92 @@ class SubjectController extends Controller
         $mapping->delete();
 
         return redirect()->back()->with('success', 'Mapping deleted and enrollments synced.');
+    }
+
+    function updateProgramSemesterCoursesMapping(Request $request, int $id)
+    {
+        $request->validate([
+            'semester' => 'required|integer|exists:semesters,id',
+            'course_id' => 'required|integer|exists:program_course_masters,id',
+            'course_type' => 'required|in:AUTO,STUDENT_CHOICE,DEPARTMENT_CHOICE',
+            'academic_pathway_id' => 'nullable|integer|exists:academic_pathway_masters,id',
+            'degree_track_id' => 'nullable|integer|exists:degree_track_masters,id',
+            'display_order' => 'required|integer|min:1|max:999',
+        ]);
+
+        $mapping = ProgramWiseSemesterCourse::findOrFail($id);
+        $courseType = strtoupper((string) $request->course_type);
+
+        $duplicate = ProgramWiseSemesterCourse::where('id', '!=', $mapping->id)
+            ->where('program_combo_refid', $mapping->program_combo_refid)
+            ->where('batch', $mapping->batch)
+            ->where('semester', (int) $request->semester)
+            ->where('course_id', (int) $request->course_id)
+            ->where('academic_pathway_id', $request->academic_pathway_id)
+            ->where('degree_track_id', $request->degree_track_id)
+            ->where('course_type', $courseType)
+            ->exists();
+
+        if ($duplicate) {
+            return redirect()->back()->with('error', 'Duplicate mapping exists for the same semester/course/type/pathway/track.');
+        }
+
+        $mapping->semester = (int) $request->semester;
+        $mapping->course_id = (int) $request->course_id;
+        $mapping->course_type = $courseType;
+        $mapping->academic_pathway_id = $request->academic_pathway_id;
+        $mapping->degree_track_id = $request->degree_track_id;
+        $mapping->display_order = (int) $request->display_order;
+        $mapping->is_active = $request->has('is_active');
+        $mapping->save();
+
+        return redirect()->back()->with('success', 'Mapping updated successfully.');
+    }
+
+    function updateProgramSemesterCoursesOrder(Request $request)
+    {
+        $request->validate([
+            'combination_id' => 'required|integer|exists:subject_has_student_progams,id',
+            'semester' => 'required|integer|exists:semesters,id',
+            'mapping_ids' => 'required|array|min:1',
+            'mapping_ids.*' => 'required|integer|exists:program_wise_semester_courses,id',
+        ]);
+
+        $combinationId = (int) $request->combination_id;
+        $semester = (int) $request->semester;
+        $mappingIds = collect($request->mapping_ids)->map(fn($id) => (int) $id)->values();
+
+        $records = ProgramWiseSemesterCourse::where('program_combo_refid', $combinationId)
+            ->where('semester', $semester)
+            ->whereIn('id', $mappingIds)
+            ->get(['id']);
+
+        if ($records->count() !== $mappingIds->count()) {
+            return response()->json([
+                'status' => false,
+                'message' => 'Invalid mapping list for the selected semester.',
+            ], 422);
+        }
+
+        DB::beginTransaction();
+        try {
+            foreach ($mappingIds as $index => $mappingId) {
+                ProgramWiseSemesterCourse::where('id', $mappingId)
+                    ->update(['display_order' => $index + 1]);
+            }
+
+            DB::commit();
+            return response()->json([
+                'status' => true,
+                'message' => 'Display order updated successfully.',
+            ]);
+        } catch (\Throwable $e) {
+            DB::rollBack();
+            return response()->json([
+                'status' => false,
+                'message' => 'Failed to update order: ' . $e->getMessage(),
+            ], 500);
+        }
     }
 
     private function enrollMappedCompulsaryCourse(SubjectHasStudentProgam $combination, ProgramWiseSemesterCourse $mapping, $students = null): void
@@ -2163,7 +2256,7 @@ class SubjectController extends Controller
 
     private function getMappingDeletionImpact(ProgramWiseSemesterCourse $mapping, ?SubjectHasStudentProgam $combination): array
     {
-        if (!$combination || $mapping->course_type !== 'compulsary') {
+        if (!$combination || $mapping->course_type !== ProgramWiseSemesterCourse::TYPE_AUTO) {
             return [
                 'eligible_students' => 0,
                 'affected_enrollments' => 0,

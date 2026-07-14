@@ -878,6 +878,8 @@ Route::group(['prefix' => '/erp'], function () {
         //program wise semester courses
         Route::get('program-semester-course-design/{id}', [SubjectController::class, 'programSemesterCourseDesign'])->name('program.wise.semester.course.design');
         Route::post('store.program.semster.courses.mapping', [SubjectController::class, 'storeProgramSemesterCoursesMapping'])->name('store.program.semster.courses.mapping');
+        Route::post('update.program.semster.courses.mapping/{id}', [SubjectController::class, 'updateProgramSemesterCoursesMapping'])->name('update.program.semster.courses.mapping');
+        Route::post('update.program.semster.courses.order', [SubjectController::class, 'updateProgramSemesterCoursesOrder'])->name('update.program.semster.courses.order');
         Route::delete('program-semester-course-mapping/{id}', [SubjectController::class, 'deleteProgramSemesterCourseMapping'])->name('delete.program.semster.courses.mapping');
     });
     // ========================================================

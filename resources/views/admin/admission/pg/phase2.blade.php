@@ -139,7 +139,8 @@ $selectedList = Qs::selectedApplicants('PG');
             <div class="mb-3">
               <label for="enroll_status{{ $item->id }}" class="form-label">Enrollment Status <b>(Warning : Use Carefully)</b> <br>
                 <small class="text-danger">*This will Auto Add Applicant
-                  to Student List and Activate RollNo
+                  to Student List and Activate RollNo.
+                  The system will first fill any vacant RollNo sequence, then generate the next new RollNo.
                 </small></label>
               <select class="form-select" id="enroll_status{{ $item->id }}" name="enroll_status">
                 <option value="0" {{ $item->enroll_status == 0 ? 'selected' : '' }}>Pending</option>

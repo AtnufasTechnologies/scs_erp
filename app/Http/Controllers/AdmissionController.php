@@ -3309,7 +3309,7 @@ class AdmissionController extends Controller
             ->lockForUpdate()
             ->pluck('roll_no');
 
-        $maxNumber = 0;
+        $usedNumbers = [];
         foreach ($existingRollNos as $rollNo) {
             if (strpos($rollNo, $rollPrefix) !== 0) {
                 continue;
@@ -3317,11 +3317,19 @@ class AdmissionController extends Controller
 
             $suffix = substr($rollNo, strlen($rollPrefix));
             if ($suffix !== '' && ctype_digit($suffix)) {
-                $maxNumber = max($maxNumber, (int) $suffix);
+                $number = (int) $suffix;
+                if ($number > 0) {
+                    $usedNumbers[$number] = true;
+                }
             }
         }
 
-        $nextNumber = $maxNumber + 1;
+        // Fill the first vacant sequence slot (gap) before creating a new number.
+        $nextNumber = 1;
+        while (isset($usedNumbers[$nextNumber])) {
+            $nextNumber++;
+        }
+
         do {
             $candidate = $rollPrefix . str_pad((string) $nextNumber, 3, '0', STR_PAD_LEFT);
             $alreadyUsed = StudentMaster::when($excludeStudentId, function ($query) use ($excludeStudentId) {

@@ -792,28 +792,40 @@ class AdminController extends Controller
             ])->with('error', 'No mapped courses found for the selected combination and semester.');
         }
 
-        $compulsaryCourseIds = $mappedCourses
-            ->where('course_type', 'compulsary')
+        $autoCourseIds = $mappedCourses
+            ->where('course_type', ProgramWiseSemesterCourse::TYPE_AUTO)
             ->pluck('course_id')
             ->map(fn($id) => (int) $id)
             ->unique()
             ->values();
 
-        $mappedElectiveIds = $mappedCourses
-            ->where('course_type', 'elective')
+        $mappedStudentChoiceIds = $mappedCourses
+            ->where('course_type', ProgramWiseSemesterCourse::TYPE_STUDENT_CHOICE)
             ->pluck('course_id')
             ->map(fn($id) => (int) $id)
             ->unique()
             ->values();
 
-        $selectedElectiveIds = collect($request->input('elective_course_ids', []))
+        $mappedDepartmentChoiceIds = $mappedCourses
+            ->where('course_type', ProgramWiseSemesterCourse::TYPE_DEPARTMENT_CHOICE)
+            ->pluck('course_id')
             ->map(fn($id) => (int) $id)
             ->unique()
-            ->intersect($mappedElectiveIds)
             ->values();
 
-        $finalCourseIds = $compulsaryCourseIds
-            ->merge($selectedElectiveIds)
+        $mappedChoiceIds = $mappedStudentChoiceIds
+            ->merge($mappedDepartmentChoiceIds)
+            ->unique()
+            ->values();
+
+        $selectedChoiceIds = collect($request->input('elective_course_ids', []))
+            ->map(fn($id) => (int) $id)
+            ->unique()
+            ->intersect($mappedChoiceIds)
+            ->values();
+
+        $finalCourseIds = $autoCourseIds
+            ->merge($selectedChoiceIds)
             ->unique()
             ->values();
 
@@ -862,7 +874,7 @@ class AdminController extends Controller
             ->get(['student_id', 'course_id'])
             ->mapWithKeys(fn($row) => [((int) $row->student_id) . '_' . ((int) $row->course_id) => true]);
 
-        $selectedElectiveIdArray = $selectedElectiveIds->toArray();
+        $selectedElectiveIdArray = $selectedChoiceIds->toArray();
         $insertRows = [];
         $newEnrollments = 0;
         $skippedEnrollments = 0;
