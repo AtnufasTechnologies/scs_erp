@@ -314,6 +314,15 @@ $roleType = UserHasRole::where('user_id', $userId)->value('role_name');
     </li>
 
     <li>
+      <a href="{{route('itcell.pathway.mapper')}}">
+        <div class="parent-icon">
+          <i class="fas fa-project-diagram"></i>
+        </div>
+        <div class="menu-title">Student Pathway Mapper</div>
+      </a>
+    </li>
+
+    <li>
       <a class="has-arrow" href="javascript:;">
         <div class="parent-icon">
           <i class="fas fa-bring-forward"></i>

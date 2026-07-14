@@ -401,6 +401,7 @@ class TestController extends Controller
 
     function fixStudentSemester()
     {
+        /*
         $data = StudentMaster::all();
         foreach ($data as $item) {
             //find the Unique semesters for every student
@@ -415,7 +416,25 @@ class TestController extends Controller
                 ]);
             }
         }
+        */
 
-        dd('student Semester mapping done');
+        $data = StudentMaster::where('batch', 11)->get();
+        foreach ($data as $item) {
+            //find the Unique semesters for every student
+            // $semesterdata =  StudentCourseInfo::where('student_id', $item->id)->distinct()->get('semester');
+            // $current_semester_id = $semesterdata->last();
+
+            // for ($i = 0; $i < count($semesterdata); $i++) {
+
+            // }
+            // dd('student Semester mapping done');
+
+            StudentSemesterConfig::create([
+                'student_id' => $item->id,
+                'semester_id' => 1,
+                'current_semester' => 1,
+            ]);
+        }
+        dd('1st Year Student Semester mapping done');
     }
 }

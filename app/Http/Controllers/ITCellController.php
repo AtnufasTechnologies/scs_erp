@@ -2,10 +2,15 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\AcademicPathwayMaster;
 use App\Models\AdmissionApplication;
 use App\Models\AnnualPromotionLog;
+use App\Models\BatchMaster;
+use App\Models\DegreeTrackMaster;
 use App\Models\StudentSemesterConfig;
 use App\Models\StudentMaster;
+use App\Models\StudentProgram;
+use App\Models\Subject;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
@@ -312,5 +317,156 @@ class ITCellController extends Controller
             }
             return back()->with('error', 'Failed to demote semester.');
         }
+    }
+
+    function studentPathwayMapper(Request $request)
+    {
+        $batches = BatchMaster::orderByDesc('id')->get();
+        $pathways = AcademicPathwayMaster::orderBy('name')->get();
+        $degreeTracks = DegreeTrackMaster::orderBy('name')->get();
+        $selectedProgramIds = collect((array) $request->input('program_ids', []))
+            ->filter(fn($id) => is_numeric($id))
+            ->map(fn($id) => (int) $id)
+            ->unique()
+            ->values()
+            ->toArray();
+
+        $enrolledProgramIds = StudentMaster::whereNotNull('new_program_id')
+            ->distinct()
+            ->pluck('new_program_id')
+            ->map(fn($id) => (int) $id)
+            ->toArray();
+
+        $enrolledPrograms = StudentProgram::query()
+            ->whereIn('id', $enrolledProgramIds)
+            ->orderBy('name')
+            ->get(['id', 'name', 'code']);
+
+        $batchProgramMap = StudentMaster::query()
+            ->select('batch', 'new_program_id')
+            ->whereNotNull('batch')
+            ->whereNotNull('new_program_id')
+            ->distinct()
+            ->get()
+            ->groupBy('batch')
+            ->map(fn($rows) => $rows->pluck('new_program_id')->map(fn($id) => (int) $id)->values()->all())
+            ->toArray();
+
+        $subjects = Subject::query()
+            ->whereNull('deleted_at')
+            ->orderBy('title')
+            ->get(['id', 'title']);
+
+        $students = collect();
+
+        if ($request->filled('batch_id') || !empty($selectedProgramIds)) {
+            $query = StudentMaster::with([
+                'batchmaster:id,batch_name',
+                'stdprogramenrolled:id,name,code',
+                'academicpathway:id,name',
+                'degreetrack:id,name',
+                'singleselection:id,title',
+                'activeSemesterConfig:id,student_id,semester_id,current_semester',
+            ]);
+
+            if ($request->filled('batch_id')) {
+                $query->where('batch', $request->batch_id);
+            }
+
+            if (!empty($selectedProgramIds)) {
+                $query->whereIn('new_program_id', $selectedProgramIds);
+            }
+
+            if ($request->filled('pathway_type') && in_array((int) $request->pathway_type, [1, 2], true)) {
+                $query->where('academic_pathway_id', (int) $request->pathway_type);
+            }
+
+            if ($request->filled('current_semester')) {
+                $query->whereHas('activeSemesterConfig', function ($semQuery) use ($request) {
+                    $semQuery->where('semester_id', (string) $request->current_semester);
+                });
+            }
+
+            $students = $query->orderBy('first_name')->orderBy('last_name')->get();
+        }
+
+        return view('admin.itcell.student-pathway-mapper', [
+            'batches' => $batches,
+            'pathways' => $pathways,
+            'degreeTracks' => $degreeTracks,
+            'enrolledPrograms' => $enrolledPrograms,
+            'batchProgramMap' => $batchProgramMap,
+            'subjects' => $subjects,
+            'students' => $students,
+            'filters' => [
+                'batch_id' => $request->input('batch_id'),
+                'program_ids' => $selectedProgramIds,
+                'pathway_type' => $request->input('pathway_type'),
+                'current_semester' => $request->input('current_semester'),
+            ],
+        ]);
+    }
+
+    function studentPathwayMapperBulkUpdate(Request $request)
+    {
+        $selectedProgramIds = collect((array) $request->input('program_ids', []))
+            ->filter(fn($id) => is_numeric($id))
+            ->map(fn($id) => (int) $id)
+            ->unique()
+            ->values()
+            ->toArray();
+
+        $request->validate([
+            'batch_id' => 'nullable|integer|exists:batch_masters,id|required_without:program_ids',
+            'program_ids' => 'nullable|array|required_without:batch_id',
+            'program_ids.*' => 'integer|exists:student_program,id',
+            'student_ids' => 'required|array|min:1',
+            'student_ids.*' => 'integer|exists:student_masters,id',
+            'academic_pathway_id' => 'nullable|integer|exists:academic_pathway_masters,id',
+            'degree_track_id' => 'nullable|integer|exists:degree_track_masters,id',
+            'selected_combo_id' => 'nullable|integer|exists:subjects,id',
+        ]);
+
+        if (
+            !$request->filled('academic_pathway_id')
+            && !$request->filled('degree_track_id')
+            && !$request->filled('selected_combo_id')
+        ) {
+            return back()->with('error', 'Please select at least one mapping field to update.');
+        }
+
+        $updateData = [];
+        if ($request->filled('academic_pathway_id')) {
+            $updateData['academic_pathway_id'] = (int) $request->academic_pathway_id;
+        }
+        if ($request->filled('degree_track_id')) {
+            $updateData['degree_track_id'] = (int) $request->degree_track_id;
+        }
+        if ($request->filled('selected_combo_id')) {
+            $updateData['selected_combo_id'] = (int) $request->selected_combo_id;
+        }
+
+        $updateQuery = StudentMaster::whereIn('id', $request->student_ids);
+
+        if ($request->filled('batch_id')) {
+            $updateQuery->where('batch', (int) $request->batch_id);
+        }
+
+        if (!empty($selectedProgramIds)) {
+            $updateQuery->whereIn('new_program_id', $selectedProgramIds);
+        }
+
+        $updatedCount = $updateQuery->update($updateData);
+
+        $query = [
+            'batch_id' => $request->batch_id,
+            'program_ids' => $selectedProgramIds,
+            'pathway_type' => $request->input('pathway_type'),
+            'current_semester' => $request->input('current_semester'),
+        ];
+
+        return redirect()
+            ->route('itcell.pathway.mapper', array_filter($query, fn($value) => $value !== null && $value !== ''))
+            ->with('success', $updatedCount . ' student(s) updated successfully.');
     }
 }
