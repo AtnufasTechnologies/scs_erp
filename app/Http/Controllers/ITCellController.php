@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Exports\StudentLibraryCodeExport;
 use App\Models\AcademicPathwayMaster;
 use App\Models\AdmissionApplication;
 use App\Models\AnnualPromotionLog;
@@ -14,6 +15,7 @@ use App\Models\Subject;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
+use Maatwebsite\Excel\Facades\Excel;
 
 class ITCellController extends Controller
 {
@@ -468,5 +470,76 @@ class ITCellController extends Controller
         return redirect()
             ->route('itcell.pathway.mapper', array_filter($query, fn($value) => $value !== null && $value !== ''))
             ->with('success', $updatedCount . ' student(s) updated successfully.');
+    }
+
+    function generateLibraryCode(Request $request)
+    {
+        $request->validate([
+            'batch' => 'required',
+            'campus' => 'required',
+            'action_type' => 'required|in:generate,download'
+        ]);
+
+        $batch = $request->batch;
+        $campus_id = $request->campus;
+        $students = StudentMaster::where('batch', $batch)
+            ->where('campus_id', $campus_id)
+            ->with('batchmaster:id,batch_name')
+            ->orderBy('id')
+            ->get();
+
+        if ($students->isEmpty()) {
+            return back()->with('error', 'No students found for the selected batch and campus.');
+        }
+
+        if ($request->action_type == 'generate') {
+            $lastSequence = 0;
+            $usedCodes = [];
+
+            $existingCodes = StudentMaster::whereNotNull('library_code')
+                ->where('library_code', '!=', '')
+                ->pluck('library_code');
+
+            foreach ($existingCodes as $libraryCode) {
+                if (preg_match('/(\d{4})$/', (string) $libraryCode, $matches)) {
+                    $currentSequence = (int) $matches[1];
+                    $usedCodes[$currentSequence] = true;
+                    if ($currentSequence > $lastSequence) {
+                        $lastSequence = $currentSequence;
+                    }
+                }
+            }
+
+            $updatedCount = 0;
+
+            foreach ($students as $student) {
+                if (!empty($student->library_code)) {
+                    continue;
+                }
+
+                do {
+                    $lastSequence++;
+                } while (isset($usedCodes[$lastSequence]) && $lastSequence <= 9999);
+
+                if ($lastSequence > 9999) {
+                    return back()->with('error', 'Unable to generate unique 4-digit library codes. Sequence limit reached.');
+                }
+
+                $usedCodes[$lastSequence] = true;
+                $student->library_code = str_pad((string) $lastSequence, 4, '0', STR_PAD_LEFT);
+                $student->save();
+                $updatedCount++;
+            }
+
+            return back()->with('success', $updatedCount . ' library code(s) generated successfully.');
+        }
+
+
+        if ($request->action_type == 'download') {
+            $filename = 'student-library-code-list-batch-' . $batch . '-campus-' . $campus_id . '-' . date('Y-m-d') . '.xlsx';
+            return Excel::download(new StudentLibraryCodeExport($students), $filename);
+        }
+
+        return back()->with('error', 'Invalid action type selected.');
     }
 }

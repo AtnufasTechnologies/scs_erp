@@ -330,18 +330,16 @@ $batches = BatchMaster::all();
     <p style="margin: 10px 0 0 0; opacity: 0.9;">Manage and view all student records</p>
 
     <!-- Button trigger modal -->
-    <button type="button" class="btn btn-warning" data-bs-toggle="modal" data-bs-target="#promotion">
+    <!-- <button type="button" class="btn btn-warning" data-bs-toggle="modal" data-bs-target="#promotion">
       Promote Students
+    </button> -->
+
+    <button type="button" class="btn btn-light" data-bs-toggle="modal" data-bs-target="#semesterPromotion" style="margin-left:8px;">
+      <i class="fas fa-arrow-right"></i> Promote Semester
     </button>
-
-    <button type="button" class="btn btn-info text-white" data-bs-toggle="modal" data-bs-target="#semesterPromotion" style="margin-left:8px;">
-      Promote Semester
-    </button>
-
-
 
     <!-- Modal -->
-    <div class="modal fade" id="promotion" tabindex="-1" aria-labelledby="exampleModalLabel" aria-hidden="true">
+    <!-- <div class="modal fade" id="promotion" tabindex="-1" aria-labelledby="exampleModalLabel" aria-hidden="true">
       <div class="modal-dialog">
         <div class="modal-content">
           <div class="modal-header">
@@ -388,7 +386,7 @@ $batches = BatchMaster::all();
           </form>
         </div>
       </div>
-    </div>
+    </div> -->
 
     <div class="modal fade" id="semesterPromotion" tabindex="-1" aria-labelledby="semesterPromotionLabel" aria-hidden="true">
       <div class="modal-dialog">
@@ -425,6 +423,70 @@ $batches = BatchMaster::all();
             <div class="modal-footer">
               <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
               <button type="submit" class="btn btn-success">Generate List</button>
+            </div>
+          </form>
+        </div>
+      </div>
+    </div>
+
+
+    <button type="button" class="btn btn-light" data-bs-toggle="modal" data-bs-target="#generateLibraryCode">
+      <i class="fas fa-books"></i> Generate Library Code
+    </button>
+
+    <div class="modal fade" id="generateLibraryCode" tabindex="-1" aria-labelledby="exampleModalLabel" aria-hidden="true">
+      <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+          <div class="modal-header">
+            <h5 class="modal-title text-dark" id="exampleModalLabel">Library Code Generator</h5>
+            <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+          </div>
+          <form action="{{route('itcell.generate.librarycode')}}" method="post">
+            @csrf
+            <div class="modal-body">
+              <div class="alert alert-info">
+                <p> 4Digit code is auto generated keeping unique combination </p>
+              </div>
+
+              <div class="row">
+                <div class="col-lg-4"><label for="" class="text-dark">Select Student's Batch *</label>
+                  <select name="batch" class="form-control ">
+                    <option value="">--Select--</option>
+                    @foreach ($batches as $batch)
+                    <option value="{{$batch->id}}">{{$batch->batch_name}}</option>
+                    @endforeach
+                  </select>
+                  @error('batch')
+                  <span class="text-danger">{{$message}}</span>
+                  @enderror
+                </div>
+                <div class="col-lg-4">
+                  <label for="" class="text-dark">Campus *</label>
+                  <select name="campus" class="form-control">
+                    <option value="">-- Required --</option>
+                    <option value="1">-- Sonada --</option>
+                    <option value="2">-- Siliguri --</option>
+                  </select>
+                  @error('campus')
+                  <span class="text-danger">{{$message}}</span>
+                  @enderror
+                </div>
+
+                <div class="col-lg-4">
+                  <label for="" class="text-dark">Action Type</label>
+                  <select name="action_type" class="form-control">
+
+                    <option value="generate">-- Generate --</option>
+                    <option value="download">-- Download --</option>
+                  </select>
+                </div>
+
+              </div>
+
+            </div>
+            <div class="modal-footer">
+              <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+              <button type="submit" class="btn btn-success">Submit</button>
             </div>
           </form>
         </div>
@@ -468,6 +530,7 @@ $batches = BatchMaster::all();
           <a href="{{ url('erp/admin/'.$item->id.'/std-profile/'.$item->roll_no) }}" class="student-roll">
             {{ $item->roll_no }}
           </a>
+          <span class="badge badge-warning">📚 {{$item->library_code}}</span>
           <span class="badge badge-primary">{{ $item->academicpathway->name ?? ''}} - {{ $item->degreetrack->name ?? '' }}</span>
           <span class="badge badge-primary">{{ $item->singleselection->title ?? '' }}</span>
         </div>
@@ -612,6 +675,8 @@ $batches = BatchMaster::all();
             <a href="/erp/admin/${student.id}/std-profile/${student.roll_no}" class="student-roll">
               ${student.roll_no}
             </a>
+                         ${student.library_code ? `<span class="badge badge-warning">📚 ${student.library_code}</span>` : ''}
+            
               ${student.academicpathway?.name || student.degreetrack?.name ? `<span class="badge badge-primary">${student.academicpathway?.name || ''}${student.academicpathway?.name && student.degreetrack?.name ? ' - ' : ''}${student.degreetrack?.name || ''}</span>` : ''}
               ${student.singleselection?.title ? `<span class="badge badge-primary">${student.singleselection.title}</span>` : ''}
            

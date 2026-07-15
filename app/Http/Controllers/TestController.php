@@ -437,4 +437,17 @@ class TestController extends Controller
         }
         dd('1st Year Student Semester mapping done');
     }
+
+
+    function fixLibraryCode(int $batchId)
+    {
+        $data = StudentMaster::where('batch', $batchId)->get();
+
+        foreach ($data as $item) {
+            StudentMaster::where('id', $item->id)->update([
+                'library_code' => $item->user_code
+            ]);
+        }
+        dd('updated');
+    }
 }

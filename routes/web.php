@@ -128,7 +128,7 @@ Route::group(['prefix' => '/erp'], function () {
         Route::get('annual-promotion-logs/{id}', [ITCellController::class, 'annualStudentPromotionLogs'])->name('annual.student.promotionlogs');
         Route::get('itcell/pathway-mapper', [ITCellController::class, 'studentPathwayMapper'])->name('itcell.pathway.mapper');
         Route::post('itcell/pathway-mapper/bulk-update', [ITCellController::class, 'studentPathwayMapperBulkUpdate'])->name('itcell.pathway.mapper.bulk-update');
-
+        Route::post('itcell-generate-librarycode', [ITCellController::class, 'generateLibraryCode'])->name('itcell.generate.librarycode');
         //master
         Route::group(['prefix' => '/master'], function () {
             Route::get('campus', [AdminController::class, 'campusMaster']);
@@ -1290,6 +1290,7 @@ Route::group(['prefix' => '/erp'], function () {
 
     //Testing route
     Route::group(['prefix' => '/test',], function () {
+        Route::get('fix-librarycode/{id}', [TestController::class, 'fixLibraryCode']);
         Route::get('fix-student-semester', [TestController::class, 'fixStudentSemester']);
         Route::get('fix-syllabus', [TestController::class, 'fixSyllabusIssue']);
         // Route::get('fix-fee-structure', [TestController::class, 'fixFeeStructure']);
