@@ -150,6 +150,7 @@ $campuses = Campus::all();
                     <option value="adhoc" {{ old('employee_type', $faculty->employee_type) == 'adhoc' ? 'selected' : '' }}>Adhoc</option>
                     <option value="guest" {{ old('employee_type', $faculty->employee_type) == 'guest' ? 'selected' : '' }}>Guest</option>
                     <option value="visiting" {{ old('employee_type', $faculty->employee_type) == 'visiting' ? 'selected' : '' }}>Visiting</option>
+                    <option value="adjunct" {{ old('employee_type', $faculty->employee_type) == 'adjunct' ? 'selected' : '' }}>Adjunct</option>
                   </select>
                 </div>
                 <div class="col-md-4 mb-3">
