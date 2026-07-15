@@ -805,6 +805,35 @@ class SubjectController extends Controller
             }
         }
 
+        $data->load(['programtypemaster', 'combomap.combo1:id,title', 'combomap.combo2:id,title', 'shiftmaster']);
+
+        if ($request->ajax() || $request->expectsJson()) {
+            $programTypeName = $data->programtypemaster->name ?? 'Unknown';
+            $comboLabel = 'N/A';
+            if ($data->programtypemaster && $data->programtypemaster->name === 'UGC') {
+                $comboLabel = ($data->combomap->combo1->title ?? 'Unknown') . ' - ' . ($data->combomap->combo2->title ?? 'Unknown');
+            } elseif ($data->programtypemaster && $data->programtypemaster->name !== 'UGC') {
+                $comboLabel = 'N/A for AICTE';
+            }
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Program Updated',
+                'data' => [
+                    'id' => (int) $data->id,
+                    'campus_id' => (int) $data->campus_id,
+                    'campus_label' => (int) $data->campus_id === 1 ? 'Sonada' : 'Siliguri Campus',
+                    'code' => (string) $data->code,
+                    'name' => (string) $data->name,
+                    'shift' => (string) ($data->shiftmaster->title ?? $data->shift ?? 'common'),
+                    'description' => (string) ($data->description ?? ''),
+                    'semester_count' => (int) $data->semester_count,
+                    'program_type' => (string) $programTypeName,
+                    'combo_label' => (string) $comboLabel,
+                ],
+            ]);
+        }
+
         return redirect()->back()->with('success', 'Program Updated');
     }
 

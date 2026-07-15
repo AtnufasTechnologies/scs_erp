@@ -187,14 +187,10 @@
 @include('includes.footer')
 
 <script type="application/json" id="batchProgramMapData">
-  {
-    !!json_encode($batchProgramMap ?? []) !!
-  }
+  @json($batchProgramMap ?? [])
 </script>
 <script type="application/json" id="selectedProgramIdsData">
-  {
-    !!json_encode(array_values(array_map('intval', (array)($filters['program_ids'] ?? [])))) !!
-  }
+  @json(array_values(array_map('intval', (array)($filters['program_ids'] ?? []))))
 </script>
 
 <script>

@@ -116,17 +116,17 @@ $subjects = Subject::latest()->get();
       @if (count($data))
 
       @foreach ($data as $d)
-      <tr class="program-row">
+      <tr class="program-row" data-program-id="{{$d->id}}">
         <td>{{$loop->iteration}}</td>
-        <td>{{$d->campus_id == 1 ? 'Sonada' : 'Siliguri Campus'}}</td>
-        <td>{{$d->code}}</td>
-        <td>{{$d->name}}</td>
-        <td><span class="badge badge-info">{{ucfirst($d->shiftmaster->title ?? $d->shift ?? 'common')}}</span></td>
-        <td>{{$d->description}}</td>
-        <td>{{$d->semester_count}}</td>
+        <td class="js-campus">{{$d->campus_id == 1 ? 'Sonada' : 'Siliguri Campus'}}</td>
+        <td class="js-code">{{$d->code}}</td>
+        <td class="js-name">{{$d->name}}</td>
+        <td class="js-shift"><span class="badge badge-info">{{ucfirst($d->shiftmaster->title ?? $d->shift ?? 'common')}}</span></td>
+        <td class="js-description">{{$d->description}}</td>
+        <td class="js-semester-count">{{$d->semester_count}}</td>
         <td>{{$d->student_count}}</td>
-        <td>{{$d->programtypemaster->name ?? 'Unknown'}}</td>
-        <td>
+        <td class="js-program-type">{{$d->programtypemaster->name ?? 'Unknown'}}</td>
+        <td class="js-combo-map">
           @if($d->programtypemaster != null)
           @if($d->programtypemaster->name == 'UGC')
           <span class="badge badge-success">
@@ -152,9 +152,10 @@ $subjects = Subject::latest()->get();
                   <h5 class="modal-title" id="exampleModalLabel">Edit Program</h5>
                   <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
                 </div>
-                <form action="{{route('admin.update.student-program',$d->id)}}" method="post">
+                <form action="{{route('admin.update.student-program',$d->id)}}" method="post" class="js-program-edit-form" data-program-id="{{$d->id}}" data-modal-id="edit{{$d->id}}">
                   @csrf
                   <input type="hidden" name="id" value="{{$d->id}}">
+                  <div class="alert alert-danger d-none js-form-error" role="alert"></div>
                   <div class="modal-body">
                     <div class="row">
                       <div class="col-lg-4 mb-3">
@@ -224,7 +225,7 @@ $subjects = Subject::latest()->get();
                     </div>
                     <div class="modal-footer">
                       <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
-                      <button type="submit" class="btn btn-primary">Save changes</button>
+                      <button type="submit" class="btn btn-primary js-save-btn">Save changes</button>
                     </div>
                 </form>
               </div>
@@ -257,6 +258,110 @@ $subjects = Subject::latest()->get();
       rows.forEach(function(row) {
         const rowText = row.innerText.toLowerCase();
         row.style.display = rowText.includes(keyword) ? '' : 'none';
+      });
+    });
+
+    const editForms = Array.from(document.querySelectorAll('.js-program-edit-form'));
+
+    function flattenErrors(errorPayload) {
+      if (!errorPayload || !errorPayload.errors) {
+        return ['Unable to update program. Please try again.'];
+      }
+      return Object.values(errorPayload.errors).flat();
+    }
+
+    function updateProgramRow(programId, payload) {
+      const row = document.querySelector(`tr.program-row[data-program-id="${programId}"]`);
+      if (!row || !payload) {
+        return;
+      }
+
+      const campusNode = row.querySelector('.js-campus');
+      const codeNode = row.querySelector('.js-code');
+      const nameNode = row.querySelector('.js-name');
+      const shiftNode = row.querySelector('.js-shift');
+      const descriptionNode = row.querySelector('.js-description');
+      const semesterNode = row.querySelector('.js-semester-count');
+      const programTypeNode = row.querySelector('.js-program-type');
+      const comboNode = row.querySelector('.js-combo-map');
+
+      if (campusNode) campusNode.textContent = payload.campus_label || 'N/A';
+      if (codeNode) codeNode.textContent = payload.code || '';
+      if (nameNode) nameNode.textContent = payload.name || '';
+      if (shiftNode) {
+        shiftNode.innerHTML = `<span class="badge badge-info">${payload.shift || 'Common'}</span>`;
+      }
+      if (descriptionNode) descriptionNode.textContent = payload.description || '';
+      if (semesterNode) semesterNode.textContent = payload.semester_count ?? '';
+      if (programTypeNode) programTypeNode.textContent = payload.program_type || 'Unknown';
+      if (comboNode) {
+        if ((payload.program_type || '').toUpperCase() === 'UGC') {
+          comboNode.innerHTML = `<span class="badge badge-success">${payload.combo_label || 'Unknown - Unknown'}</span>`;
+        } else {
+          comboNode.innerHTML = `<span class="badge badge-info">${payload.combo_label || 'N/A for AICTE'}</span>`;
+        }
+      }
+    }
+
+    editForms.forEach(function(form) {
+      form.addEventListener('submit', async function(event) {
+        event.preventDefault();
+
+        const errorBox = form.querySelector('.js-form-error');
+        const saveBtn = form.querySelector('.js-save-btn');
+        const programId = form.dataset.programId;
+        const modalId = form.dataset.modalId;
+
+        if (errorBox) {
+          errorBox.classList.add('d-none');
+          errorBox.innerHTML = '';
+        }
+
+        if (saveBtn) {
+          saveBtn.disabled = true;
+          saveBtn.textContent = 'Saving...';
+        }
+
+        try {
+          const formData = new FormData(form);
+          const response = await fetch(form.action, {
+            method: 'POST',
+            headers: {
+              'X-Requested-With': 'XMLHttpRequest',
+              'Accept': 'application/json',
+            },
+            body: formData,
+          });
+
+          const data = await response.json();
+
+          if (!response.ok || !data.success) {
+            const errors = flattenErrors(data);
+            if (errorBox) {
+              errorBox.innerHTML = errors.join('<br>');
+              errorBox.classList.remove('d-none');
+            }
+            return;
+          }
+
+          updateProgramRow(programId, data.data || {});
+
+          const modalEl = document.getElementById(modalId);
+          if (modalEl && window.bootstrap && window.bootstrap.Modal) {
+            const modalInstance = window.bootstrap.Modal.getInstance(modalEl) || new window.bootstrap.Modal(modalEl);
+            modalInstance.hide();
+          }
+        } catch (error) {
+          if (errorBox) {
+            errorBox.textContent = 'Something went wrong while saving. Please retry.';
+            errorBox.classList.remove('d-none');
+          }
+        } finally {
+          if (saveBtn) {
+            saveBtn.disabled = false;
+            saveBtn.textContent = 'Save changes';
+          }
+        }
       });
     });
   });
