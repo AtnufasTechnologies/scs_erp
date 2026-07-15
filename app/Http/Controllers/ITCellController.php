@@ -355,9 +355,8 @@ class ITCellController extends Controller
             ->toArray();
 
         $subjects = Subject::query()
-            ->whereNull('deleted_at')
             ->orderBy('title')
-            ->get(['id', 'title']);
+            ->get(['id', 'title', 'campus_id']);
 
         $students = collect();
 

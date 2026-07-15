@@ -112,7 +112,7 @@
             <select name="selected_combo_id" class="form-control dselect-example">
               <option value="">No Change</option>
               @foreach($subjects as $subject)
-              <option value="{{ $subject->id }}">{{ $subject->title }} | {{ $subject->camous_id == 1 ? 'Sonada' : 'Siliguri' }}</option>
+              <option value="{{ $subject->id }}">{{ $subject->title }} | {{ $subject->campus_id == 1 ? 'Sonada' : 'Siliguri' }}</option>
               @endforeach
             </select>
           </div>

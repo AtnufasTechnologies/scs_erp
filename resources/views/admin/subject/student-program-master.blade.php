@@ -23,7 +23,7 @@ $subjects = Subject::latest()->get();
 
 <!-- Modal -->
 <div class="modal fade" id="exampleModal" tabindex="-1" aria-labelledby="exampleModalLabel" aria-hidden="true">
-  <div class="modal-dialog ">
+  <div class="modal-dialog modal-lg">
     <div class="modal-content">
       <div class="modal-header">
         <h5 class="modal-title" id="exampleModalLabel">New Program</h5>
@@ -81,8 +81,21 @@ $subjects = Subject::latest()->get();
     </div>
   </div>
 </div>
+
+
 <div class="container-fluid">
-  <table class="table table-hover" id="exportTable">
+  <div class="row mb-3">
+    <div class="col-lg-4 col-md-6">
+      <label for="programLiveSearch" class="form-label">Live Search</label>
+      <input
+        type="text"
+        id="programLiveSearch"
+        class="form-control"
+        placeholder="Search by code, name, campus, shift, roll-up details...">
+    </div>
+  </div>
+
+  <table class="table table-hover">
     <thead>
       <tr>
         <th>#</th>
@@ -103,7 +116,7 @@ $subjects = Subject::latest()->get();
       @if (count($data))
 
       @foreach ($data as $d)
-      <tr>
+      <tr class="program-row">
         <td>{{$loop->iteration}}</td>
         <td>{{$d->campus_id == 1 ? 'Sonada' : 'Siliguri Campus'}}</td>
         <td>{{$d->code}}</td>
@@ -228,4 +241,24 @@ $subjects = Subject::latest()->get();
     </tbody>
   </table>
 </div>
+
+<script>
+  document.addEventListener('DOMContentLoaded', function() {
+    const searchInput = document.getElementById('programLiveSearch');
+    const rows = Array.from(document.querySelectorAll('tr.program-row'));
+
+    if (!searchInput || rows.length === 0) {
+      return;
+    }
+
+    searchInput.addEventListener('input', function() {
+      const keyword = searchInput.value.trim().toLowerCase();
+
+      rows.forEach(function(row) {
+        const rowText = row.innerText.toLowerCase();
+        row.style.display = rowText.includes(keyword) ? '' : 'none';
+      });
+    });
+  });
+</script>
 @include('includes.footer')
