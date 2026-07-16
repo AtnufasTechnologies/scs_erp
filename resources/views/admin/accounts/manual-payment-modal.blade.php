@@ -74,17 +74,20 @@
 
 <script>
   document.addEventListener('DOMContentLoaded', () => {
-    document.querySelectorAll('.manualPayBtn').forEach(btn => {
-      btn.addEventListener('click', () => {
-        modal_student_id.value = btn.dataset.studentId;
-        modal_fee_id.value = btn.dataset.feeId;
-        modal_roll_no.value = btn.dataset.rollno;
-        modal_student_name.value = btn.dataset.studentName;
-        modal_quarter.value = btn.dataset.quarter;
-        amount.value = btn.dataset.amount;
-        modal_late_fee_amount.value = btn.dataset.lateFee;
-        modal_late_days.value = btn.dataset.lateDays;
-      });
+    document.addEventListener('click', (event) => {
+      const btn = event.target.closest('.manualPayBtn');
+      if (!btn) {
+        return;
+      }
+
+      modal_student_id.value = btn.dataset.studentId;
+      modal_fee_id.value = btn.dataset.feeId;
+      modal_roll_no.value = btn.dataset.rollno;
+      modal_student_name.value = btn.dataset.studentName;
+      modal_quarter.value = btn.dataset.quarter;
+      amount.value = btn.dataset.amount;
+      modal_late_fee_amount.value = btn.dataset.lateFee;
+      modal_late_days.value = btn.dataset.lateDays;
     });
   });
 </script>

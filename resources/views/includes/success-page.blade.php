@@ -133,7 +133,12 @@ if (Auth::check()) {
     $structure = $txn['feepaymentinfo'];
     $courseFee = 0;
     $otherFees = 0;
-    $txnLateFee = (float)($txn['late_fee_amount'] ?? 0);
+    $feeStructureId = $txn['fee_structure_id'] ?? null;
+    $fixedLateFeeMap = $fixedLateFeeMap ?? [];
+    $hasFixedOverride = !is_null($feeStructureId) && array_key_exists($feeStructureId, $fixedLateFeeMap);
+    $txnLateFee = $hasFixedOverride
+    ? (float)$fixedLateFeeMap[$feeStructureId]
+    : (float)($txn['late_fee_amount'] ?? 0);
     $txnLateDays = (int)($txn['late_days'] ?? 0);
     @endphp
 
@@ -174,7 +179,7 @@ if (Auth::check()) {
         @if($txnLateFee > 0)
         <tr>
           <td>
-            <strong>Late Fee</strong>
+            <strong>{{ $hasFixedOverride ? 'Fixed Late Fee (Exemption Applied)' : 'Late Fee' }}</strong>
             @if($txnLateDays > 0)
             <span style="font-size:11px; color:#888;"> ({{ $txnLateDays }} day{{ $txnLateDays > 1 ? 's' : '' }} overdue)</span>
             @endif
@@ -184,13 +189,6 @@ if (Auth::check()) {
         <tr class="subtotal">
           <td>Quarter Total</td>
           <td class="amount">₹{{ number_format($courseFee + $otherFees + $txnLateFee, 2) }}</td>
-        </tr>
-        @endif
-
-        @if(isset($fixedLateFee) && $fixedLateFee !== null && $txnLateFee == 0)
-        <tr>
-          <td><strong>Fixed Late Fee (Exemption Applied)</strong></td>
-          <td class="amount">₹{{ number_format($fixedLateFee, 2) }}</td>
         </tr>
         @endif
       </table>
