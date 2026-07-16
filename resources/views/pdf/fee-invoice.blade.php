@@ -141,7 +141,13 @@ $timestamp = Carbon::now()
         <td>{{ $row['inv_id'] }}</td>
         <td>{{ $row['quarter'] }}</td>
         <td>₹{{ number_format($row['payable_amount']) }}</td>
-        <td>{{ $row['late_fee'] > 0 ? '₹'.number_format($row['late_fee']) : '—' }}</td>
+        <td>
+          @if($row['late_fee'] > 0)
+          {{ ($row['has_fixed_late_fee'] ?? false) ? 'Fixed (Exemption): ' : '' }}₹{{ number_format($row['late_fee']) }}
+          @else
+          —
+          @endif
+        </td>
         <td><strong>₹{{ number_format($row['grand_amount']) }}</strong></td>
         <td>{{ $row['status'] }}</td>
       </tr>

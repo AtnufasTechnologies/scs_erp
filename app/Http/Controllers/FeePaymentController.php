@@ -318,36 +318,40 @@ class FeePaymentController extends Controller
             'campusmaster',
             'batchmaster',
             'stdprogramenrolled',
-            'feepayment' // your payment table
         ])->where('roll_no', $rollno)->firstOrFail();
+
+        $payments = StudentPayment::with('feepaymentinfo:id,quarter_title')
+            ->where('student_id', $student->id)
+            ->whereRaw('LOWER(status) = ?', ['success'])
+            ->orderBy('transaction_date')
+            ->orderBy('id')
+            ->get();
+
+        $fixedLateFeeMap = $this->getFixedLateFeeMapForInvoice($student->id, $payments->pluck('fee_structure_id'));
 
         $paidInvoices = [];
         $totalPaid = 0;
 
-        foreach ($student->feepayment as $item) {
+        foreach ($payments as $payment) {
+            $amount = FeeStructureHasHead::where('fee_structure_id', $payment->fee_structure_id)->sum('amount');
+            $storedLateFee = (float)($payment->late_fee_amount ?? 0);
+            $hasFixedLateFee = array_key_exists((int) $payment->fee_structure_id, $fixedLateFeeMap);
+            $lateFee = $hasFixedLateFee
+                ? (float) $fixedLateFeeMap[(int) $payment->fee_structure_id]
+                : $storedLateFee;
 
-            // check if payment done
-            $payment = $student->feepayment
-                ->where('id', $item->id)
-                ->where('status', 'success')
-                ->first();
+            $paidInvoices[] = [
+                'quarter'        => $payment->feepaymentinfo->quarter_title ?? 'N/A',
+                'payable_amount' => $amount,
+                'late_fee'       => $lateFee,
+                'has_fixed_late_fee' => $hasFixedLateFee,
+                'grand_amount'   => $amount + $lateFee,
+                'status'         => 'PAID',
+                'paid_on'        => $payment->transaction_date ?? 'N/A',
+                'inv_id'         => $payment->invoice_id ?? 'N/A',
+            ];
 
-            if ($payment) {
-                $amount   = FeeStructureHasHead::where('fee_structure_id', $item->fee_structure_id)->sum('amount');
-                $lateFee  = (float)($payment->late_fee_amount ?? 0);
-
-                $paidInvoices[] = [
-                    'quarter'        => $payment->feepaymentinfo->quarter_title ?? 'N/A',
-                    'payable_amount' => $amount,
-                    'late_fee'       => $lateFee,
-                    'grand_amount'   => $amount + $lateFee,
-                    'status'         => 'PAID',
-                    'paid_on'        => $payment->transaction_date ?? 'N/A',
-                    'inv_id'         => $payment->invoice_id ?? 'N/A',
-                ];
-
-                $totalPaid += $amount + $lateFee;
-            }
+            $totalPaid += $amount + $lateFee;
         }
 
 
