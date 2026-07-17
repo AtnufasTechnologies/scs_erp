@@ -21,10 +21,16 @@ class StudentLibraryCodeExport implements FromCollection, WithHeadings, ShouldAu
     return $this->students->map(function ($student) {
       return [
         'student_id' => $student->id,
-        'student_name' => trim(($student->first_name ?? '') . ' ' . ($student->last_name ?? '')),
-        'batch' => $student->batchmaster->batch_name ?? (string) $student->batch,
         'roll_no' => $student->roll_no,
+        'student_name' => trim(($student->first_name ?? '') . ' ' . ($student->last_name ?? '')),
+        'dob' =>  date('d-m-Y', strtotime($student->dob)) ?? '',
+        'gender' =>  $student->gender == 1 ? 'Male' : 'Female',
+        'batch' => $student->batchmaster->batch_name ?? (string) $student->batch,
         'library_code' => $student->library_code,
+        'dept' => $student->stdprogramenrolled->code ?? '',
+        'program_name' => $student->stdprogramenrolled->name ?? '',
+        'address' => $student->address ?? '',
+        'contact_no' => $student->fr_mobile_no ?? '',
       ];
     });
   }
@@ -33,10 +39,16 @@ class StudentLibraryCodeExport implements FromCollection, WithHeadings, ShouldAu
   {
     return [
       'Student ID',
-      'Student Name',
-      'Batch',
       'Roll No',
+      'Student Name',
+      'Dob',
+      'Gender',
+      'Batch',
       'Library Code',
+      'Dept',
+      'Program Name',
+      'Address',
+      'Contact No'
     ];
   }
 }

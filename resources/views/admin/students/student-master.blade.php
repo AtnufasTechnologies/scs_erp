@@ -492,6 +492,61 @@ $batches = BatchMaster::all();
         </div>
       </div>
     </div>
+
+
+    <button type="button" class="btn btn-light" data-bs-toggle="modal" data-bs-target="#expotData">
+      <i class="fas fa-file-excel"></i> Export
+    </button>
+
+    <div class="modal fade" id="expotData" tabindex="-1" aria-labelledby="exampleModalLabel" aria-hidden="true">
+      <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+          <div class="modal-header">
+            <h5 class="modal-title text-dark" id="exampleModalLabel">Export Data to Excel</h5>
+            <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+          </div>
+          <form action="{{route('itcell.generate.excel.studentdata')}}" method="post">
+            @csrf
+            <div class="modal-body">
+              <div class="alert alert-info">
+                <p> Full Student Data will be Exported in Spreadsheet Format </p>
+              </div>
+
+              <div class="row">
+                <div class="col-lg-4"><label for="" class="text-dark">Select Student's Batch *</label>
+                  <select name="batch" class="form-control ">
+                    <option value="">--Select--</option>
+                    @foreach ($batches as $batch)
+                    <option value="{{$batch->id}}">{{$batch->batch_name}}</option>
+                    @endforeach
+                  </select>
+                  @error('batch')
+                  <span class="text-danger">{{$message}}</span>
+                  @enderror
+                </div>
+                <div class="col-lg-4">
+                  <label for="" class="text-dark">Campus *</label>
+                  <select name="campus" class="form-control">
+                    <option value="">-- Required --</option>
+                    <option value="1">-- Sonada --</option>
+                    <option value="2">-- Siliguri --</option>
+                  </select>
+                  @error('campus')
+                  <span class="text-danger">{{$message}}</span>
+                  @enderror
+                </div>
+
+              </div>
+
+            </div>
+            <div class="modal-footer">
+              <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+              <button type="submit" class="btn btn-success">Export</button>
+            </div>
+          </form>
+        </div>
+      </div>
+    </div>
   </div>
 
   <div class="search-container">

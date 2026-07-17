@@ -129,6 +129,8 @@ Route::group(['prefix' => '/erp'], function () {
         Route::get('itcell/pathway-mapper', [ITCellController::class, 'studentPathwayMapper'])->name('itcell.pathway.mapper');
         Route::post('itcell/pathway-mapper/bulk-update', [ITCellController::class, 'studentPathwayMapperBulkUpdate'])->name('itcell.pathway.mapper.bulk-update');
         Route::post('itcell-generate-librarycode', [ITCellController::class, 'generateLibraryCode'])->name('itcell.generate.librarycode');
+        Route::post('itcell-generate-excel-studentdata', [ITCellController::class, 'generateExcelStudentData'])->name('itcell.generate.excel.studentdata');
+
         //master
         Route::group(['prefix' => '/master'], function () {
             Route::get('campus', [AdminController::class, 'campusMaster']);

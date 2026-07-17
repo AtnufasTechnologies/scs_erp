@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Exports\StudentDataExport;
 use App\Exports\StudentLibraryCodeExport;
 use App\Models\AcademicPathwayMaster;
 use App\Models\AdmissionApplication;
@@ -15,6 +16,7 @@ use App\Models\Subject;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
 use Maatwebsite\Excel\Facades\Excel;
 
 class ITCellController extends Controller
@@ -484,6 +486,7 @@ class ITCellController extends Controller
         $students = StudentMaster::where('batch', $batch)
             ->where('campus_id', $campus_id)
             ->with('batchmaster:id,batch_name')
+            ->with('stdprogramenrolled')
             ->orderBy('id')
             ->get();
 
@@ -540,5 +543,39 @@ class ITCellController extends Controller
         }
 
         return back()->with('error', 'Invalid action type selected.');
+    }
+
+    function generateExcelStudentData(Request $request)
+    {
+
+        $batch = $request->batch;
+        $campus_id = $request->campus;
+        $with = [
+            'religionmaster:id,name',
+            'campusmaster:id,slug,name',
+            'nationalitymaster:id,name',
+            'usertype:id,name',
+            'bloodgroup',
+            'batchmaster:id,batch_name',
+            'deptmaster:id,name',
+            'stdprogramenrolled',
+            'academicpathway',
+            'degreetrack',
+            'singleselection',
+            'activeSemesterConfig',
+        ];
+
+        if (Schema::hasTable('student_addresses')) {
+            $with[] = 'address';
+        }
+
+        $students = StudentMaster::where('batch', $batch)
+            ->where('campus_id', $campus_id)
+            ->with($with)
+            ->orderBy('id')
+            ->get();
+
+        $filename = 'student-list-batch-' . $batch . '-campus-' . $campus_id . '-' . date('Y-m-d') . '.xlsx';
+        return Excel::download(new StudentDataExport($students), $filename);
     }
 }
