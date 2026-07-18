@@ -14,6 +14,15 @@ $shiftTitleMap = collect($shiftOptions ?? [])->pluck('title', 'slug')->toArray()
 <div class="main-content">
   <h3 class="text-capitalize">Syllabus Manager - {{$data['slug']}}</h3>
 
+  <div class="toast-container position-fixed top-0 end-0 p-3" style="z-index: 1080;">
+    <div id="syllabusStatusToast" class="toast align-items-center border-0 text-bg-success" role="alert" aria-live="assertive" aria-atomic="true" data-bs-delay="3000">
+      <div class="d-flex">
+        <div id="syllabusStatusToastBody" class="toast-body"></div>
+        <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast" aria-label="Close"></button>
+      </div>
+    </div>
+  </div>
+
   @if(session('success'))
   <div class="alert alert-success alert-dismissible fade show" role="alert">
     <i class="fas fa-check-circle me-2"></i>{{ session('success') }}
@@ -314,7 +323,7 @@ $shiftTitleMap = collect($shiftOptions ?? [])->pluck('title', 'slug')->toArray()
                   @if($subjectUsesShifts)
                   <span class="badge bg-info text-dark ms-2">Shift: {{ $shiftTitle }}</span>
                   @endif
-                  <span class="badge {{ $statusBadgeClass }} ms-2">Status: {{ $statusLabel }}</span>
+                  <span class="badge js-course-status-badge {{ $statusBadgeClass }} ms-2">Status: {{ $statusLabel }}</span>
                   <span class="badge bg-light text-dark ms-2">{{ $completedUnits }}/{{ $totalUnits }} Units</span>
                   <span class="badge {{ $isLowCompletion ? 'bg-danger' : 'bg-success' }} ms-2">{{ $completionPercent }}% Complete</span>
                   <span class="badge bg-secondary ms-auto me-2">{{ $courseData['course']->credits ?? '0' }} Credits</span>
@@ -342,18 +351,17 @@ $shiftTitleMap = collect($shiftOptions ?? [])->pluck('title', 'slug')->toArray()
                 </button>
                 @if($firstCso)
                 <form action="{{ route('department.syllabus.co.toggle-status', [$data['id'], $firstCso->batch_id, $firstCso->semester_id, $firstCso->co_id]) }}"
-                  method="POST" class="no-print me-2"
-                  onsubmit="return confirm('Toggle syllabus status for this course?')">
+                  method="POST" class="no-print me-2 js-toggle-syllabus-status">
                   @csrf
                   <input type="hidden" name="shift" value="{{ $firstCso->shift ?? 'common' }}">
-                  <button type="submit" class="btn btn-sm {{ $currentStatus === 'published' ? 'btn-outline-secondary' : 'btn-outline-success' }}"
+                  <button type="submit" class="btn btn-sm js-toggle-status-btn {{ $currentStatus === 'published' ? 'btn-outline-secondary' : 'btn-outline-success' }}"
                     title="Toggle Draft/Published">
                     <i class="fas fa-sync-alt"></i>
                   </button>
                 </form>
 
                 <form action="{{ route('department.syllabus.co.delete', [$data['id'], $firstCso->batch_id, $firstCso->semester_id, $firstCso->co_id]) }}"
-                  method="POST" class="no-print me-2"
+                  method="POST" class="no-print me-2 js-delete-course-form"
                   onsubmit="return confirm('Remove this course and all its CSOs & subunits from this batch/semester?')">
                   @csrf
                   @method('DELETE')
@@ -485,7 +493,7 @@ $shiftTitleMap = collect($shiftOptions ?? [])->pluck('title', 'slug')->toArray()
                                 <i class="fa fa-clock"></i> Pending
                               </span>
                               @endif
-                              <form action="{{ route('department.syllabus.subunit.delete', $syllabusSubunit->id) }}" method="POST" class="no-print"
+                              <form action="{{ route('department.syllabus.subunit.delete', $syllabusSubunit->id) }}" method="POST" class="no-print js-delete-subunit-form"
                                 onsubmit="return confirm('Remove this subunit from syllabus?')">
                                 @csrf
                                 @method('DELETE')
@@ -588,6 +596,41 @@ $shiftTitleMap = collect($shiftOptions ?? [])->pluck('title', 'slug')->toArray()
 
 <!-- CSO AJAX Script -->
 <script>
+  function showSyllabusStatusToast(status, message) {
+    const toastElement = document.getElementById('syllabusStatusToast');
+    const toastBody = document.getElementById('syllabusStatusToastBody');
+    if (!toastElement || !toastBody || typeof bootstrap === 'undefined') {
+      return;
+    }
+
+    toastElement.classList.remove('text-bg-success', 'text-bg-danger', 'text-bg-info');
+    toastElement.classList.add(status === 'success' ? 'text-bg-success' : (status === 'info' ? 'text-bg-info' : 'text-bg-danger'));
+    toastBody.textContent = message;
+    bootstrap.Toast.getOrCreateInstance(toastElement).show();
+  }
+
+  function updateStatusBadgeAndButton(form, nextStatus) {
+    const header = form.closest('.accordion-header');
+    if (!header) return;
+
+    const badge = header.querySelector('.js-course-status-badge');
+    if (badge) {
+      badge.classList.remove('bg-success', 'bg-secondary', 'bg-warning', 'text-dark');
+      if (nextStatus === 'published') {
+        badge.classList.add('bg-success');
+      } else {
+        badge.classList.add('bg-secondary');
+      }
+      badge.textContent = 'Status: ' + (nextStatus === 'published' ? 'Published' : 'Draft');
+    }
+
+    const button = form.querySelector('.js-toggle-status-btn');
+    if (button) {
+      button.classList.remove('btn-outline-secondary', 'btn-outline-success');
+      button.classList.add(nextStatus === 'published' ? 'btn-outline-secondary' : 'btn-outline-success');
+    }
+  }
+
   // Pre-fill the Reference PDF upload modal when triggered from a course row
   function prefillPdfModal(btn) {
     document.getElementById('refPdfBatch').value = btn.dataset.batch || '';
@@ -596,6 +639,141 @@ $shiftTitleMap = collect($shiftOptions ?? [])->pluck('title', 'slug')->toArray()
   }
 
   document.addEventListener('DOMContentLoaded', function() {
+    const csrfTokenMeta = document.querySelector('meta[name="csrf-token"]');
+    const csrfToken = csrfTokenMeta ? csrfTokenMeta.getAttribute('content') : '';
+
+    document.querySelectorAll('form.js-toggle-syllabus-status').forEach(function(form) {
+      form.addEventListener('submit', async function(event) {
+        event.preventDefault();
+
+        if (!confirm('Toggle syllabus status for this course?')) {
+          return;
+        }
+
+        const button = form.querySelector('button[type="submit"]');
+        if (button) {
+          button.disabled = true;
+        }
+
+        try {
+          const response = await fetch(form.action, {
+            method: 'POST',
+            headers: {
+              'X-Requested-With': 'XMLHttpRequest',
+              'Accept': 'application/json',
+              'X-CSRF-TOKEN': csrfToken
+            },
+            body: new FormData(form)
+          });
+
+          const payload = await response.json().catch(function() {
+            return {};
+          });
+
+          if (!response.ok || !payload.status) {
+            throw new Error(payload.message || 'Unable to toggle syllabus status.');
+          }
+
+          updateStatusBadgeAndButton(form, String(payload.next_status || '').toLowerCase());
+          showSyllabusStatusToast('success', payload.message || 'Syllabus status updated.');
+        } catch (error) {
+          showSyllabusStatusToast('error', error.message || 'Unable to toggle syllabus status.');
+        } finally {
+          if (button) {
+            button.disabled = false;
+          }
+        }
+      });
+    });
+
+    document.querySelectorAll('form.js-delete-course-form').forEach(function(form) {
+      form.addEventListener('submit', async function(event) {
+        event.preventDefault();
+
+        const button = form.querySelector('button[type="submit"]');
+        if (button) {
+          button.disabled = true;
+        }
+
+        try {
+          const response = await fetch(form.action, {
+            method: 'POST',
+            headers: {
+              'X-Requested-With': 'XMLHttpRequest',
+              'Accept': 'application/json',
+              'X-CSRF-TOKEN': csrfToken
+            },
+            body: new FormData(form)
+          });
+
+          const payload = await response.json().catch(function() {
+            return {};
+          });
+
+          if (!response.ok || !payload.status) {
+            throw new Error(payload.message || 'Unable to remove course.');
+          }
+
+          const accordionItem = form.closest('.accordion-item');
+          if (accordionItem) {
+            accordionItem.remove();
+          }
+
+          showSyllabusStatusToast('success', payload.message || 'Course removed successfully.');
+        } catch (error) {
+          showSyllabusStatusToast('error', error.message || 'Unable to remove course.');
+        } finally {
+          if (button) {
+            button.disabled = false;
+          }
+        }
+      });
+    });
+
+    document.querySelectorAll('form.js-delete-subunit-form').forEach(function(form) {
+      form.addEventListener('submit', async function(event) {
+        event.preventDefault();
+
+        const button = form.querySelector('button[type="submit"]');
+        if (button) {
+          button.disabled = true;
+        }
+
+        try {
+          const response = await fetch(form.action, {
+            method: 'POST',
+            headers: {
+              'X-Requested-With': 'XMLHttpRequest',
+              'Accept': 'application/json',
+              'X-CSRF-TOKEN': csrfToken
+            },
+            body: new FormData(form)
+          });
+
+          const payload = await response.json().catch(function() {
+            return {};
+          });
+
+          if (!response.ok || !payload.status) {
+            throw new Error(payload.message || 'Unable to remove subunit.');
+          }
+
+          const subunitItem = form.closest('.list-group-item');
+          if (subunitItem) {
+            subunitItem.remove();
+          }
+
+          showSyllabusStatusToast('success', payload.message || 'Subunit removed successfully.');
+        } catch (error) {
+          showSyllabusStatusToast('error', error.message || 'Unable to remove subunit.');
+        } finally {
+          if (button) {
+            button.disabled = false;
+          }
+        }
+      });
+    });
+
     const courseSelect = document.getElementById('course_objective');
     const csoSelect = document.getElementById('cso_select');
     const csoSubunitCheckboxes = document.getElementById('cso_subunit_checkboxes');

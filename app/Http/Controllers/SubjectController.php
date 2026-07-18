@@ -769,7 +769,7 @@ class SubjectController extends Controller
     function updateStudentProgram(Request $request, $id)
     {
         // return $request->all();
-        return $data = StudentProgram::findOrFail($id);
+        $data = StudentProgram::findOrFail($id);
         $allowedShifts = $this->getShiftSlugs();
         $request->validate([
             'campus' => 'required',
@@ -1311,6 +1311,7 @@ class SubjectController extends Controller
 
     function deleteSyllabusSubunit($id)
     {
+        $isJsonRequest = request()->expectsJson() || request()->ajax();
         $subunit = SyllabusSubunit::with('syllabusManager')->findOrFail($id);
         $syllabusManager = $subunit->syllabusManager;
 
@@ -1327,19 +1328,38 @@ class SubjectController extends Controller
                 $reasons = [];
                 if ($hasAttendance) $reasons[] = 'attendance records exist for this course';
                 if ($hasTimetable)  $reasons[] = 'a faculty timetable is assigned to this course';
+                $message = 'Cannot remove this subunit — ' . implode(' and ', $reasons) . '. Please clear those first.';
+
+                if ($isJsonRequest) {
+                    return response()->json([
+                        'status' => false,
+                        'message' => $message,
+                    ], 422);
+                }
+
                 return redirect()->back()->with(
                     'error',
-                    'Cannot remove this subunit — ' . implode(' and ', $reasons) . '. Please clear those first.'
+                    $message
                 );
             }
         }
 
         $subunit->delete();
+
+        if ($isJsonRequest) {
+            return response()->json([
+                'status' => true,
+                'message' => 'Subunit removed',
+            ]);
+        }
+
         return redirect()->back()->with('success', 'Subunit removed');
     }
 
     function toggleSyllabusStatus(Request $request, $subjectId, $batchId, $semesterId, $coId)
     {
+        $isJsonRequest = $request->expectsJson() || $request->ajax();
+
         $query = SyllabusManager::where('subject_id', $subjectId)
             ->where('batch_id', $batchId)
             ->where('semester_id', $semesterId)
@@ -1352,6 +1372,13 @@ class SubjectController extends Controller
         $records = $query->get();
 
         if ($records->isEmpty()) {
+            if ($isJsonRequest) {
+                return response()->json([
+                    'status' => false,
+                    'message' => 'No syllabus records found to update status.',
+                ], 404);
+            }
+
             return redirect()->back()->with('error', 'No syllabus records found to update status.');
         }
 
@@ -1362,11 +1389,20 @@ class SubjectController extends Controller
             'status' => $nextStatus,
         ]);
 
+        if ($isJsonRequest) {
+            return response()->json([
+                'status' => true,
+                'message' => 'Syllabus status changed to ' . ucfirst($nextStatus) . '.',
+                'next_status' => $nextStatus,
+            ]);
+        }
+
         return redirect()->back()->with('success', 'Syllabus status changed to ' . ucfirst($nextStatus) . '.');
     }
 
     function deleteSyllabusCo($subjectId, $batchId, $semesterId, $coId)
     {
+        $isJsonRequest = request()->expectsJson() || request()->ajax();
         $hasAttendance = StudentAttendance::where('course_id', $coId)->exists();
         $hasTimetable  = SubjectHasRoutine::where('subject_course_id', $coId)
             ->where('batch_id', $batchId)
@@ -1376,9 +1412,18 @@ class SubjectController extends Controller
             $reasons = [];
             if ($hasAttendance) $reasons[] = 'attendance records exist for this course';
             if ($hasTimetable)  $reasons[] = 'a faculty timetable is assigned to this course';
+            $message = 'Cannot remove this course from the syllabus — ' . implode(' and ', $reasons) . '. Please clear those first before making changes.';
+
+            if ($isJsonRequest) {
+                return response()->json([
+                    'status' => false,
+                    'message' => $message,
+                ], 422);
+            }
+
             return redirect()->back()->with(
                 'error',
-                'Cannot remove this course from the syllabus — ' . implode(' and ', $reasons) . '. Please clear those first before making changes.'
+                $message
             );
         }
 
@@ -1391,6 +1436,13 @@ class SubjectController extends Controller
         foreach ($records as $record) {
             $record->syllabusSubunits()->delete();
             $record->delete();
+        }
+
+        if ($isJsonRequest) {
+            return response()->json([
+                'status' => true,
+                'message' => 'Course and all its objectives removed from syllabus',
+            ]);
         }
 
         return redirect()->back()->with('success', 'Course and all its objectives removed from syllabus');
@@ -2119,18 +2171,30 @@ class SubjectController extends Controller
     function fetchComboCourses(Request $request)
     {
         $request->validate([
-            'student_program_id' => 'required|integer|exists:subject_has_student_progams,id',
+            'student_program_id' => 'required|integer',
             'semester' => 'required|integer|exists:semesters,id',
             'combo1' => 'nullable|integer|exists:subjects,id',
             'combo2' => 'nullable|integer|exists:subjects,id',
             'batch' => 'required|integer|exists:batch_masters,id'
         ]);
 
-        $combination = SubjectHasStudentProgam::with([
+        $combinationQuery = SubjectHasStudentProgam::with([
             'combomap:id,student_program_id,combo_id_1,combo_id_2',
             'combomap.combo1:id,title',
             'combomap.combo2:id,title',
-        ])->find((int) $request->student_program_id);
+        ]);
+
+        // Preferred path: incoming value is the combination row id.
+        $combination = (clone $combinationQuery)->find((int) $request->student_program_id);
+
+        // Backward compatibility: allow payload that sends student_program_id instead of combination id.
+        if (!$combination) {
+            $combination = (clone $combinationQuery)
+                ->where('student_program_id', (int) $request->student_program_id)
+                ->where('batch_id', (int) $request->batch)
+                ->orderBy('id')
+                ->first();
+        }
 
         if (!$combination) {
             return response()->json([

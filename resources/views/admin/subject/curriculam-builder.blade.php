@@ -314,7 +314,7 @@ $typeLabelMap = [
               <option value="{{$semester->id}}" {{$selectedSemester === (int) $semester->id ? 'selected' : ''}}>{{$semester->title}}</option>
               @endforeach
             </select>
-            <input type="hidden" name="student_program_id" value="{{$data->student_program_id}}">
+            <input type="hidden" name="student_program_id" value="{{$data->id}}">
             <input type="hidden" name="combo1" value="{{$combo1DepartmentId}}">
             <input type="hidden" name="combo2" value="{{$combo2DepartmentId}}">
             <input type="hidden" name="batch" value="{{$data->batchmaster->id}}">
