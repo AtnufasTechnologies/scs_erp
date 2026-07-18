@@ -284,26 +284,27 @@ $typeLabelMap = [
     <h3 class="swc-headline text-uppercase"> <span class="text-danger">Curriculum Builder</span> Engine</h3>
     <p class="swc-subtitle">This is the CORE of <strong>Academic System</strong> Select Semester, click Generate, then choose offered courses and mark each as Compulsory or Elective.</p>
 
-    @if(session('success'))
-    <div class="alert alert-success">{{ session('success') }}</div>
-    @endif
-
-    @if(session('error'))
-    <div class="alert alert-danger">{{ session('error') }}</div>
-    @endif
+    <div class="toast-container position-fixed top-0 end-0 p-3" style="z-index: 1080;">
+      <div id="curriculumToast" class="toast align-items-center border-0" role="alert" aria-live="assertive" aria-atomic="true" data-bs-delay="3500" data-success-message="{{ session('success') }}" data-error-message="{{ session('error') }}">
+        <div class="d-flex">
+          <div id="curriculumToastBody" class="toast-body"></div>
+          <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast" aria-label="Close"></button>
+        </div>
+      </div>
+    </div>
 
     <div class="swc-info">
       <h5 class="mb-1">Batch: {{$data->batchmaster->batch_name}} | {{$data->studentprograminfo->code}} - {{$data->studentprograminfo->name}}</h5>
       <p class="mb-0">
-        <i class="fa fa-robot"></i> Two Connected:
-        <span class="badge badge-warning">{{$data->combomap->combo1->title ?? '1 Not Set'}}</span>
-        <span class="badge badge-warning"> {{$data->combomap->combo2->title ?? '2 Not Set'}}</span>
+        <i class="fa fa-link"></i> Connected:
+        <span class="badge badge-warning">{{$data->combomap->combo1->id ?? '1 Not Set'}} - {{$data->combomap->combo1->title ?? '1 Not Set'}}</span>
+        <span class="badge badge-warning">{{$data->combomap->combo2->id ?? '1 Not Set'}} - {{$data->combomap->combo2->title ?? '2 Not Set'}}</span>
       </p>
     </div>
 
     <div class="swc-form-card mb-3">
-      <form action="{{route('combo.course.fetching')}}" method="get">
-        <!-- <form id="curriculumGenerateForm" action="{{route('combo.course.fetching')}}" method="get"> -->
+      <!-- <form action="{{route('combo.course.fetching')}}" method="get"> -->
+      <form id="curriculumGenerateForm" action="{{route('combo.course.fetching')}}" method="get">
         <div class="row align-items-end">
           <div class="col-lg-3">
             <label class="form-label">Semester</label>
@@ -313,17 +314,16 @@ $typeLabelMap = [
               <option value="{{$semester->id}}" {{$selectedSemester === (int) $semester->id ? 'selected' : ''}}>{{$semester->title}}</option>
               @endforeach
             </select>
-            <input type="hidden" name="combination_id" value="{{$data->id}}">
+            <input type="hidden" name="student_program_id" value="{{$data->student_program_id}}">
             <input type="hidden" name="combo1" value="{{$combo1DepartmentId}}">
             <input type="hidden" name="combo2" value="{{$combo2DepartmentId}}">
+            <input type="hidden" name="batch" value="{{$data->batchmaster->id}}">
 
           </div>
           <div class="col-lg-2">
             <button type="submit" class="btn btn-primary w-100">Generate</button>
           </div>
-          <div class="col-lg-4">
-            <div id="curriculumGenerateFeedback" class="alert d-none mb-0" role="alert"></div>
-          </div>
+          <div class="col-lg-4"></div>
         </div>
       </form>
     </div>
@@ -334,7 +334,7 @@ $typeLabelMap = [
         <input type="hidden" name="semester" id="mappingSemesterInput" value="{{$selectedSemester}}">
         <input type="hidden" name="id" value="{{$data->id}}">
         <input type="hidden" name="batch" value="{{$data->batchmaster->id}}">
-        <div id="curriculumMappingFeedback" class="alert d-none" role="alert"></div>
+        <div id="curriculumMappingFeedback" class="d-none"></div>
         <div class="row align-items-center">
           <div class="col-lg-2">
             <select name="academic_pathway_id" class="form-control">
@@ -379,20 +379,32 @@ $typeLabelMap = [
                   @php
                   $courseId = (int) ($course['id'] ?? 0);
                   $courseTypeTitle = strtoupper(trim((string) ($course['course_type_title'] ?? '')));
+                  $derivedCourseType = strtoupper(trim((string) ($course['course_type'] ?? '')));
                   $sourceSubjectId = (int) ($course['source_subject_id'] ?? 0);
-                  $previewDelivery = 'COMMON';
+                  $previewDelivery = $derivedCourseType !== '' ? $derivedCourseType : 'COMMON';
+                  if ($previewDelivery === 'COREA') {
+                  $previewDelivery = 'CORE A';
+                  } elseif ($previewDelivery === 'COREB') {
+                  $previewDelivery = 'CORE B';
+                  }
+                  if (!in_array($previewDelivery, ['CORE A', 'CORE B', 'MDC', 'COMMON'], true)) {
                   if ($courseTypeTitle === 'MDC') {
                   $previewDelivery = 'MDC';
                   } elseif ($courseTypeTitle === 'MAJ') {
                   if ($combo1DepartmentId > 0 && $sourceSubjectId === $combo1DepartmentId) {
-                  $previewDelivery = 'CORE-A';
+                  $previewDelivery = 'CORE A';
                   } elseif ($combo2DepartmentId > 0 && $sourceSubjectId === $combo2DepartmentId) {
-                  $previewDelivery = 'CORE-B';
+                  $previewDelivery = 'CORE B';
+                  } else {
+                  $previewDelivery = 'COMMON';
+                  }
+                  } else {
+                  $previewDelivery = 'COMMON';
                   }
                   }
-                  $previewClass = $previewDelivery === 'CORE-A' ? 'bg-primary' : ($previewDelivery === 'CORE-B' ? 'bg-info text-dark' : ($previewDelivery === 'MDC' ? 'bg-warning text-dark' : 'bg-success'));
+                  $previewClass = $previewDelivery === 'CORE A' ? 'bg-primary' : ($previewDelivery === 'CORE B' ? 'bg-info text-dark' : ($previewDelivery === 'MDC' ? 'bg-warning text-dark' : 'bg-success'));
                   @endphp
-                  <tr class="generated-course-row" data-course-type-title="{{ $courseTypeTitle }}" data-source-subject-id="{{ $sourceSubjectId }}">
+                  <tr class="generated-course-row" data-course-type-title="{{ $courseTypeTitle }}" data-course-type="{{ $derivedCourseType }}" data-source-subject-id="{{ $sourceSubjectId }}">
                     <td>
                       <input type="checkbox" name="selected_courses[]" value="{{$courseId}}" class="form-check-input course-selector" data-course-id="{{$courseId}}">
                     </td>
@@ -407,6 +419,7 @@ $typeLabelMap = [
                     <td>{{ $course['course_type_title'] ?? 'NA' }}</td>
                     <td>
                       <span class="badge generated-delivery-preview {{ $previewClass }}">{{ $previewDelivery }}</span>
+                      <input type="hidden" name="delivery_category_map[{{$courseId}}]" class="delivery-category-map-input" value="{{ $previewDelivery }}">
                     </td>
 
                     <td>
@@ -625,15 +638,37 @@ $typeLabelMap = [
     const mappingSemesterInput = document.getElementById('mappingSemesterInput');
     const mappingForm = document.getElementById('curriculumMappingForm');
     const mappingFeedback = document.getElementById('curriculumMappingFeedback');
+    const toastElement = document.getElementById('curriculumToast');
+    const toastBodyElement = document.getElementById('curriculumToastBody');
 
-    function setGenerateFeedback(status, message) {
-      if (!generateFeedback) return;
-      generateFeedback.classList.remove('d-none', 'alert-success', 'alert-danger', 'alert-info');
-      generateFeedback.classList.add(status === 'success' ? 'alert-success' : (status === 'info' ? 'alert-info' : 'alert-danger'));
-      generateFeedback.textContent = message;
+    function showToast(status, message) {
+      if (!toastElement || !toastBodyElement || typeof bootstrap === 'undefined') {
+        return;
+      }
+
+      toastElement.classList.remove('text-bg-success', 'text-bg-danger', 'text-bg-info');
+      toastElement.classList.add(status === 'success' ? 'text-bg-success' : (status === 'info' ? 'text-bg-info' : 'text-bg-danger'));
+      toastBodyElement.textContent = message;
+      bootstrap.Toast.getOrCreateInstance(toastElement).show();
     }
 
-    function deriveDeliveryPreview(courseTypeTitle, sourceSubjectId) {
+    function setGenerateFeedback(status, message) {
+      showToast(status, message);
+    }
+
+    function normalizeCourseTypeLabel(value) {
+      const normalized = String(value || '').trim().toUpperCase();
+      if (normalized === 'COREA') return 'CORE A';
+      if (normalized === 'COREB') return 'CORE B';
+      return normalized;
+    }
+
+    function deriveDeliveryPreview(courseTypeTitle, sourceSubjectId, providedCourseType) {
+      const normalizedProvided = normalizeCourseTypeLabel(providedCourseType);
+      if (['CORE A', 'CORE B', 'MDC', 'COMMON'].includes(normalizedProvided)) {
+        return normalizedProvided;
+      }
+
       const normalizedType = String(courseTypeTitle || '').trim().toUpperCase();
       const deptId = Number(sourceSubjectId || 0);
 
@@ -643,11 +678,11 @@ $typeLabelMap = [
 
       if (normalizedType === 'MAJ') {
         if (combo1DepartmentId > 0 && deptId === combo1DepartmentId) {
-          return 'CORE-A';
+          return 'CORE A';
         }
 
         if (combo2DepartmentId > 0 && deptId === combo2DepartmentId) {
-          return 'CORE-B';
+          return 'CORE B';
         }
 
         return 'COMMON';
@@ -657,8 +692,8 @@ $typeLabelMap = [
     }
 
     function previewBadgeClass(delivery) {
-      if (delivery === 'CORE-A') return 'bg-primary';
-      if (delivery === 'CORE-B') return 'bg-info text-dark';
+      if (delivery === 'CORE A') return 'bg-primary';
+      if (delivery === 'CORE B') return 'bg-info text-dark';
       if (delivery === 'MDC') return 'bg-warning text-dark';
       return 'bg-success';
     }
@@ -669,11 +704,17 @@ $typeLabelMap = [
         if (!badge) return;
 
         const courseTypeTitle = row.getAttribute('data-course-type-title');
+        const providedCourseType = row.getAttribute('data-course-type');
         const sourceSubjectId = row.getAttribute('data-source-subject-id');
-        const delivery = deriveDeliveryPreview(courseTypeTitle, sourceSubjectId);
+        const delivery = deriveDeliveryPreview(courseTypeTitle, sourceSubjectId, providedCourseType);
 
         badge.className = 'badge generated-delivery-preview ' + previewBadgeClass(delivery);
         badge.textContent = delivery;
+
+        const deliveryInput = row.querySelector('.delivery-category-map-input');
+        if (deliveryInput) {
+          deliveryInput.value = delivery;
+        }
       });
     }
 
@@ -704,18 +745,19 @@ $typeLabelMap = [
       const rows = courses.map((course) => {
         const courseId = Number(course.id || 0);
         const courseTypeTitle = String(course.course_type_title || 'NA').trim().toUpperCase();
+        const courseType = normalizeCourseTypeLabel(course.course_type || course.course_type_title || 'NA');
         const sourceSubjectId = Number(course.source_subject_id || 0);
-        const delivery = deriveDeliveryPreview(courseTypeTitle, sourceSubjectId);
+        const delivery = deriveDeliveryPreview(courseTypeTitle, sourceSubjectId, course.course_type);
         const badgeClass = previewBadgeClass(delivery);
         const sourceCode = course.source_subject_code ? '<small class="text-muted">(' + escapeHtml(course.source_subject_code) + ')</small>' : '';
 
-        return '<tr class="generated-course-row" data-course-type-title="' + escapeHtml(courseTypeTitle) + '" data-source-subject-id="' + String(sourceSubjectId) + '">' +
+        return '<tr class="generated-course-row" data-course-type-title="' + escapeHtml(courseTypeTitle) + '" data-course-type="' + escapeHtml(courseType) + '" data-source-subject-id="' + String(sourceSubjectId) + '">' +
           '<td><input type="checkbox" name="selected_courses[]" value="' + String(courseId) + '" class="form-check-input course-selector" data-course-id="' + String(courseId) + '"></td>' +
           '<td>' + escapeHtml(course.course_code || 'NA') + '</td>' +
           '<td>' + escapeHtml(course.course_title || 'Untitled Course') + '</td>' +
           '<td>' + escapeHtml(course.source_subject || 'NA') + ' ' + sourceCode + '</td>' +
           '<td>' + escapeHtml(course.course_type_title || 'NA') + '</td>' +
-          '<td><span class="badge generated-delivery-preview ' + badgeClass + '">' + escapeHtml(delivery) + '</span></td>' +
+          '<td><span class="badge generated-delivery-preview ' + badgeClass + '">' + escapeHtml(delivery) + '</span><input type="hidden" name="delivery_category_map[' + String(courseId) + ']" class="delivery-category-map-input" value="' + escapeHtml(delivery) + '"></td>' +
           '<td><select name="course_type_map[' + String(courseId) + ']" class="form-control form-control-sm" disabled><option value="AUTO">Compulsory</option><option value="STUDENT_CHOICE" selected>Elective</option></select></td>' +
           '</tr>';
       }).join('');
@@ -780,10 +822,18 @@ $typeLabelMap = [
     }
 
     function setMappingFeedback(status, message) {
-      if (!mappingFeedback) return;
-      mappingFeedback.classList.remove('d-none', 'alert-success', 'alert-danger', 'alert-info');
-      mappingFeedback.classList.add(status === 'success' ? 'alert-success' : (status === 'info' ? 'alert-info' : 'alert-danger'));
-      mappingFeedback.textContent = message;
+      showToast(status, message);
+    }
+
+    const initialSuccessMessage = toastElement ? toastElement.dataset.successMessage : '';
+    const initialErrorMessage = toastElement ? toastElement.dataset.errorMessage : '';
+
+    if (initialSuccessMessage) {
+      showToast('success', initialSuccessMessage);
+    }
+
+    if (initialErrorMessage) {
+      showToast('error', initialErrorMessage);
     }
 
     if (mappingForm) {

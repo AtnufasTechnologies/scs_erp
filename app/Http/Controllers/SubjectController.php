@@ -2069,7 +2069,7 @@ class SubjectController extends Controller
     function curriculamBuilder($id, $code)
     {
 
-        return   $data = SubjectHasStudentProgam::with([
+        $data = SubjectHasStudentProgam::with([
             'studentprograminfo:id,code,name',
             'combomap.combo1',
             'combomap.combo2',
@@ -2118,18 +2118,19 @@ class SubjectController extends Controller
 
     function fetchComboCourses(Request $request)
     {
-
         $request->validate([
-            'combination_id' => 'required|integer|exists:subject_has_student_progams,id',
+            'student_program_id' => 'required|integer|exists:subject_has_student_progams,id',
             'semester' => 'required|integer|exists:semesters,id',
             'combo1' => 'nullable|integer|exists:subjects,id',
             'combo2' => 'nullable|integer|exists:subjects,id',
+            'batch' => 'required|integer|exists:batch_masters,id'
         ]);
 
         $combination = SubjectHasStudentProgam::with([
-            'studentprograminfo:id,code,name',
             'combomap:id,student_program_id,combo_id_1,combo_id_2',
-        ])->find((int) $request->combination_id);
+            'combomap.combo1:id,title',
+            'combomap.combo2:id,title',
+        ])->find((int) $request->student_program_id);
 
         if (!$combination) {
             return response()->json([
@@ -2138,15 +2139,72 @@ class SubjectController extends Controller
             ], 404);
         }
 
-        $coursesBySemester = $this->getPublishedCoursesBySemesterForCombination($combination);
-        $semesterId = (string) ((int) $request->semester);
+        $combo1SubjectId = (int) ($request->combo1 ?? optional($combination->combomap)->combo_id_1 ?? 0);
+        $combo2SubjectId = (int) ($request->combo2 ?? optional($combination->combomap)->combo_id_2 ?? 0);
+        $semester = $request->semester;
+        $batch = $request->batch;
+
+        $combo1OfferedCourses =   SyllabusManager::with(['courseobjective.coursetypemaster', 'subject:id,title,code'])
+            ->where('subject_id', $combo1SubjectId)->where('batch_id', $batch)->where('semester_id', $semester)
+            ->where('status', 'published')->get();
+
+        $combo2OfferedCourses =   SyllabusManager::with(['courseobjective.coursetypemaster', 'subject:id,title,code'])
+            ->where('subject_id', $combo2SubjectId)->where('batch_id', $batch)->where('semester_id', $semester)
+            ->where('status', 'published')->get();
+
+        $mapCourses = function ($syllabi, string $source) {
+            return collect($syllabi)
+                ->map(function ($syllabus) use ($source) {
+                    $course = $syllabus->courseobjective;
+                    if (!$course) {
+                        return null;
+                    }
+
+                    $courseTypeTitle = strtoupper(trim((string) optional($course->coursetypemaster)->title));
+                    $courseType = $courseTypeTitle !== '' ? $courseTypeTitle : 'NA';
+
+                    // MAJ from combo1 should be CORE A.
+                    if ($courseTypeTitle === 'MAJ') {
+                        $courseType = $source === 'combo1' ? 'CORE A' : 'CORE B';
+                    }
+
+                    $sourceSubjectId = (int) ($syllabus->subject_id ?? 0);
+                    $sourceSubject = (string) (optional($syllabus->subject)->title ?? 'NA');
+                    $sourceSubjectCode = (string) (optional($syllabus->subject)->code ?? '');
+
+                    return [
+                        'id' => (int) $course->id,
+                        'course_code' => (string) ($course->course_code ?? ''),
+                        'course_title' => (string) ($course->course_title ?? ''),
+                        'course_type_title' => $courseTypeTitle !== '' ? $courseTypeTitle : 'NA',
+                        'course_type' => $courseType,
+                        'source_combo' => $source,
+                        'source_subject_id' => $sourceSubjectId,
+                        'source_subject' => $sourceSubject,
+                        'source_subject_code' => $sourceSubjectCode,
+                    ];
+                })
+                ->filter();
+        };
+
+        $combo1Courses = $mapCourses($combo1OfferedCourses, 'combo1');
+        $combo2Courses = $mapCourses($combo2OfferedCourses, 'combo2');
+
+        // Keep combo1 precedence when a course appears in both combos.
+        $semesterCourses = $combo2Courses
+            ->concat($combo1Courses)
+            ->keyBy('id')
+            ->values()
+            ->sortBy(fn($course) => ($course['course_code'] ?? '') . ' ' . ($course['course_title'] ?? ''))
+            ->values()
+            ->all();
 
         return response()->json([
             'status' => true,
             'semester' => (int) $request->semester,
-            'combo1' => (int) ($request->combo1 ?? optional($combination->combomap)->combo_id_1 ?? 0),
-            'combo2' => (int) ($request->combo2 ?? optional($combination->combomap)->combo_id_2 ?? 0),
-            'data' => $coursesBySemester[$semesterId] ?? [],
+            'combo1' => $combo1SubjectId,
+            'combo2' => $combo2SubjectId,
+            'data' => $semesterCourses,
         ]);
     }
 
@@ -2200,6 +2258,7 @@ class SubjectController extends Controller
             'selected_courses' => 'nullable|array',
             'selected_courses.*' => 'integer|exists:program_course_masters,id',
             'course_type_map' => 'nullable|array',
+            'delivery_category_map' => 'nullable|array',
             'course' => 'nullable|array',
             'course.*' => 'integer|exists:program_course_masters,id',
             'course_type' => 'nullable|in:AUTO,STUDENT_CHOICE,DEPARTMENT_CHOICE',
@@ -2210,8 +2269,8 @@ class SubjectController extends Controller
         $refid = $request->id;
         $semester = (int) $request->semester;
         $batch = $request->batch;
-        $academicPathwayId = $request->academic_pathway_id;
-        $degreeTrackId = $request->degree_track_id;
+        $academicPathwayId = $request->filled('academic_pathway_id') ? (int) $request->academic_pathway_id : null;
+        $degreeTrackId = $request->filled('degree_track_id') ? (int) $request->degree_track_id : null;
         $curriculumTable = $this->getCurriculumEngineTable();
         $hasAcademicPathwayColumn = Schema::hasColumn($curriculumTable, 'academic_pathway_id');
         $hasDegreeTrackColumn = Schema::hasColumn($curriculumTable, 'degree_track_id');
@@ -2219,6 +2278,10 @@ class SubjectController extends Controller
         $hasDeliveryCategoryColumn = Schema::hasColumn($curriculumTable, 'delivery_category');
         $hasDisplayOrderColumn = Schema::hasColumn($curriculumTable, 'display_order');
         $hasIsActiveColumn = Schema::hasColumn($curriculumTable, 'is_active');
+
+        if (($academicPathwayId !== null && !$hasAcademicPathwayColumn) || ($degreeTrackId !== null && !$hasDegreeTrackColumn)) {
+            return $respond(false, 'Pathway/Track columns are missing in curriculum table. Please run latest migrations and try again.', 422);
+        }
 
         $combination = SubjectHasStudentProgam::with([
             'batchmaster:id,batch_name',
@@ -2237,6 +2300,8 @@ class SubjectController extends Controller
             ->map(function ($courseId) use ($request) {
                 $rawType = data_get($request->input('course_type_map', []), (string) $courseId);
                 $type = strtoupper((string) $rawType);
+                $rawDeliveryCategory = data_get($request->input('delivery_category_map', []), (string) $courseId);
+                $deliveryCategory = $this->normalizeDeliveryCategoryInput($rawDeliveryCategory);
                 if (!in_array($type, [
                     ProgramWiseSemesterCourse::TYPE_AUTO,
                     ProgramWiseSemesterCourse::TYPE_STUDENT_CHOICE,
@@ -2248,6 +2313,7 @@ class SubjectController extends Controller
                 return [
                     'course_id' => $courseId,
                     'course_type' => $type,
+                    'delivery_category' => $deliveryCategory,
                 ];
             })
             ->values();
@@ -2267,6 +2333,7 @@ class SubjectController extends Controller
                 ->map(fn($courseId) => [
                     'course_id' => (int) $courseId,
                     'course_type' => $fallbackType,
+                    'delivery_category' => $this->normalizeDeliveryCategoryInput(data_get($request->input('delivery_category_map', []), (string) ((int) $courseId))),
                 ])
                 ->values();
         }
@@ -2306,7 +2373,10 @@ class SubjectController extends Controller
 
             $courseInfo = ProgramCourseMaster::with('coursetypemaster:id,title')->find($courseId);
             $offeringDeptId = (int) ($courseInfo->department ?? 0);
-            $deliveryCategory = $this->deriveDeliveryCategory($combination, $courseInfo);
+            $deliveryCategory = $selection['delivery_category'] ?? null;
+            if (empty($deliveryCategory)) {
+                $deliveryCategory = $this->deriveDeliveryCategory($combination, $courseInfo);
+            }
 
             if ($existing) {
                 $existing->course_type = $courseType;
@@ -2384,6 +2454,32 @@ class SubjectController extends Controller
         ]);
     }
 
+    private function normalizeDeliveryCategoryInput(?string $value): ?string
+    {
+        $normalized = strtoupper(trim((string) $value));
+        if ($normalized === '') {
+            return null;
+        }
+
+        if (in_array($normalized, ['CORE A', 'CORE-A', 'COREA', 'MAJOR_COMBO1'], true)) {
+            return ProgramWiseSemesterCourse::DELIVERY_MAJOR_COMBO1;
+        }
+
+        if (in_array($normalized, ['CORE B', 'CORE-B', 'COREB', 'MAJOR_COMBO2'], true)) {
+            return ProgramWiseSemesterCourse::DELIVERY_MAJOR_COMBO2;
+        }
+
+        if (in_array($normalized, ['MDC', 'OPEN_CHOICE', 'OPEN CHOICE'], true)) {
+            return ProgramWiseSemesterCourse::DELIVERY_OPEN_CHOICE;
+        }
+
+        if (in_array($normalized, ['COMMON', 'PROGRAMME_COMMON', 'PROGRAMME COMMON'], true)) {
+            return ProgramWiseSemesterCourse::DELIVERY_PROGRAMME_COMMON;
+        }
+
+        return null;
+    }
+
     function deleteProgramSemesterCourseMapping($id)
     {
         $mapping = ProgramWiseSemesterCourse::findOrFail($id);
@@ -2416,6 +2512,8 @@ class SubjectController extends Controller
 
         $mapping = ProgramWiseSemesterCourse::findOrFail($id);
         $courseType = strtoupper((string) $request->course_type);
+        $academicPathwayId = $request->filled('academic_pathway_id') ? (int) $request->academic_pathway_id : null;
+        $degreeTrackId = $request->filled('degree_track_id') ? (int) $request->degree_track_id : null;
         $curriculumTable = $this->getCurriculumEngineTable();
         $hasAcademicPathwayColumn = Schema::hasColumn($curriculumTable, 'academic_pathway_id');
         $hasDegreeTrackColumn = Schema::hasColumn($curriculumTable, 'degree_track_id');
@@ -2423,6 +2521,10 @@ class SubjectController extends Controller
         $hasDeliveryCategoryColumn = Schema::hasColumn($curriculumTable, 'delivery_category');
         $hasDisplayOrderColumn = Schema::hasColumn($curriculumTable, 'display_order');
         $hasIsActiveColumn = Schema::hasColumn($curriculumTable, 'is_active');
+
+        if (($academicPathwayId !== null && !$hasAcademicPathwayColumn) || ($degreeTrackId !== null && !$hasDegreeTrackColumn)) {
+            return redirect()->back()->with('error', 'Pathway/Track columns are missing in curriculum table. Please run latest migrations and try again.');
+        }
         $combination = SubjectHasStudentProgam::with('combomap:id,student_program_id,combo_id_1,combo_id_2')->find($mapping->program_combo_refid);
 
         if (!$combination) {
@@ -2442,11 +2544,11 @@ class SubjectController extends Controller
             ->where('course_type', $courseType);
 
         if ($hasAcademicPathwayColumn) {
-            $duplicateQuery->where('academic_pathway_id', $request->academic_pathway_id);
+            $duplicateQuery->where('academic_pathway_id', $academicPathwayId);
         }
 
         if ($hasDegreeTrackColumn) {
-            $duplicateQuery->where('degree_track_id', $request->degree_track_id);
+            $duplicateQuery->where('degree_track_id', $degreeTrackId);
         }
 
         $duplicate = $duplicateQuery->exists();
@@ -2469,10 +2571,10 @@ class SubjectController extends Controller
             $mapping->offering_dept = $offeringDeptId > 0 ? $offeringDeptId : null;
         }
         if ($hasAcademicPathwayColumn) {
-            $mapping->academic_pathway_id = $request->academic_pathway_id;
+            $mapping->academic_pathway_id = $academicPathwayId;
         }
         if ($hasDegreeTrackColumn) {
-            $mapping->degree_track_id = $request->degree_track_id;
+            $mapping->degree_track_id = $degreeTrackId;
         }
         if ($hasDisplayOrderColumn) {
             $mapping->display_order = (int) $request->display_order;
@@ -2609,9 +2711,9 @@ class SubjectController extends Controller
             ->all();
     }
 
-    private function getPublishedCoursesBySemesterForCombination(SubjectHasStudentProgam $combination): array
+    private function getPublishedCoursesBySemesterForCombination(SubjectHasStudentProgam $combination, ?array $boundary = null): array
     {
-        $boundary = $this->getProgrammeBoundarySubjectIds($combination);
+        $boundary = $boundary ?: $this->getProgrammeBoundarySubjectIds($combination);
 
         $query = SyllabusManager::with([
             'courseobjective:id,course_code,course_title,course_type,department',
@@ -2665,6 +2767,24 @@ class SubjectController extends Controller
         }
 
         return $bySemester;
+    }
+
+    private function resolveCurriculumCourseType(array $course): string
+    {
+        $courseTypeTitle = strtoupper(trim((string) ($course['course_type_title'] ?? '')));
+        $deliveryCategory = strtoupper(trim((string) ($course['delivery_category'] ?? '')));
+
+        if ($courseTypeTitle === 'MAJ') {
+            if (in_array($deliveryCategory, ['CORE-A', 'COREA', 'MAJOR_COMBO1'], true)) {
+                return 'COREA';
+            }
+
+            if (in_array($deliveryCategory, ['CORE-B', 'COREB', 'MAJOR_COMBO2'], true)) {
+                return 'COREB';
+            }
+        }
+
+        return $courseTypeTitle !== '' ? $courseTypeTitle : 'NA';
     }
 
     private function getProgrammeBoundarySubjectIds(?SubjectHasStudentProgam $combination): array

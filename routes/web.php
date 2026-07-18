@@ -883,6 +883,7 @@ Route::group(['prefix' => '/erp'], function () {
         //program wise semester courses
         Route::get('curriculam-builder-engine/{id}/{name}', [SubjectController::class, 'curriculamBuilder'])->name('curriculam.builder.engine');
         Route::get('curriculam-course-fetcher', [SubjectController::class, 'fetchComboCourses'])->name('combo.course.fetching');
+
         Route::get('curriculam-builder/{id}/published-courses', [SubjectController::class, 'publishedSyllabusCoursesForCurriculum'])->name('program.wise.semester.curriculam.builder.published-courses');
         Route::post('store-curriculam-mapping', [SubjectController::class, 'storeProgramSemesterCoursesMapping'])->name('store.curriculam.mapping');
         Route::post('update.program.semster.courses.mapping/{id}', [SubjectController::class, 'updateProgramSemesterCoursesMapping'])->name('update.program.semster.courses.mapping');
