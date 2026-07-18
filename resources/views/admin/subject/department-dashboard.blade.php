@@ -302,8 +302,8 @@ if (!empty($deptFacultyIds)) {
             <tr style="border-bottom: 1px solid #f5f5f5;">
               <td style="padding: 16px; color: #1a1a1a; font-weight: 500;">{{ $loop->iteration }}</td>
               <td>
-                <a href="{{route('program.wise.semester.course.design',[$combination->id])}}">
-                  <button class="btn-sm btn-dark"><i class="fa fa-palette"></i> Design</button>
+                <a href="{{ route('curriculam.builder.engine', [$combination->id, $combination->studentprograminfo->code]) }}">
+                  <button class=" btn-sm btn-dark"><i class="fas fa-drafting-compass"></i> Build</button>
                 </a>
               </td>
               <td>

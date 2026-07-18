@@ -54,6 +54,7 @@ use Illuminate\Support\Str;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Validation\Rule;
 use Barryvdh\DomPDF\Facade\Pdf;
@@ -767,7 +768,8 @@ class SubjectController extends Controller
 
     function updateStudentProgram(Request $request, $id)
     {
-        $data = StudentProgram::findOrFail($id);
+        // return $request->all();
+        return $data = StudentProgram::findOrFail($id);
         $allowedShifts = $this->getShiftSlugs();
         $request->validate([
             'campus' => 'required',
@@ -1238,6 +1240,7 @@ class SubjectController extends Controller
             'co_id' => 'required',
             'cso_id' => 'required',
             'cso_subunit' => 'required|array|min:1',
+            'status' => 'required|in:draft,published',
 
         ]);
 
@@ -1260,20 +1263,28 @@ class SubjectController extends Controller
         }
 
         $createdCount = 0;
+        $updatedCount = 0;
+        $status = $request->status ?? 'draft';
 
         // save syllabus subunit
         $cso_subunit = $request->cso_subunit;
         foreach ($targetShifts as $shiftSlug) {
-            $rec = SyllabusManager::firstOrCreate([
+            $rec = SyllabusManager::updateOrCreate([
                 'subject_id' => $request->subject_id,
                 'batch_id' => $request->batch,
                 'semester_id' => $request->semester,
                 'shift' => $shiftSlug,
                 'co_id' => $request->co_id,
                 'cso_id' => $request->cso_id,
+            ], [
+                'status' => $status,
             ]);
 
-            $createdCount++;
+            if ($rec->wasRecentlyCreated) {
+                $createdCount++;
+            } else {
+                $updatedCount++;
+            }
 
             for ($i = 0; $i < count($cso_subunit); $i++) {
                 SyllabusSubunit::firstOrCreate([
@@ -1286,10 +1297,16 @@ class SubjectController extends Controller
         }
 
         if ($usesShifts && $request->boolean('create_all_shifts')) {
-            return redirect()->back()->with('success', 'Syllabus created/updated for all active shifts');
+            return redirect()->back()->with('success', 'Syllabus saved for all active shifts with status: ' . ucfirst($status));
         }
 
-        return redirect()->back()->with('success', $createdCount > 0 ? 'Syllabus Created' : 'Syllabus Updated');
+        if ($createdCount > 0 && $updatedCount > 0) {
+            return redirect()->back()->with('success', 'Syllabus created and updated with status: ' . ucfirst($status));
+        }
+
+        return redirect()->back()->with('success', $createdCount > 0
+            ? 'Syllabus created with status: ' . ucfirst($status)
+            : 'Syllabus updated with status: ' . ucfirst($status));
     }
 
     function deleteSyllabusSubunit($id)
@@ -1319,6 +1336,33 @@ class SubjectController extends Controller
 
         $subunit->delete();
         return redirect()->back()->with('success', 'Subunit removed');
+    }
+
+    function toggleSyllabusStatus(Request $request, $subjectId, $batchId, $semesterId, $coId)
+    {
+        $query = SyllabusManager::where('subject_id', $subjectId)
+            ->where('batch_id', $batchId)
+            ->where('semester_id', $semesterId)
+            ->where('co_id', $coId);
+
+        if ($request->filled('shift')) {
+            $query->where('shift', $request->shift);
+        }
+
+        $records = $query->get();
+
+        if ($records->isEmpty()) {
+            return redirect()->back()->with('error', 'No syllabus records found to update status.');
+        }
+
+        $currentStatus = strtolower((string) ($records->first()->status ?? 'draft'));
+        $nextStatus = $currentStatus === 'published' ? 'draft' : 'published';
+
+        SyllabusManager::whereIn('id', $records->pluck('id')->all())->update([
+            'status' => $nextStatus,
+        ]);
+
+        return redirect()->back()->with('success', 'Syllabus status changed to ' . ucfirst($nextStatus) . '.');
     }
 
     function deleteSyllabusCo($subjectId, $batchId, $semesterId, $coId)
@@ -2022,89 +2066,322 @@ class SubjectController extends Controller
         return Subject::where('id', $subjectId)->value('has_shift_delivery') == 1;
     }
 
-    function programSemesterCourseDesign($id)
+    function curriculamBuilder($id, $code)
     {
 
-        $data = SubjectHasStudentProgam::with([
+        return   $data = SubjectHasStudentProgam::with([
             'studentprograminfo:id,code,name',
+            'combomap.combo1',
+            'combomap.combo2',
             'batchmaster:id,batch_name'
 
         ])->find($id);
 
+        if (!$data) {
+            return redirect()->back()->with('error', 'Program mapping not found.');
+        }
+
+        $comboBoundary = $this->getProgrammeBoundarySubjectIds($data);
+
         $coursesBySemester = ProgramWiseSemesterCourse::with([
             'semestermaster:id,title',
-            'programinfo:id,course_code,course_title'
+            'programinfo:id,course_code,course_title,course_type,department',
+            'programinfo.coursetypemaster:id,title'
         ])
             ->where('program_combo_refid', $id)
             ->orderBy('semester')
+            ->when(
+                Schema::hasColumn($this->getCurriculumEngineTable(), 'display_order'),
+                fn($query) => $query->orderBy('display_order')->orderBy('id'),
+                fn($query) => $query->orderBy('id')
+            )
             ->get()
             ->groupBy('semester');
 
-        return view('admin.subject.semester-wise-courses', [
+        $publishedCoursesBySemester = $this->getPublishedCoursesBySemesterForCombination($data);
+        $selectedSemester = (int) request('semester');
+        $generatedCourses = $selectedSemester > 0
+            ? collect($publishedCoursesBySemester[(string) $selectedSemester] ?? [])
+            : collect();
+
+
+        return view('admin.subject.curriculam-builder', [
             'data' => $data,
+            'comboBoundary' => $comboBoundary,
             'coursesBySemester' => $coursesBySemester,
+            'publishedCoursesBySemester' => $publishedCoursesBySemester,
+            'selectedSemester' => $selectedSemester,
+            'generatedCourses' => $generatedCourses,
+
+        ]);
+    }
+
+    function fetchComboCourses(Request $request)
+    {
+
+        $request->validate([
+            'combination_id' => 'required|integer|exists:subject_has_student_progams,id',
+            'semester' => 'required|integer|exists:semesters,id',
+            'combo1' => 'nullable|integer|exists:subjects,id',
+            'combo2' => 'nullable|integer|exists:subjects,id',
+        ]);
+
+        $combination = SubjectHasStudentProgam::with([
+            'studentprograminfo:id,code,name',
+            'combomap:id,student_program_id,combo_id_1,combo_id_2',
+        ])->find((int) $request->combination_id);
+
+        if (!$combination) {
+            return response()->json([
+                'status' => false,
+                'message' => 'Program mapping not found.',
+            ], 404);
+        }
+
+        $coursesBySemester = $this->getPublishedCoursesBySemesterForCombination($combination);
+        $semesterId = (string) ((int) $request->semester);
+
+        return response()->json([
+            'status' => true,
+            'semester' => (int) $request->semester,
+            'combo1' => (int) ($request->combo1 ?? optional($combination->combomap)->combo_id_1 ?? 0),
+            'combo2' => (int) ($request->combo2 ?? optional($combination->combomap)->combo_id_2 ?? 0),
+            'data' => $coursesBySemester[$semesterId] ?? [],
+        ]);
+    }
+
+    function publishedSyllabusCoursesForCurriculum(Request $request, $id)
+    {
+        $combination = SubjectHasStudentProgam::with([
+            'studentprograminfo:id,code,name',
+            'combomap:id,student_program_id,combo_id_1,combo_id_2',
+        ])->find($id);
+
+        if (!$combination) {
+            return response()->json([
+                'status' => false,
+                'message' => 'Program mapping not found.',
+            ], 404);
+        }
+
+        $coursesBySemester = $this->getPublishedCoursesBySemesterForCombination($combination);
+
+        if ($request->filled('semester')) {
+            $semesterId = (string) ((int) $request->semester);
+            return response()->json([
+                'status' => true,
+                'data' => $coursesBySemester[$semesterId] ?? [],
+            ]);
+        }
+
+        return response()->json([
+            'status' => true,
+            'data' => $coursesBySemester,
         ]);
     }
 
     function storeProgramSemesterCoursesMapping(Request $request)
     {
+        $isJsonRequest = $request->expectsJson() || $request->ajax();
+        $respond = function (bool $status, string $message, int $httpCode = 200, array $extra = []) use ($isJsonRequest) {
+            if ($isJsonRequest) {
+                return response()->json(array_merge([
+                    'status' => $status,
+                    'message' => $message,
+                ], $extra), $httpCode);
+            }
 
+            return redirect()->back()->with($status ? 'success' : 'error', $message);
+        };
+
+        // return $request->all();
         $request->validate([
-            'semester' => 'required',
-            'course' => 'required|array|min:1',
-            'course_type' => 'required|in:AUTO,STUDENT_CHOICE,DEPARTMENT_CHOICE',
+            'semester' => 'required|integer|exists:semesters,id',
+            'selected_courses' => 'nullable|array',
+            'selected_courses.*' => 'integer|exists:program_course_masters,id',
+            'course_type_map' => 'nullable|array',
+            'course' => 'nullable|array',
+            'course.*' => 'integer|exists:program_course_masters,id',
+            'course_type' => 'nullable|in:AUTO,STUDENT_CHOICE,DEPARTMENT_CHOICE',
             'academic_pathway_id' => 'nullable|integer|exists:academic_pathway_masters,id',
             'degree_track_id' => 'nullable|integer|exists:degree_track_masters,id',
         ]);
 
-        $courseType = strtoupper((string) $request->course_type);
         $refid = $request->id;
-        $semester = $request->semester;
-        $course = $request->course;
+        $semester = (int) $request->semester;
         $batch = $request->batch;
         $academicPathwayId = $request->academic_pathway_id;
         $degreeTrackId = $request->degree_track_id;
+        $curriculumTable = $this->getCurriculumEngineTable();
+        $hasAcademicPathwayColumn = Schema::hasColumn($curriculumTable, 'academic_pathway_id');
+        $hasDegreeTrackColumn = Schema::hasColumn($curriculumTable, 'degree_track_id');
+        $hasOfferingDeptColumn = Schema::hasColumn($curriculumTable, 'offering_dept');
+        $hasDeliveryCategoryColumn = Schema::hasColumn($curriculumTable, 'delivery_category');
+        $hasDisplayOrderColumn = Schema::hasColumn($curriculumTable, 'display_order');
+        $hasIsActiveColumn = Schema::hasColumn($curriculumTable, 'is_active');
 
-        $combination = SubjectHasStudentProgam::with('batchmaster:id,batch_name')->find($refid);
-        $eligibleStudents = collect();
-        if ($courseType === ProgramWiseSemesterCourse::TYPE_AUTO && $combination) {
-            $eligibleStudents = $this->getEligibleStudentsForCombination($combination);
+        $combination = SubjectHasStudentProgam::with([
+            'batchmaster:id,batch_name',
+            'studentprograminfo:id,code,name',
+            'combomap:id,student_program_id,combo_id_1,combo_id_2',
+        ])->find($refid);
+        if (!$combination) {
+            return $respond(false, 'Program mapping not found.', 404);
         }
 
-        for ($i = 0; $i < count($course); $i++) {
-            $checkIfAlreadyAdded = ProgramWiseSemesterCourse::where('program_combo_refid', $refid)
+        $eligibleCourseIds = $this->getEligiblePublishedCourseIdsForSemester($combination, (int) $semester);
+
+        $typedSelections = collect((array) $request->selected_courses)
+            ->map(fn($courseId) => (int) $courseId)
+            ->unique()
+            ->map(function ($courseId) use ($request) {
+                $rawType = data_get($request->input('course_type_map', []), (string) $courseId);
+                $type = strtoupper((string) $rawType);
+                if (!in_array($type, [
+                    ProgramWiseSemesterCourse::TYPE_AUTO,
+                    ProgramWiseSemesterCourse::TYPE_STUDENT_CHOICE,
+                    ProgramWiseSemesterCourse::TYPE_DEPARTMENT_CHOICE,
+                ], true)) {
+                    $type = ProgramWiseSemesterCourse::TYPE_STUDENT_CHOICE;
+                }
+
+                return [
+                    'course_id' => $courseId,
+                    'course_type' => $type,
+                ];
+            })
+            ->values();
+
+        // Backward compatibility with old payload.
+        if ($typedSelections->isEmpty() && !empty($request->course)) {
+            $fallbackType = strtoupper((string) $request->course_type);
+            if (!in_array($fallbackType, [
+                ProgramWiseSemesterCourse::TYPE_AUTO,
+                ProgramWiseSemesterCourse::TYPE_STUDENT_CHOICE,
+                ProgramWiseSemesterCourse::TYPE_DEPARTMENT_CHOICE,
+            ], true)) {
+                $fallbackType = ProgramWiseSemesterCourse::TYPE_STUDENT_CHOICE;
+            }
+
+            $typedSelections = collect((array) $request->course)
+                ->map(fn($courseId) => [
+                    'course_id' => (int) $courseId,
+                    'course_type' => $fallbackType,
+                ])
+                ->values();
+        }
+
+        if ($typedSelections->isEmpty()) {
+            return $respond(false, 'Please select at least one course to map.', 422);
+        }
+
+        $selectedCourseIds = $typedSelections->pluck('course_id')->values();
+        $invalidCourseIds = $selectedCourseIds->reject(fn($courseId) => in_array($courseId, $eligibleCourseIds, true))->values();
+
+        if ($invalidCourseIds->isNotEmpty()) {
+            return $respond(false, 'Please select courses only from Published Syllabi for the chosen semester.', 422);
+        }
+
+        $createdCount = 0;
+        $updatedCount = 0;
+
+        foreach ($typedSelections as $index => $selection) {
+            $courseId = (int) $selection['course_id'];
+            $courseType = $selection['course_type'];
+
+            $existingQuery = ProgramWiseSemesterCourse::where('program_combo_refid', $refid)
                 ->where('batch', $batch)
                 ->where('semester', $semester)
-                ->where('course_id', $course[$i])
-                ->where('academic_pathway_id', $academicPathwayId)
-                ->where('degree_track_id', $degreeTrackId)
-                ->where('course_type', $courseType)->first();
+                ->where('course_id', $courseId);
 
-            if ($checkIfAlreadyAdded == null) {
-                $mapping = ProgramWiseSemesterCourse::create([
-                    'program_combo_refid' => $refid,
-                    'batch' => $batch,
-                    'semester' => $semester,
-                    'course_id' => $course[$i],
-                    'academic_pathway_id' => $academicPathwayId,
-                    'degree_track_id' => $degreeTrackId,
-                    'course_type' => $courseType,
-                    'display_order' => ($i + 1),
-                    'is_active' => true,
-                ]);
+            if ($hasAcademicPathwayColumn) {
+                $existingQuery->where('academic_pathway_id', $academicPathwayId);
+            }
 
-                if ($courseType === ProgramWiseSemesterCourse::TYPE_AUTO && $combination && $eligibleStudents->isNotEmpty()) {
+            if ($hasDegreeTrackColumn) {
+                $existingQuery->where('degree_track_id', $degreeTrackId);
+            }
+
+            $existing = $existingQuery->first();
+
+            $courseInfo = ProgramCourseMaster::with('coursetypemaster:id,title')->find($courseId);
+            $offeringDeptId = (int) ($courseInfo->department ?? 0);
+            $deliveryCategory = $this->deriveDeliveryCategory($combination, $courseInfo);
+
+            if ($existing) {
+                $existing->course_type = $courseType;
+                if ($hasDeliveryCategoryColumn) {
+                    $existing->delivery_category = $deliveryCategory;
+                }
+                if ($hasOfferingDeptColumn) {
+                    $existing->offering_dept = $offeringDeptId > 0 ? $offeringDeptId : null;
+                }
+                if ($hasDisplayOrderColumn) {
+                    $existing->display_order = $index + 1;
+                }
+                if ($hasIsActiveColumn) {
+                    $existing->is_active = true;
+                }
+                $existing->save();
+                $updatedCount++;
+                continue;
+            }
+
+            $createData = [
+                'program_combo_refid' => $refid,
+                'batch' => $batch,
+                'semester' => $semester,
+                'course_id' => $courseId,
+                'course_type' => $courseType,
+            ];
+
+            if ($hasIsActiveColumn) {
+                $createData['is_active'] = true;
+            }
+
+            if ($hasDisplayOrderColumn) {
+                $createData['display_order'] = ($index + 1);
+            }
+
+            if ($hasDeliveryCategoryColumn) {
+                $createData['delivery_category'] = $deliveryCategory;
+            }
+
+            if ($hasOfferingDeptColumn) {
+                $createData['offering_dept'] = $offeringDeptId > 0 ? $offeringDeptId : null;
+            }
+
+            if ($hasAcademicPathwayColumn) {
+                $createData['academic_pathway_id'] = $academicPathwayId;
+            }
+
+            if ($hasDegreeTrackColumn) {
+                $createData['degree_track_id'] = $degreeTrackId;
+            }
+
+            $mapping = ProgramWiseSemesterCourse::create($createData);
+
+            if ($courseType === ProgramWiseSemesterCourse::TYPE_AUTO) {
+                $eligibleStudents = $this->getEligibleStudentsForCombination($combination);
+                if ($eligibleStudents->isNotEmpty()) {
                     $this->enrollMappedCompulsaryCourse($combination, $mapping, $eligibleStudents);
                 }
             }
+
+            $createdCount++;
         }
 
-        $message = 'Created';
-        if ($courseType === ProgramWiseSemesterCourse::TYPE_AUTO && $combination && $eligibleStudents->isEmpty()) {
-            $message .= '. No students found for this program and batch, so no enrollment was performed.';
+        $message = 'Curriculum mapping saved.';
+        if ($createdCount > 0 && $updatedCount > 0) {
+            $message = 'Curriculum mapping created and updated.';
+        } elseif ($updatedCount > 0 && $createdCount === 0) {
+            $message = 'Curriculum mapping updated.';
         }
 
-        return redirect()->back()->with('success', $message);
+        return $respond(true, $message, 200, [
+            'created' => $createdCount,
+            'updated' => $updatedCount,
+        ]);
     }
 
     function deleteProgramSemesterCourseMapping($id)
@@ -2139,40 +2416,305 @@ class SubjectController extends Controller
 
         $mapping = ProgramWiseSemesterCourse::findOrFail($id);
         $courseType = strtoupper((string) $request->course_type);
+        $curriculumTable = $this->getCurriculumEngineTable();
+        $hasAcademicPathwayColumn = Schema::hasColumn($curriculumTable, 'academic_pathway_id');
+        $hasDegreeTrackColumn = Schema::hasColumn($curriculumTable, 'degree_track_id');
+        $hasOfferingDeptColumn = Schema::hasColumn($curriculumTable, 'offering_dept');
+        $hasDeliveryCategoryColumn = Schema::hasColumn($curriculumTable, 'delivery_category');
+        $hasDisplayOrderColumn = Schema::hasColumn($curriculumTable, 'display_order');
+        $hasIsActiveColumn = Schema::hasColumn($curriculumTable, 'is_active');
+        $combination = SubjectHasStudentProgam::with('combomap:id,student_program_id,combo_id_1,combo_id_2')->find($mapping->program_combo_refid);
 
-        $duplicate = ProgramWiseSemesterCourse::where('id', '!=', $mapping->id)
+        if (!$combination) {
+            return redirect()->back()->with('error', 'Program mapping not found.');
+        }
+
+        $eligibleCourseIds = $this->getEligiblePublishedCourseIdsForSemester($combination, (int) $request->semester);
+        if (!in_array((int) $request->course_id, $eligibleCourseIds, true)) {
+            return redirect()->back()->with('error', 'Selected course is not available in Published Syllabi for this semester.');
+        }
+
+        $duplicateQuery = ProgramWiseSemesterCourse::where('id', '!=', $mapping->id)
             ->where('program_combo_refid', $mapping->program_combo_refid)
             ->where('batch', $mapping->batch)
             ->where('semester', (int) $request->semester)
             ->where('course_id', (int) $request->course_id)
-            ->where('academic_pathway_id', $request->academic_pathway_id)
-            ->where('degree_track_id', $request->degree_track_id)
-            ->where('course_type', $courseType)
-            ->exists();
+            ->where('course_type', $courseType);
+
+        if ($hasAcademicPathwayColumn) {
+            $duplicateQuery->where('academic_pathway_id', $request->academic_pathway_id);
+        }
+
+        if ($hasDegreeTrackColumn) {
+            $duplicateQuery->where('degree_track_id', $request->degree_track_id);
+        }
+
+        $duplicate = $duplicateQuery->exists();
 
         if ($duplicate) {
             return redirect()->back()->with('error', 'Duplicate mapping exists for the same semester/course/type/pathway/track.');
         }
 
+        $courseInfo = ProgramCourseMaster::with('coursetypemaster:id,title')->find((int) $request->course_id);
+        $offeringDeptId = (int) ($courseInfo->department ?? 0);
+        $deliveryCategory = $this->deriveDeliveryCategory($combination, $courseInfo);
+
         $mapping->semester = (int) $request->semester;
         $mapping->course_id = (int) $request->course_id;
         $mapping->course_type = $courseType;
-        $mapping->academic_pathway_id = $request->academic_pathway_id;
-        $mapping->degree_track_id = $request->degree_track_id;
-        $mapping->display_order = (int) $request->display_order;
-        $mapping->is_active = $request->has('is_active');
+        if ($hasDeliveryCategoryColumn) {
+            $mapping->delivery_category = $deliveryCategory;
+        }
+        if ($hasOfferingDeptColumn) {
+            $mapping->offering_dept = $offeringDeptId > 0 ? $offeringDeptId : null;
+        }
+        if ($hasAcademicPathwayColumn) {
+            $mapping->academic_pathway_id = $request->academic_pathway_id;
+        }
+        if ($hasDegreeTrackColumn) {
+            $mapping->degree_track_id = $request->degree_track_id;
+        }
+        if ($hasDisplayOrderColumn) {
+            $mapping->display_order = (int) $request->display_order;
+        }
+        if ($hasIsActiveColumn) {
+            $mapping->is_active = $request->has('is_active');
+        }
         $mapping->save();
 
         return redirect()->back()->with('success', 'Mapping updated successfully.');
     }
 
+    private function deriveDeliveryCategory(?SubjectHasStudentProgam $combination, ?ProgramCourseMaster $courseInfo, ?array $boundary = null): ?string
+    {
+        if (!$courseInfo) {
+            return null;
+        }
+
+        $boundary = $boundary ?: $this->getProgrammeBoundarySubjectIds($combination);
+        $combo1SubjectId = (int) ($boundary['combo1'] ?? 0);
+        $combo2SubjectId = (int) ($boundary['combo2'] ?? 0);
+        $combo1DepartmentId = $this->resolveSubjectToDepartmentId($combo1SubjectId);
+        $combo2DepartmentId = $this->resolveSubjectToDepartmentId($combo2SubjectId);
+        $courseDepartmentId = (int) ($courseInfo->department ?? 0);
+        $courseTypeTitle = strtoupper(trim((string) optional($courseInfo->coursetypemaster)->title));
+
+        if ($courseTypeTitle === 'MDC') {
+            return ProgramWiseSemesterCourse::DELIVERY_OPEN_CHOICE;
+        }
+
+        if ($courseTypeTitle === 'MAJ') {
+            if ($combo1DepartmentId > 0 && $courseDepartmentId === $combo1DepartmentId) {
+                return ProgramWiseSemesterCourse::DELIVERY_MAJOR_COMBO1;
+            }
+
+            if ($combo2DepartmentId > 0 && $courseDepartmentId === $combo2DepartmentId) {
+                return ProgramWiseSemesterCourse::DELIVERY_MAJOR_COMBO2;
+            }
+
+            return ProgramWiseSemesterCourse::DELIVERY_PROGRAMME_COMMON;
+        }
+
+        return ProgramWiseSemesterCourse::DELIVERY_PROGRAMME_COMMON;
+    }
+
+    private function resolveSubjectToDepartmentId(int $subjectId): int
+    {
+        if ($subjectId <= 0) {
+            return 0;
+        }
+
+        if (!Schema::hasTable('subjects') || !Schema::hasTable('department_masters')) {
+            return $subjectId;
+        }
+
+        $subject = Subject::query()
+            ->select(['id', 'code', 'title', 'campus_id'])
+            ->find($subjectId);
+
+        if (!$subject) {
+            return $subjectId;
+        }
+
+        if (Schema::hasColumn('subjects', 'main_dept_id')) {
+            $directDepartmentId = (int) ($subject->main_dept_id ?? 0);
+            if ($directDepartmentId > 0) {
+                return $directDepartmentId;
+            }
+        }
+
+        $departmentQuery = DB::table('department_masters');
+
+        if (Schema::hasColumn('department_masters', 'campus_id') && Schema::hasColumn('subjects', 'campus_id')) {
+            $departmentQuery->where('campus_id', (int) ($subject->campus_id ?? 0));
+        }
+
+        $subjectCode = strtoupper(trim((string) ($subject->code ?? '')));
+        if ($subjectCode !== '') {
+            if (Schema::hasColumn('department_masters', 'department_code')) {
+                $matchedByDeptCode = (int) (clone $departmentQuery)
+                    ->whereRaw('UPPER(TRIM(department_code)) = ?', [$subjectCode])
+                    ->value('id');
+
+                if ($matchedByDeptCode > 0) {
+                    return $matchedByDeptCode;
+                }
+            }
+
+            if (Schema::hasColumn('department_masters', 'code')) {
+                $matchedByCode = (int) (clone $departmentQuery)
+                    ->whereRaw('UPPER(TRIM(code)) = ?', [$subjectCode])
+                    ->value('id');
+
+                if ($matchedByCode > 0) {
+                    return $matchedByCode;
+                }
+            }
+        }
+
+        $subjectTitle = strtoupper(trim((string) ($subject->title ?? '')));
+        if ($subjectTitle !== '') {
+            if (Schema::hasColumn('department_masters', 'name')) {
+                $matchedByName = (int) (clone $departmentQuery)
+                    ->whereRaw('UPPER(TRIM(name)) = ?', [$subjectTitle])
+                    ->value('id');
+
+                if ($matchedByName > 0) {
+                    return $matchedByName;
+                }
+            }
+
+            if (Schema::hasColumn('department_masters', 'title')) {
+                $matchedByTitle = (int) (clone $departmentQuery)
+                    ->whereRaw('UPPER(TRIM(title)) = ?', [$subjectTitle])
+                    ->value('id');
+
+                if ($matchedByTitle > 0) {
+                    return $matchedByTitle;
+                }
+            }
+        }
+
+        // Last fallback for legacy data where ids happened to align.
+        return $subjectId;
+    }
+
+    private function getEligiblePublishedCourseIdsForSemester(SubjectHasStudentProgam $combination, int $semesterId): array
+    {
+        $coursesBySemester = $this->getPublishedCoursesBySemesterForCombination($combination);
+        return collect($coursesBySemester[(string) $semesterId] ?? [])
+            ->pluck('id')
+            ->map(fn($id) => (int) $id)
+            ->values()
+            ->all();
+    }
+
+    private function getPublishedCoursesBySemesterForCombination(SubjectHasStudentProgam $combination): array
+    {
+        $boundary = $this->getProgrammeBoundarySubjectIds($combination);
+
+        $query = SyllabusManager::with([
+            'courseobjective:id,course_code,course_title,course_type,department',
+            'courseobjective.coursetypemaster:id,title',
+            'courseobjective.departmentmaster:id,name,department_code',
+        ])
+            ->where('batch_id', $combination->batch_id);
+
+        if (Schema::hasColumn('syllabus_managers', 'status')) {
+            $query->where('status', 'published');
+        }
+
+        $publishedSyllabus = $query->get();
+
+        $bySemester = [];
+
+        foreach ($publishedSyllabus as $syllabus) {
+            $course = $syllabus->courseobjective;
+            if (!$course) {
+                continue;
+            }
+
+            $courseTypeTitle = strtoupper(trim((string) optional($course->coursetypemaster)->title));
+
+            $deliveryCategory = $this->deriveDeliveryCategory($combination, $course, $boundary);
+            $semesterKey = (string) ((int) $syllabus->semester_id);
+            $courseKey = (string) ((int) $course->id);
+
+            if (!isset($bySemester[$semesterKey])) {
+                $bySemester[$semesterKey] = [];
+            }
+
+            $bySemester[$semesterKey][$courseKey] = [
+                'id' => (int) $course->id,
+                'course_code' => (string) ($course->course_code ?? ''),
+                'course_title' => (string) ($course->course_title ?? ''),
+                'course_type_title' => (string) ($courseTypeTitle !== '' ? $courseTypeTitle : 'NA'),
+                'source_subject_id' => (int) ($course->department ?? 0),
+                'source_subject' => (string) (optional($course->departmentmaster)->title ?? optional($course->departmentmaster)->name ?? 'NA'),
+                'source_subject_code' => (string) (optional($course->departmentmaster)->code ?? ''),
+                'delivery_category' => $deliveryCategory,
+                'delivery_label' => $deliveryCategory ? strtoupper(str_replace('_', ' ', $deliveryCategory)) : 'NOT DERIVED',
+            ];
+        }
+
+        foreach ($bySemester as $semesterKey => $courses) {
+            $bySemester[$semesterKey] = collect($courses)
+                ->sortBy(fn($course) => ($course['course_code'] ?? '') . ' ' . ($course['course_title'] ?? ''))
+                ->values()
+                ->all();
+        }
+
+        return $bySemester;
+    }
+
+    private function getProgrammeBoundarySubjectIds(?SubjectHasStudentProgam $combination): array
+    {
+        if (!$combination) {
+            return [
+                'combo1' => 0,
+                'combo2' => 0,
+                'all' => [],
+            ];
+        }
+
+        $comboMap = $combination->relationLoaded('combomap')
+            ? $combination->combomap
+            : StdProgComboMap::where('student_program_id', (int) $combination->student_program_id)
+            ->select('combo_id_1', 'combo_id_2')
+            ->first();
+        $mainSubjectId = (int) ($combination->subject_id ?? 0);
+
+        $combo1Id = (int) ($comboMap->combo_id_1 ?? 0);
+        if ($combo1Id <= 0) {
+            $combo1Id = $mainSubjectId;
+        }
+
+        $combo2Id = (int) ($comboMap->combo_id_2 ?? 0);
+
+        $all = collect([$combo1Id, $combo2Id, $mainSubjectId])
+            ->map(fn($id) => (int) $id)
+            ->filter(fn($id) => $id > 0)
+            ->unique()
+            ->values()
+            ->all();
+
+        return [
+            'combo1' => $combo1Id,
+            'combo2' => $combo2Id,
+            'all' => $all,
+        ];
+    }
+
     function updateProgramSemesterCoursesOrder(Request $request)
     {
+        $curriculumTable = $this->getCurriculumEngineTable();
+        $hasDisplayOrderColumn = Schema::hasColumn($curriculumTable, 'display_order');
+
         $request->validate([
             'combination_id' => 'required|integer|exists:subject_has_student_progams,id',
             'semester' => 'required|integer|exists:semesters,id',
             'mapping_ids' => 'required|array|min:1',
-            'mapping_ids.*' => 'required|integer|exists:program_wise_semester_courses,id',
+            'mapping_ids.*' => "required|integer|exists:{$curriculumTable},id",
         ]);
 
         $combinationId = (int) $request->combination_id;
@@ -2188,6 +2730,13 @@ class SubjectController extends Controller
             return response()->json([
                 'status' => false,
                 'message' => 'Invalid mapping list for the selected semester.',
+            ], 422);
+        }
+
+        if (!$hasDisplayOrderColumn) {
+            return response()->json([
+                'status' => false,
+                'message' => 'Display order column is missing. Please run the migration to enable drag-and-drop ordering.',
             ], 422);
         }
 
@@ -2210,6 +2759,15 @@ class SubjectController extends Controller
                 'message' => 'Failed to update order: ' . $e->getMessage(),
             ], 500);
         }
+    }
+
+    private function getCurriculumEngineTable(): string
+    {
+        if (Schema::hasTable('curriculam_engine')) {
+            return 'curriculam_engine';
+        }
+
+        return 'program_wise_semester_courses';
     }
 
     private function enrollMappedCompulsaryCourse(SubjectHasStudentProgam $combination, ProgramWiseSemesterCourse $mapping, $students = null): void

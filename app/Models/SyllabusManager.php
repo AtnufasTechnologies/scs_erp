@@ -18,6 +18,7 @@ class SyllabusManager extends Model
         'shift',
         'co_id',
         'cso_id',
+        'status',
     ];
 
     public function subject()

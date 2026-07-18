@@ -9,7 +9,7 @@ class DepartmentMaster extends Model
 {
     use HasFactory;
 
-    // protected $table = 'academic_departments';
+    //    protected $table = 'subjects';
     function campusmaster()
     {
         return $this->hasOne(Campus::class, 'id', 'campus_id');

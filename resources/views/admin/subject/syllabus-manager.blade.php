@@ -28,6 +28,13 @@ $shiftTitleMap = collect($shiftOptions ?? [])->pluck('title', 'slug')->toArray()
   </div>
   @endif
 
+  <div class="alert alert-warning">
+    <p>Note: We dont not need to define any Core A or Core B logic in here. Simply select the courses you will be offering from your department for the batch and semester and design its contents.
+      You dont need to <b>duplicate</b> the same Course as Core A or Core B. how ever it can be done if the syllabus is different.
+    </p>
+
+  </div>
+
   <div class="row no-print">
     <div class="col-lg-2">
       <!-- Button trigger modal -->
@@ -191,9 +198,20 @@ $shiftTitleMap = collect($shiftOptions ?? [])->pluck('title', 'slug')->toArray()
                   @enderror
                 </div>
 
+                <div class="col-lg-4">
+                  <label for="">Syllabus Status *</label>
+                  <select name="status" class="form-select mb-3">
+                    <option value="draft" {{ old('status') === 'draft' ? 'selected' : '' }}>Draft</option>
+                    <option value="published" {{ old('status') === 'published' ? 'selected' : '' }}>Published</option>
+                  </select>
+                  @error('status')
+                  <small class="text-danger">{{$message}}</small>
+                  @enderror
+                </div>
+
                 <div class="col-lg-12">
-                  <label for="">Select Course *</label>
-                  <select name="co_id" id="course_objective" class="form-select mb-3">
+                  <label for="">Select a Course from your Course Master Bucket*</label>
+                  <select name="co_id" id="course_objective" class="dselect-example mb-3">
                     <option value="" selected>--Select--</option>
                     @foreach ($cos as $item)
                     <option value="{{$item->course_master_id}}">
@@ -263,6 +281,15 @@ $shiftTitleMap = collect($shiftOptions ?? [])->pluck('title', 'slug')->toArray()
             $refPdf    = $seatKey ? ($syllabuspdfs[$seatKey] ?? null) : null;
             $shiftSlug = $firstCso->shift ?? 'common';
             $shiftTitle = $shiftTitleMap[$shiftSlug] ?? Str::title($shiftSlug);
+            $statusSet = collect($courseData['csos'] ?? [])
+              ->pluck('status')
+              ->map(fn($status) => strtolower((string) ($status ?? 'draft')))
+              ->unique()
+              ->values();
+            $isMixedStatus = $statusSet->count() > 1;
+            $currentStatus = $isMixedStatus ? 'mixed' : ($statusSet->first() ?? 'draft');
+            $statusLabel = $isMixedStatus ? 'Mixed' : ucfirst($currentStatus);
+            $statusBadgeClass = $currentStatus === 'published' ? 'bg-success' : ($isMixedStatus ? 'bg-warning text-dark' : 'bg-secondary');
 
             $totalUnits = 0;
             $completedUnits = 0;
@@ -280,11 +307,14 @@ $shiftTitleMap = collect($shiftOptions ?? [])->pluck('title', 'slug')->toArray()
                 <button class="accordion-button collapsed flex-grow-1" type="button" data-bs-toggle="collapse"
                   data-bs-target="#course{{ Str::slug($batchName . $semesterName . $courseKey) }}"
                   aria-expanded="false">
+
                   <strong>{{ $courseData['course']->course_code ?? 'N/A' }}</strong>
+                  <span class="badge badge-warning">{{ $courseData['course']->coursetypemaster->title ?? $courseData['course']->course_type ?? 'N/A' }}</span>
                   <span class="ms-2">{{ $courseData['course']->course_title ?? 'Unknown Course' }}</span>
                   @if($subjectUsesShifts)
                   <span class="badge bg-info text-dark ms-2">Shift: {{ $shiftTitle }}</span>
                   @endif
+                  <span class="badge {{ $statusBadgeClass }} ms-2">Status: {{ $statusLabel }}</span>
                   <span class="badge bg-light text-dark ms-2">{{ $completedUnits }}/{{ $totalUnits }} Units</span>
                   <span class="badge {{ $isLowCompletion ? 'bg-danger' : 'bg-success' }} ms-2">{{ $completionPercent }}% Complete</span>
                   <span class="badge bg-secondary ms-auto me-2">{{ $courseData['course']->credits ?? '0' }} Credits</span>
@@ -311,6 +341,17 @@ $shiftTitleMap = collect($shiftOptions ?? [])->pluck('title', 'slug')->toArray()
                   @endif
                 </button>
                 @if($firstCso)
+                <form action="{{ route('department.syllabus.co.toggle-status', [$data['id'], $firstCso->batch_id, $firstCso->semester_id, $firstCso->co_id]) }}"
+                  method="POST" class="no-print me-2"
+                  onsubmit="return confirm('Toggle syllabus status for this course?')">
+                  @csrf
+                  <input type="hidden" name="shift" value="{{ $firstCso->shift ?? 'common' }}">
+                  <button type="submit" class="btn btn-sm {{ $currentStatus === 'published' ? 'btn-outline-secondary' : 'btn-outline-success' }}"
+                    title="Toggle Draft/Published">
+                    <i class="fas fa-sync-alt"></i>
+                  </button>
+                </form>
+
                 <form action="{{ route('department.syllabus.co.delete', [$data['id'], $firstCso->batch_id, $firstCso->semester_id, $firstCso->co_id]) }}"
                   method="POST" class="no-print me-2"
                   onsubmit="return confirm('Remove this course and all its CSOs & subunits from this batch/semester?')">

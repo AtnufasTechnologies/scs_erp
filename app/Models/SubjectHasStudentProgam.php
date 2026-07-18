@@ -43,4 +43,9 @@ class SubjectHasStudentProgam extends Model
     {
         return $this->hasMany(StudentMaster::class, 'new_program_id', 'student_program_id');
     }
+
+    function combomap()
+    {
+        return $this->hasOne(StdProgComboMap::class, 'student_program_id', 'student_program_id');
+    }
 }

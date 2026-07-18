@@ -152,7 +152,9 @@ $subjects = Subject::latest()->get();
                   <h5 class="modal-title" id="exampleModalLabel">Edit Program</h5>
                   <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
                 </div>
-                <form action="{{route('admin.update.student-program',$d->id)}}" method="post" class="js-program-edit-form" data-program-id="{{$d->id}}" data-modal-id="edit{{$d->id}}">
+                <form action="{{route('admin.update.student.program.master',$d->id)}}" method="post">
+
+                  <!-- <form action="{{route('admin.update.student.program.master',$d->id)}}" method="post" class="js-program-edit-form" data-program-id="{{$d->id}}" data-modal-id="edit{{$d->id}}"> -->
                   @csrf
                   <input type="hidden" name="id" value="{{$d->id}}">
                   <div class="alert alert-danger d-none js-form-error" role="alert"></div>
@@ -213,7 +215,7 @@ $subjects = Subject::latest()->get();
                         </div>
                         <div class="col-lg-4">
                           <label for="">Combo Map 2</label>
-                          <select name="combo_id_2" class=" dselect-example">
+                          <select name="combo_id_2" class="dselect-example">
                             <option value="" selected>--Select--</option>
                             @foreach ($subjects as $subject)
                             <option value="{{$subject->id}}" {{$d->combomap != null ? $d->combomap->combo_id_2 == $subject->id ? 'selected' : '' : ''}}>{{$subject->title}} -{{$subject->campus_id == 1 ?'Sonada': 'Siliguri'}}</option>

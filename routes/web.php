@@ -347,7 +347,7 @@ Route::group(['prefix' => '/erp'], function () {
             Route::put('update-combination/{id}', [SubjectController::class, 'updateCombination'])->name('admin.update.combination');
             Route::get('student-program-master', [SubjectController::class, 'studentProgramMaster'])->name('admin.student-program-master');
             Route::post('add/new/student-program', [SubjectController::class, 'addNewStudentProgram'])->name('admin.add.new.student-program');
-            Route::post('update/student-program/{id}', [SubjectController::class, 'updateStudentProgram'])->name('admin.update.student-program');
+            Route::post('update/student-program/{id}', [SubjectController::class, 'updateStudentProgram'])->name('admin.update.student.program.master');
             Route::get('admission-combinations', [SubjectController::class, 'getAdmissionCombination'])->name('itcell.admission.combination-master');
         });
 
@@ -799,6 +799,7 @@ Route::group(['prefix' => '/erp'], function () {
         Route::get('syllabus-manager', [SubjectController::class, 'syllabusManager'])->name('department.syllabus.manager');
         Route::get('course/{id}/cso-list', [SubjectController::class, 'getCsoListForCourse'])->name('department.get.cso.list');
         Route::post('create-syllabus', [SubjectController::class, 'createSyllabus'])->name('department.create.syllabus');
+        Route::post('syllabus-co/toggle-status/{subjectId}/{batchId}/{semesterId}/{coId}', [SubjectController::class, 'toggleSyllabusStatus'])->name('department.syllabus.co.toggle-status');
         Route::delete('syllabus-subunit/{id}', [SubjectController::class, 'deleteSyllabusSubunit'])->name('department.syllabus.subunit.delete');
         Route::delete('syllabus-co/{subjectId}/{batchId}/{semesterId}/{coId}', [SubjectController::class, 'deleteSyllabusCo'])->name('department.syllabus.co.delete');
         Route::get('syllabus-download-pdf', [SubjectController::class, 'downloadSyllabusPdf'])->name('department.syllabus.download.pdf');
@@ -880,8 +881,10 @@ Route::group(['prefix' => '/erp'], function () {
         Route::get('attendance-monitor', [SubjectController::class, 'attendanceMonitor'])->name('department.attendance.monitor');
 
         //program wise semester courses
-        Route::get('program-semester-course-design/{id}', [SubjectController::class, 'programSemesterCourseDesign'])->name('program.wise.semester.course.design');
-        Route::post('store.program.semster.courses.mapping', [SubjectController::class, 'storeProgramSemesterCoursesMapping'])->name('store.program.semster.courses.mapping');
+        Route::get('curriculam-builder-engine/{id}/{name}', [SubjectController::class, 'curriculamBuilder'])->name('curriculam.builder.engine');
+        Route::get('curriculam-course-fetcher', [SubjectController::class, 'fetchComboCourses'])->name('combo.course.fetching');
+        Route::get('curriculam-builder/{id}/published-courses', [SubjectController::class, 'publishedSyllabusCoursesForCurriculum'])->name('program.wise.semester.curriculam.builder.published-courses');
+        Route::post('store-curriculam-mapping', [SubjectController::class, 'storeProgramSemesterCoursesMapping'])->name('store.curriculam.mapping');
         Route::post('update.program.semster.courses.mapping/{id}', [SubjectController::class, 'updateProgramSemesterCoursesMapping'])->name('update.program.semster.courses.mapping');
         Route::post('update.program.semster.courses.order', [SubjectController::class, 'updateProgramSemesterCoursesOrder'])->name('update.program.semster.courses.order');
         Route::delete('program-semester-course-mapping/{id}', [SubjectController::class, 'deleteProgramSemesterCourseMapping'])->name('delete.program.semster.courses.mapping');
