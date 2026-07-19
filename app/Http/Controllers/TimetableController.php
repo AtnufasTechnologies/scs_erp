@@ -520,7 +520,7 @@ class TimetableController extends Controller
         }
     }
 
-    function substitution($subjectId)
+    function substitution($subjectId, $slug)
     {
         $data = Subject::findOrFail($subjectId);
         $batches = BatchMaster::latest()->get();

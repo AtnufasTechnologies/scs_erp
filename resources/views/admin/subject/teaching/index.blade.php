@@ -1,0 +1,378 @@
+@include('includes.header')
+@include('includes.dept-sidebar')
+<div class="main-content">
+  <h4 class="text-capitalize">{{$subject->title}} - Teaching Assignment</h4>
+
+  <div class="toast-container position-fixed top-0 end-0 p-3" style="z-index: 1080;">
+    <div id="teachingAssignmentToast" class="toast align-items-center text-white bg-success border-0" role="alert" aria-live="assertive" aria-atomic="true">
+      <div class="d-flex">
+        <div class="toast-body" id="teachingAssignmentToastBody">Saved successfully.</div>
+        <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast" aria-label="Close"></button>
+      </div>
+    </div>
+  </div>
+
+  @if(session('success'))
+  <div class="alert alert-success">{{ session('success') }}</div>
+  @endif
+
+  @if(session('error'))
+  <div class="alert alert-danger">{{ session('error') }}</div>
+  @endif
+
+  @if($errors->any())
+  <div class="alert alert-danger">
+    <ul class="mb-0">
+      @foreach($errors->all() as $error)
+      <li>{{ $error }}</li>
+      @endforeach
+    </ul>
+  </div>
+  @endif
+
+  <div class="card mt-3 mb-4 border-0 shadow-sm">
+    <div class="card-header bg-white d-flex justify-content-between align-items-center py-3">
+      <h5 class="mb-0" id="teachingAssignmentFormTitle">New Teaching Assignment</h5>
+      <span class="badge bg-light text-dark border">Dynamic Group Allocation</span>
+    </div>
+    <div class="card-body">
+      <form id="teachingAssignmentForm" action="{{ route('department.teaching.assignment.store', $subject->id) }}" method="post">
+        @csrf
+        <input type="hidden" name="assignment_id" id="assignment_id" value="">
+        <input type="hidden" name="subject_id" value="{{$subject->id}}">
+
+        <div class="row g-3">
+          <div class="col-lg-6">
+            <label class="form-label fw-semibold">My Courses <span class="text-danger">*</span></label>
+            <select name="course_id" class="dselect-example" required>
+              <option value="">--Select--</option>
+              @foreach($courses as $course)
+              @if($course->courseMaster)
+              <option value="{{ $course->courseMaster->id }}">
+                {{ $course->courseMaster->course_code }} - {{ $course->courseMaster->course_title }}
+              </option>
+              @endif
+              @endforeach
+            </select>
+          </div>
+
+          <div class="col-lg-6">
+            <label class="form-label fw-semibold">Select Faculty <span class="text-danger">*</span></label>
+            <select name="faculty_id" class="dselect-example" required>
+              <option value="">--Select--</option>
+              @foreach($faculties as $faculty)
+              @if($faculty->faculty)
+              <option value="{{ $faculty->faculty->id }}">
+                {{ $faculty->faculty->USER_CODE }} - {{ $faculty->faculty->FIRST_NAME }} {{ $faculty->faculty->LAST_NAME }}
+              </option>
+              @endif
+              @endforeach
+            </select>
+          </div>
+
+          <div class="col-lg-4">
+            <label class="form-label fw-semibold">Delivery Type <span class="text-danger">*</span></label>
+            <select name="delivery_type" class="form-control" required>
+              <option value="">--Select--</option>
+              <option value="CORE A">CORE A</option>
+              <option value="CORE B">CORE B</option>
+              <option value="COMMON">COMMON</option>
+              <option value="MDC">MDC</option>
+            </select>
+          </div>
+
+          <div class="col-lg-4">
+            <label class="form-label fw-semibold">Status <span class="text-danger">*</span></label>
+            <select name="status" class="form-control">
+              <option value="1">Active</option>
+              <option value="0">Inactive</option>
+            </select>
+          </div>
+
+          <div class="col-lg-4">
+            <label class="form-label fw-semibold">Room Allocation</label>
+            <input type="text" name="room" class="form-control" placeholder="Room no / Lab">
+          </div>
+
+          <div class="col-lg-12">
+            <label class="form-label fw-semibold">Remarks</label>
+            <textarea name="remarks" class="form-control" rows="2" placeholder="Optional notes"></textarea>
+          </div>
+
+          <div class="col-lg-12 d-flex gap-2 justify-content-end pt-1">
+            <button type="button" class="btn btn-light border" id="teachingAssignmentCancelBtn" style="display:none;">Cancel Edit</button>
+            <button type="submit" class="btn btn-primary" id="teachingAssignmentSubmitBtn">Save Assignment</button>
+          </div>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <div class="card mt-4">
+    <div class="card-header">
+      <h5 class="mb-0">Teaching Assignments</h5>
+    </div>
+    <div class="card-body p-0">
+      <div class="table-responsive">
+        <table class="table table-bordered mb-0">
+          <thead>
+            <tr>
+              <th>#</th>
+              <th>Course</th>
+              <th>Faculty</th>
+              <th>Delivery Type</th>
+              <th>Allocation Group</th>
+              <th>Status</th>
+              <th>Room</th>
+              <th>Remarks</th>
+              <th>Action</th>
+            </tr>
+          </thead>
+          <tbody id="teachingAssignmentTableBody">
+            @forelse($assignments as $assignment)
+            <tr id="assignment-row-{{ $assignment->id }}">
+              <td>{{ $loop->iteration }}</td>
+              <td>{{ $assignment->course->course_code ?? '-' }} - {{ $assignment->course->course_title ?? '-' }}</td>
+              <td>{{ $assignment->faculty->USER_CODE ?? '-' }} - {{ $assignment->faculty->FIRST_NAME ?? '-' }} {{ $assignment->faculty->LAST_NAME ?? '' }}</td>
+              <td>{{ $assignment->delivery_type }}</td>
+              <td>{{ $assignment->allocation_group_label }}</td>
+              <td>
+                @if($assignment->is_active)
+                <span class="badge bg-success">Active</span>
+                @else
+                <span class="badge bg-secondary">Inactive</span>
+                @endif
+              </td>
+              <td>{{ $assignment->room ?: '-' }}</td>
+              <td>{{ $assignment->remarks ?: '-' }}</td>
+              <td>
+                <button
+                  type="button"
+                  class="btn btn-sm btn-primary js-edit-assignment"
+                  data-id="{{ $assignment->id }}"
+                  data-course_id="{{ $assignment->course_id }}"
+                  data-faculty_id="{{ $assignment->faculty_id }}"
+                  data-delivery_type="{{ $assignment->delivery_type }}"
+                  data-status="{{ $assignment->is_active }}"
+                  data-room="{{ $assignment->room }}"
+                  data-remarks="{{ $assignment->remarks }}">Edit</button>
+                <form action="{{ route('department.teaching.assignment.delete', $assignment->id) }}" method="post" onsubmit="return confirm('Delete this assignment?');" style="display:inline-block;">
+                  @csrf
+                  @method('DELETE')
+                  <button type="submit" class="btn btn-sm btn-danger">Delete</button>
+                </form>
+              </td>
+            </tr>
+            @empty
+            <tr id="teachingAssignmentEmptyRow">
+              <td colspan="9" class="text-center">No teaching assignments found.</td>
+            </tr>
+            @endforelse
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<script>
+  (function() {
+    const form = document.getElementById('teachingAssignmentForm');
+    const tableBody = document.getElementById('teachingAssignmentTableBody');
+    const assignmentIdInput = document.getElementById('assignment_id');
+    const submitBtn = document.getElementById('teachingAssignmentSubmitBtn');
+    const formTitle = document.getElementById('teachingAssignmentFormTitle');
+    const cancelEditBtn = document.getElementById('teachingAssignmentCancelBtn');
+    const toastElement = document.getElementById('teachingAssignmentToast');
+    const toastBodyElement = document.getElementById('teachingAssignmentToastBody');
+    const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content');
+    const createUrl = "{{ route('department.teaching.assignment.store', $subject->id) }}";
+    const updateUrlTemplate = "{{ route('department.teaching.assignment.update', ['id' => '__ID__']) }}";
+
+    function escapeHtml(value) {
+      const div = document.createElement('div');
+      div.textContent = value ?? '';
+      return div.innerHTML;
+    }
+
+    function showToast(message, type = 'success') {
+      if (!toastElement || !toastBodyElement || typeof bootstrap === 'undefined') {
+        return;
+      }
+
+      toastElement.classList.remove('bg-success', 'bg-danger');
+      toastElement.classList.add(type === 'success' ? 'bg-success' : 'bg-danger');
+      toastBodyElement.textContent = message;
+      bootstrap.Toast.getOrCreateInstance(toastElement).show();
+    }
+
+    function renumberRows() {
+      const rows = tableBody.querySelectorAll('tr[id^="assignment-row-"]');
+      rows.forEach((row, index) => {
+        const firstCell = row.querySelector('td');
+        if (firstCell) {
+          firstCell.textContent = index + 1;
+        }
+      });
+    }
+
+    function getStatusBadge(status) {
+      if (Number(status) === 1) {
+        return '<span class="badge bg-success">Active</span>';
+      }
+      return '<span class="badge bg-secondary">Inactive</span>';
+    }
+
+    function buildRowHtml(assignment) {
+      const safeCourse = escapeHtml(assignment.course_text || '-');
+      const safeFaculty = escapeHtml(assignment.faculty_text || '-');
+      const safeDelivery = escapeHtml(assignment.delivery_type || '-');
+      const safeGroup = escapeHtml(assignment.allocation_group_label || '-');
+      const safeRoom = escapeHtml(assignment.room || '-');
+      const safeRemarks = escapeHtml(assignment.remarks || '-');
+      const safeRoomData = escapeHtml(assignment.room_raw || '');
+      const safeRemarksData = escapeHtml(assignment.remarks_raw || '');
+
+      return `
+        <tr id="assignment-row-${assignment.id}">
+          <td>0</td>
+          <td>${safeCourse}</td>
+          <td>${safeFaculty}</td>
+          <td>${safeDelivery}</td>
+          <td>${safeGroup}</td>
+          <td>${getStatusBadge(assignment.is_active)}</td>
+          <td>${safeRoom}</td>
+          <td>${safeRemarks}</td>
+          <td>
+            <button
+              type="button"
+              class="btn btn-sm btn-primary js-edit-assignment"
+              data-id="${assignment.id}"
+              data-course_id="${assignment.course_id}"
+              data-faculty_id="${assignment.faculty_id}"
+              data-delivery_type="${escapeHtml(assignment.delivery_type || '')}"
+              data-status="${assignment.is_active}"
+              data-room="${safeRoomData}"
+              data-remarks="${safeRemarksData}"
+            >Edit</button>
+            <form action="{{ route('department.teaching.assignment.delete', 0) }}" method="post" onsubmit="return confirm('Delete this assignment?');" style="display:inline-block;">
+              <input type="hidden" name="_token" value="{{ csrf_token() }}">
+              <input type="hidden" name="_method" value="DELETE">
+              <button type="submit" class="btn btn-sm btn-danger">Delete</button>
+            </form>
+          </td>
+        </tr>
+      `;
+    }
+
+    function updateDeleteFormAction(row, assignmentId) {
+      const form = row.querySelector('form[action]');
+      if (!form) return;
+      form.action = form.action.replace(/\/(\d+)$/, '/' + assignmentId);
+    }
+
+    function resetInlineForm() {
+      form.reset();
+      assignmentIdInput.value = '';
+      submitBtn.textContent = 'Save Assignment';
+      formTitle.textContent = 'New Teaching Assignment';
+      cancelEditBtn.style.display = 'none';
+      form.querySelector('[name="course_id"]').dispatchEvent(new Event('change'));
+      form.querySelector('[name="faculty_id"]').dispatchEvent(new Event('change'));
+    }
+
+    async function submitForm(event) {
+      event.preventDefault();
+
+      submitBtn.disabled = true;
+      const assignmentId = assignmentIdInput.value;
+      const isUpdate = assignmentId !== '';
+      const url = isUpdate ? updateUrlTemplate.replace('__ID__', assignmentId) : createUrl;
+      const formData = new FormData(form);
+
+      if (isUpdate) {
+        formData.append('_method', 'PUT');
+      }
+
+      try {
+        const response = await fetch(url, {
+          method: 'POST',
+          headers: {
+            'X-CSRF-TOKEN': csrfToken,
+            'X-Requested-With': 'XMLHttpRequest',
+            'Accept': 'application/json',
+          },
+          body: formData,
+        });
+
+        const payload = await response.json();
+        if (!response.ok) {
+          throw new Error(payload.message || 'Unable to save teaching assignment.');
+        }
+
+        const assignment = payload.assignment;
+        const emptyRow = document.getElementById('teachingAssignmentEmptyRow');
+        if (emptyRow) {
+          emptyRow.remove();
+        }
+
+        if (isUpdate) {
+          const existingRow = document.getElementById('assignment-row-' + assignment.id);
+          if (existingRow) {
+            existingRow.outerHTML = buildRowHtml(assignment);
+          }
+        } else {
+          tableBody.insertAdjacentHTML('afterbegin', buildRowHtml(assignment));
+        }
+
+        const affectedRow = document.getElementById('assignment-row-' + assignment.id);
+        if (affectedRow) {
+          updateDeleteFormAction(affectedRow, assignment.id);
+        }
+
+        renumberRows();
+        showToast(payload.message || 'Saved successfully.', 'success');
+        resetInlineForm();
+      } catch (error) {
+        showToast(error.message || 'Unable to save teaching assignment.', 'danger');
+      } finally {
+        submitBtn.disabled = false;
+      }
+    }
+
+    tableBody.addEventListener('click', function(event) {
+      const editButton = event.target.closest('.js-edit-assignment');
+      if (!editButton) {
+        return;
+      }
+
+      assignmentIdInput.value = editButton.dataset.id || '';
+      form.querySelector('[name="course_id"]').value = editButton.dataset.course_id || '';
+      form.querySelector('[name="faculty_id"]').value = editButton.dataset.faculty_id || '';
+      form.querySelector('[name="delivery_type"]').value = editButton.dataset.delivery_type || '';
+      form.querySelector('[name="status"]').value = editButton.dataset.status || '1';
+      form.querySelector('[name="room"]').value = editButton.dataset.room || '';
+      form.querySelector('[name="remarks"]').value = editButton.dataset.remarks || '';
+
+      form.querySelector('[name="course_id"]').dispatchEvent(new Event('change'));
+      form.querySelector('[name="faculty_id"]').dispatchEvent(new Event('change'));
+
+      submitBtn.textContent = 'Update Assignment';
+      formTitle.textContent = 'Edit Teaching Assignment';
+      cancelEditBtn.style.display = 'inline-block';
+      window.scrollTo({
+        top: form.offsetTop - 80,
+        behavior: 'smooth'
+      });
+    });
+
+    cancelEditBtn.addEventListener('click', function() {
+      resetInlineForm();
+    });
+
+    form.addEventListener('submit', submitForm);
+  })();
+</script>
+
+@include('includes.footer')

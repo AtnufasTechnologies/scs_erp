@@ -56,7 +56,13 @@ if ($subjectId) {
 
   <a href="{{route('department.faculty.list',[$data->id])}}">
     <div class="sidebar-icon" title="Faculty" data-bs-toggle="tooltip" data-bs-placement="right" data-bs-title="Faculty">
-      <i class="fas fa-chalkboard-teacher fa-lg"></i>
+      <i class="fas fa-user fa-lg"></i>
+    </div>
+  </a>
+
+  <a href="{{route('department.teaching.assignment',[$data->id,$data->slug])}}">
+    <div class="sidebar-icon" title="Teaching Assignment" data-bs-toggle="tooltip" data-bs-placement="right" data-bs-title="Teaching Assignment">
+      <i class="fas fa-user-chart fa-lg"></i>
     </div>
   </a>
 

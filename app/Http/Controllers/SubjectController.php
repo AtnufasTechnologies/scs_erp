@@ -40,6 +40,7 @@ use App\Models\ExamSystem\Result;
 use App\Models\SubjectHasStudentProgam;
 use App\Models\SubjectHasSyllabus;
 use App\Models\SubjectTypeMaster;
+use App\Models\TeachingAssignment;
 use App\Models\SyllabusHasFaculty;
 use App\Models\CourseSeatAllocation;
 use App\Models\ProgramWiseSemesterCourse;
@@ -3092,6 +3093,247 @@ class SubjectController extends Controller
             'marked_students' => $lockedStudents,
             'can_delete' => $lockedStudents === 0,
             'student_ids' => $studentIds,
+        ];
+    }
+
+    function teachingAssignment($id, $slug)
+    {
+        $subjectInfo = Subject::find($id);
+        if (!$subjectInfo) {
+            return redirect()->route('department.dashboard')->with('error', 'Department not found.');
+        }
+
+        $courses = SubjectCourseMaster::where('subject_id', $subjectInfo->id)
+            ->with('courseMaster:id,course_code,course_title')
+            ->get();
+
+        $faculties = SubjectFacultyMaster::where('subject_id', $subjectInfo->id)
+            ->with('faculty:id,USER_CODE,FIRST_NAME,LAST_NAME')
+            ->get();
+
+        $assignments = TeachingAssignment::where('subject_id', $subjectInfo->id)
+            ->with([
+                'course:id,course_code,course_title',
+                'faculty:id,USER_CODE,FIRST_NAME,LAST_NAME',
+            ])
+            ->latest()
+            ->get();
+
+        return view('admin.subject.teaching.index', [
+            'subject' => $subjectInfo,
+            'courses' => $courses,
+            'faculties' => $faculties,
+            'assignments' => $assignments,
+        ]);
+    }
+
+    function storeTeachingAssignment(Request $request, $subjectId)
+    {
+        $subject = Subject::find($subjectId);
+        if (!$subject) {
+            if ($request->expectsJson()) {
+                return response()->json(['message' => 'Department not found.'], 404);
+            }
+            return redirect()->back()->with('error', 'Department not found.');
+        }
+
+        $validated = $request->validate([
+            'course_id' => 'required|integer|exists:program_course_masters,id',
+            'faculty_id' => 'required|integer|exists:faculties,id',
+            'delivery_type' => 'required|string|max:100',
+            'status' => 'required|in:0,1',
+            'room' => 'nullable|string|max:255',
+            'remarks' => 'nullable|string',
+        ]);
+
+        $isCourseMapped = SubjectCourseMaster::where('subject_id', $subject->id)
+            ->where('course_master_id', $validated['course_id'])
+            ->exists();
+
+        if (!$isCourseMapped) {
+            if ($request->expectsJson()) {
+                return response()->json(['message' => 'Selected course is not mapped to this department.'], 422);
+            }
+            return redirect()->back()->with('error', 'Selected course is not mapped to this department.');
+        }
+
+        $isFacultyMapped = SubjectFacultyMaster::where('subject_id', $subject->id)
+            ->where('faculty_id', $validated['faculty_id'])
+            ->exists();
+
+        if (!$isFacultyMapped) {
+            if ($request->expectsJson()) {
+                return response()->json(['message' => 'Selected faculty is not mapped to this department.'], 422);
+            }
+            return redirect()->back()->with('error', 'Selected faculty is not mapped to this department.');
+        }
+
+        $duplicateExists = TeachingAssignment::where('subject_id', $subject->id)
+            ->where('course_id', $validated['course_id'])
+            ->where('faculty_id', $validated['faculty_id'])
+            ->where('delivery_type', $validated['delivery_type'])
+            ->exists();
+
+        if ($duplicateExists) {
+            if ($request->expectsJson()) {
+                return response()->json(['message' => 'Duplicate entry: this course, faculty and delivery type already exists.'], 422);
+            }
+            return redirect()->back()->with('error', 'Duplicate entry: this course, faculty and delivery type already exists.');
+        }
+
+        $lastGroup = TeachingAssignment::where('subject_id', $subject->id)
+            ->where('course_id', $validated['course_id'])
+            ->where('delivery_type', $validated['delivery_type'])
+            ->max('allocation_group');
+
+        $nextAllocationGroup = ((int) $lastGroup) + 1;
+
+        $assignment = TeachingAssignment::create([
+            'subject_id' => $subject->id,
+            'course_id' => $validated['course_id'],
+            'delivery_type' => $validated['delivery_type'],
+            'faculty_id' => $validated['faculty_id'],
+            'allocation_group' => $nextAllocationGroup,
+            'is_active' => (int) $validated['status'],
+            'room' => $validated['room'] ?? '',
+            'remarks' => $validated['remarks'] ?? '',
+        ]);
+
+        $assignment->load([
+            'course:id,course_code,course_title',
+            'faculty:id,USER_CODE,FIRST_NAME,LAST_NAME',
+        ]);
+
+        if ($request->expectsJson()) {
+            return response()->json([
+                'message' => 'Teaching assignment created successfully.',
+                'assignment' => $this->serializeTeachingAssignment($assignment),
+            ], 201);
+        }
+
+        return redirect()->back()->with('success', 'Teaching assignment created successfully.');
+    }
+
+    function updateTeachingAssignment(Request $request, $id)
+    {
+        $assignment = TeachingAssignment::find($id);
+        if (!$assignment) {
+            if ($request->expectsJson()) {
+                return response()->json(['message' => 'Teaching assignment not found.'], 404);
+            }
+            return redirect()->back()->with('error', 'Teaching assignment not found.');
+        }
+
+        $validated = $request->validate([
+            'course_id' => 'required|integer|exists:program_course_masters,id',
+            'faculty_id' => 'required|integer|exists:faculties,id',
+            'delivery_type' => 'required|string|max:100',
+            'status' => 'required|in:0,1',
+            'room' => 'nullable|string|max:255',
+            'remarks' => 'nullable|string',
+        ]);
+
+        $isCourseMapped = SubjectCourseMaster::where('subject_id', $assignment->subject_id)
+            ->where('course_master_id', $validated['course_id'])
+            ->exists();
+
+        if (!$isCourseMapped) {
+            if ($request->expectsJson()) {
+                return response()->json(['message' => 'Selected course is not mapped to this department.'], 422);
+            }
+            return redirect()->back()->with('error', 'Selected course is not mapped to this department.');
+        }
+
+        $isFacultyMapped = SubjectFacultyMaster::where('subject_id', $assignment->subject_id)
+            ->where('faculty_id', $validated['faculty_id'])
+            ->exists();
+
+        if (!$isFacultyMapped) {
+            if ($request->expectsJson()) {
+                return response()->json(['message' => 'Selected faculty is not mapped to this department.'], 422);
+            }
+            return redirect()->back()->with('error', 'Selected faculty is not mapped to this department.');
+        }
+
+        $duplicateExists = TeachingAssignment::where('subject_id', $assignment->subject_id)
+            ->where('course_id', $validated['course_id'])
+            ->where('faculty_id', $validated['faculty_id'])
+            ->where('delivery_type', $validated['delivery_type'])
+            ->where('id', '!=', $assignment->id)
+            ->exists();
+
+        if ($duplicateExists) {
+            if ($request->expectsJson()) {
+                return response()->json(['message' => 'Duplicate entry: this course, faculty and delivery type already exists.'], 422);
+            }
+            return redirect()->back()->with('error', 'Duplicate entry: this course, faculty and delivery type already exists.');
+        }
+
+        $combinationChanged =
+            (int) $assignment->course_id !== (int) $validated['course_id'] ||
+            (int) $assignment->faculty_id !== (int) $validated['faculty_id'] ||
+            (string) $assignment->delivery_type !== (string) $validated['delivery_type'];
+
+        if ($combinationChanged) {
+            $lastGroup = TeachingAssignment::where('subject_id', $assignment->subject_id)
+                ->where('course_id', $validated['course_id'])
+                ->where('delivery_type', $validated['delivery_type'])
+                ->where('id', '!=', $assignment->id)
+                ->max('allocation_group');
+            $assignment->allocation_group = ((int) $lastGroup) + 1;
+        }
+
+        $assignment->course_id = $validated['course_id'];
+        $assignment->faculty_id = $validated['faculty_id'];
+        $assignment->delivery_type = $validated['delivery_type'];
+        $assignment->is_active = (int) $validated['status'];
+        $assignment->room = $validated['room'] ?? '';
+        $assignment->remarks = $validated['remarks'] ?? '';
+        $assignment->save();
+
+        $assignment->load([
+            'course:id,course_code,course_title',
+            'faculty:id,USER_CODE,FIRST_NAME,LAST_NAME',
+        ]);
+
+        if ($request->expectsJson()) {
+            return response()->json([
+                'message' => 'Teaching assignment updated successfully.',
+                'assignment' => $this->serializeTeachingAssignment($assignment),
+            ]);
+        }
+
+        return redirect()->back()->with('success', 'Teaching assignment updated successfully.');
+    }
+
+    function deleteTeachingAssignment($id)
+    {
+        $assignment = TeachingAssignment::find($id);
+        if (!$assignment) {
+            return redirect()->back()->with('error', 'Teaching assignment not found.');
+        }
+
+        $assignment->delete();
+        return redirect()->back()->with('success', 'Teaching assignment deleted successfully.');
+    }
+
+    private function serializeTeachingAssignment(TeachingAssignment $assignment): array
+    {
+        return [
+            'id' => $assignment->id,
+            'course_text' => trim(($assignment->course->course_code ?? '-') . ' - ' . ($assignment->course->course_title ?? '-')),
+            'faculty_text' => trim(($assignment->faculty->USER_CODE ?? '-') . ' - ' . ($assignment->faculty->FIRST_NAME ?? '-') . ' ' . ($assignment->faculty->LAST_NAME ?? '')),
+            'delivery_type' => $assignment->delivery_type,
+            'allocation_group' => $assignment->allocation_group,
+            'allocation_group_label' => $assignment->allocation_group_label,
+            'is_active' => (int) $assignment->is_active,
+            'status_label' => (int) $assignment->is_active === 1 ? 'Active' : 'Inactive',
+            'room' => $assignment->room ?: '-',
+            'remarks' => $assignment->remarks ?: '-',
+            'room_raw' => $assignment->room ?? '',
+            'remarks_raw' => $assignment->remarks ?? '',
+            'course_id' => $assignment->course_id,
+            'faculty_id' => $assignment->faculty_id,
         ];
     }
 }

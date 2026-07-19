@@ -124,9 +124,12 @@ if (!empty($deptFacultyIds)) {
         <div class="stats-card gradient-yellow">
           <div class="d-flex justify-content-between align-items-start">
             <div>
-              <div style="font-size: 14px; opacity: 0.9; margin-bottom: 8px;">Faculty Members</div>
-              <div style="font-size: 36px; font-weight: 700;">{{ count($deptfaculties) ?? 0 }}</div>
-              <div style="opacity: 0.9; font-size: 13px;">Active</div>
+              <div style="font-size: 14px; opacity: 0.9; margin-bottom: 8px;">Faculty Allocation</div>
+              <div style="font-size: 36px; font-weight: 700;"> {{ count($deptfaculties) ?? 0 }}</div>
+
+              <div style="opacity: 0.9; font-size: 13px;">
+                <a href="" style="color: white; opacity: 0.9; font-size: 13px; text-decoration: none;">Allocate Now →</a>
+              </div>
             </div>
             <div style="width: 56px; height: 56px; background: rgba(255, 255, 255, 0.2); border-radius: 14px; display: flex; align-items: center; justify-content: center;">
               <i class="fas fa-chalkboard-teacher" style="font-size: 28px;"></i>
