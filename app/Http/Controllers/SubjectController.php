@@ -44,6 +44,7 @@ use App\Models\TeachingAssignment;
 use App\Models\SyllabusHasFaculty;
 use App\Models\CourseSeatAllocation;
 use App\Models\ProgramWiseSemesterCourse;
+use App\Models\SpecializationMaster;
 use App\Models\StdProgComboMap;
 use App\Models\SubunitHasRbt;
 use App\Models\SyllabusPdfUpload;
@@ -3335,5 +3336,51 @@ class SubjectController extends Controller
             'course_id' => $assignment->course_id,
             'faculty_id' => $assignment->faculty_id,
         ];
+    }
+
+    function mySpecializations(int $id, $slug)
+    {
+        $subject = Subject::find($id);
+        $data = SpecializationMaster::where('subject_id', $id)->latest()->get();
+        return view('admin.subject.specialization', ['data' => $data, 'subject' => $subject]);
+    }
+
+    function storeMySpecialization(Request $request)
+    {
+        $request->validate([
+            'name' => 'required|max:255',
+            'subject_id' => 'required|integer|exists:subjects,id',
+            'status' => 'required|in:0,1',
+        ]);
+
+        SpecializationMaster::create([
+            'subject_id' => $request->subject_id,
+            'slug' => Str::slug($request->name),
+            'name' => $request->name,
+            'is_active' => (int) $request->status,
+        ]);
+
+        return redirect()->back()->with('success', 'Created');
+    }
+
+    function updateMySpecialization(Request $request, int $id)
+    {
+        $request->validate([
+            'name' => 'required|max:255',
+            'status' => 'required|in:0,1',
+        ]);
+
+        $specialization = SpecializationMaster::find($id);
+        if (!$specialization) {
+            return redirect()->back()->with('error', 'Specialization not found.');
+        }
+
+        $specialization->update([
+            'slug' => Str::slug($request->name),
+            'name' => $request->name,
+            'is_active' => (int) $request->status,
+        ]);
+
+        return redirect()->back()->with('success', 'Updated successfully.');
     }
 }

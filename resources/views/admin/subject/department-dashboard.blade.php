@@ -58,37 +58,105 @@ if (!empty($deptFacultyIds)) {
     scrollbar-width: thin;
     scrollbar-color: #667eea #f1f1f1;
   }
+
+  .quick-scroll-row {
+    display: flex;
+    gap: 16px;
+    overflow-x: auto;
+    overflow-y: hidden;
+    padding: 4px 4px 12px;
+    scroll-snap-type: x proximity;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .quick-scroll-row .quick-item {
+    flex: 0 0 clamp(220px, 24vw, 280px);
+    min-width: 220px;
+    scroll-snap-align: start;
+  }
+
+  .quick-scroll-row .stats-card,
+  .quick-scroll-row .action-card {
+    height: 100%;
+  }
+
+  .quick-scroll-row::-webkit-scrollbar {
+    height: 8px;
+  }
+
+  .quick-scroll-row::-webkit-scrollbar-thumb {
+    background: #cbd5e1;
+    border-radius: 999px;
+  }
+
+  @media (max-width: 768px) {
+    .quick-scroll-row .quick-item {
+      flex-basis: 78vw;
+      min-width: 78vw;
+    }
+  }
 </style>
 
 <!-- Main Content -->
 <div class="main-content">
-  <!-- Welcome Header -->
-  <div class="welcome-header d-flex justify-content-between align-items-center" style="background: linear-gradient(135deg, #e9e9e9 40%, #7c3aed 100%)">
-    <div>
-      <h2 class="mb-1" style="color: #1a1a1a; font-weight: 700;">Hello, {{ Auth::user()->name ?? 'User' }} 👋</h2>
-      <p class="mb-0" style="color: #6b7280;">Nice to have you back, what an exciting day!</p>
-      <p class="mb-0 mt-2" style="color: #6b7280;">Get ready and continue your work today.</p>
-    </div>
-    <div class="d-flex align-items-center gap-4">
-      <div class="xp-badge">
-        <div class="xp-coin">
-          <i class="fas fa-bell me-1" style="color: #322709; font-size: 18px;"></i>
+  @php
+  $notificationCount = count($upcomingActivities ?? []);
+  @endphp
 
-        </div>
-        <div>
-          <div style="font-size: 24px; font-weight: 700; color: #1a1a1a;">5 </div>
-          <div style="font-size: 12px; color: #6b7280;">Notifications</div>
-        </div>
+  <nav class="navbar navbar-expand-lg bg-white border rounded-3 shadow-sm px-3 py-2 mb-3">
+    <div class="container-fluid px-0">
+      <a class="navbar-brand fw-bold" href="#" style="color: #1f2937;">
+        {{ $data->title ?? 'Department Dashboard' }}
+      </a>
+
+      <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#deptNavbar" aria-controls="deptNavbar" aria-expanded="false" aria-label="Toggle navigation">
+        <span class="navbar-toggler-icon"></span>
+      </button>
+
+      <div class="collapse navbar-collapse" id="deptNavbar">
+        <ul class="navbar-nav ms-auto align-items-lg-center gap-lg-2 mt-2 mt-lg-0">
+
+          <li class="nav-item dropdown">
+            <a class="nav-link position-relative" href="#" role="button" data-bs-toggle="dropdown" aria-expanded="false">
+              <i class="fas fa-bell fs-5 text-dark"></i>
+              @if($notificationCount > 0)
+              <span class="position-absolute top-0 start-100 translate-middle badge rounded-pill bg-danger">
+                {{ $notificationCount }}
+              </span>
+              @endif
+            </a>
+            <ul class="dropdown-menu dropdown-menu-end shadow-sm" style="min-width: 300px;">
+              <li class="dropdown-header fw-bold d-flex justify-content-between align-items-center">
+                <span>Notifications</span>
+                @if($notificationCount > 0)
+                <span class="badge bg-primary">{{ $notificationCount }}</span>
+                @endif
+              </li>
+              @if($notificationCount > 0)
+              <li>
+                <a class="dropdown-item d-flex justify-content-between" href="{{ route('department.activities.index', [$data->id]) }}">
+                  Upcoming Activities
+                  <span class="badge bg-primary">{{ $notificationCount }}</span>
+                </a>
+              </li>
+              @else
+              <li><span class="dropdown-item-text text-muted">No new notifications</span></li>
+              @endif
+              <li><a class="dropdown-item" href="{{ route('department.substitution.history.page') }}">Substitution History</a></li>
+              <li><a class="dropdown-item" href="{{ route('department.admission.list') }}">Admission Applications</a></li>
+            </ul>
+          </li>
+        </ul>
       </div>
     </div>
-  </div>
+  </nav>
 
 
 
   <div class="row g-4">
-    <div class="row">
+    <div class="quick-scroll-row">
       <!-- Quick Stats -->
-      <div class="col-md-2">
+      <div class="quick-item">
         <div class="stats-card gradient-green">
           <div class="d-flex justify-content-between align-items-start">
             <div>
@@ -103,8 +171,8 @@ if (!empty($deptFacultyIds)) {
         </div>
       </div>
 
-      <div class="col-md-2">
-        <div class="stats-card gradient-red">
+      <div class="quick-item">
+        <div class="stats-card gradient-green">
           <div class="d-flex justify-content-between align-items-start">
             <div>
               <div style="font-size: 14px; opacity: 0.9; margin-bottom: 8px;">Syllabus </div>
@@ -120,26 +188,47 @@ if (!empty($deptFacultyIds)) {
         </div>
       </div>
 
-      <div class="col-md-2">
-        <div class="stats-card gradient-yellow">
+      <div class="quick-item">
+
+        <div class="stats-card gradient-green">
           <div class="d-flex justify-content-between align-items-start">
             <div>
-              <div style="font-size: 14px; opacity: 0.9; margin-bottom: 8px;">Faculty Allocation</div>
-              <div style="font-size: 36px; font-weight: 700;"> {{ count($deptfaculties) ?? 0 }}</div>
+              <div style="font-size: 14px; opacity: 0.9; margin-bottom: 8px;">Faculty</div>
+              <div style="font-size: 36px; font-weight: 700;">{{count($deptfaculties)}} </div>
+
 
               <div style="opacity: 0.9; font-size: 13px;">
-                <a href="" style="color: white; opacity: 0.9; font-size: 13px; text-decoration: none;">Allocate Now →</a>
+                <a href="{{ route('department.faculty.access', [$data->id,$data->slug]) }}" style="color: white; opacity: 0.9; font-size: 13px; text-decoration: none;">Manage →</a>
               </div>
             </div>
+
             <div style="width: 56px; height: 56px; background: rgba(255, 255, 255, 0.2); border-radius: 14px; display: flex; align-items: center; justify-content: center;">
               <i class="fas fa-chalkboard-teacher" style="font-size: 28px;"></i>
             </div>
+
+          </div>
+        </div>
+
+      </div>
+
+      <div class="quick-item">
+        <div class="stats-card gradient-green">
+          <div class="d-flex justify-content-between align-items-start">
+            <div>
+              <div style="font-size: 14px; opacity: 0.9; margin-bottom: 8px;">Program</div>
+              <div style="font-size: 36px; font-weight: 700;">Specialization </div>
+
+              <div style="opacity: 0.9; font-size: 13px;">
+                <a href="{{route('department.specialization.master',[ $data->id, $data->title])}}" style="color: white; opacity: 0.9; font-size: 13px; text-decoration: none;">Manage →</a>
+              </div>
+            </div>
+
           </div>
         </div>
       </div>
 
-      <div class="col-md-2">
-        <div class="stats-card gradient-purple">
+      <div class="quick-item">
+        <div class="stats-card gradient-green">
           <div class="d-flex justify-content-between align-items-start">
             <div>
               <div style="font-size: 14px; opacity: 0.9; margin-bottom: 8px;">Time Table</div>
@@ -154,34 +243,38 @@ if (!empty($deptFacultyIds)) {
           </div>
         </div>
       </div>
-      <div class="col-md-2">
-        <a href="{{ route('department.substitution', [$data->id]) }}" style="text-decoration: none;">
-          <div class="action-card gradient-orange">
-            <div class="action-card-icon">
-              <i class="fas fa-exchange-alt"></i>
-            </div>
-            <div>
-              <h6 class="mb-1" style="font-weight: 700;">Manage Substitution</h6>
-              <p class="mb-0" style="font-size: 13px; opacity: 0.9;">Get a reminder to help with your studying process.</p>
-            </div>
-            <div class="mt-2">
-              <a href="{{ route('department.substitution.history.page') }}" style="color: white; font-size: 13px; opacity: 0.9;">View History →</a>
-            </div>
+      <div class="quick-item">
+
+        <div class="action-card gradient-green">
+          <div class="action-card-icon">
+            <i class="fas fa-exchange-alt"></i>
           </div>
-        </a>
+          <div>
+            <a href="{{ route('department.substitution', [$data->id]) }}" style="color:yellow;">
+              <h6 class="mb-1" style="font-weight: 700;">Manage Substitution</h6>
+            </a>
+            <p class="mb-0" style="font-size: 13px; opacity: 0.9;">Get a reminder to help with your studying process.</p>
+          </div>
+
+          <div class="mt-2">
+            <a href="{{ route('department.substitution.history.page') }}" style="color:yellow; font-size: 13px; font-weight:bold">
+              View Substitution History →</a>
+          </div>
+        </div>
+
       </div>
 
-      <div class="col-md-2">
+      <div class="quick-item">
         <a href="{{route('department.admission.list')}}" style="text-decoration: none;">
-          <div class="action-card gradient-pink">
+          <div class="action-card gradient-green">
             <div class="action-card-icon">
               <i class="fas fa-certificate"></i>
             </div>
             <div>
               <h6 class="mb-1" style="font-weight: 700;">Admission Portal</h6>
-              <p class="mb-0" style="font-size: 13px; opacity: 0.9;">Set targets, see reminders, analyze your study habits.</p>
+              <p class="mb-0" style="font-size: 13px; opacity: 0.9;">Stay updated with registrations and applications</p>
             </div>
-            <div class="mt-2" style="font-size: 13px; opacity: 0.9;">View Applications →</div>
+            <div class="mt-2" style="font-size: 13px; opacity: 0.9;">View Now →</div>
           </div>
         </a>
       </div>

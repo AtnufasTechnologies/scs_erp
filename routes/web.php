@@ -895,6 +895,11 @@ Route::group(['prefix' => '/erp'], function () {
         Route::post('teaching-assignment/{subjectId}', [SubjectController::class, 'storeTeachingAssignment'])->name('department.teaching.assignment.store');
         Route::put('teaching-assignment/{id}', [SubjectController::class, 'updateTeachingAssignment'])->name('department.teaching.assignment.update');
         Route::delete('teaching-assignment/{id}', [SubjectController::class, 'deleteTeachingAssignment'])->name('department.teaching.assignment.delete');
+
+        //Specialization
+        Route::get('my-specializations/{id}/{slug}', [SubjectController::class, 'mySpecializations'])->name('department.specialization.master');
+        Route::post('store-my-specialization', [SubjectController::class, 'storeMySpecialization'])->name('department.store.specialization');
+        Route::put('update-my-specialization/{id}', [SubjectController::class, 'updateMySpecialization'])->name('department.update.specialization');
     });
     // ========================================================
     // Faculty routes
