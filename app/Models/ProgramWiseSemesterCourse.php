@@ -40,12 +40,17 @@ class ProgramWiseSemesterCourse extends Model
         'degree_track_id',
         'course_type',
         'delivery_category',
+        'specialization_mode',
+        'specialization_master_id',
+        'specialization_master_ids',
         'display_order',
         'is_active',
     ];
 
     protected $casts = [
         'offering_dept' => 'integer',
+        'specialization_master_id' => 'integer',
+        'specialization_master_ids' => 'array',
         'display_order' => 'integer',
         'is_active' => 'boolean',
     ];
@@ -63,5 +68,10 @@ class ProgramWiseSemesterCourse extends Model
     function programinfo()
     {
         return $this->hasOne(ProgramCourseMaster::class, 'id', 'course_id');
+    }
+
+    function specializationmaster()
+    {
+        return $this->hasOne(SpecializationMaster::class, 'id', 'specialization_master_id');
     }
 }

@@ -780,6 +780,7 @@ Route::group(['prefix' => '/erp'], function () {
         Route::get('delete-semester/{id}', [SubjectController::class, 'deleteSemesterFromSubject'])->name('department.delete.subject.semester');
         Route::post('add-faculty-master', [SubjectController::class, 'addFacultyMasterToSubject'])->name('dept.add.faculty.master');
         Route::put('combination-update/{id}', [SubjectController::class, 'updateCombination'])->name('department.combination.update');
+        Route::put('combination-specializations/{id}', [SubjectController::class, 'updateCombinationSpecializations'])->name('department.combination.specializations.update');
         // Course Objectives
         Route::get('course/{id}/cso', [SubjectController::class, 'viewCourseSpecificObjective'])->name('department.view.cso');
         Route::get('course/{id}/cso-list', [SubjectController::class, 'getCsoListForCourse'])->name('department.get.cso.list');

@@ -4,6 +4,7 @@ use App\Models\AcademicPathwayMaster;
 use App\Models\DegreeTrackMaster;
 use App\Models\ProgramCourseMaster;
 use App\Models\Semester;
+use App\Models\SpecializationMaster;
 
 $semesters = Semester::all();
 $papers = ProgramCourseMaster::all();
@@ -22,6 +23,24 @@ $generatedCourses = collect($generatedCourses ?? []);
 $pageData = $data ?? null;
 $combo1DepartmentId = (int) (($comboBoundary['combo1'] ?? null) ?? optional(optional($pageData)->combomap)->combo_id_1 ?? optional($pageData)->subject_id ?? 0);
 $combo2DepartmentId = (int) (($comboBoundary['combo2'] ?? null) ?? optional(optional($pageData)->combomap)->combo_id_2 ?? 0);
+$isSingleMajorCourse = $combo1DepartmentId > 0 && $combo1DepartmentId === $combo2DepartmentId;
+$combinationSpecializationIds = collect(optional($pageData)->specialization_ids ?? [])->map(fn($id) => (int) $id)->filter()->unique()->values();
+$availableSpecializations = collect();
+if ($isSingleMajorCourse) {
+  $availableSpecializations = SpecializationMaster::query()
+    ->where('subject_id', (int) (optional($pageData)->subject_id ?? 0))
+    ->where('is_active', 1)
+    ->when($combinationSpecializationIds->isNotEmpty(), fn($query) => $query->whereIn('id', $combinationSpecializationIds->all()))
+    ->orderBy('name')
+    ->get(['id', 'name']);
+}
+$availableSpecializationsPayload = $availableSpecializations->map(function ($specialization) {
+  return [
+    'id' => (int) $specialization->id,
+    'name' => (string) $specialization->name,
+  ];
+})->values();
+$availableSpecializationsNameMap = $availableSpecializations->pluck('name', 'id');
 $typeLabelMap = [
   'AUTO' => 'Compulsory',
   'STUDENT_CHOICE' => 'Elective',
@@ -372,6 +391,10 @@ $typeLabelMap = [
                     <th>Course Type</th>
                     <th style="width:150px;">Delivery Preview</th>
                     <th style="width:190px;">Mark As</th>
+                    @if($isSingleMajorCourse)
+                    <th style="width:180px;">Apply As</th>
+                    <th style="width:220px;">Specialization</th>
+                    @endif
                   </tr>
                 </thead>
                 <tbody id="generatedCoursesTbody">
@@ -428,6 +451,22 @@ $typeLabelMap = [
                         <option value="STUDENT_CHOICE" selected>Elective</option>
                       </select>
                     </td>
+                    @if($isSingleMajorCourse)
+                    <td>
+                      <select name="specialization_mode_map[{{$courseId}}]" class="form-control form-control-sm specialization-mode-selector" disabled>
+                        <option value="COMMON" selected>Common</option>
+                        <option value="SPECIALIZATION">Specialization</option>
+                      </select>
+                    </td>
+                    <td>
+                      <select name="specialization_ids_map[{{$courseId}}][]" class="form-control form-control-sm specialization-selector select-multiple d-none" multiple size="4" disabled>
+                        <option value="">Select specialization</option>
+                        @foreach($availableSpecializations as $specialization)
+                        <option value="{{$specialization->id}}">{{$specialization->name}}</option>
+                        @endforeach
+                      </select>
+                    </td>
+                    @endif
                   </tr>
                   @endforeach
                 </tbody>
@@ -469,6 +508,9 @@ $typeLabelMap = [
                 <th>Title</th>
                 <th style="width:180px">Type</th>
                 <th style="width:170px">Delivery Category</th>
+                @if($isSingleMajorCourse)
+                <th style="width:220px">Specialization</th>
+                @endif
                 <th>Pathway/Track</th>
                 <th style="width:110px">Order</th>
                 <th style="width:110px">Status</th>
@@ -484,6 +526,20 @@ $typeLabelMap = [
               $deliveryCategory = (string) ($mappedCourse->delivery_category ?? '');
               $deliveryLabel = $deliveryCategory !== '' ? strtoupper(str_replace('_', ' ', $deliveryCategory)) : 'NOT DERIVED';
               $deliveryBadgeClass = in_array($deliveryCategory, ['CORE-A', 'major_combo1'], true) ? 'bg-primary' : (in_array($deliveryCategory, ['CORE-B', 'major_combo2'], true) ? 'bg-info text-dark' : (in_array($deliveryCategory, ['COMMON', 'programme_common'], true) ? 'bg-success' : (in_array($deliveryCategory, ['MDC', 'open_choice'], true) ? 'bg-warning text-dark' : 'bg-secondary')));
+              $specializationMode = strtoupper((string) ($mappedCourse->specialization_mode ?? 'COMMON'));
+              $specializationLabelClass = $specializationMode === 'SPECIALIZATION' ? 'bg-warning text-dark' : 'bg-secondary';
+              $selectedSpecializationIds = collect((array) ($mappedCourse->specialization_master_ids ?? []))
+              ->map(fn($id) => (int) $id)
+              ->filter()
+              ->unique()
+              ->values();
+              if ($selectedSpecializationIds->isEmpty() && !empty($mappedCourse->specialization_master_id)) {
+              $selectedSpecializationIds = collect([(int) $mappedCourse->specialization_master_id]);
+              }
+              $selectedSpecializationNames = $selectedSpecializationIds
+              ->map(fn($id) => $availableSpecializationsNameMap[$id] ?? null)
+              ->filter()
+              ->values();
               $pathwayText = $mappedCourse->academic_pathway_id ? ($pathwayNameMap[$mappedCourse->academic_pathway_id] ?? ('Pathway #' . $mappedCourse->academic_pathway_id)) : 'All Pathways';
               $trackText = $mappedCourse->degree_track_id ? ($trackNameMap[$mappedCourse->degree_track_id] ?? ('Track #' . $mappedCourse->degree_track_id)) : 'All Tracks';
               @endphp
@@ -500,6 +556,18 @@ $typeLabelMap = [
                 <td>
                   <span class="badge {{ $deliveryBadgeClass }}">{{ $deliveryLabel }}</span>
                 </td>
+                @if($isSingleMajorCourse)
+                <td>
+                  <span class="badge {{ $specializationLabelClass }}">{{ $specializationMode === 'SPECIALIZATION' ? 'Specialization' : 'Common' }}</span>
+                  @if($specializationMode === 'SPECIALIZATION' && $selectedSpecializationNames->isNotEmpty())
+                  <div class="mt-1 d-flex gap-1 flex-wrap">
+                    @foreach($selectedSpecializationNames as $specName)
+                    <span class="badge bg-light text-dark">{{ $specName }}</span>
+                    @endforeach
+                  </div>
+                  @endif
+                </td>
+                @endif
                 <td>
                   <div class="small"><strong>{{ $pathwayText }}</strong></div>
                   <div class="small text-muted">{{ $trackText }}</div>
@@ -596,6 +664,35 @@ $typeLabelMap = [
                               <label class="form-check-label" for="isActive{{$mappedCourse->id}}">Active mapping</label>
                             </div>
                           </div>
+                          @if($isSingleMajorCourse)
+                          @php
+                          $editSpecializationMode = strtoupper((string) ($mappedCourse->specialization_mode ?? 'COMMON'));
+                          $editSelectedSpecializationIds = collect((array) ($mappedCourse->specialization_master_ids ?? []))
+                          ->map(fn($id) => (int) $id)
+                          ->filter()
+                          ->unique()
+                          ->values();
+                          if ($editSelectedSpecializationIds->isEmpty() && !empty($mappedCourse->specialization_master_id)) {
+                          $editSelectedSpecializationIds = collect([(int) $mappedCourse->specialization_master_id]);
+                          }
+                          @endphp
+                          <div class="col-md-6">
+                            <label class="form-label">Apply As</label>
+                            <select name="specialization_mode" class="form-control edit-specialization-mode" data-target="#edit-specialization-select-{{$mappedCourse->id}}">
+                              <option value="COMMON" {{$editSpecializationMode === 'COMMON' ? 'selected' : ''}}>Common</option>
+                              <option value="SPECIALIZATION" {{$editSpecializationMode === 'SPECIALIZATION' ? 'selected' : ''}}>Specialization</option>
+                            </select>
+                          </div>
+                          <div class="col-md-6">
+                            <label class="form-label">Specialization</label>
+                            <select id="edit-specialization-select-{{$mappedCourse->id}}" name="specialization_master_ids[]" class="form-control specialization-selector select-multiple" multiple size="4" {{$editSpecializationMode === 'SPECIALIZATION' ? '' : 'disabled'}}>
+                              <option value="">Select specialization</option>
+                              @foreach($availableSpecializations as $specialization)
+                              <option value="{{$specialization->id}}" {{$editSelectedSpecializationIds->contains((int) $specialization->id) ? 'selected' : ''}}>{{$specialization->name}}</option>
+                              @endforeach
+                            </select>
+                          </div>
+                          @endif
                         </div>
                       </div>
                       <div class="modal-footer">
@@ -630,6 +727,8 @@ $typeLabelMap = [
     const orderUrl = "{{ route('update.program.semster.courses.order') }}";
     let combo1DepartmentId = Number('{{ $combo1DepartmentId }}');
     let combo2DepartmentId = Number('{{ $combo2DepartmentId }}');
+    let isSingleMajorCourse = combo1DepartmentId > 0 && combo1DepartmentId === combo2DepartmentId;
+    const availableSpecializations = @json($availableSpecializationsPayload);
     const generateForm = document.getElementById('curriculumGenerateForm');
     const generateFeedback = document.getElementById('curriculumGenerateFeedback');
     const generatedCoursesTbody = document.getElementById('generatedCoursesTbody');
@@ -640,6 +739,23 @@ $typeLabelMap = [
     const mappingFeedback = document.getElementById('curriculumMappingFeedback');
     const toastElement = document.getElementById('curriculumToast');
     const toastBodyElement = document.getElementById('curriculumToastBody');
+
+    function initSpecializationMultiSelect(scopeElement) {
+      if (!window.jQuery || typeof jQuery.fn.bsMultiSelect === 'undefined') {
+        return;
+      }
+
+      const scope = scopeElement || document;
+      scope.querySelectorAll('select.specialization-selector').forEach((selectEl) => {
+        const $select = jQuery(selectEl);
+        try {
+          $select.bsMultiSelect('Dispose');
+        } catch (e) {
+          // Ignore if plugin has not been initialized yet.
+        }
+        $select.bsMultiSelect();
+      });
+    }
 
     function showToast(status, message) {
       if (!toastElement || !toastBodyElement || typeof bootstrap === 'undefined') {
@@ -698,6 +814,41 @@ $typeLabelMap = [
       return 'bg-success';
     }
 
+    function specializationOptionsHtml() {
+      const options = ['<option value="">Select specialization</option>'];
+      availableSpecializations.forEach((item) => {
+        options.push('<option value="' + String(item.id) + '">' + escapeHtml(item.name) + '</option>');
+      });
+      return options.join('');
+    }
+
+    function toggleSpecializationSelector(row) {
+      if (!row) {
+        return;
+      }
+
+      const checkbox = row.querySelector('.course-selector');
+      const modeSelect = row.querySelector('.specialization-mode-selector');
+      const specializationSelect = row.querySelector('.specialization-selector');
+
+      if (!modeSelect || !specializationSelect) {
+        return;
+      }
+
+      const checked = checkbox ? checkbox.checked : false;
+      modeSelect.disabled = !checked;
+      const mode = String(modeSelect.value || 'COMMON').toUpperCase();
+      const specializationActive = checked && mode === 'SPECIALIZATION';
+
+      specializationSelect.classList.toggle('d-none', !specializationActive);
+      specializationSelect.disabled = !specializationActive;
+      specializationSelect.required = specializationActive;
+
+      if (!specializationActive) {
+        specializationSelect.value = '';
+      }
+    }
+
     function renderGeneratedDeliveryPreview() {
       document.querySelectorAll('tr.generated-course-row').forEach((row) => {
         const badge = row.querySelector('.generated-delivery-preview');
@@ -750,6 +901,10 @@ $typeLabelMap = [
         const delivery = deriveDeliveryPreview(courseTypeTitle, sourceSubjectId, course.course_type);
         const badgeClass = previewBadgeClass(delivery);
         const sourceCode = course.source_subject_code ? '<small class="text-muted">(' + escapeHtml(course.source_subject_code) + ')</small>' : '';
+        const specializationColumns = isSingleMajorCourse ?
+          '<td><select name="specialization_mode_map[' + String(courseId) + ']" class="form-control form-control-sm specialization-mode-selector" disabled><option value="COMMON" selected>Common</option><option value="SPECIALIZATION">Specialization</option></select></td>' +
+          '<td><select name="specialization_ids_map[' + String(courseId) + '][]" class="form-control form-control-sm specialization-selector select-multiple d-none" multiple size="4" disabled>' + specializationOptionsHtml() + '</select></td>' :
+          '';
 
         return '<tr class="generated-course-row" data-course-type-title="' + escapeHtml(courseTypeTitle) + '" data-course-type="' + escapeHtml(courseType) + '" data-source-subject-id="' + String(sourceSubjectId) + '">' +
           '<td><input type="checkbox" name="selected_courses[]" value="' + String(courseId) + '" class="form-check-input course-selector" data-course-id="' + String(courseId) + '"></td>' +
@@ -759,13 +914,16 @@ $typeLabelMap = [
           '<td>' + escapeHtml(course.course_type_title || 'NA') + '</td>' +
           '<td><span class="badge generated-delivery-preview ' + badgeClass + '">' + escapeHtml(delivery) + '</span><input type="hidden" name="delivery_category_map[' + String(courseId) + ']" class="delivery-category-map-input" value="' + escapeHtml(delivery) + '"></td>' +
           '<td><select name="course_type_map[' + String(courseId) + ']" class="form-control form-control-sm" disabled><option value="AUTO">Compulsory</option><option value="STUDENT_CHOICE" selected>Elective</option></select></td>' +
+          specializationColumns +
           '</tr>';
       }).join('');
 
       generatedCoursesTbody.innerHTML = rows;
+      initSpecializationMultiSelect(generatedCoursesTbody);
     }
 
     renderGeneratedDeliveryPreview();
+    initSpecializationMultiSelect(document);
 
     if (generateForm) {
       generateForm.addEventListener('submit', async function(event) {
@@ -798,6 +956,7 @@ $typeLabelMap = [
 
           combo1DepartmentId = Number(data.combo1 || combo1DepartmentId || 0);
           combo2DepartmentId = Number(data.combo2 || combo2DepartmentId || 0);
+          isSingleMajorCourse = combo1DepartmentId > 0 && combo1DepartmentId === combo2DepartmentId;
 
           if (generatedSemesterLabel) {
             generatedSemesterLabel.textContent = String(data.semester || params.get('semester') || '-');
@@ -839,6 +998,28 @@ $typeLabelMap = [
     if (mappingForm) {
       mappingForm.addEventListener('submit', async function(event) {
         event.preventDefault();
+
+        if (isSingleMajorCourse) {
+          const selectedRows = Array.from(mappingForm.querySelectorAll('tr.generated-course-row')).filter((row) => {
+            const checkbox = row.querySelector('.course-selector');
+            return checkbox && checkbox.checked;
+          });
+
+          for (const row of selectedRows) {
+            const modeSelect = row.querySelector('.specialization-mode-selector');
+            const specializationSelect = row.querySelector('.specialization-selector');
+            if (!modeSelect || !specializationSelect) {
+              continue;
+            }
+
+            const mode = String(modeSelect.value || 'COMMON').toUpperCase();
+            const selectedSpecializationValues = Array.from(specializationSelect.selectedOptions || []).map((option) => String(option.value || '')).filter((value) => value !== '');
+            if (mode === 'SPECIALIZATION' && selectedSpecializationValues.length === 0) {
+              setMappingFeedback('error', 'Please select specialization for each course marked as Specialization.');
+              return;
+            }
+          }
+        }
 
         const submitBtn = mappingForm.querySelector('button[type="submit"]');
         const originalBtnText = submitBtn ? submitBtn.textContent : '';
@@ -887,15 +1068,58 @@ $typeLabelMap = [
 
     document.addEventListener('change', function(event) {
       const checkbox = event.target.closest('.course-selector');
-      if (!checkbox) {
+      const modeSelector = event.target.closest('.specialization-mode-selector');
+      const editModeSelector = event.target.closest('.edit-specialization-mode');
+
+      if (checkbox) {
+        const row = checkbox.closest('tr');
+        const typeSelect = row ? row.querySelector('select[name^="course_type_map"]') : null;
+        if (typeSelect) {
+          typeSelect.disabled = !checkbox.checked;
+        }
+
+        toggleSpecializationSelector(row);
+        initSpecializationMultiSelect(document);
         return;
       }
 
-      const row = checkbox.closest('tr');
-      const typeSelect = row ? row.querySelector('select[name^="course_type_map"]') : null;
-      if (typeSelect) {
-        typeSelect.disabled = !checkbox.checked;
+      if (modeSelector) {
+        toggleSpecializationSelector(modeSelector.closest('tr'));
+        return;
       }
+
+      if (editModeSelector) {
+        const targetSelector = editModeSelector.getAttribute('data-target');
+        if (!targetSelector) {
+          return;
+        }
+
+        const select = document.querySelector(targetSelector);
+        if (!select) {
+          return;
+        }
+
+        const mode = String(editModeSelector.value || 'COMMON').toUpperCase();
+        const active = mode === 'SPECIALIZATION';
+        select.disabled = !active;
+        if (!active) {
+          Array.from(select.options || []).forEach((option) => {
+            option.selected = false;
+          });
+        }
+
+        initSpecializationMultiSelect(document);
+      }
+    });
+
+    document.querySelectorAll('.generated-course-row').forEach((row) => {
+      toggleSpecializationSelector(row);
+    });
+
+    document.querySelectorAll('.modal').forEach((modalEl) => {
+      modalEl.addEventListener('shown.bs.modal', function() {
+        initSpecializationMultiSelect(modalEl);
+      });
     });
 
     function setOrderStatus(semester, visible, message) {

@@ -17,6 +17,11 @@ class SubjectHasStudentProgam extends Model
         'program_type',
         'total_seats',
         'total_available_seats',
+        'specialization_ids',
+    ];
+
+    protected $casts = [
+        'specialization_ids' => 'array',
     ];
 
     function studentprograminfo()

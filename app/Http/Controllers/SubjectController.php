@@ -515,6 +515,32 @@ class SubjectController extends Controller
         return redirect()->back()->with('success', 'Combination Updated');
     }
 
+    function updateCombinationSpecializations(Request $request, $id)
+    {
+        $combination = SubjectHasStudentProgam::findOrFail($id);
+
+        $request->validate([
+            'specialization_ids' => 'nullable|array',
+            'specialization_ids.*' => [
+                'integer',
+                Rule::exists('specialization_masters', 'id')->where(function ($query) use ($combination) {
+                    $query->where('subject_id', $combination->subject_id);
+                }),
+            ],
+        ]);
+
+        $specializationIds = collect($request->input('specialization_ids', []))
+            ->map(fn($id) => (int) $id)
+            ->unique()
+            ->values()
+            ->all();
+
+        $combination->specialization_ids = $specializationIds;
+        $combination->save();
+
+        return redirect()->back()->with('success', 'Program specializations updated successfully.');
+    }
+
     function courseMaster(int $academicDeptId, $slug)
     {
         $data = Subject::find($academicDeptId);
@@ -2140,7 +2166,8 @@ class SubjectController extends Controller
         $coursesBySemester = ProgramWiseSemesterCourse::with([
             'semestermaster:id,title',
             'programinfo:id,course_code,course_title,course_type,department',
-            'programinfo.coursetypemaster:id,title'
+            'programinfo.coursetypemaster:id,title',
+            'specializationmaster:id,name',
         ])
             ->where('program_combo_refid', $id)
             ->orderBy('semester')
@@ -2342,6 +2369,9 @@ class SubjectController extends Controller
         $hasDegreeTrackColumn = Schema::hasColumn($curriculumTable, 'degree_track_id');
         $hasOfferingDeptColumn = Schema::hasColumn($curriculumTable, 'offering_dept');
         $hasDeliveryCategoryColumn = Schema::hasColumn($curriculumTable, 'delivery_category');
+        $hasSpecializationModeColumn = Schema::hasColumn($curriculumTable, 'specialization_mode');
+        $hasSpecializationMasterColumn = Schema::hasColumn($curriculumTable, 'specialization_master_id');
+        $hasSpecializationMasterIdsColumn = Schema::hasColumn($curriculumTable, 'specialization_master_ids');
         $hasDisplayOrderColumn = Schema::hasColumn($curriculumTable, 'display_order');
         $hasIsActiveColumn = Schema::hasColumn($curriculumTable, 'is_active');
 
@@ -2358,16 +2388,51 @@ class SubjectController extends Controller
             return $respond(false, 'Program mapping not found.', 404);
         }
 
+        $comboBoundary = $this->getProgrammeBoundarySubjectIds($combination);
+        $isSingleMajor = (int) ($comboBoundary['combo1'] ?? 0) > 0
+            && (int) ($comboBoundary['combo1'] ?? 0) === (int) ($comboBoundary['combo2'] ?? 0);
+
+        if ($isSingleMajor && (!$hasSpecializationModeColumn || !$hasSpecializationMasterColumn || !$hasSpecializationMasterIdsColumn)) {
+            return $respond(false, 'Specialization columns are missing in curriculum table. Please run latest migrations and try again.', 422);
+        }
+
+        $allowedSpecializationIds = collect((array) ($combination->specialization_ids ?? []))
+            ->map(fn($id) => (int) $id)
+            ->filter()
+            ->unique()
+            ->values()
+            ->all();
+
         $eligibleCourseIds = $this->getEligiblePublishedCourseIdsForSemester($combination, (int) $semester);
 
         $typedSelections = collect((array) $request->selected_courses)
             ->map(fn($courseId) => (int) $courseId)
             ->unique()
-            ->map(function ($courseId) use ($request) {
+            ->map(function ($courseId) use ($request, $isSingleMajor) {
                 $rawType = data_get($request->input('course_type_map', []), (string) $courseId);
                 $type = strtoupper((string) $rawType);
                 $rawDeliveryCategory = data_get($request->input('delivery_category_map', []), (string) $courseId);
                 $deliveryCategory = $this->normalizeDeliveryCategoryInput($rawDeliveryCategory);
+                $specializationMode = 'COMMON';
+                $specializationMasterId = null;
+                $specializationMasterIds = [];
+
+                if ($isSingleMajor) {
+                    $rawSpecializationMode = strtoupper(trim((string) data_get($request->input('specialization_mode_map', []), (string) $courseId, 'COMMON')));
+                    $specializationMode = $rawSpecializationMode === 'SPECIALIZATION' ? 'SPECIALIZATION' : 'COMMON';
+                    $rawSpecializationIds = collect((array) data_get($request->input('specialization_ids_map', []), (string) $courseId, []))
+                        ->map(fn($value) => (int) $value)
+                        ->filter()
+                        ->unique()
+                        ->values()
+                        ->all();
+
+                    if ($specializationMode === 'SPECIALIZATION' && !empty($rawSpecializationIds)) {
+                        $specializationMasterIds = $rawSpecializationIds;
+                        $specializationMasterId = $specializationMasterIds[0] ?? null;
+                    }
+                }
+
                 if (!in_array($type, [
                     ProgramWiseSemesterCourse::TYPE_AUTO,
                     ProgramWiseSemesterCourse::TYPE_STUDENT_CHOICE,
@@ -2380,6 +2445,9 @@ class SubjectController extends Controller
                     'course_id' => $courseId,
                     'course_type' => $type,
                     'delivery_category' => $deliveryCategory,
+                    'specialization_mode' => $specializationMode,
+                    'specialization_master_id' => $specializationMasterId,
+                    'specialization_master_ids' => $specializationMasterIds,
                 ];
             })
             ->values();
@@ -2400,6 +2468,9 @@ class SubjectController extends Controller
                     'course_id' => (int) $courseId,
                     'course_type' => $fallbackType,
                     'delivery_category' => $this->normalizeDeliveryCategoryInput(data_get($request->input('delivery_category_map', []), (string) ((int) $courseId))),
+                    'specialization_mode' => 'COMMON',
+                    'specialization_master_id' => null,
+                    'specialization_master_ids' => [],
                 ])
                 ->values();
         }
@@ -2413,6 +2484,35 @@ class SubjectController extends Controller
 
         if ($invalidCourseIds->isNotEmpty()) {
             return $respond(false, 'Please select courses only from Published Syllabi for the chosen semester.', 422);
+        }
+
+        if ($isSingleMajor) {
+            if (empty($allowedSpecializationIds) && $typedSelections->contains(fn($selection) => ($selection['specialization_mode'] ?? 'COMMON') === 'SPECIALIZATION')) {
+                return $respond(false, 'No active specializations are connected to this program. Please connect specializations first.', 422);
+            }
+
+            foreach ($typedSelections as $selection) {
+                $specializationMode = strtoupper((string) ($selection['specialization_mode'] ?? 'COMMON'));
+                $specializationMasterIds = collect((array) ($selection['specialization_master_ids'] ?? []))
+                    ->map(fn($id) => (int) $id)
+                    ->filter()
+                    ->unique()
+                    ->values()
+                    ->all();
+                if ($specializationMode !== 'SPECIALIZATION') {
+                    continue;
+                }
+
+                if (empty($specializationMasterIds)) {
+                    return $respond(false, 'Please select specialization for each course marked as Specialization.', 422);
+                }
+
+                foreach ($specializationMasterIds as $specializationMasterId) {
+                    if (!in_array($specializationMasterId, $allowedSpecializationIds, true)) {
+                        return $respond(false, 'Selected specialization is not available for this program combination.', 422);
+                    }
+                }
+            }
         }
 
         $createdCount = 0;
@@ -2440,6 +2540,14 @@ class SubjectController extends Controller
             $courseInfo = ProgramCourseMaster::with('coursetypemaster:id,title')->find($courseId);
             $offeringDeptId = (int) ($courseInfo->department ?? 0);
             $deliveryCategory = $selection['delivery_category'] ?? null;
+            $specializationMode = strtoupper((string) ($selection['specialization_mode'] ?? 'COMMON'));
+            $specializationMasterId = (int) ($selection['specialization_master_id'] ?? 0);
+            $specializationMasterIds = collect((array) ($selection['specialization_master_ids'] ?? []))
+                ->map(fn($value) => (int) $value)
+                ->filter()
+                ->unique()
+                ->values()
+                ->all();
             if (empty($deliveryCategory)) {
                 $deliveryCategory = $this->deriveDeliveryCategory($combination, $courseInfo);
             }
@@ -2448,6 +2556,19 @@ class SubjectController extends Controller
                 $existing->course_type = $courseType;
                 if ($hasDeliveryCategoryColumn) {
                     $existing->delivery_category = $deliveryCategory;
+                }
+                if ($hasSpecializationModeColumn) {
+                    $existing->specialization_mode = $isSingleMajor ? $specializationMode : 'COMMON';
+                }
+                if ($hasSpecializationMasterColumn) {
+                    $existing->specialization_master_id = ($isSingleMajor && $specializationMode === 'SPECIALIZATION' && $specializationMasterId > 0)
+                        ? $specializationMasterId
+                        : null;
+                }
+                if ($hasSpecializationMasterIdsColumn) {
+                    $existing->specialization_master_ids = ($isSingleMajor && $specializationMode === 'SPECIALIZATION')
+                        ? $specializationMasterIds
+                        : [];
                 }
                 if ($hasOfferingDeptColumn) {
                     $existing->offering_dept = $offeringDeptId > 0 ? $offeringDeptId : null;
@@ -2481,6 +2602,22 @@ class SubjectController extends Controller
 
             if ($hasDeliveryCategoryColumn) {
                 $createData['delivery_category'] = $deliveryCategory;
+            }
+
+            if ($hasSpecializationModeColumn) {
+                $createData['specialization_mode'] = $isSingleMajor ? $specializationMode : 'COMMON';
+            }
+
+            if ($hasSpecializationMasterColumn) {
+                $createData['specialization_master_id'] = ($isSingleMajor && $specializationMode === 'SPECIALIZATION' && $specializationMasterId > 0)
+                    ? $specializationMasterId
+                    : null;
+            }
+
+            if ($hasSpecializationMasterIdsColumn) {
+                $createData['specialization_master_ids'] = ($isSingleMajor && $specializationMode === 'SPECIALIZATION')
+                    ? $specializationMasterIds
+                    : [];
             }
 
             if ($hasOfferingDeptColumn) {
@@ -2585,6 +2722,9 @@ class SubjectController extends Controller
         $hasDegreeTrackColumn = Schema::hasColumn($curriculumTable, 'degree_track_id');
         $hasOfferingDeptColumn = Schema::hasColumn($curriculumTable, 'offering_dept');
         $hasDeliveryCategoryColumn = Schema::hasColumn($curriculumTable, 'delivery_category');
+        $hasSpecializationModeColumn = Schema::hasColumn($curriculumTable, 'specialization_mode');
+        $hasSpecializationMasterColumn = Schema::hasColumn($curriculumTable, 'specialization_master_id');
+        $hasSpecializationMasterIdsColumn = Schema::hasColumn($curriculumTable, 'specialization_master_ids');
         $hasDisplayOrderColumn = Schema::hasColumn($curriculumTable, 'display_order');
         $hasIsActiveColumn = Schema::hasColumn($curriculumTable, 'is_active');
 
@@ -2595,6 +2735,48 @@ class SubjectController extends Controller
 
         if (!$combination) {
             return redirect()->back()->with('error', 'Program mapping not found.');
+        }
+
+        $comboBoundary = $this->getProgrammeBoundarySubjectIds($combination);
+        $isSingleMajor = (int) ($comboBoundary['combo1'] ?? 0) > 0
+            && (int) ($comboBoundary['combo1'] ?? 0) === (int) ($comboBoundary['combo2'] ?? 0);
+
+        $specializationMode = strtoupper(trim((string) $request->input('specialization_mode', 'COMMON')));
+        if (!in_array($specializationMode, ['COMMON', 'SPECIALIZATION'], true)) {
+            $specializationMode = 'COMMON';
+        }
+
+        $specializationMasterIds = collect((array) $request->input('specialization_master_ids', []))
+            ->map(fn($value) => (int) $value)
+            ->filter()
+            ->unique()
+            ->values()
+            ->all();
+        $specializationMasterId = $specializationMasterIds[0] ?? null;
+
+        if ($isSingleMajor && ($hasSpecializationModeColumn || $hasSpecializationMasterColumn)) {
+            $allowedSpecializationIds = collect((array) ($combination->specialization_ids ?? []))
+                ->map(fn($value) => (int) $value)
+                ->filter()
+                ->unique()
+                ->values()
+                ->all();
+
+            if ($specializationMode === 'SPECIALIZATION') {
+                if (empty($specializationMasterIds)) {
+                    return redirect()->back()->with('error', 'Please select a specialization.');
+                }
+
+                foreach ($specializationMasterIds as $value) {
+                    if (!in_array($value, $allowedSpecializationIds, true)) {
+                        return redirect()->back()->with('error', 'Selected specialization is not available for this program combination.');
+                    }
+                }
+            }
+        } else {
+            $specializationMode = 'COMMON';
+            $specializationMasterId = null;
+            $specializationMasterIds = [];
         }
 
         $eligibleCourseIds = $this->getEligiblePublishedCourseIdsForSemester($combination, (int) $request->semester);
@@ -2632,6 +2814,15 @@ class SubjectController extends Controller
         $mapping->course_type = $courseType;
         if ($hasDeliveryCategoryColumn) {
             $mapping->delivery_category = $deliveryCategory;
+        }
+        if ($hasSpecializationModeColumn) {
+            $mapping->specialization_mode = $isSingleMajor ? $specializationMode : 'COMMON';
+        }
+        if ($hasSpecializationMasterColumn) {
+            $mapping->specialization_master_id = ($isSingleMajor && $specializationMode === 'SPECIALIZATION') ? $specializationMasterId : null;
+        }
+        if ($hasSpecializationMasterIdsColumn) {
+            $mapping->specialization_master_ids = ($isSingleMajor && $specializationMode === 'SPECIALIZATION') ? $specializationMasterIds : [];
         }
         if ($hasOfferingDeptColumn) {
             $mapping->offering_dept = $offeringDeptId > 0 ? $offeringDeptId : null;

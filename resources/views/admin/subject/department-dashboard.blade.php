@@ -9,7 +9,8 @@ use App\Models\StudentProgram;
 use App\Models\SubjectCourseMaster;
 use App\Models\SubjectHasDeptAdmin;
 use App\Models\SubjectHasRoutine;
-use Illuminate\Support\Facades\Auth;
+use App\Models\SpecializationMaster;
+
 
 $batches = BatchMaster::latest()->get();
 $semesters = Semester::get();
@@ -385,6 +386,7 @@ if (!empty($deptFacultyIds)) {
               <th style="color: #e9ebef; font-weight: 600;">Batch</th>
               <th style="color: #e9ebef; font-weight: 600;">Code</th>
               <th style="color: #e9ebef; font-weight: 600;">Program</th>
+              <th style="color: #e9ebef; font-weight: 600;">Specialization</th>
               <th style="color: #e9ebef; font-weight: 600;">Program Type</th>
               <th style="color: #e9ebef; font-weight: 600;">Total Seats</th>
               <th style="color: #e9ebef; font-weight: 600;">Available Seats</th>
@@ -394,6 +396,9 @@ if (!empty($deptFacultyIds)) {
             </tr>
           </thead>
           <tbody>
+            @php
+            $specializations = SpecializationMaster::where('subject_id', $data->id)->where('is_active', 1)->orderBy('name')->get();
+            @endphp
             @forelse($combinations as $combination)
             <tr style="border-bottom: 1px solid #f5f5f5;">
               <td style="padding: 16px; color: #1a1a1a; font-weight: 500;">{{ $loop->iteration }}</td>
@@ -418,6 +423,53 @@ if (!empty($deptFacultyIds)) {
                  'slug' => $combination->studentprograminfo->name, 'batch_id' => $combination->batchmaster->id]) }}">
                   {{ $combination->studentprograminfo->name ?? '-' }}
                 </a>
+              </td>
+              <td>
+                @php
+                $selectedSpecializationIds = collect($combination->specialization_ids ?? [])->map(fn($id) => (int) $id)->all();
+                $connectedSpecializations = $specializations->whereIn('id', $selectedSpecializationIds);
+                @endphp
+
+                <div class="d-flex align-items-center gap-2 flex-wrap mb-2">
+                  @forelse($connectedSpecializations as $specialization)
+                  <span class="badge badge-warning ">{{ $specialization->name }}</span>
+                  @empty
+                  <span class="badge badge-dark">No specialization</span>
+                  @endforelse
+
+                  <button type="button" class="btn btn-success btn-sm" data-bs-toggle="modal" data-bs-target="#addSpecialization{{ $combination->id }}" title="Connect Specializations">
+                    <i class="fa fa-plus-circle"></i>
+                  </button>
+                </div>
+
+                <div class="modal fade" id="addSpecialization{{ $combination->id }}" tabindex="-1" aria-labelledby="addSpecializationLabel{{ $combination->id }}" aria-hidden="true">
+                  <div class="modal-dialog">
+                    <div class="modal-content">
+                      <form action="{{ route('department.combination.specializations.update', $combination->id) }}" method="POST">
+                        @csrf
+                        @method('PUT')
+                        <div class="modal-header">
+                          <h5 class="modal-title" id="addSpecializationLabel{{ $combination->id }}">Connect Specializations - {{ $combination->studentprograminfo->code ?? '' }}</h5>
+                          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                        </div>
+                        <div class="modal-body">
+                          <label class="form-label">Select Specializations</label>
+                          <select name="specialization_ids[]" class="select-multiple" multiple size="8">
+                            @foreach($specializations as $specialization)
+                            <option value="{{ $specialization->id }}" {{ in_array((int) $specialization->id, $selectedSpecializationIds, true) ? 'selected' : '' }}>
+                              {{ $specialization->name }}
+                            </option>
+                            @endforeach
+                          </select>
+                        </div>
+                        <div class="modal-footer">
+                          <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                          <button type="submit" class="btn btn-primary">Save specializations</button>
+                        </div>
+                      </form>
+                    </div>
+                  </div>
+                </div>
               </td>
               <td><span class="badge" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); padding: 6px 12px; border-radius: 8px;">{{$combination->program_type}}</span></td>
               <td>{{ $combination->total_seats ?? '-' }}</td>
