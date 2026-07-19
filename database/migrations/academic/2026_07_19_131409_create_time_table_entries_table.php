@@ -11,16 +11,15 @@ return new class extends Migration
      */
     public function up(): void
     {
-        Schema::create('hour_masters', function (Blueprint $table) {
+        Schema::create('time_table_entries', function (Blueprint $table) {
             $table->id();
-            $table->foreignId('shift_id');
-            $table->integer('hour_no');
-            $table->string('name');          // Hour 1
-            $table->time('start_time');
-            $table->time('end_time');
-            $table->boolean('is_teaching')->default(true);
+            $table->foreignId('weekday_id');
+            $table->foreignId('time_slot_id');
+            $table->foreignId('teaching_allocation_id');
+            $table->foreignId('room_id');
             $table->boolean('status')->default(true);
             $table->timestamps();
+            $table->softDeletes();
         });
     }
 
@@ -29,6 +28,6 @@ return new class extends Migration
      */
     public function down(): void
     {
-        Schema::dropIfExists('hour_masters');
+        Schema::dropIfExists('time_table_entries');
     }
 };
