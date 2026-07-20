@@ -15,6 +15,7 @@ use App\Models\SubjectFacultyMaster;
 use App\Models\SubjectHasRoutine;
 use App\Models\SubjectHasSemester;
 use App\Models\SubjectHasSyllabus;
+use App\Models\TeachingAssignment;
 use App\Models\ShiftMaster;
 use App\Models\Weekday;
 use Illuminate\Http\Request;
@@ -25,9 +26,64 @@ use Illuminate\Bus\Batch;
 
 class TimetableController extends Controller
 {
-    function index($id)
+    function index(int $id, $slug)
     {
         $data = Subject::find($id);
+        if (!$data) {
+            return redirect()->back()->with('error', 'Subject not found.');
+        }
+
+        $teachingAssignments = TeachingAssignment::with([
+            'course.coursetypemaster:id,title',
+            'faculty:id,USER_CODE,FIRST_NAME,LAST_NAME',
+        ])
+            ->where('subject_id', $id)
+            ->where('is_active', 1)
+            ->orderBy('allocation_group')
+            ->orderBy('id')
+            ->get();
+
+        $courses = $teachingAssignments
+            ->filter(fn($assignment) => $assignment->course)
+            ->unique('course_id')
+            ->values();
+
+        $faculties = $teachingAssignments
+            ->filter(fn($assignment) => $assignment->faculty)
+            ->unique('faculty_id')
+            ->values();
+
+        $facultyDeliveryTypes = [];
+        foreach ($teachingAssignments as $assignment) {
+            if (empty($assignment->faculty_id) || empty($assignment->delivery_type)) {
+                continue;
+            }
+
+            if (!isset($facultyDeliveryTypes[$assignment->faculty_id])) {
+                $facultyDeliveryTypes[$assignment->faculty_id] = [];
+            }
+
+            if (!in_array($assignment->delivery_type, $facultyDeliveryTypes[$assignment->faculty_id], true)) {
+                $facultyDeliveryTypes[$assignment->faculty_id][] = $assignment->delivery_type;
+            }
+        }
+
+        $assignmentMeta = [];
+        foreach ($teachingAssignments as $assignment) {
+            if (empty($assignment->course_id) || empty($assignment->faculty_id)) {
+                continue;
+            }
+
+            $key = $assignment->course_id . '|' . $assignment->faculty_id;
+            if (!isset($assignmentMeta[$key])) {
+                $assignmentMeta[$key] = [
+                    'delivery_type' => $assignment->delivery_type,
+                    'allocation_group' => $assignment->allocation_group,
+                    'allocation_group_label' => $assignment->allocation_group_label,
+                ];
+            }
+        }
+
         $subjectUsesShifts = (int) ($data->has_shift_delivery ?? 0) === 1;
         $shiftOptions = ShiftMaster::where('is_active', 1)
             ->orderBy('sort_order')
@@ -48,6 +104,10 @@ class TimetableController extends Controller
             'subjectSemesters' => $subjectSemesters,
             'semesterMasters' => $semesterMasters,
             'batches' => $batches,
+            'courses' => $courses,
+            'faculties' => $faculties,
+            'assignmentMeta' => $assignmentMeta,
+            'facultyDeliveryTypes' => $facultyDeliveryTypes,
             'subjectUsesShifts' => $subjectUsesShifts,
             'shiftOptions' => $shiftOptions,
         ]);
@@ -116,6 +176,22 @@ class TimetableController extends Controller
             $weekdays = [1 => 'Monday', 2 => 'Tuesday', 3 => 'Wednesday', 4 => 'Thursday', 5 => 'Friday', 6 => 'Saturday'];
             $timetableData = [];
 
+            $teachingAssignments = TeachingAssignment::where('subject_id', $subjectId)
+                ->where('is_active', 1)
+                ->get();
+
+            $assignmentByPair = [];
+            $assignmentByCourse = [];
+            foreach ($teachingAssignments as $assignment) {
+                if (!empty($assignment->course_id) && !empty($assignment->faculty_id)) {
+                    $assignmentByPair[$assignment->course_id . '|' . $assignment->faculty_id] = $assignment;
+                }
+
+                if (!empty($assignment->course_id) && !isset($assignmentByCourse[$assignment->course_id])) {
+                    $assignmentByCourse[$assignment->course_id] = $assignment;
+                }
+            }
+
             // Get all courses and faculties for lookup
             $courseRelations = SubjectCourseMaster::where('subject_id', $subjectId)
                 ->with('courseMaster.coursetypemaster')
@@ -166,6 +242,15 @@ class TimetableController extends Controller
                         $lookupCourseId = $courseMasterId ?: $subjectCourseId;
                     }
 
+                    $assignment = null;
+                    if (!empty($lookupCourseId) && !empty($facultyId)) {
+                        $assignment = $assignmentByPair[$lookupCourseId . '|' . $facultyId] ?? null;
+                    }
+
+                    if (!$assignment && !empty($lookupCourseId)) {
+                        $assignment = $assignmentByCourse[$lookupCourseId] ?? null;
+                    }
+
                     // Get faculty name from the faculty_id (try direct lookup first, then relation)
                     $facultyName = '';
                     if ($facultyId) {
@@ -186,7 +271,10 @@ class TimetableController extends Controller
                         'subject_id' => $lookupCourseId ?: $syllabus->subject_id, // Return proper course id
                         'teacher_id' => $facultyId,
                         'subject_name' => $courseName ?: ($syllabus->subject->subject_title ?? $syllabus->subject->title ?? 'Subject'),
-                        'teacher_name' => $facultyName ?: 'Teacher'
+                        'teacher_name' => $facultyName ?: 'Teacher',
+                        'delivery_type' => $assignment->delivery_type ?? null,
+                        'allocation_group' => $assignment->allocation_group ?? null,
+                        'allocation_group_label' => $assignment->allocation_group_label ?? null,
                     ];
                 }
             }

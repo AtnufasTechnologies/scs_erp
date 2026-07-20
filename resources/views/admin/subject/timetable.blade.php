@@ -1,24 +1,11 @@
 <?php
 
 use App\Http\Controllers\StaticController;
-use App\Models\SubjectCourseMaster;
-use App\Models\SubjectFacultyMaster;
-
-$courses = SubjectCourseMaster::where('subject_id', $data->id)->with('courseMaster.coursetypemaster')->get()->map(function ($item) {
-  $item->course_title = $item->courseMaster->course_title ?? 'N/A';
-  return $item;
-});
-
-$faculties = SubjectFacultyMaster::where('subject_id', $data->id)->with('faculty')->get()->map(function ($item) {
-  $item->faculty_name = $item->faculty->FIRST_NAME ?? 'N/A' . ' ' . $item->faculty->LAST_NAME ?? 'N/A';;
-  return $item;
-});
 ?>
 @include('includes.header')
 <style>
   .custom-navbar {
     background: linear-gradient(135deg, #5740b4 0%, #8931f6 100%);
-    border-radius: 0.75rem;
     box-shadow: 0 4px 16px #5740b433;
   }
 
@@ -225,7 +212,7 @@ $faculties = SubjectFacultyMaster::where('subject_id', $data->id)->with('faculty
             <select class="form-select dselect-example" id="modalCourse" style="border-radius:0.5em;">
               <option value="">Select Course</option>
               @foreach ($courses ?? [] as $course)
-              <option value="{{ $course->courseMaster->id ?? $course->id }}">{{$course->courseMaster->coursetypemaster->title ?? ''}} - {{ $course->courseMaster->course_code ??'-'}} - {{ $course->courseMaster->course_title ?? $course->courseMaster->course_title}}</option>
+              <option value="{{ $course->course->id ?? '' }}">{{$course->course->coursetypemaster->title ?? ''}} - {{ $course->course->course_code ??'-'}} - {{ $course->course->course_title ?? 'N/A'}}</option>
               @endforeach
             </select>
           </div>
@@ -234,7 +221,7 @@ $faculties = SubjectFacultyMaster::where('subject_id', $data->id)->with('faculty
             <select class="form-select" id="modalTeacher" style="border-radius:0.5em;">
               <option value="">Select Teacher</option>
               @foreach ($faculties ?? [] as $fac)
-              <option value="{{ $fac->faculty->id ?? $fac->id }}">{{ $fac->faculty->USER_CODE ?? $fac->id }} -{{ $fac->faculty->FIRST_NAME ?? $fac->id }}{{ $fac->faculty->LAST_NAME ?? $fac->id }}</option>
+              <option value="{{ $fac->faculty->id ?? '' }}">{{ $fac->faculty->USER_CODE ?? '' }} -{{ $fac->faculty->FIRST_NAME ?? '' }} {{ $fac->faculty->LAST_NAME ?? '' }}</option>
               @endforeach
             </select>
           </div>
