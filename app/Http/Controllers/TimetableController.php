@@ -8,6 +8,7 @@ use App\Models\FacultySubstitution;
 use App\Models\HourMaster;
 use App\Models\LectureHallMaster;
 use App\Models\ProgramCourseMaster;
+use App\Models\ProgramWiseSemesterCourse;
 use App\Models\Semester;
 use App\Models\Subject;
 use App\Models\SubjectCourseMaster;
@@ -22,6 +23,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Maatwebsite\Excel\Facades\Excel;
 use App\Exports\SubstitutionHistoryExport;
+use App\Services\TimetableConflictService;
 use Illuminate\Bus\Batch;
 
 class TimetableController extends Controller
@@ -41,6 +43,83 @@ class TimetableController extends Controller
             ->where('is_active', 1)
             ->orderBy('allocation_group')
             ->orderBy('id')
+            ->get();
+
+        $allTeachingAssignments = TeachingAssignment::with([
+            'course:id,course_code,course_title',
+            'faculty:id,USER_CODE,FIRST_NAME,LAST_NAME',
+        ])
+            ->where('subject_id', $id)
+            ->orderByDesc('id')
+            ->get();
+
+        $mappedCourses = SubjectCourseMaster::where('subject_id', $id)
+            ->with('courseMaster:id,course_code,course_title')
+            ->get();
+
+        $courseMasterIds = $mappedCourses->pluck('course_master_id')->filter()->unique()->values();
+        $teachingCourseIds = $teachingAssignments->pluck('course_id')->filter()->unique()->values();
+        $courseMasterIds = $courseMasterIds->merge($teachingCourseIds)->unique()->values();
+
+        $courseLabelMap = $mappedCourses
+            ->filter(fn($item) => $item->courseMaster)
+            ->mapWithKeys(function ($item) {
+                return [
+                    (int) $item->courseMaster->id => trim(($item->courseMaster->course_code ?? '-') . ' - ' . ($item->courseMaster->course_title ?? 'N/A')),
+                ];
+            });
+
+        $teachingCourseLabelMap = $teachingAssignments
+            ->filter(fn($assignment) => $assignment->course)
+            ->mapWithKeys(function ($assignment) {
+                return [
+                    (int) $assignment->course_id => trim(($assignment->course->course_code ?? '-') . ' - ' . ($assignment->course->course_title ?? 'N/A')),
+                ];
+            });
+
+        $courseLabelMap = $courseLabelMap->merge($teachingCourseLabelMap);
+
+        $curriculumDeliveryRows = ProgramWiseSemesterCourse::query()
+            ->whereIn('course_id', $courseMasterIds)
+            ->where('offering_dept', $id)
+            ->get([
+                'course_id',
+                'batch',
+                'semester',
+                'offering_dept',
+                'delivery_category',
+                'course_type',
+                'specialization_mode',
+                'specialization_master_id',
+                'specialization_master_ids',
+            ])
+            ->map(function ($row) {
+                $specializationIds = [];
+                if (is_array($row->specialization_master_ids)) {
+                    $specializationIds = array_values(array_filter($row->specialization_master_ids, fn($val) => !is_null($val) && $val !== ''));
+                }
+
+                return [
+                    'course_id' => (int) $row->course_id,
+                    'batch' => (int) $row->batch,
+                    'semester' => (int) $row->semester,
+                    'offering_dept' => (int) ($row->offering_dept ?? 0),
+                    'delivery_category' => (string) $row->delivery_category,
+                    'selector' => (string) ($row->course_type ?? ''),
+                    'course_type' => (string) ($row->course_type ?? ''),
+                    'specialization_mode' => (string) ($row->specialization_mode ?? ''),
+                    'specialization_master_id' => (int) ($row->specialization_master_id ?? 0),
+                    'specialization_master_ids' => $specializationIds,
+                ];
+            })
+            ->map(function ($row) use ($courseLabelMap) {
+                $row['course_label'] = $courseLabelMap[(int) $row['course_id']] ?? ('Course #' . $row['course_id']);
+                return $row;
+            })
+            ->values();
+
+        $mappedFaculties = SubjectFacultyMaster::where('subject_id', $id)
+            ->with('faculty:id,USER_CODE,FIRST_NAME,LAST_NAME')
             ->get();
 
         $courses = $teachingAssignments
@@ -84,6 +163,52 @@ class TimetableController extends Controller
             }
         }
 
+        $teachingAssignmentOptions = $teachingAssignments
+            ->filter(fn($assignment) => $assignment->course && $assignment->faculty)
+            ->map(function ($assignment) {
+                $facultyName = trim(($assignment->faculty->FIRST_NAME ?? '') . ' ' . ($assignment->faculty->LAST_NAME ?? ''));
+
+                return [
+                    'id' => $assignment->id,
+                    'course_id' => $assignment->course_id,
+                    'faculty_id' => $assignment->faculty_id,
+                    'delivery_type' => $assignment->delivery_type,
+                    'allocation_group' => $assignment->allocation_group,
+                    'allocation_group_label' => $assignment->allocation_group_label,
+                    'course_label' => trim(
+                        ($assignment->course->coursetypemaster->title ?? '') .
+                            ' - ' .
+                            ($assignment->course->course_code ?? '-') .
+                            ' - ' .
+                            ($assignment->course->course_title ?? 'N/A')
+                    ),
+                    'faculty_label' => trim(($assignment->faculty->USER_CODE ?? '') . ' - ' . $facultyName),
+                ];
+            })
+            ->values();
+
+        $teachingAssignmentList = $allTeachingAssignments
+            ->map(function ($assignment) {
+                return [
+                    'id' => $assignment->id,
+                    'subject_id' => $assignment->subject_id,
+                    'course_id' => $assignment->course_id,
+                    'faculty_id' => $assignment->faculty_id,
+                    'course_text' => trim(($assignment->course->course_code ?? '-') . ' - ' . ($assignment->course->course_title ?? '-')),
+                    'faculty_text' => trim(($assignment->faculty->USER_CODE ?? '-') . ' - ' . ($assignment->faculty->FIRST_NAME ?? '-') . ' ' . ($assignment->faculty->LAST_NAME ?? '')),
+                    'delivery_type' => $assignment->delivery_type,
+                    'allocation_group' => $assignment->allocation_group,
+                    'allocation_group_label' => $assignment->allocation_group_label,
+                    'is_active' => (int) $assignment->is_active,
+                    'status_label' => (int) $assignment->is_active === 1 ? 'Active' : 'Inactive',
+                    'room' => $assignment->room ?: '-',
+                    'remarks' => $assignment->remarks ?: '-',
+                    'room_raw' => $assignment->room ?? '',
+                    'remarks_raw' => $assignment->remarks ?? '',
+                ];
+            })
+            ->values();
+
         $subjectUsesShifts = (int) ($data->has_shift_delivery ?? 0) === 1;
         $shiftOptions = ShiftMaster::where('is_active', 1)
             ->orderBy('sort_order')
@@ -98,19 +223,142 @@ class TimetableController extends Controller
             ->get();
         $semesterMasters = Semester::orderBy('title')->get();
         $batches = BatchMaster::latest()->get();
+        $lectureHalls = LectureHallMaster::orderBy('title')->get(['id', 'title']);
 
         return view('admin.subject.timetable', [
             'data' => $data,
             'subjectSemesters' => $subjectSemesters,
             'semesterMasters' => $semesterMasters,
             'batches' => $batches,
+            'lectureHalls' => $lectureHalls,
             'courses' => $courses,
             'faculties' => $faculties,
+            'mappedCourses' => $mappedCourses,
+            'mappedFaculties' => $mappedFaculties,
+            'curriculumDeliveryRows' => $curriculumDeliveryRows,
             'assignmentMeta' => $assignmentMeta,
             'facultyDeliveryTypes' => $facultyDeliveryTypes,
+            'teachingAssignmentOptions' => $teachingAssignmentOptions,
+            'teachingAssignmentList' => $teachingAssignmentList,
             'subjectUsesShifts' => $subjectUsesShifts,
             'shiftOptions' => $shiftOptions,
         ]);
+    }
+
+    function getTeachingHoursByShift(Request $request)
+    {
+        try {
+            $shiftId = (int) $request->get('shift_id');
+
+            if ($shiftId <= 0) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Shift is required.'
+                ], 422);
+            }
+
+            $hours = HourMaster::query()
+                ->where('shift_id', $shiftId)
+                ->where('status', 1)
+                ->where('is_teaching', 1)
+                ->orderBy('hour_no')
+                ->get(['id', 'hour_no', 'name', 'start_time', 'end_time'])
+                ->map(function ($hour) {
+                    return [
+                        'id' => (int) $hour->id,
+                        'hour_no' => (int) $hour->hour_no,
+                        'name' => (string) ($hour->name ?? ''),
+                        'start_time' => (string) ($hour->start_time ?? ''),
+                        'end_time' => (string) ($hour->end_time ?? ''),
+                    ];
+                })
+                ->values();
+
+            return response()->json([
+                'success' => true,
+                'data' => $hours,
+            ]);
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Failed to fetch hours: ' . $e->getMessage(),
+            ], 500);
+        }
+    }
+
+    function getQuickCourses(Request $request)
+    {
+        try {
+            $batchId = (int) $request->get('batch_id');
+            $semesterId = (int) $request->get('semester_id');
+            $subjectId = (int) $request->get('subject_id');
+
+            if ($batchId <= 0 || $semesterId <= 0) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Batch and semester are required.'
+                ], 422);
+            }
+
+            $activeCourseIdsQuery = TeachingAssignment::query()
+                ->where('is_active', 1)
+                ->whereNotNull('course_id');
+
+            if ($subjectId > 0) {
+                $activeCourseIdsQuery->where('subject_id', $subjectId);
+            }
+
+            $activeCourseIds = $activeCourseIdsQuery
+                ->pluck('course_id')
+                ->filter()
+                ->unique()
+                ->values();
+
+            if ($activeCourseIds->isEmpty()) {
+                return response()->json([
+                    'success' => true,
+                    'data' => [],
+                ]);
+            }
+
+            $rows = ProgramWiseSemesterCourse::query()
+                ->where('batch', $batchId)
+                ->where('semester', $semesterId)
+                ->whereIn('course_id', $activeCourseIds)
+                ->select('course_id')
+                ->distinct()
+                ->orderBy('course_id')
+                ->get();
+
+            $courseIds = $rows->pluck('course_id')->map(fn($id) => (int) $id)->unique()->values();
+
+            $courseTitles = ProgramCourseMaster::query()
+                ->whereIn('id', $courseIds)
+                ->get(['id', 'course_code', 'course_title'])
+                ->keyBy('id');
+
+            $data = $courseIds->map(function ($courseId) use ($courseTitles) {
+                $course = $courseTitles->get($courseId);
+                $label = $course
+                    ? trim(($course->course_code ?? '-') . ' - ' . ($course->course_title ?? '-'))
+                    : ('Course #' . $courseId);
+
+                return [
+                    'course_id' => $courseId,
+                    'course_label' => $label,
+                ];
+            })->values();
+
+            return response()->json([
+                'success' => true,
+                'data' => $data,
+            ]);
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Failed to fetch quick courses: ' . $e->getMessage(),
+            ], 500);
+        }
     }
 
     function editSemesterTimetable($subjectId, $batchId, $semesterId)
@@ -152,6 +400,8 @@ class TimetableController extends Controller
     {
         try {
             $activeShift = $this->resolveTimetableShift($request, (int) $subjectId);
+            $quickCourses = $this->buildQuickCoursesForBatchSemester((int) $subjectId, (int) $batchId, (int) $semesterId);
+
 
             // Get all syllabi for this subject/batch/semester
             $syllabi = SubjectHasSyllabus::where('subject_id', $subjectId)
@@ -163,7 +413,8 @@ class TimetableController extends Controller
             if ($syllabi->isEmpty()) {
                 return response()->json([
                     'success' => true,
-                    'data' => []
+                    'data' => [],
+                    'quick_courses' => $quickCourses,
                 ]);
             }
 
@@ -171,20 +422,33 @@ class TimetableController extends Controller
             $syllabusIds = $syllabi->pluck('id');
             $routines = SubjectHasRoutine::whereIn('syllabus_id', $syllabusIds)
                 ->where('shift', $activeShift)
+                ->with([
+                    'teachingAssignment:id,course_id,faculty_id,delivery_type,allocation_group',
+                    'lecturehallmaster:id,title',
+                ])
                 ->get();
 
             $weekdays = [1 => 'Monday', 2 => 'Tuesday', 3 => 'Wednesday', 4 => 'Thursday', 5 => 'Friday', 6 => 'Saturday'];
             $timetableData = [];
 
-            $teachingAssignments = TeachingAssignment::where('subject_id', $subjectId)
+            $teachingAssignments = TeachingAssignment::with([
+                'course.coursetypemaster:id,title',
+                'faculty:id,USER_CODE,FIRST_NAME,LAST_NAME',
+            ])
+                ->where('subject_id', $subjectId)
                 ->where('is_active', 1)
                 ->get();
 
+            $assignmentById = $teachingAssignments->keyBy('id');
             $assignmentByPair = [];
             $assignmentByCourse = [];
             foreach ($teachingAssignments as $assignment) {
                 if (!empty($assignment->course_id) && !empty($assignment->faculty_id)) {
-                    $assignmentByPair[$assignment->course_id . '|' . $assignment->faculty_id] = $assignment;
+                    $pairKey = $assignment->course_id . '|' . $assignment->faculty_id;
+                    if (!isset($assignmentByPair[$pairKey])) {
+                        $assignmentByPair[$pairKey] = [];
+                    }
+                    $assignmentByPair[$pairKey][] = $assignment;
                 }
 
                 if (!empty($assignment->course_id) && !isset($assignmentByCourse[$assignment->course_id])) {
@@ -208,7 +472,7 @@ class TimetableController extends Controller
                 ->keyBy('faculty_id');
 
             // Get direct faculty lookup for faculty_ids stored in routines
-            $allFaculties = Faculty::whereIn('id', $routines->pluck('faculty_id')->filter())
+            $allFaculties = Faculty::whereIn('id', $routines->pluck('faculty_id')->filter()->merge($teachingAssignments->pluck('faculty_id')->filter())->unique())
                 ->get()
                 ->keyBy('id');
 
@@ -243,12 +507,24 @@ class TimetableController extends Controller
                     }
 
                     $assignment = null;
-                    if (!empty($lookupCourseId) && !empty($facultyId)) {
-                        $assignment = $assignmentByPair[$lookupCourseId . '|' . $facultyId] ?? null;
+                    $routineAssignmentId = (int) ($routine->teaching_assignment_id ?? $routine->teaching_allocation_id ?? 0);
+                    if (!empty($routineAssignmentId)) {
+                        $assignment = $assignmentById[$routineAssignmentId] ?? null;
                     }
 
-                    if (!$assignment && !empty($lookupCourseId)) {
-                        $assignment = $assignmentByCourse[$lookupCourseId] ?? null;
+                    if ($assignment) {
+                        if (!empty($assignment->faculty_id)) {
+                            $facultyId = (int) $assignment->faculty_id;
+                        }
+
+                        if (!empty($assignment->course_id)) {
+                            $lookupCourseId = (int) $assignment->course_id;
+                            $courseName = trim(
+                                ($assignment->course->coursetypemaster->title ?? '') . ' - ' .
+                                    ($assignment->course->course_code ?? '') . ' - ' .
+                                    ($assignment->course->course_title ?? '')
+                            );
+                        }
                     }
 
                     // Get faculty name from the faculty_id (try direct lookup first, then relation)
@@ -270,18 +546,22 @@ class TimetableController extends Controller
                         'shift' => $routine->shift,
                         'subject_id' => $lookupCourseId ?: $syllabus->subject_id, // Return proper course id
                         'teacher_id' => $facultyId,
+                        'teaching_assignment_id' => $routineAssignmentId ?: null,
                         'subject_name' => $courseName ?: ($syllabus->subject->subject_title ?? $syllabus->subject->title ?? 'Subject'),
                         'teacher_name' => $facultyName ?: 'Teacher',
-                        'delivery_type' => $assignment->delivery_type ?? null,
-                        'allocation_group' => $assignment->allocation_group ?? null,
-                        'allocation_group_label' => $assignment->allocation_group_label ?? null,
+                        'lecturehall_id' => (int) ($routine->lecturehall_id ?? 0),
+                        'lecturehall_name' => (string) (optional($routine->lecturehallmaster)->title ?? ''),
+                        'delivery_type' => $assignment ? ($assignment->delivery_type ?? null) : null,
+                        'allocation_group' => $assignment ? ($assignment->allocation_group ?? null) : null,
+                        'allocation_group_label' => $assignment ? ($assignment->allocation_group_label ?? null) : null,
                     ];
                 }
             }
 
             return response()->json([
                 'success' => true,
-                'data' => $timetableData
+                'data' => $timetableData,
+                'quick_courses' => $quickCourses,
             ]);
         } catch (\Exception $e) {
             return response()->json([
@@ -289,6 +569,114 @@ class TimetableController extends Controller
                 'message' => 'Failed to fetch timetable: ' . $e->getMessage()
             ], 500);
         }
+    }
+
+    private function buildQuickCoursesForBatchSemester(int $subjectId, int $batchId, int $semesterId): array
+    {
+        $curriculumRows = ProgramWiseSemesterCourse::query()
+            ->with([
+                'programinfo:id,course_code,course_title',
+                'specializationmaster:id,name',
+            ])
+            ->where('batch', $batchId)
+            ->where('semester', $semesterId)
+            ->whereNotNull('course_id')
+            ->get([
+                'id',
+                'course_id',
+                'batch',
+                'semester',
+                'offering_dept',
+                'delivery_category',
+                'course_type',
+                'specialization_mode',
+                'specialization_master_id',
+                'specialization_master_ids',
+            ]);
+
+        $batchSemesterCourseIds = $curriculumRows
+            ->pluck('course_id')
+            ->map(fn($id) => (int) $id)
+            ->filter()
+            ->unique()
+            ->values();
+
+        if ($batchSemesterCourseIds->isEmpty()) {
+            return [];
+        }
+
+        $curriculumByCourseId = $curriculumRows
+            ->groupBy(fn($row) => (int) $row->course_id);
+
+        $activeAssignments = TeachingAssignment::query()
+            ->with([
+                'course:id,course_code,course_title',
+                'faculty:id,USER_CODE,FIRST_NAME,LAST_NAME',
+            ])
+            ->where('subject_id', $subjectId)
+            ->where('is_active', 1)
+            ->whereNotNull('course_id')
+            ->whereIn('course_id', $batchSemesterCourseIds)
+            ->get([
+                'id',
+                'subject_id',
+                'course_id',
+                'faculty_id',
+                'delivery_type',
+                'allocation_group',
+                'room',
+                'remarks',
+            ]);
+
+        if ($activeAssignments->isEmpty()) {
+            return [];
+        }
+
+        return $activeAssignments
+            ->map(function ($assignment) use ($curriculumByCourseId, $batchId, $semesterId) {
+                $courseId = (int) $assignment->course_id;
+                $curriculum = optional($curriculumByCourseId->get($courseId))->first();
+                $course = $assignment->course;
+                $faculty = $assignment->faculty;
+
+                $specializationIds = collect((array) ($curriculum->specialization_master_ids ?? []))
+                    ->map(fn($id) => (int) $id)
+                    ->filter()
+                    ->unique()
+                    ->values()
+                    ->all();
+
+                $facultyName = trim(($faculty->FIRST_NAME ?? '') . ' ' . ($faculty->LAST_NAME ?? ''));
+
+                return [
+                    'assignment_id' => (int) $assignment->id,
+                    'subject_id' => (int) $assignment->subject_id,
+                    'course_id' => $courseId,
+                    'course_code' => (string) ($course->course_code ?? ''),
+                    'course_name' => (string) ($course->course_title ?? ''),
+                    'course_label' => trim(((string) ($course->course_code ?? '-')) . ' - ' . ((string) ($course->course_title ?? '-'))),
+                    'faculty_id' => (int) ($assignment->faculty_id ?? 0),
+                    'faculty_code' => (string) ($faculty->USER_CODE ?? ''),
+                    'faculty_name' => (string) $facultyName,
+                    'faculty_label' => trim(((string) ($faculty->USER_CODE ?? '-')) . ' - ' . ($facultyName !== '' ? $facultyName : '-')),
+                    'delivery_type' => (string) ($assignment->delivery_type ?? ''),
+                    'allocation_group' => (int) ($assignment->allocation_group ?? 0),
+                    'allocation_group_label' => (string) ($assignment->allocation_group_label ?? ''),
+                    'room' => (string) ($assignment->room ?? ''),
+                    'remarks' => (string) ($assignment->remarks ?? ''),
+                    'batch' => (int) ($curriculum->batch ?? $batchId),
+                    'semester' => (int) ($curriculum->semester ?? $semesterId),
+                    'offering_dept' => (int) ($curriculum->offering_dept ?? 0),
+                    'course_type' => (string) ($curriculum->course_type ?? ''),
+                    'delivery_category' => (string) ($curriculum->delivery_category ?? ''),
+                    'specialization_mode' => (string) ($curriculum->specialization_mode ?? ''),
+                    'specialization_master_id' => (int) ($curriculum->specialization_master_id ?? 0),
+                    'specialization_master_ids' => $specializationIds,
+                    'specialization_name' => (string) (optional($curriculum->specializationmaster)->name ?? ''),
+                ];
+            })
+            ->values()
+            ->all();
     }
 
     function deleteRoutineSlot($routineId)
@@ -465,9 +853,11 @@ class TimetableController extends Controller
     {
         try {
             $timetable = $request->input('timetable', []);
-            $savedCount = 0;
+            $createdCount = 0;
+            $updatedCount = 0;
+            $restoredCount = 0;
+            $archivedCount = 0;
 
-            // Get weekday mappings
             $weekdays = [
                 'Monday' => 1,
                 'Tuesday' => 2,
@@ -477,15 +867,49 @@ class TimetableController extends Controller
                 'Saturday' => 6
             ];
 
-            // Clear existing routines for this subject/batch/semester first
             $existingSyllabi = SubjectHasSyllabus::where('subject_id', $subjectId)
                 ->where('batch_id', $batchId)
                 ->where('semester_id', $semesterId)
-                ->pluck('id');
+                ->get(['id', 'course_id']);
 
-            SubjectHasRoutine::whereIn('syllabus_id', $existingSyllabi)
+            $syllabusById = $existingSyllabi->keyBy('id');
+            $syllabusByCourseId = $existingSyllabi->keyBy('course_id');
+            $syllabusIds = $existingSyllabi->pluck('id');
+
+            $existingRoutines = SubjectHasRoutine::withTrashed()
+                ->whereIn('syllabus_id', $syllabusIds)
                 ->where('shift', $activeShift)
-                ->delete();
+                ->get();
+
+            $existingById = $existingRoutines->keyBy('id');
+            $existingByKey = [];
+            foreach ($existingRoutines as $routine) {
+                $courseMasterId = (int) (optional($syllabusById->get($routine->syllabus_id))->course_id ?? 0);
+                $key = implode('|', [
+                    (int) $routine->weekday_id,
+                    (int) $routine->hour_id,
+                    $courseMasterId,
+                    (int) ($routine->faculty_id ?? 0),
+                    (int) ($routine->teaching_allocation_id ?? $routine->teaching_assignment_id ?? 0),
+                ]);
+
+                if (!isset($existingByKey[$key])) {
+                    $existingByKey[$key] = [];
+                }
+                $existingByKey[$key][] = $routine;
+            }
+
+            $teachingAssignments = TeachingAssignment::where('subject_id', $subjectId)
+                ->where('is_active', 1)
+                ->get()
+                ->keyBy('id');
+
+            $subjectCourseMap = SubjectCourseMaster::where('subject_id', $subjectId)
+                ->get(['id', 'course_master_id'])
+                ->keyBy('course_master_id');
+
+            $seenSlots = [];
+            $matchedRoutineIds = [];
 
             foreach ($timetable as $slot) {
                 if (empty($slot['subject_id']) || empty($slot['day_of_week']) || empty($slot['hour_number'])) {
@@ -494,45 +918,132 @@ class TimetableController extends Controller
 
                 $dayName = $slot['day_of_week'];
                 $hourNumber = (int)$slot['hour_number'];
-                $courseMasterId = $slot['subject_id']; // This is course_master_id from frontend
-                $facultyId = $slot['teacher_id'] ?? null;
+                $teachingAssignmentId = !empty($slot['teaching_assignment_id']) ? (int) $slot['teaching_assignment_id'] : null;
+                $assignment = $teachingAssignmentId ? ($teachingAssignments[$teachingAssignmentId] ?? null) : null;
+
+                $courseMasterId = (int) ($slot['subject_id'] ?? 0);
+                if ($courseMasterId <= 0 && $assignment) {
+                    $courseMasterId = (int) $assignment->course_id;
+                }
+
+                $facultyId = !empty($slot['teacher_id']) ? (int) $slot['teacher_id'] : null;
+                if (empty($facultyId) && $assignment) {
+                    $facultyId = (int) $assignment->faculty_id;
+                }
 
                 if (!isset($weekdays[$dayName])) continue;
                 $weekdayId = $weekdays[$dayName];
 
-                // Find the subject_course_master record ID for this course_master_id
-                $subjectCourseRecord = SubjectCourseMaster::where('subject_id', $subjectId)
-                    ->where('course_master_id', $courseMasterId)
-                    ->first();
+                if ($courseMasterId <= 0) {
+                    continue;
+                }
 
-                $subjectCourseId = $subjectCourseRecord ? $subjectCourseRecord->id : null;
-
-                // Create or get syllabus for this specific course
-                $syllabus = SubjectHasSyllabus::firstOrCreate([
-                    'subject_id' => $subjectId,
-                    'batch_id' => $batchId,
-                    'semester_id' => $semesterId,
-                    'course_id' => $courseMasterId, // Store the course_master_id
+                $slotKey = implode('|', [
+                    $dayName,
+                    $hourNumber,
+                    $courseMasterId,
+                    $facultyId ?: 0,
+                    $teachingAssignmentId ?: 0,
                 ]);
 
-                // Create routine entry with proper column assignments
-                SubjectHasRoutine::create([
+                if (isset($seenSlots[$slotKey])) {
+                    continue;
+                }
+                $seenSlots[$slotKey] = true;
+
+                // Find the subject_course_master record ID for this course_master_id
+                $syllabus = $syllabusByCourseId->get($courseMasterId);
+                if (!$syllabus) {
+                    $syllabus = SubjectHasSyllabus::firstOrCreate([
+                        'subject_id' => $subjectId,
+                        'batch_id' => $batchId,
+                        'semester_id' => $semesterId,
+                        'course_id' => $courseMasterId,
+                    ]);
+                    $syllabusByCourseId->put($courseMasterId, $syllabus);
+                    $syllabusById->put($syllabus->id, $syllabus);
+                }
+
+                $subjectCourseId = optional($subjectCourseMap->get($courseMasterId))->id;
+
+                $entryKey = implode('|', [
+                    $weekdayId,
+                    $hourNumber,
+                    $courseMasterId,
+                    (int) ($facultyId ?: 0),
+                    (int) ($teachingAssignmentId ?: 0),
+                ]);
+
+                $routine = null;
+                $incomingRoutineId = !empty($slot['routine_id']) ? (int) $slot['routine_id'] : null;
+
+                if ($incomingRoutineId && isset($existingById[$incomingRoutineId])) {
+                    $candidate = $existingById[$incomingRoutineId];
+                    if ((int) $candidate->syllabus_id === (int) $syllabus->id) {
+                        $routine = $candidate;
+                    }
+                }
+
+                if (!$routine && !empty($existingByKey[$entryKey])) {
+                    foreach ($existingByKey[$entryKey] as $candidate) {
+                        if (!isset($matchedRoutineIds[$candidate->id])) {
+                            $routine = $candidate;
+                            break;
+                        }
+                    }
+                }
+
+                $payload = [
                     'syllabus_id' => $syllabus->id,
-                    'batch_id' => $batchId, // Add batch_id for substitution
+                    'batch_id' => $batchId,
                     'shift' => $activeShift,
                     'weekday_id' => $weekdayId,
                     'hour_id' => $hourNumber,
-                    'faculty_id' => $facultyId, // Use proper faculty_id column
-                    'subject_course_id' => $subjectCourseId, // Store subject_course_master ID
-                    'lecturehall_id' => null, // Keep this for actual lecture hall if needed
-                    'substitution_faculty_id' => null // Keep null for now
-                ]);
-                $savedCount++;
+                    'lecturehall_id' => !empty($slot['lecturehall_id']) ? (int) $slot['lecturehall_id'] : null,
+                    'faculty_id' => $facultyId,
+                    'subject_course_id' => $subjectCourseId,
+                    'teaching_assignment_id' => $teachingAssignmentId,
+                ];
+
+                if ($routine) {
+                    $wasTrashed = method_exists($routine, 'trashed') ? $routine->trashed() : false;
+                    if ($wasTrashed) {
+                        $routine->restore();
+                        $restoredCount++;
+                    }
+
+                    $routine->fill($payload);
+                    $routine->save();
+
+                    $updatedCount++;
+                    $matchedRoutineIds[$routine->id] = true;
+                    continue;
+                }
+
+                $created = SubjectHasRoutine::create(array_merge($payload, [
+                    'substitution_faculty_id' => null,
+                ]));
+                $createdCount++;
+                $matchedRoutineIds[$created->id] = true;
+            }
+
+            // Archive slots removed from the current payload. Soft delete preserves historical links.
+            foreach ($existingRoutines as $existingRoutine) {
+                if ($existingRoutine->trashed()) {
+                    continue;
+                }
+
+                if (isset($matchedRoutineIds[$existingRoutine->id])) {
+                    continue;
+                }
+
+                $existingRoutine->delete();
+                $archivedCount++;
             }
 
             return response()->json([
                 'success' => true,
-                'message' => "Timetable saved successfully. {$savedCount} slots created."
+                'message' => "Timetable synced successfully. {$createdCount} created, {$updatedCount} updated, {$restoredCount} restored, {$archivedCount} archived."
             ]);
         } catch (\Exception $e) {
             return response()->json([
@@ -771,6 +1282,43 @@ class TimetableController extends Controller
                 'message' => 'Failed to check teacher conflicts: ' . $e->getMessage()
             ], 500);
         }
+    }
+
+    function validateTimetableConflict(Request $request, TimetableConflictService $conflictService)
+    {
+        $validated = $request->validate([
+            'subject_id' => 'required|integer|exists:subjects,id',
+            'batch_id' => 'required|integer|exists:batch_masters,id',
+            'semester_id' => 'required|integer|exists:semesters,id',
+            'weekday_id' => 'required|integer|min:1|max:7',
+            'hour_id' => 'required|integer|min:1',
+            'shift' => 'nullable|string|max:20',
+            'teaching_assignment_id' => 'required|integer|exists:teaching_assignments,id',
+            'lecturehall_id' => 'nullable|integer',
+            'ignore_routine_id' => 'nullable|integer',
+            'draft_entries' => 'nullable|array',
+            'draft_entries.*.routine_id' => 'nullable|integer',
+            'draft_entries.*.weekday_id' => 'nullable|integer',
+            'draft_entries.*.hour_id' => 'nullable|integer',
+            'draft_entries.*.teaching_assignment_id' => 'nullable|integer',
+            'draft_entries.*.lecturehall_id' => 'nullable|integer',
+            'draft_entries.*.shift_id' => 'nullable|integer',
+        ]);
+
+        $result = $conflictService->validate([
+            'subject_id' => (int) $validated['subject_id'],
+            'batch_id' => (int) $validated['batch_id'],
+            'semester_id' => (int) $validated['semester_id'],
+            'weekday_id' => (int) $validated['weekday_id'],
+            'hour_id' => (int) $validated['hour_id'],
+            'shift' => (string) ($validated['shift'] ?? $this->getDefaultShiftSlug()),
+            'teaching_assignment_id' => (int) $validated['teaching_assignment_id'],
+            'lecturehall_id' => (int) ($validated['lecturehall_id'] ?? 0),
+            'ignore_routine_id' => (int) ($validated['ignore_routine_id'] ?? 0),
+            'draft_entries' => $validated['draft_entries'] ?? [],
+        ]);
+
+        return response()->json($result, $result['success'] ? 200 : 422);
     }
 
     private function resolveTimetableShift(Request $request, int $subjectId): string

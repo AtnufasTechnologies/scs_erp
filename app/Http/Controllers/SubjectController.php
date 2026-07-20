@@ -3391,6 +3391,8 @@ class SubjectController extends Controller
             'remarks' => $validated['remarks'] ?? '',
         ]);
 
+        $this->syncRoutinesWithTeachingAssignment($assignment);
+
         $assignment->load([
             'course:id,course_code,course_title',
             'faculty:id,USER_CODE,FIRST_NAME,LAST_NAME',
@@ -3483,6 +3485,33 @@ class SubjectController extends Controller
         $assignment->remarks = $validated['remarks'] ?? '';
         $assignment->save();
 
+        // Keep existing timetable rows in sync with assignment replacements/edits.
+        $subjectCourseId = SubjectCourseMaster::query()
+            ->where('subject_id', $assignment->subject_id)
+            ->where('course_master_id', $assignment->course_id)
+            ->value('id');
+
+        $routineUpdatePayload = [
+            'faculty_id' => (int) $assignment->faculty_id,
+        ];
+
+        if (!empty($subjectCourseId)) {
+            $routineUpdatePayload['subject_course_id'] = (int) $subjectCourseId;
+        }
+
+        SubjectHasRoutine::query()
+            ->where(function ($query) use ($assignment) {
+                $query->where('teaching_assignment_id', $assignment->id);
+
+                if (Schema::hasColumn('subject_has_routines', 'teaching_allocation_id')) {
+                    $query->orWhere('teaching_allocation_id', $assignment->id);
+                }
+            })
+            ->update($routineUpdatePayload);
+
+        // Also backfill newly matching legacy rows created before this assignment existed.
+        $this->syncRoutinesWithTeachingAssignment($assignment);
+
         $assignment->load([
             'course:id,course_code,course_title',
             'faculty:id,USER_CODE,FIRST_NAME,LAST_NAME',
@@ -3527,6 +3556,40 @@ class SubjectController extends Controller
             'course_id' => $assignment->course_id,
             'faculty_id' => $assignment->faculty_id,
         ];
+    }
+
+    private function syncRoutinesWithTeachingAssignment(TeachingAssignment $assignment): void
+    {
+        if (!Schema::hasColumn('subject_has_routines', 'teaching_assignment_id')) {
+            return;
+        }
+
+        $subjectCourseIds = SubjectCourseMaster::query()
+            ->where('subject_id', $assignment->subject_id)
+            ->where('course_master_id', $assignment->course_id)
+            ->pluck('id')
+            ->map(fn($id) => (int) $id)
+            ->filter()
+            ->values();
+
+        if ($subjectCourseIds->isEmpty()) {
+            return;
+        }
+
+        $query = SubjectHasRoutine::query()
+            ->where('faculty_id', (int) $assignment->faculty_id)
+            ->whereIn('subject_course_id', $subjectCourseIds)
+            ->whereNull('teaching_assignment_id');
+
+        $updatePayload = [
+            'teaching_assignment_id' => (int) $assignment->id,
+        ];
+
+        if (Schema::hasColumn('subject_has_routines', 'teaching_allocation_id')) {
+            $updatePayload['teaching_allocation_id'] = (int) $assignment->id;
+        }
+
+        $query->update($updatePayload);
     }
 
     function mySpecializations(int $id, $slug)
