@@ -17,6 +17,10 @@
 </div>
 @endif
 
+@php
+$shiftOptions = \App\Models\ShiftMaster::orderBy('sort_order')->orderBy('title')->get();
+@endphp
+
 <!-- Button trigger modal -->
 <button class="cst-button mb-3" style="--clr: #21d9c7ff;" data-bs-toggle="modal" data-bs-target="#exampleModal">
   <span class="button-decor"></span>
@@ -47,8 +51,15 @@
               <input type="number" min="1" name="hour" class="form-control" value="{{ old('hour') }}" required>
             </div>
             <div class="col-md-6 mb-3">
-              <label class="form-label">Shift ID</label>
-              <input type="number" min="1" name="shift_id" class="form-control" value="{{ old('shift_id') }}" placeholder="e.g. 1">
+              <label class="form-label">Shift</label>
+              <select name="shift_id" class="form-select">
+                <option value="">Select Shift</option>
+                @foreach($shiftOptions as $shift)
+                <option value="{{ $shift->id }}" {{ old('shift_id') == $shift->id ? 'selected' : '' }}>
+                  {{ $shift->shiftname ?? $shift->title }}
+                </option>
+                @endforeach
+              </select>
             </div>
             <div class="col-md-6 mb-3">
               <label class="form-label">Display Name</label>
@@ -88,7 +99,7 @@
 </div>
 <div class="container-fluid card shadow">
 
-  <table class="table mt-3 mb-3" id="exportTable">
+  <table class="table mt-3 mb-3">
     <thead>
       <tr>
         <th>#</th>
@@ -103,13 +114,30 @@
     </thead>
     <tbody>
       @if (count($data))
-      <?php $sl = 1 ?>
-      @foreach ($data as $item)
+      @php
+      $sl = 1;
+      $groupedData = collect($data)
+      ->sortBy(function ($item) {
+      return [
+      $item->shift_id ?? 0,
+      $item->hour_no ?? $item->title ?? 0,
+      ];
+      })
+      ->groupBy(function ($item) {
+      return $item->shiftmaster->shiftname ?? $item->shiftmaster->title ?? 'No Shift';
+      });
+      @endphp
+
+      @foreach ($groupedData as $shiftTitle => $items)
+      <tr class="table-light">
+        <td colspan="8" class="fw-bold">Shift: {{ $shiftTitle }}</td>
+      </tr>
+      @foreach ($items as $item)
       <tr>
         <td>{{$sl++}}</td>
         <td>{{ $item->hour_no ?? $item->title ?? '-' }}</td>
         <td>{{ $item->name ?? ('Hour '.($item->hour_no ?? $item->title ?? '')) }}</td>
-        <td>{{ $item->shiftmaster->title ?? '-' }}</td>
+        <td>{{ $item->shiftmaster->shiftname ?? $item->shiftmaster->title ?? '-' }}</td>
         <td>
           @if(!empty($item->start_time) && !empty($item->end_time))
           {{ \Carbon\Carbon::parse($item->start_time)->format('h:i A') }} - {{ \Carbon\Carbon::parse($item->end_time)->format('h:i A') }}
@@ -151,6 +179,7 @@
         </td>
       </tr>
       @endforeach
+      @endforeach
 
       @else
       <tr>
@@ -179,8 +208,13 @@
               <input type="number" min="1" id="edit_hour" name="hour" class="form-control" required>
             </div>
             <div class="col-md-6 mb-3">
-              <label class="form-label">Shift ID</label>
-              <input type="number" min="1" id="edit_shift_id" name="shift_id" class="form-control">
+              <label class="form-label">Shift</label>
+              <select id="edit_shift_id" name="shift_id" class="form-select">
+                <option value="">Select Shift</option>
+                @foreach($shiftOptions as $shift)
+                <option value="{{ $shift->id }}">{{ $shift->shiftname ?? $shift->title }}</option>
+                @endforeach
+              </select>
             </div>
             <div class="col-md-6 mb-3">
               <label class="form-label">Display Name</label>
