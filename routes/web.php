@@ -148,6 +148,7 @@ Route::group(['prefix' => '/erp'], function () {
 
             Route::get('hour', [AdminController::class, 'hourMaster']);
             Route::post('hour', [AdminController::class, 'addHour']);
+            Route::put('hour/{id}', [AdminController::class, 'updateHour']);
             Route::get('delhour/{id}', [AdminController::class, 'delHour']);
 
             Route::get('blood-group', [AdminController::class, 'bloodGroupMaster']);

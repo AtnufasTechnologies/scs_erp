@@ -67,6 +67,7 @@ use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Str;
 use Illuminate\Testing\Fluent\Concerns\Has;
 
@@ -1026,27 +1027,118 @@ class AdminController extends Controller
 
     function hourMaster()
     {
-        $data = HourMaster::get();
+        $data = HourMaster::with('shiftmaster')->get();
         return view('admin.master.hour', ['data' => $data]);
     }
 
     function addHour(Request $request)
     {
-        $request->validate([
-            'hour' => 'required',
+        $hasHourNo = Schema::hasColumn('hour_masters', 'hour_no');
 
-        ]);
+        if ($hasHourNo) {
+            $request->validate([
+                'hour' => 'required|integer|min:1',
+                'shift_id' => 'nullable|integer|min:1',
+                'name' => 'nullable|string|max:255',
+                'start_time' => 'nullable|date_format:H:i',
+                'end_time' => 'nullable|date_format:H:i|after:start_time',
+                'is_teaching' => 'nullable|boolean',
+                'status' => 'nullable|boolean',
+            ]);
 
-        $check = HourMaster::where('title', $request->hour)->first();
-        if ($check == null) {
+            $check = HourMaster::where('hour_no', $request->hour)
+                ->when(!empty($request->shift_id), function ($q) use ($request) {
+                    return $q->where('shift_id', $request->shift_id);
+                })->first();
+
+            if ($check != null) {
+                return redirect()->back()->with('success', 'Item already in list');
+            }
+
             $rec = new HourMaster();
-            $rec->title = $request->hour;
+            $rec->hour_no = $request->hour;
+            $rec->shift_id = $request->shift_id ?? 1;
+            $rec->name = $request->name ?: ('Hour ' . $request->hour);
+            $rec->start_time = $request->start_time;
+            $rec->end_time = $request->end_time;
+            $rec->is_teaching = $request->is_teaching ?? 1;
+            $rec->status = $request->status ?? 1;
             $rec->save();
 
             return redirect()->back()->with('success', 'Done');
-        } else {
+        }
+
+        $request->validate([
+            'hour' => 'required|integer|min:1',
+        ]);
+
+        $check = HourMaster::where('title', $request->hour)->first();
+        if ($check != null) {
             return redirect()->back()->with('success', 'Item already in list');
         }
+
+        $rec = new HourMaster();
+        $rec->title = $request->hour;
+        $rec->save();
+
+        return redirect()->back()->with('success', 'Done');
+    }
+
+    function updateHour(Request $request, $id)
+    {
+        $rec = HourMaster::findOrFail($id);
+        $hasHourNo = Schema::hasColumn('hour_masters', 'hour_no');
+
+        if ($hasHourNo) {
+            $request->validate([
+                'hour' => 'required|integer|min:1',
+                'shift_id' => 'nullable|integer|min:1',
+                'name' => 'nullable|string|max:255',
+                'start_time' => 'nullable|date_format:H:i',
+                'end_time' => 'nullable|date_format:H:i|after:start_time',
+                'is_teaching' => 'nullable|boolean',
+                'status' => 'nullable|boolean',
+            ]);
+
+            $check = HourMaster::where('hour_no', $request->hour)
+                ->when(!empty($request->shift_id), function ($q) use ($request) {
+                    return $q->where('shift_id', $request->shift_id);
+                })
+                ->where('id', '!=', $rec->id)
+                ->first();
+
+            if ($check != null) {
+                return redirect()->back()->with('success', 'Item already in list');
+            }
+
+            $rec->hour_no = $request->hour;
+            $rec->shift_id = $request->shift_id ?? $rec->shift_id;
+            $rec->name = $request->name ?: ('Hour ' . $request->hour);
+            $rec->start_time = $request->start_time;
+            $rec->end_time = $request->end_time;
+            $rec->is_teaching = $request->is_teaching ?? 1;
+            $rec->status = $request->status ?? 1;
+            $rec->save();
+
+            return redirect()->back()->with('success', 'Done');
+        }
+
+        $request->validate([
+            'hour' => 'required|integer|min:1',
+        ]);
+
+        $check = HourMaster::where('title', $request->hour)
+            ->where('id', '!=', $rec->id)
+            ->first();
+
+        if ($check != null) {
+            return redirect()->back()->with('success', 'Item already in list');
+        }
+
+        $rec->title = $request->hour;
+        $rec->save();
+
+        return redirect()->back()->with('success', 'Done');
     }
 
     function delHour($id)

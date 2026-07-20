@@ -10,7 +10,7 @@ use App\Models\SubjectHasStudentProgam;
 $totalStudents = StudentMaster::where('is_left', 0)->where('is_deleted', 0)->count();
 $totalFaculty = Faculty::where('IS_LEFT', 0)->count();
 $activeCourses = StudentProgram::count(); // Example static data
-$labels = HourMaster::pluck('title')->all();
+$labels = HourMaster::pluck('name')->all();
 $batchId = BatchMaster::where('admission_active_batch', 1)->value('id');
 $batchName = BatchMaster::where('admission_active_batch', 1)->value('batch_name');
 $combinationCount = SubjectHasStudentProgam::with('batchmaster')->where('batch_id', $batchId)->count();
