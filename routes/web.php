@@ -188,6 +188,7 @@ Route::group(['prefix' => '/erp'], function () {
             Route::post('update-academic-dept/{id}', [SubjectController::class, 'updateAcademicDept'])->name('admin.master.update.academic-dept');
             Route::get('toggle-subject-visibility/{id}', [SubjectController::class, 'toggleAdmissionFormVisibility'])->name('toggle.subject.visibility.admission');
             Route::get('toggle-subject-shift-mode/{id}', [SubjectController::class, 'toggleSubjectShiftMode'])->name('toggle.subject.shift.mode');
+            Route::post('update-subject-shifts/{id}', [SubjectController::class, 'updateSubjectShifts'])->name('update.subject.shift.mode');
             Route::get('unlink-subject-course/{id}', [AdminController::class, 'subjectCourseUnlinker'])->name('subject.course.unlinker');
             //lecture halls
 

@@ -301,7 +301,7 @@ $typeLabelMap = [
 <div class="main-content swc-page">
   <div class="container-fluid">
     <h3 class="swc-headline text-uppercase"> <span class="text-danger">Curriculum Builder</span> Engine</h3>
-    <p class="swc-subtitle">This is the CORE of <strong>Academic System</strong> Select Semester, click Generate, then choose offered courses and mark each as Compulsory or Elective.</p>
+    <p class="swc-subtitle">This is the <strong>CORE of Academic System</strong> Select Semester, click Generate, then choose offered courses and mark each as Compulsory or Elective.</p>
 
     <div class="toast-container position-fixed top-0 end-0 p-3" style="z-index: 1080;">
       <div id="curriculumToast" class="toast align-items-center border-0" role="alert" aria-live="assertive" aria-atomic="true" data-bs-delay="3500" data-success-message="{{ session('success') }}" data-error-message="{{ session('error') }}">
@@ -312,40 +312,47 @@ $typeLabelMap = [
       </div>
     </div>
 
-    <div class="swc-info">
-      <h5 class="mb-1">Batch: {{$data->batchmaster->batch_name}} | {{$data->studentprograminfo->code}} - {{$data->studentprograminfo->name}}</h5>
-      <p class="mb-0">
-        <i class="fa fa-link"></i> Connected:
-        <span class="badge badge-warning">{{$data->combomap->combo1->id ?? '1 Not Set'}} - {{$data->combomap->combo1->title ?? '1 Not Set'}}</span>
-        <span class="badge badge-warning">{{$data->combomap->combo2->id ?? '1 Not Set'}} - {{$data->combomap->combo2->title ?? '2 Not Set'}}</span>
-      </p>
-    </div>
-
-    <div class="swc-form-card mb-3">
-      <!-- <form action="{{route('combo.course.fetching')}}" method="get"> -->
-      <form id="curriculumGenerateForm" action="{{route('combo.course.fetching')}}" method="get">
-        <div class="row align-items-end">
-          <div class="col-lg-3">
-            <label class="form-label">Semester</label>
-            <select name="semester" id="curriculumSemesterSelect" class="form-control" required>
-              <option value=""> --Select Semester-- </option>
-              @foreach ($semesters as $semester)
-              <option value="{{$semester->id}}" {{$selectedSemester === (int) $semester->id ? 'selected' : ''}}>{{$semester->title}}</option>
-              @endforeach
-            </select>
-            <input type="hidden" name="student_program_id" value="{{$data->id}}">
-            <input type="hidden" name="combo1" value="{{$combo1DepartmentId}}">
-            <input type="hidden" name="combo2" value="{{$combo2DepartmentId}}">
-            <input type="hidden" name="batch" value="{{$data->batchmaster->id}}">
-
-          </div>
-          <div class="col-lg-2">
-            <button type="submit" class="btn btn-primary w-100">Generate</button>
-          </div>
-          <div class="col-lg-4"></div>
+    <div class="row">
+      <div class="col-lg-7">
+        <div class="swc-info">
+          <h5 class="mb-1">Batch: {{$data->batchmaster->batch_name}} | {{$data->studentprograminfo->code}} - {{$data->studentprograminfo->name}}</h5>
+          <p class="mb-0">
+            <i class="fa fa-link"></i> Connected:
+            <span class="badge badge-warning">{{$data->combomap->combo1->id ?? '1 Not Set'}} - {{$data->combomap->combo1->title ?? '1 Not Set'}}</span>
+            <span class="badge badge-warning">{{$data->combomap->combo2->id ?? '1 Not Set'}} - {{$data->combomap->combo2->title ?? '2 Not Set'}}</span>
+          </p>
         </div>
-      </form>
+      </div>
+      <div class="col-lg-5">
+        <div class="">
+          <!-- <form action="{{route('combo.course.fetching')}}" method="get"> -->
+          <form id="curriculumGenerateForm" action="{{route('combo.course.fetching')}}" method="get">
+            <div class="row align-items-end">
+              <div class="col-lg-6">
+                <label class="form-label">Semester</label>
+                <select name="semester" id="curriculumSemesterSelect" class="form-control" required>
+                  <option value=""> --Select Semester-- </option>
+                  @foreach ($semesters as $semester)
+                  <option value="{{$semester->id}}" {{$selectedSemester === (int) $semester->id ? 'selected' : ''}}>{{$semester->title}}</option>
+                  @endforeach
+                </select>
+                <input type="hidden" name="student_program_id" value="{{$data->id}}">
+                <input type="hidden" name="combo1" value="{{$combo1DepartmentId}}">
+                <input type="hidden" name="combo2" value="{{$combo2DepartmentId}}">
+                <input type="hidden" name="batch" value="{{$data->batchmaster->id}}">
+
+              </div>
+              <div class="col-lg-2">
+                <button type="submit" class="btn btn-primary w-100">Generate</button>
+              </div>
+              <div class="col-lg-4"></div>
+            </div>
+          </form>
+        </div>
+
+      </div>
     </div>
+
 
     <div class="swc-form-card">
       <form id="curriculumMappingForm" action="{{route('store.curriculam.mapping')}}" method="post">

@@ -5,6 +5,7 @@ namespace App\Services;
 use App\Models\HourMaster;
 use App\Models\ShiftMaster;
 use App\Models\Subject;
+use App\Models\SubjectHasStudentProgam;
 use App\Models\SubjectHasRoutine;
 use App\Models\TeachingAssignment;
 use App\Models\ProgramWiseSemesterCourse;
@@ -17,6 +18,7 @@ class TimetableConflictService
     $subjectId = (int) ($payload['subject_id'] ?? 0);
     $batchId = (int) ($payload['batch_id'] ?? 0);
     $semesterId = (int) ($payload['semester_id'] ?? 0);
+    $programType = strtoupper(trim((string) ($payload['program_type'] ?? 'UG')));
     $weekdayId = (int) ($payload['weekday_id'] ?? 0);
     $hourInput = (int) ($payload['hour_id'] ?? 0);
     $shift = (string) ($payload['shift'] ?? 'common');
@@ -28,6 +30,13 @@ class TimetableConflictService
       return [
         'success' => false,
         'message' => 'Missing required fields for timetable conflict validation.',
+      ];
+    }
+
+    if (!in_array($programType, ['UG', 'PG'], true)) {
+      return [
+        'success' => false,
+        'message' => 'Invalid program type selected.',
       ];
     }
 
@@ -86,9 +95,45 @@ class TimetableConflictService
       ])
       ->where('weekday_id', $weekdayId)
       ->when($ignoreRoutineId > 0, fn($q) => $q->where('id', '!=', $ignoreRoutineId))
+      ->when(
+        Schema::hasColumn('subject_has_routines', 'program_type'),
+        fn($q) => $q->where('program_type', $programType)
+      )
       ->get();
 
+    $baseProgramCombinationQuery = SubjectHasStudentProgam::query()
+      ->where('subject_id', $subjectId)
+      ->where('batch_id', $batchId);
+
+    $programCombinationIds = (clone $baseProgramCombinationQuery)
+      ->whereRaw("UPPER(TRIM(COALESCE(program_type, ''))) = ?", [$programType])
+      ->pluck('id')
+      ->map(fn($id) => (int) $id)
+      ->filter()
+      ->unique()
+      ->values();
+
+    if ($programCombinationIds->isEmpty()) {
+      $programCombinationIds = (clone $baseProgramCombinationQuery)
+        ->whereRaw("TRIM(COALESCE(program_type, '')) = ''")
+        ->pluck('id')
+        ->map(fn($id) => (int) $id)
+        ->filter()
+        ->unique()
+        ->values();
+    }
+
+    if ($programCombinationIds->isEmpty()) {
+      $programCombinationIds = (clone $baseProgramCombinationQuery)
+        ->pluck('id')
+        ->map(fn($id) => (int) $id)
+        ->filter()
+        ->unique()
+        ->values();
+    }
+
     $specializationMap = ProgramWiseSemesterCourse::query()
+      ->when($programCombinationIds->isNotEmpty(), fn($q) => $q->whereIn('program_combo_refid', $programCombinationIds))
       ->where('batch', $batchId)
       ->where('semester', $semesterId)
       ->whereNotNull('specialization_master_id')

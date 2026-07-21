@@ -50,7 +50,7 @@ if ($subjectId) {
 
   <a href="{{ route('department.activities.index', [$data->id]) }}">
     <div class="sidebar-icon  {{ request()->routeIs('department.activities.index') ? 'active' : '' }}" title="Activities" data-bs-toggle="tooltip" data-bs-placement="right" data-bs-title="Activities">
-      <i class="fas fa-calendar-check fa-lg"></i>
+      <i class="fas fa-volleyball-ball fa-lg"></i>
     </div>
   </a>
 
@@ -63,6 +63,12 @@ if ($subjectId) {
   <a href="{{route('department.teaching.assignment',[$data->id,$data->slug])}}">
     <div class="sidebar-icon" title="Teaching Assignment" data-bs-toggle="tooltip" data-bs-placement="right" data-bs-title="Teaching Assignment">
       <i class="fas fa-user-chart fa-lg"></i>
+    </div>
+  </a>
+
+  <a href="{{route('department.timetable',[$data->id,$data->slug])}}">
+    <div class="sidebar-icon {{ request()->routeIs('department.timetable') ? 'active' : '' }}" title="Timetable" data-bs-toggle="tooltip" data-bs-placement="right" data-bs-title="Timetable">
+      <i class="fas fa-calendar-check fa-lg"></i>
     </div>
   </a>
 

@@ -188,7 +188,7 @@ $days = Weekday::all();
               <h5 class="card-title text-dark mb-3">Select Batch & Semester</h5>
               <form id="timetableSelectForm">
                 <div class="row g-3 align-items-end">
-                  <div class="col-md-4">
+                  <div class="col-md-3">
                     <label class="form-label">Batch</label>
                     <select name="batch_id" class="form-select" id="batchSelect" style="border-radius:0.5em;">
                       @foreach ($batches as $batch)
@@ -196,7 +196,7 @@ $days = Weekday::all();
                       @endforeach
                     </select>
                   </div>
-                  <div class="col-md-4">
+                  <div class="col-md-3">
                     <label class="form-label">Semester</label>
                     <select name="semester_id" class="form-select" id="semesterSelect" style="border-radius:0.5em;">
                       @foreach ($semesterMasters as $sem)
@@ -204,12 +204,19 @@ $days = Weekday::all();
                       @endforeach
                     </select>
                   </div>
+                  <div class="col-md-2">
+                    <label class="form-label">Program Type</label>
+                    <select name="program_type" class="form-select" id="programTypeSelect" style="border-radius:0.5em;">
+                      <option value="UG" selected>UG</option>
+                      <option value="PG">PG</option>
+                    </select>
+                  </div>
                   @if($subjectUsesShifts)
                   <div class="col-md-2">
                     <label class="form-label">Shift</label>
                     <select name="shift" class="form-select" id="shiftSelect" style="border-radius:0.5em;">
                       @foreach ($shiftOptions as $shiftOption)
-                      <option value="{{ $shiftOption->slug }}" {{ $shiftOption->slug === 'common' ? 'selected' : '' }}>{{ $shiftOption->title }}</option>
+                      <option value="{{ $shiftOption->slug }}" data-shift-id="{{ $shiftOption->id }}" {{ $shiftOption->slug === 'common' ? 'selected' : '' }}>{{ $shiftOption->title }}</option>
                       @endforeach
                     </select>
                   </div>
@@ -229,7 +236,7 @@ $days = Weekday::all();
               </form>
             </div>
           </div>
-          <div class="card custom-card mb-4">
+          <!-- <div class="card custom-card mb-4">
             <div class="card-body">
               <h5 class="card-title text-dark mb-3">Quick Slot Entry</h5>
               <div class="row g-3 align-items-end">
@@ -247,13 +254,9 @@ $days = Weekday::all();
                   <label class="form-label">Shift</label>
                   <select class="form-select" id="quickShiftSelect" style="border-radius:0.5em;">
                     <option value="">--Select</option>
-                    @if ($data->has_shift_delivery == 0)
-                    <option value="3" data-slug="common">Common</option>
-                    @else
-                    <option value="1" data-slug="morning">Morning</option>
-                    <option value="2" data-slug="day">Day</option>
-                    <option value="3" data-slug="common">Common</option>
-                    @endif
+                    @foreach ($shiftOptions as $shiftOption)
+                    <option value="{{ $shiftOption->id }}" data-slug="{{ $shiftOption->slug }}">{{ $shiftOption->title }}</option>
+                    @endforeach
                   </select>
                 </div>
                 <div class="col-md-2">
@@ -281,7 +284,7 @@ $days = Weekday::all();
                 </div>
               </div>
             </div>
-          </div>
+          </div> -->
           <div id="timetableGridArea"></div>
         </div>
       </div>
@@ -405,6 +408,12 @@ $days = Weekday::all();
       return option ? option.text : 'Common';
     }
 
+    function getActiveProgramType() {
+      const programTypeSelect = document.getElementById('programTypeSelect');
+      const value = String(programTypeSelect?.value || 'UG').trim().toUpperCase();
+      return value === 'PG' ? 'PG' : 'UG';
+    }
+
     function escapeHtml(text) {
       return String(text || '')
         .replace(/&/g, '&amp;')
@@ -473,11 +482,25 @@ $days = Weekday::all();
     }
 
     function getShiftIdBySlug(shiftSlug) {
-      const quickShiftSelect = document.getElementById('quickShiftSelect');
-      if (!quickShiftSelect) return 0;
       const normalized = String(shiftSlug || '').toLowerCase();
-      const option = Array.from(quickShiftSelect.options).find(opt => String(opt.dataset.slug || '').toLowerCase() === normalized);
-      return Number(option?.value || 0);
+
+      const quickShiftSelect = document.getElementById('quickShiftSelect');
+      if (quickShiftSelect) {
+        const quickOption = Array.from(quickShiftSelect.options).find(opt => String(opt.dataset.slug || '').toLowerCase() === normalized);
+        if (quickOption) {
+          const quickShiftId = Number(quickOption.value || 0);
+          if (quickShiftId > 0) return quickShiftId;
+        }
+      }
+
+      const shiftSelect = document.getElementById('shiftSelect');
+      if (shiftSelect) {
+        const mainOption = Array.from(shiftSelect.options).find(opt => String(opt.value || '').toLowerCase() === normalized);
+        const mainShiftId = Number(mainOption?.dataset?.shiftId || 0);
+        if (mainShiftId > 0) return mainShiftId;
+      }
+
+      return 0;
     }
 
     function buildDraftEntries(excludeEntryKey = '') {
@@ -505,6 +528,7 @@ $days = Weekday::all();
       const subjectId = getCurrentSubjectId();
       const weekdayId = dayNameToWeekdayId(day);
       const shiftSlug = getActiveShift();
+      const programType = getActiveProgramType();
 
       if (!subjectId || !batchId || !semesterId || !weekdayId || !hourNumber || !teachingAssignmentId) {
         return {
@@ -525,6 +549,7 @@ $days = Weekday::all();
           subject_id: subjectId,
           batch_id: batchId,
           semester_id: semesterId,
+          program_type: programType,
           weekday_id: weekdayId,
           hour_id: Number(hourNumber),
           shift: shiftSlug,
@@ -707,6 +732,7 @@ $days = Weekday::all();
 
       const batchId = Number(document.getElementById('batchSelect')?.value || 0);
       const semesterId = Number(document.getElementById('semesterSelect')?.value || 0);
+      const programType = getActiveProgramType();
 
       if (!batchId || !semesterId) {
         courseSelect.innerHTML = '<option value="">Select Batch/Semester First</option>';
@@ -728,7 +754,7 @@ $days = Weekday::all();
 
       courseSelect.innerHTML = '<option value="">Loading courses...</option>';
 
-      fetch(`${dataUrl}?shift=${encodeURIComponent(shift)}`, {
+      fetch(`${dataUrl}?shift=${encodeURIComponent(shift)}&program_type=${encodeURIComponent(programType)}`, {
           method: 'GET',
           headers: {
             'Accept': 'application/json',
@@ -792,7 +818,7 @@ $days = Weekday::all();
           if (hint) {
             hint.textContent = rows.length ?
               `Loaded from timetable-data (batch ${batchId}, semester ${semesterId}): ${rows.length} assignment(s).` :
-              `No assignments found from timetable-data for batch ${batchId}, semester ${semesterId}.`;
+              `No assignments found from timetable-data for batch ${batchId}, semester ${semesterId}, program ${programType}.`;
           }
         })
         .catch(error => {
@@ -880,6 +906,7 @@ $days = Weekday::all();
       const batchId = Number(document.getElementById('batchSelect')?.value || 0);
       const semesterId = Number(document.getElementById('semesterSelect')?.value || 0);
       const shift = getActiveShift();
+      const programType = getActiveProgramType();
 
       const paintFallback = () => {
         const sortedAssignments = [...teachingAssignments].sort((a, b) => {
@@ -920,7 +947,7 @@ $days = Weekday::all();
 
       assignmentSelect.innerHTML = '<option value="">Loading assignments...</option>';
 
-      fetch(`${dataUrl}?shift=${encodeURIComponent(shift)}`, {
+      fetch(`${dataUrl}?shift=${encodeURIComponent(shift)}&program_type=${encodeURIComponent(programType)}`, {
           method: 'GET',
           headers: {
             'Accept': 'application/json',
@@ -987,6 +1014,7 @@ $days = Weekday::all();
       const batchId = document.getElementById('batchSelect')?.value;
       const semesterId = document.getElementById('semesterSelect')?.value;
       const shift = getActiveShift();
+      const programType = getActiveProgramType();
 
       if (!batchId || !semesterId) {
         alert('Please select Batch and Semester');
@@ -994,7 +1022,7 @@ $days = Weekday::all();
       }
 
       const loadUrl = '{{ route("department.timetable.data", [$data->id, "BATCH_ID", "SEMESTER_ID"]) }}'.replace('BATCH_ID', batchId).replace('SEMESTER_ID', semesterId);
-      fetch(`${loadUrl}?shift=${encodeURIComponent(shift)}`, {
+      fetch(`${loadUrl}?shift=${encodeURIComponent(shift)}&program_type=${encodeURIComponent(programType)}`, {
           method: 'GET',
           headers: {
             'Accept': 'application/json',
@@ -1085,7 +1113,7 @@ $days = Weekday::all();
       timetableGridArea.innerHTML = `
         <div class='card custom-card'>
           <div class='card-body'>
-            <h5 class='card-title text-dark mb-3'>Timetable Grid <span class="badge bg-info ms-2">Shift: ${getActiveShiftLabel()}</span></h5>
+            <h5 class='card-title text-dark mb-3'>Timetable Grid <span class="badge bg-info ms-2">Shift: ${getActiveShiftLabel()}</span> <span class="badge bg-secondary ms-2">Program: ${escapeHtml(getActiveProgramType())}</span></h5>
             <div class="mb-3">
               <button type="button" class="btn btn-warning btn-sm me-2" onclick="copyFromDay()"><i class="fa fa-copy"></i> Copy Day</button>
               <button type="button" class="btn btn-danger btn-sm me-2" onclick="clearTimetable()"><i class="fa fa-trash"></i> Clear All</button>
@@ -1246,6 +1274,7 @@ $days = Weekday::all();
       const batchId = document.getElementById('batchSelect').value;
       const semesterId = document.getElementById('semesterSelect').value;
       const shift = getActiveShift();
+      const programType = getActiveProgramType();
 
       if (!batchId || !semesterId) return alert('Please select Batch and Semester');
       if (!timetableData.length) return alert('Please add at least one timetable entry');
@@ -1270,6 +1299,7 @@ $days = Weekday::all();
           body: JSON.stringify({
             batch_id: batchId,
             semester_id: semesterId,
+            program_type: programType,
             shift,
             timetable: timetableData
           })
@@ -1302,12 +1332,13 @@ $days = Weekday::all();
       const batchId = document.getElementById('batchSelect').value;
       const semesterId = document.getElementById('semesterSelect').value;
       const shift = getActiveShift();
+      const programType = getActiveProgramType();
       if (!batchId || !semesterId) return alert('Please select Batch and Semester first');
 
       const clearUrl = '{{ route("department.timetable.clear", ["subjectId" => "SUBJECT_ID", "batchId" => "BATCH_ID", "semesterId" => "SEMESTER_ID"]) }}'
         .replace('SUBJECT_ID', subjectId)
         .replace('BATCH_ID', batchId)
-        .replace('SEMESTER_ID', semesterId) + `?shift=${encodeURIComponent(shift)}`;
+        .replace('SEMESTER_ID', semesterId) + `?shift=${encodeURIComponent(shift)}&program_type=${encodeURIComponent(programType)}`;
 
       fetch(clearUrl, {
           method: 'DELETE',
@@ -1414,6 +1445,7 @@ $days = Weekday::all();
 
       const batchSelect = document.getElementById('batchSelect');
       const semesterSelect = document.getElementById('semesterSelect');
+      const programTypeSelect = document.getElementById('programTypeSelect');
       if (batchSelect) {
         batchSelect.addEventListener('change', function() {
           populateTeachingAssignmentOptions(document.getElementById('modalTeachingAssignment')?.value || '');
@@ -1426,6 +1458,14 @@ $days = Weekday::all();
           populateTeachingAssignmentOptions(document.getElementById('modalTeachingAssignment')?.value || '');
           populateQuickCourseOptions();
           renderQuickAssignmentInfo(document.getElementById('quickCourseSelect')?.value || '');
+        });
+      }
+      if (programTypeSelect) {
+        programTypeSelect.addEventListener('change', function() {
+          populateTeachingAssignmentOptions(document.getElementById('modalTeachingAssignment')?.value || '');
+          populateQuickCourseOptions();
+          renderQuickAssignmentInfo(document.getElementById('quickCourseSelect')?.value || '');
+          loadTimetable();
         });
       }
 

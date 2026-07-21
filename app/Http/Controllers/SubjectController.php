@@ -68,7 +68,15 @@ class SubjectController extends Controller
         $data = Subject::with([
             'campusmaster'
         ])->latest()->get();
-        return view('admin.master.subject', ['data' => $data]);
+
+        $shiftMasters = ShiftMaster::where('is_active', 1)
+            ->orderBy('sort_order')
+            ->get(['id', 'title', 'slug']);
+
+        return view('admin.master.subject', [
+            'data' => $data,
+            'shiftMasters' => $shiftMasters,
+        ]);
     }
 
     function subjectType()
@@ -2130,11 +2138,47 @@ class SubjectController extends Controller
     function toggleSubjectShiftMode($id)
     {
         $data = Subject::find($id);
-        Subject::where('id', $id)->update([
-            'has_shift_delivery' =>  $data->has_shift_delivery === 1 ? 0 : 1,
-        ]);
+        $nextState = $data->has_shift_delivery === 1 ? 0 : 1;
+
+        $payload = [
+            'has_shift_delivery' => $nextState,
+        ];
+
+        if (Schema::hasColumn('subjects', 'shift_ids') && $nextState === 0) {
+            $payload['shift_ids'] = null;
+        }
+
+        Subject::where('id', $id)->update($payload);
 
         return redirect()->back()->with('success', 'Subject shift mode updated');
+    }
+
+    function updateSubjectShifts(Request $request, $id)
+    {
+        $subject = Subject::findOrFail($id);
+
+        $validated = $request->validate([
+            'shift_ids' => 'nullable|array',
+            'shift_ids.*' => 'integer|exists:shift_masters,id',
+        ]);
+
+        $shiftIds = collect($validated['shift_ids'] ?? [])
+            ->map(fn($value) => (int) $value)
+            ->filter()
+            ->unique()
+            ->values();
+
+        $activeShiftIds = ShiftMaster::where('is_active', 1)
+            ->whereIn('id', $shiftIds)
+            ->pluck('id')
+            ->map(fn($value) => (int) $value)
+            ->values();
+
+        $subject->shift_ids = $activeShiftIds->isNotEmpty() ? $activeShiftIds->all() : null;
+        $subject->has_shift_delivery = $activeShiftIds->isNotEmpty() ? 1 : 0;
+        $subject->save();
+
+        return redirect()->back()->with('success', 'Enabled shifts updated successfully.');
     }
 
     private function subjectUsesShifts(?int $subjectId): bool

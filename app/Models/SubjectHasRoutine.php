@@ -14,6 +14,7 @@ class SubjectHasRoutine extends Model
         'syllabus_id',
         'batch_id',
         'shift',
+        'program_type',
         'weekday_id',
         'hour_id',
         'lecturehall_id',
