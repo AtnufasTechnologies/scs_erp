@@ -6,6 +6,8 @@ use Illuminate\Support\Str;
 $batches = BatchMaster::all();
 $subjectUsesShifts = $subjectUsesShifts ?? false;
 $shiftTitleMap = collect($shiftOptions ?? [])->pluck('title', 'slug')->toArray();
+$selectedProgramType = strtoupper((string) ($selectedProgramType ?? request('filter_program_type', 'UG')));
+$selectedProgramType = $selectedProgramType === 'PG' ? 'PG' : 'UG';
 
 ?>
 @include('includes.header')
@@ -80,8 +82,12 @@ $shiftTitleMap = collect($shiftOptions ?? [])->pluck('title', 'slug')->toArray()
           <select name="filter_batch" class="form-select">
             <option value="" selected>--Select Batch--</option>
             @foreach ($batches as $batch)
-            <option value="{{$batch->id}}" {{ request('batch') == $batch->id ? 'selected' : '' }}>{{$batch->batch_name}}</option>
+            <option value="{{$batch->id}}" {{ request('filter_batch') == $batch->id ? 'selected' : '' }}>{{$batch->batch_name}}</option>
             @endforeach
+          </select>
+          <select name="filter_program_type" class="form-select">
+            <option value="UG" {{ $selectedProgramType === 'UG' ? 'selected' : '' }}>UG</option>
+            <option value="PG" {{ $selectedProgramType === 'PG' ? 'selected' : '' }}>PG</option>
           </select>
           @if($subjectUsesShifts)
           <select name="filter_shift" class="form-select">
@@ -122,6 +128,11 @@ $shiftTitleMap = collect($shiftOptions ?? [])->pluck('title', 'slug')->toArray()
               @foreach ($batches as $batch)
               <option value="{{ $batch->id }}">{{ $batch->batch_name }}</option>
               @endforeach
+            </select>
+            <label for="pdf_filter_program_type" class="form-label fw-semibold mt-3">Program Type <span class="text-danger">*</span></label>
+            <select name="filter_program_type" id="pdf_filter_program_type" class="form-select" required>
+              <option value="UG" {{ $selectedProgramType === 'UG' ? 'selected' : '' }}>UG</option>
+              <option value="PG" {{ $selectedProgramType === 'PG' ? 'selected' : '' }}>PG</option>
             </select>
             @if($subjectUsesShifts)
             <label for="pdf_filter_shift" class="form-label fw-semibold mt-3">Select Shift</label>
@@ -193,6 +204,17 @@ $shiftTitleMap = collect($shiftOptions ?? [])->pluck('title', 'slug')->toArray()
                   </div>
                 </div>
                 @endif
+
+                <div class="col-lg-4">
+                  <label for="">Program Type *</label>
+                  <select name="program_type" id="syllabus_program_type" class="form-select mb-3" required>
+                    <option value="UG" {{ old('program_type', $selectedProgramType) === 'UG' ? 'selected' : '' }}>UG</option>
+                    <option value="PG" {{ old('program_type', $selectedProgramType) === 'PG' ? 'selected' : '' }}>PG</option>
+                  </select>
+                  @error('program_type')
+                  <small class="text-danger">{{$message}}</small>
+                  @enderror
+                </div>
 
                 <div class="col-lg-4">
                   <label for="">Select Semester *</label>
@@ -270,250 +292,261 @@ $shiftTitleMap = collect($shiftOptions ?? [])->pluck('title', 'slug')->toArray()
 
   <!-- Udemy-Style Syllabus Display -->
   <div class="mt-4">
-    @forelse ($data['organized_syllabus'] ?? [] as $batchName => $semesterGroups)
+    @forelse ($data['organized_syllabus'] ?? [] as $batchName => $programGroups)
     <div class="card mb-4 shadow-sm">
       <div class="card-header bg-primary text-white">
         <h5 class="mb-0"><i class="fa fa-graduation-cap"></i> Batch: {{ $batchName }}</h5>
       </div>
       <div class="card-body p-0">
-        @foreach ($semesterGroups as $semesterName => $courses)
+        @foreach ($programGroups as $programType => $semesterGroups)
         <div class="border-bottom">
-          <div class="p-3 bg-light">
-            <h6 class="mb-0"><i class="fa fa-calendar"></i> {{ $semesterName }}</h6>
+          <div class="p-3" style="background:#f5f0ff;">
+            <h6 class="mb-0"><i class="fa fa-layer-group"></i> Program Type: <span class="badge badge-success">{{ strtoupper((string) $programType) }}</span></h6>
           </div>
-          <div class="accordion" id="accordion{{ Str::slug($batchName . $semesterName) }}">
-            @foreach ($courses as $courseKey => $courseData)
-            <?php
-            $firstCso = $courseData['csos'][0] ?? null;
-            $seatKey  = $firstCso ? "{$firstCso->batch_id}_{$firstCso->semester_id}_{$firstCso->co_id}" : null;
-            $seatAlloc = $seatKey ? ($seatAllocations[$seatKey] ?? null) : null;
-            $refPdf    = $seatKey ? ($syllabuspdfs[$seatKey] ?? null) : null;
-            $shiftSlug = $firstCso->shift ?? 'common';
-            $shiftTitle = $shiftTitleMap[$shiftSlug] ?? Str::title($shiftSlug);
-            $statusSet = collect($courseData['csos'] ?? [])
-              ->pluck('status')
-              ->map(fn($status) => strtolower((string) ($status ?? 'draft')))
-              ->unique()
-              ->values();
-            $isMixedStatus = $statusSet->count() > 1;
-            $currentStatus = $isMixedStatus ? 'mixed' : ($statusSet->first() ?? 'draft');
-            $statusLabel = $isMixedStatus ? 'Mixed' : ucfirst($currentStatus);
-            $statusBadgeClass = $currentStatus === 'published' ? 'bg-success' : ($isMixedStatus ? 'bg-warning text-dark' : 'bg-secondary');
 
-            $totalUnits = 0;
-            $completedUnits = 0;
-            foreach (($courseData['csos'] ?? []) as $courseSyllabus) {
-              $subunits = collect($courseSyllabus->syllabusSubunits ?? []);
-              $totalUnits += $subunits->count();
-              $completedUnits += $subunits->where('is_completed', 1)->count();
-            }
-            $completionPercent = $totalUnits > 0 ? (int) round(($completedUnits / $totalUnits) * 100) : 0;
-            $isLowCompletion = $totalUnits > 0 && $completionPercent < 50;
-            $progressBarClass = $completionPercent >= 75 ? 'bg-success' : ($completionPercent >= 50 ? 'bg-warning' : 'bg-danger');
-            ?>
-            <div class="accordion-item {{ $isLowCompletion ? 'border border-danger' : '' }}">
-              <div class="accordion-header d-flex align-items-center">
-                <button class="accordion-button collapsed flex-grow-1" type="button" data-bs-toggle="collapse"
-                  data-bs-target="#course{{ Str::slug($batchName . $semesterName . $courseKey) }}"
-                  aria-expanded="false">
+          @foreach ($semesterGroups as $semesterName => $courses)
+          <div class="border-top">
+            <div class="p-3 bg-light">
+              <h6 class="mb-0"><i class="fa fa-calendar"></i> {{ $semesterName }}</h6>
+            </div>
+            <div class="accordion" id="accordion{{ Str::slug($batchName . $programType . $semesterName) }}">
+              @foreach ($courses as $courseKey => $courseData)
+              <?php
+              $firstCso = $courseData['csos'][0] ?? null;
+              $seatKey  = $firstCso ? "{$firstCso->batch_id}_{$firstCso->semester_id}_{$firstCso->co_id}" : null;
+              $seatAlloc = $seatKey ? ($seatAllocations[$seatKey] ?? null) : null;
+              $refPdf    = $seatKey ? ($syllabuspdfs[$seatKey] ?? null) : null;
+              $shiftSlug = $firstCso->shift ?? 'common';
+              $shiftTitle = $shiftTitleMap[$shiftSlug] ?? Str::title($shiftSlug);
+              $statusSet = collect($courseData['csos'] ?? [])
+                ->pluck('status')
+                ->map(fn($status) => strtolower((string) ($status ?? 'draft')))
+                ->unique()
+                ->values();
+              $isMixedStatus = $statusSet->count() > 1;
+              $currentStatus = $isMixedStatus ? 'mixed' : ($statusSet->first() ?? 'draft');
+              $statusLabel = $isMixedStatus ? 'Mixed' : ucfirst($currentStatus);
+              $statusBadgeClass = $currentStatus === 'published' ? 'bg-success' : ($isMixedStatus ? 'bg-warning text-dark' : 'bg-secondary');
 
-                  <strong>{{ $courseData['course']->course_code ?? 'N/A' }}</strong>
-                  <span class="badge badge-warning">{{ $courseData['course']->coursetypemaster->title ?? $courseData['course']->course_type ?? 'N/A' }}</span>
-                  <span class="ms-2">{{ $courseData['course']->course_title ?? 'Unknown Course' }}</span>
-                  @if($subjectUsesShifts)
-                  <span class="badge bg-info text-dark ms-2">Shift: {{ $shiftTitle }}</span>
-                  @endif
-                  <span class="badge js-course-status-badge {{ $statusBadgeClass }} ms-2">Status: {{ $statusLabel }}</span>
-                  <span class="badge bg-light text-dark ms-2">{{ $completedUnits }}/{{ $totalUnits }} Units</span>
-                  <span class="badge {{ $isLowCompletion ? 'bg-danger' : 'bg-success' }} ms-2">{{ $completionPercent }}% Complete</span>
-                  <span class="badge bg-secondary ms-auto me-2">{{ $courseData['course']->credits ?? '0' }} Credits</span>
-                  @if($seatAlloc)
-                  <span class="badge {{ $seatAlloc->is_open ? 'bg-success' : 'bg-secondary' }} me-2" title="Total Seats">
-                    <i class="fa fa-chair me-1"></i>{{ $seatAlloc->total_seats }} Seats
-                    {{ $seatAlloc->is_open ? '(Open)' : '(Closed)' }}
-                  </span>
-                  @else
-                  <span class="badge bg-warning text-dark me-2" title="No seat allocation set">
-                    <i class="fa fa-chair me-1"></i>Seats N/A
-                  </span>
-                  @endif
-                  @if($refPdf)
-                  <a href="{{ Storage::disk('s3')->url($refPdf->file_path) }}" target="_blank"
-                    class="badge bg-danger text-white me-2 text-decoration-none no-print"
-                    title="View Reference PDF: {{ $refPdf->original_name }}" onclick="event.stopPropagation()">
-                    <i class="fa fa-file-pdf me-1"></i>Ref PDF
-                  </a>
-                  @else
-                  <span class="badge bg-light text-muted border me-2 no-print" title="No reference PDF uploaded">
-                    <i class="fa fa-file-pdf me-1"></i>No PDF
-                  </span>
-                  @endif
-                </button>
-                @if($firstCso)
-                <form action="{{ route('department.syllabus.co.toggle-status', [$data['id'], $firstCso->batch_id, $firstCso->semester_id, $firstCso->co_id]) }}"
-                  method="POST" class="no-print me-2 js-toggle-syllabus-status">
-                  @csrf
-                  <input type="hidden" name="shift" value="{{ $firstCso->shift ?? 'common' }}">
-                  <button type="submit" class="btn btn-sm js-toggle-status-btn {{ $currentStatus === 'published' ? 'btn-outline-secondary' : 'btn-outline-success' }}"
-                    title="Toggle Draft/Published">
-                    <i class="fas fa-sync-alt"></i>
+              $totalUnits = 0;
+              $completedUnits = 0;
+              foreach (($courseData['csos'] ?? []) as $courseSyllabus) {
+                $subunits = collect($courseSyllabus->syllabusSubunits ?? []);
+                $totalUnits += $subunits->count();
+                $completedUnits += $subunits->where('is_completed', 1)->count();
+              }
+              $completionPercent = $totalUnits > 0 ? (int) round(($completedUnits / $totalUnits) * 100) : 0;
+              $isLowCompletion = $totalUnits > 0 && $completionPercent < 50;
+              $progressBarClass = $completionPercent >= 75 ? 'bg-success' : ($completionPercent >= 50 ? 'bg-warning' : 'bg-danger');
+              ?>
+              <div class="accordion-item {{ $isLowCompletion ? 'border border-danger' : '' }}">
+                <div class="accordion-header d-flex align-items-center">
+                  <button class="accordion-button collapsed flex-grow-1" type="button" data-bs-toggle="collapse"
+                    data-bs-target="#course{{ Str::slug($batchName . $programType . $semesterName . $courseKey) }}"
+                    aria-expanded="false">
+
+                    <strong>{{ $courseData['course']->course_code ?? 'N/A' }}</strong>
+                    <span class="badge badge-warning">{{ $courseData['course']->coursetypemaster->title ?? $courseData['course']->course_type ?? 'N/A' }}</span>
+                    <span class="ms-2">{{ $courseData['course']->course_title ?? 'Unknown Course' }}</span>
+                    @if($subjectUsesShifts)
+                    <span class="badge bg-info text-dark ms-2">Shift: {{ $shiftTitle }}</span>
+                    @endif
+                    <span class="badge bg-dark ms-2">Program: {{ strtoupper((string) ($firstCso->program_type ?? $selectedProgramType)) }}</span>
+                    <span class="badge js-course-status-badge {{ $statusBadgeClass }} ms-2">Status: {{ $statusLabel }}</span>
+                    <span class="badge bg-light text-dark ms-2">{{ $completedUnits }}/{{ $totalUnits }} Units</span>
+                    <span class="badge {{ $isLowCompletion ? 'bg-danger' : 'bg-success' }} ms-2">{{ $completionPercent }}% Complete</span>
+                    <span class="badge bg-secondary ms-auto me-2">{{ $courseData['course']->credits ?? '0' }} Credits</span>
+                    @if($seatAlloc)
+                    <span class="badge {{ $seatAlloc->is_open ? 'bg-success' : 'bg-secondary' }} me-2" title="Total Seats">
+                      <i class="fa fa-chair me-1"></i>{{ $seatAlloc->total_seats }} Seats
+                      {{ $seatAlloc->is_open ? '(Open)' : '(Closed)' }}
+                    </span>
+                    @else
+                    <span class="badge bg-warning text-dark me-2" title="No seat allocation set">
+                      <i class="fa fa-chair me-1"></i>Seats N/A
+                    </span>
+                    @endif
+                    @if($refPdf)
+                    <a href="{{ Storage::disk('s3')->url($refPdf->file_path) }}" target="_blank"
+                      class="badge bg-danger text-white me-2 text-decoration-none no-print"
+                      title="View Reference PDF: {{ $refPdf->original_name }}" onclick="event.stopPropagation()">
+                      <i class="fa fa-file-pdf me-1"></i>Ref PDF
+                    </a>
+                    @else
+                    <span class="badge bg-light text-muted border me-2 no-print" title="No reference PDF uploaded">
+                      <i class="fa fa-file-pdf me-1"></i>No PDF
+                    </span>
+                    @endif
                   </button>
-                </form>
+                  @if($firstCso)
+                  <form action="{{ route('department.syllabus.co.toggle-status', [$data['id'], $firstCso->batch_id, $firstCso->semester_id, $firstCso->co_id]) }}"
+                    method="POST" class="no-print me-2 js-toggle-syllabus-status">
+                    @csrf
+                    <input type="hidden" name="shift" value="{{ $firstCso->shift ?? 'common' }}">
+                    <input type="hidden" name="program_type" value="{{ strtoupper((string) ($firstCso->program_type ?? $selectedProgramType)) }}">
+                    <button type="submit" class="btn btn-sm js-toggle-status-btn {{ $currentStatus === 'published' ? 'btn-outline-secondary' : 'btn-outline-success' }}"
+                      title="Toggle Draft/Published">
+                      <i class="fas fa-sync-alt"></i>
+                    </button>
+                  </form>
 
-                <form action="{{ route('department.syllabus.co.delete', [$data['id'], $firstCso->batch_id, $firstCso->semester_id, $firstCso->co_id]) }}"
-                  method="POST" class="no-print me-2 js-delete-course-form"
-                  onsubmit="return confirm('Remove this course and all its CSOs & subunits from this batch/semester?')">
-                  @csrf
-                  @method('DELETE')
-                  <button type="submit" class="btn btn-sm btn-danger" title="Remove course from this batch & semester">
-                    <i class="fas fa-trash-alt"></i>
-                  </button>
-                </form>
-                @endif
-              </div>
-              <div id="course{{ Str::slug($batchName . $semesterName . $courseKey) }}"
-                class="accordion-collapse collapse"
-                data-bs-parent="#accordion{{ Str::slug($batchName . $semesterName) }}">
-                <div class="accordion-body">
-                  <!-- Course Completion Analytics -->
-                  <div class="mb-3">
-                    <div class="d-flex justify-content-between align-items-center mb-1">
-                      <small class="text-muted">Course Completion Progress</small>
-                      <small class="fw-semibold">{{ $completionPercent }}%</small>
-                    </div>
-                    <progress class="w-100" value="{{ $completionPercent }}" max="100"></progress>
-                    <small class="text-muted">Completed {{ $completedUnits }} of {{ $totalUnits }} learning units</small>
-                  </div>
-
-                  @if($isLowCompletion)
-                  <div class="alert alert-danger py-2" role="alert">
-                    <i class="fa fa-exclamation-triangle me-1"></i>
-                    This course is below 50% completion. Consider prioritizing pending units.
-                  </div>
+                  <form action="{{ route('department.syllabus.co.delete', [$data['id'], $firstCso->batch_id, $firstCso->semester_id, $firstCso->co_id]) }}"
+                    method="POST" class="no-print me-2 js-delete-course-form"
+                    onsubmit="return confirm('Remove this course and all its CSOs & subunits from this batch/semester?')">
+                    @csrf
+                    @method('DELETE')
+                    <input type="hidden" name="program_type" value="{{ strtoupper((string) ($firstCso->program_type ?? $selectedProgramType)) }}">
+                    <button type="submit" class="btn btn-sm btn-danger" title="Remove course from this batch & semester">
+                      <i class="fas fa-trash-alt"></i>
+                    </button>
+                  </form>
                   @endif
-
-                  <!-- Reference PDF Panel -->
-                  <div class="alert {{ $refPdf ? 'alert-danger' : 'alert-light border' }} d-flex align-items-center justify-content-between py-2 mb-3 no-print" role="alert">
-                    <div>
-                      <i class="fa fa-file-pdf me-2 text-danger"></i>
-                      @if($refPdf)
-                      <strong>Reference PDF:</strong>
-                      <a href="{{ Storage::disk('s3')->url($refPdf->file_path) }}" target="_blank" class="ms-1">
-                        {{ $refPdf->original_name }}
-                      </a>
-                      <small class="text-muted ms-2">uploaded {{ $refPdf->updated_at->diffForHumans() }}</small>
-                      @else
-                      <span class="text-muted">No reference PDF uploaded for this course.</span>
-                      @endif
+                </div>
+                <div id="course{{ Str::slug($batchName . $programType . $semesterName . $courseKey) }}"
+                  class="accordion-collapse collapse"
+                  data-bs-parent="#accordion{{ Str::slug($batchName . $programType . $semesterName) }}">
+                  <div class="accordion-body">
+                    <!-- Course Completion Analytics -->
+                    <div class="mb-3">
+                      <div class="d-flex justify-content-between align-items-center mb-1">
+                        <small class="text-muted">Course Completion Progress</small>
+                        <small class="fw-semibold">{{ $completionPercent }}%</small>
+                      </div>
+                      <progress class="w-100" value="{{ $completionPercent }}" max="100"></progress>
+                      <small class="text-muted">Completed {{ $completedUnits }} of {{ $totalUnits }} learning units</small>
                     </div>
-                    <div class="d-flex gap-2">
-                      @if($firstCso)
-                      <!-- Replace / Upload -->
-                      <button class="btn btn-sm btn-outline-primary"
-                        data-bs-toggle="modal"
-                        data-bs-target="#uploadRefPdfModal"
-                        data-batch="{{ $firstCso->batch_id }}"
-                        data-semester="{{ $firstCso->semester_id }}"
-                        data-course="{{ $firstCso->co_id }}"
-                        onclick="prefillPdfModal(this)">
-                        <i class="fa fa-upload me-1"></i>{{ $refPdf ? 'Replace' : 'Upload' }}
-                      </button>
-                      @endif
-                      @if($refPdf)
-                      <form action="{{ route('department.syllabus.pdf.destroy', $refPdf->id) }}" method="POST"
-                        onsubmit="return confirm('Remove this reference PDF?')">
-                        @csrf
-                        @method('DELETE')
-                        <button type="submit" class="btn btn-sm btn-outline-danger">
-                          <i class="fa fa-trash"></i>
+
+                    @if($isLowCompletion)
+                    <div class="alert alert-danger py-2" role="alert">
+                      <i class="fa fa-exclamation-triangle me-1"></i>
+                      This course is below 50% completion. Consider prioritizing pending units.
+                    </div>
+                    @endif
+
+                    <!-- Reference PDF Panel -->
+                    <div class="alert {{ $refPdf ? 'alert-danger' : 'alert-light border' }} d-flex align-items-center justify-content-between py-2 mb-3 no-print" role="alert">
+                      <div>
+                        <i class="fa fa-file-pdf me-2 text-danger"></i>
+                        @if($refPdf)
+                        <strong>Reference PDF:</strong>
+                        <a href="{{ Storage::disk('s3')->url($refPdf->file_path) }}" target="_blank" class="ms-1">
+                          {{ $refPdf->original_name }}
+                        </a>
+                        <small class="text-muted ms-2">uploaded {{ $refPdf->updated_at->diffForHumans() }}</small>
+                        @else
+                        <span class="text-muted">No reference PDF uploaded for this course.</span>
+                        @endif
+                      </div>
+                      <div class="d-flex gap-2">
+                        @if($firstCso)
+                        <!-- Replace / Upload -->
+                        <button class="btn btn-sm btn-outline-primary"
+                          data-bs-toggle="modal"
+                          data-bs-target="#uploadRefPdfModal"
+                          data-batch="{{ $firstCso->batch_id }}"
+                          data-semester="{{ $firstCso->semester_id }}"
+                          data-course="{{ $firstCso->co_id }}"
+                          onclick="prefillPdfModal(this)">
+                          <i class="fa fa-upload me-1"></i>{{ $refPdf ? 'Replace' : 'Upload' }}
                         </button>
-                      </form>
-                      @endif
-                    </div>
-                  </div>
-
-                  <!-- Course Details -->
-                  <div class="row mb-3">
-                    <div class="col-md-4">
-                      <small class="text-muted">Internal Marks:</small>
-                      <strong>{{ $courseData['course']->internal ?? '-' }}</strong>
-                    </div>
-                    <div class="col-md-4">
-                      <small class="text-muted">External Marks:</small>
-                      <strong>{{ $courseData['course']->external ?? '-' }}</strong>
-                    </div>
-                    <div class="col-md-4">
-                      <small class="text-muted">Total Hours:</small>
-                      <strong>{{ $courseData['course']->total_alloted_hours ?? '-' }}</strong>
-                    </div>
-                  </div>
-
-                  <!-- CSOs -->
-                  <h6 class="border-bottom pb-2 mb-3">Course Specific Objectives (CSOs)</h6>
-                  @foreach ($courseData['csos'] as $syllabus)
-                  <div class="card mb-3">
-                    <div class="card-header bg-info text-white">
-                      <div class="d-flex justify-content-between align-items-center">
-                        <span>
-                          <strong>{{ $syllabus->cso->title ?? 'N/A' }}</strong>
-                          @if($subjectUsesShifts)
-                          @php
-                          $csoShiftSlug = $syllabus->shift ?? 'common';
-                          $csoShiftTitle = $shiftTitleMap[$csoShiftSlug] ?? Str::title($csoShiftSlug);
-                          @endphp
-                          <span class="badge bg-dark ms-1">{{ $csoShiftTitle }}</span>
-                          @endif
-                        </span>
-                        <span class="badge bg-light text-dark">{{ $syllabus->cso->lectures_needed ?? '0' }} Lectures</span>
+                        @endif
+                        @if($refPdf)
+                        <form action="{{ route('department.syllabus.pdf.destroy', $refPdf->id) }}" method="POST"
+                          onsubmit="return confirm('Remove this reference PDF?')">
+                          @csrf
+                          @method('DELETE')
+                          <button type="submit" class="btn btn-sm btn-outline-danger">
+                            <i class="fa fa-trash"></i>
+                          </button>
+                        </form>
+                        @endif
                       </div>
                     </div>
-                    <div class="card-body">
-                      <h6 class="mb-3">Learning Units</h6>
-                      <div class="list-group">
-                        @foreach ($syllabus->syllabusSubunits ?? [] as $syllabusSubunit)
-                        <div class="list-group-item">
-                          <div class="d-flex justify-content-between align-items-start">
-                            <div class="flex-grow-1">
-                              <h6 class="mb-1">{{ $syllabusSubunit->csoSubunit->title ?? 'N/A' }}</h6>
-                              <small class="text-muted">
-                                <span class="badge bg-primary">
-                                  @foreach ($syllabusSubunit->csoSubunit->taxonomies ?? [] as $taxonomy)
-                                  {{ $taxonomy->rbtmaster->shortname ?? '-' }} - {{ $taxonomy->rbtmaster->fullname ?? '-' }}
-                                  @endforeach
+
+                    <!-- Course Details -->
+                    <div class="row mb-3">
+                      <div class="col-md-4">
+                        <small class="text-muted">Internal Marks:</small>
+                        <strong>{{ $courseData['course']->internal ?? '-' }}</strong>
+                      </div>
+                      <div class="col-md-4">
+                        <small class="text-muted">External Marks:</small>
+                        <strong>{{ $courseData['course']->external ?? '-' }}</strong>
+                      </div>
+                      <div class="col-md-4">
+                        <small class="text-muted">Total Hours:</small>
+                        <strong>{{ $courseData['course']->total_alloted_hours ?? '-' }}</strong>
+                      </div>
+                    </div>
+
+                    <!-- CSOs -->
+                    <h6 class="border-bottom pb-2 mb-3">Course Specific Objectives (CSOs)</h6>
+                    @foreach ($courseData['csos'] as $syllabus)
+                    <div class="card mb-3">
+                      <div class="card-header bg-info text-white">
+                        <div class="d-flex justify-content-between align-items-center">
+                          <span>
+                            <strong>{{ $syllabus->cso->title ?? 'N/A' }}</strong>
+                            @if($subjectUsesShifts)
+                            @php
+                            $csoShiftSlug = $syllabus->shift ?? 'common';
+                            $csoShiftTitle = $shiftTitleMap[$csoShiftSlug] ?? Str::title($csoShiftSlug);
+                            @endphp
+                            <span class="badge bg-dark ms-1">{{ $csoShiftTitle }}</span>
+                            @endif
+                          </span>
+                          <span class="badge bg-light text-dark">{{ $syllabus->cso->lectures_needed ?? '0' }} Lectures</span>
+                        </div>
+                      </div>
+                      <div class="card-body">
+                        <h6 class="mb-3">Learning Units</h6>
+                        <div class="list-group">
+                          @foreach ($syllabus->syllabusSubunits ?? [] as $syllabusSubunit)
+                          <div class="list-group-item">
+                            <div class="d-flex justify-content-between align-items-start">
+                              <div class="flex-grow-1">
+                                <h6 class="mb-1">{{ $syllabusSubunit->csoSubunit->title ?? 'N/A' }}</h6>
+                                <small class="text-muted">
+                                  <span class="badge bg-primary">
+                                    @foreach ($syllabusSubunit->csoSubunit->taxonomies ?? [] as $taxonomy)
+                                    {{ $taxonomy->rbtmaster->shortname ?? '-' }} - {{ $taxonomy->rbtmaster->fullname ?? '-' }}
+                                    @endforeach
+                                  </span>
+                                </small>
+                              </div>
+                              <div class="d-flex align-items-center gap-2">
+                                @if ($syllabusSubunit->is_completed == 1)
+                                <span class="badge bg-success" title="Completed">
+                                  <i class="fa fa-check-circle"></i> Completed
                                 </span>
-                              </small>
-                            </div>
-                            <div class="d-flex align-items-center gap-2">
-                              @if ($syllabusSubunit->is_completed == 1)
-                              <span class="badge bg-success" title="Completed">
-                                <i class="fa fa-check-circle"></i> Completed
-                              </span>
-                              @else
-                              <span class="badge bg-warning" title="Pending">
-                                <i class="fa fa-clock"></i> Pending
-                              </span>
-                              @endif
-                              <form action="{{ route('department.syllabus.subunit.delete', $syllabusSubunit->id) }}" method="POST" class="no-print js-delete-subunit-form"
-                                onsubmit="return confirm('Remove this subunit from syllabus?')">
-                                @csrf
-                                @method('DELETE')
-                                <button type="submit" class="btn btn-sm btn-outline-danger" title="Remove">
-                                  <i class="fas fa-trash-alt"></i>
-                                </button>
-                              </form>
+                                @else
+                                <span class="badge bg-warning" title="Pending">
+                                  <i class="fa fa-clock"></i> Pending
+                                </span>
+                                @endif
+                                <form action="{{ route('department.syllabus.subunit.delete', $syllabusSubunit->id) }}" method="POST" class="no-print js-delete-subunit-form"
+                                  onsubmit="return confirm('Remove this subunit from syllabus?')">
+                                  @csrf
+                                  @method('DELETE')
+                                  <button type="submit" class="btn btn-sm btn-outline-danger" title="Remove">
+                                    <i class="fas fa-trash-alt"></i>
+                                  </button>
+                                </form>
+                              </div>
                             </div>
                           </div>
+                          @endforeach
                         </div>
-                        @endforeach
                       </div>
                     </div>
+                    @endforeach
                   </div>
-                  @endforeach
                 </div>
               </div>
+              @endforeach
             </div>
-            @endforeach
           </div>
+          @endforeach
         </div>
         @endforeach
       </div>
@@ -797,7 +830,13 @@ $shiftTitleMap = collect($shiftOptions ?? [])->pluck('title', 'slug')->toArray()
         // Fetch CSOs for the selected course
         const shiftSelect = document.getElementById('syllabus_shift');
         const selectedShift = shiftSelect ? shiftSelect.value : '';
-        const endpoint = `/erp/deptartment/course/${courseId}/cso-list${selectedShift ? `?shift=${selectedShift}` : ''}`;
+        const programTypeSelect = document.getElementById('syllabus_program_type');
+        const selectedProgramType = programTypeSelect ? programTypeSelect.value : 'UG';
+        const query = new URLSearchParams();
+        if (selectedShift) query.append('shift', selectedShift);
+        if (selectedProgramType) query.append('program_type', selectedProgramType);
+        const queryString = query.toString();
+        const endpoint = `/erp/deptartment/course/${courseId}/cso-list${queryString ? `?${queryString}` : ''}`;
 
         fetch(endpoint)
           .then(response => response.json())
@@ -902,8 +941,17 @@ $shiftTitleMap = collect($shiftOptions ?? [])->pluck('title', 'slug')->toArray()
     }
 
     const shiftSelect = document.getElementById('syllabus_shift');
+    const programTypeSelect = document.getElementById('syllabus_program_type');
     if (shiftSelect && courseSelect) {
       shiftSelect.addEventListener('change', function() {
+        if (courseSelect.value) {
+          courseSelect.dispatchEvent(new Event('change'));
+        }
+      });
+    }
+
+    if (programTypeSelect && courseSelect) {
+      programTypeSelect.addEventListener('change', function() {
         if (courseSelect.value) {
           courseSelect.dispatchEvent(new Event('change'));
         }

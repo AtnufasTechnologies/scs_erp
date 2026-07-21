@@ -315,7 +315,7 @@ $typeLabelMap = [
     <div class="row">
       <div class="col-lg-7">
         <div class="swc-info">
-          <h5 class="mb-1">Batch: {{$data->batchmaster->batch_name}} | {{$data->studentprograminfo->code}} - {{$data->studentprograminfo->name}}</h5>
+          <h5 class="mb-1">Batch: {{$data->batchmaster->batch_name}} | {{$data->studentprograminfo->code}} - {{$data->studentprograminfo->name}} <span class="badge badge-danger">{{$data->program_type }}</span></h5>
           <p class="mb-0">
             <i class="fa fa-link"></i> Connected:
             <span class="badge badge-warning">{{$data->combomap->combo1->id ?? '1 Not Set'}} - {{$data->combomap->combo1->title ?? '1 Not Set'}}</span>
@@ -385,7 +385,10 @@ $typeLabelMap = [
           </div>
 
           <div class="col-12 mt-3">
-            <h6 class="mb-2">All Offered Courses (Published Syllabus) - Semester <span id="generatedSemesterLabel">{{ $selectedSemester > 0 ? $selectedSemester : '-' }}</span></h6>
+            <h6 class="mb-2">
+              All Offered Courses (Published Syllabus) - Semester <span id="generatedSemesterLabel">{{ $selectedSemester > 0 ? $selectedSemester : '-' }}</span>
+              | Program Type <span id="generatedProgramTypeLabel">{{ strtoupper((string) ($data->program_type ?? 'UG')) === 'PG' ? 'PG' : 'UG' }}</span>
+            </h6>
             <div id="generatedCoursesEmpty" class="alert alert-warning mb-0 {{$generatedCourses->isEmpty() ? '' : 'd-none'}}">No published syllabus courses found for this semester.</div>
             <div class="table-responsive">
               <table class="table table-bordered table-sm align-middle mb-0">
@@ -727,6 +730,9 @@ $typeLabelMap = [
 </div>
 
 @include('includes.footer')
+<script id="availableSpecializationsJson" type="application/json">
+  @json($availableSpecializationsPayload)
+</script>
 <script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.3/Sortable.min.js"></script>
 <script>
   (function() {
@@ -735,7 +741,17 @@ $typeLabelMap = [
     let combo1DepartmentId = Number('{{ $combo1DepartmentId }}');
     let combo2DepartmentId = Number('{{ $combo2DepartmentId }}');
     let isSingleMajorCourse = combo1DepartmentId > 0 && combo1DepartmentId === combo2DepartmentId;
-    const availableSpecializations = @json($availableSpecializationsPayload);
+    const generatedProgramTypeLabel = document.getElementById('generatedProgramTypeLabel');
+    const defaultProgramType = String(generatedProgramTypeLabel?.textContent || 'UG').trim().toUpperCase() === 'PG' ? 'PG' : 'UG';
+    const availableSpecializations = (() => {
+      const raw = document.getElementById('availableSpecializationsJson')?.textContent || '[]';
+      try {
+        const parsed = JSON.parse(raw);
+        return Array.isArray(parsed) ? parsed : [];
+      } catch (error) {
+        return [];
+      }
+    })();
     const generateForm = document.getElementById('curriculumGenerateForm');
     const generateFeedback = document.getElementById('curriculumGenerateFeedback');
     const generatedCoursesTbody = document.getElementById('generatedCoursesTbody');
@@ -770,7 +786,7 @@ $typeLabelMap = [
       }
 
       toastElement.classList.remove('text-bg-success', 'text-bg-danger', 'text-bg-info');
-      toastElement.classList.add(status === 'success' ? 'text-bg-success' : (status === 'info' ? 'text-bg-info' : 'text-bg-danger'));
+      toastElement.classList.add('text-bg-success');
       toastBodyElement.textContent = message;
       bootstrap.Toast.getOrCreateInstance(toastElement).show();
     }
@@ -973,9 +989,14 @@ $typeLabelMap = [
             mappingSemesterInput.value = String(data.semester || params.get('semester') || '');
           }
 
+          if (generatedProgramTypeLabel) {
+            generatedProgramTypeLabel.textContent = String(data.program_type || defaultProgramType);
+          }
+
           renderGeneratedCourses(data.data || []);
           renderGeneratedDeliveryPreview();
-          setGenerateFeedback('success', 'Courses fetched successfully.');
+          const activeProgramType = String(data.program_type || generatedProgramTypeLabel?.textContent || defaultProgramType);
+          setGenerateFeedback('success', `Courses fetched successfully for ${activeProgramType}.`);
         } catch (error) {
           setGenerateFeedback('error', error.message || 'Unable to fetch courses.');
         } finally {

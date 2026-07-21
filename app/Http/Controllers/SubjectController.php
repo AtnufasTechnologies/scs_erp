@@ -1184,6 +1184,7 @@ class SubjectController extends Controller
         $data['id'] = $id;
         $data['slug'] = $request->slug;
         $subjectUsesShifts = $this->subjectUsesShifts($id);
+        $selectedProgramType = $this->resolveSyllabusProgramType($request, 'filter_program_type');
 
         $syllabusQuery = SyllabusManager::with([
             'subject',
@@ -1201,6 +1202,10 @@ class SubjectController extends Controller
             $syllabusQuery->where('shift', $request->filter_shift);
         }
 
+        if (Schema::hasColumn('syllabus_managers', 'program_type') && !empty($request->filter_program_type)) {
+            $syllabusQuery->where('program_type', $selectedProgramType);
+        }
+
         if ($mappedCourseIds->isNotEmpty()) {
             $syllabusQuery->whereIn('co_id', $mappedCourseIds->all());
         } else {
@@ -1210,10 +1215,12 @@ class SubjectController extends Controller
         $syllabusData = $syllabusQuery->get();
 
 
-        // Organize data: Batch -> Semester -> Course -> CSOs
+        // Organize data: Batch -> Program Type -> Semester -> Course -> CSOs
         $organized = [];
         foreach ($syllabusData as $syllabus) {
             $batchName = $syllabus->batch->batch_name ?? 'Unknown Batch';
+            $programLabel = strtoupper((string) ($syllabus->program_type ?? 'UG'));
+            $programLabel = $programLabel === 'PG' ? 'PG' : 'UG';
             $semesterName = $syllabus->semester->title ?? 'Unknown Semester';
             $courseCode = $syllabus->courseobjective->course_code ?? 'N/A';
             $courseTitle = $syllabus->courseobjective->course_title ?? 'Unknown Course';
@@ -1223,17 +1230,20 @@ class SubjectController extends Controller
             if (!isset($organized[$batchName])) {
                 $organized[$batchName] = [];
             }
-            if (!isset($organized[$batchName][$semesterName])) {
-                $organized[$batchName][$semesterName] = [];
+            if (!isset($organized[$batchName][$programLabel])) {
+                $organized[$batchName][$programLabel] = [];
             }
-            if (!isset($organized[$batchName][$semesterName][$courseKey])) {
-                $organized[$batchName][$semesterName][$courseKey] = [
+            if (!isset($organized[$batchName][$programLabel][$semesterName])) {
+                $organized[$batchName][$programLabel][$semesterName] = [];
+            }
+            if (!isset($organized[$batchName][$programLabel][$semesterName][$courseKey])) {
+                $organized[$batchName][$programLabel][$semesterName][$courseKey] = [
                     'course' => $syllabus->courseobjective,
                     'csos' => []
                 ];
             }
 
-            $organized[$batchName][$semesterName][$courseKey]['csos'][] = $syllabus;
+            $organized[$batchName][$programLabel][$semesterName][$courseKey]['csos'][] = $syllabus;
         }
 
         $data['organized_syllabus'] = $organized;
@@ -1257,6 +1267,7 @@ class SubjectController extends Controller
             'cos'            => $cos,
             'data'           => $data,
             'shiftOptions'   => $shiftOptions,
+            'selectedProgramType' => $selectedProgramType,
             'subjectUsesShifts' => $subjectUsesShifts,
             'seatAllocations' => $seatAllocations,
             'syllabuspdfs'   => $syllabuspdfs,
@@ -1271,6 +1282,7 @@ class SubjectController extends Controller
             'subject_id' => 'required',
             'batch' => 'required',
             'semester' => 'required',
+            'program_type' => 'required|in:UG,PG',
             'shift' => ['nullable', Rule::in($allowedShifts)],
             'create_all_shifts' => 'nullable|boolean',
             'co_id' => 'required',
@@ -1301,6 +1313,17 @@ class SubjectController extends Controller
         $createdCount = 0;
         $updatedCount = 0;
         $status = $request->status ?? 'draft';
+        $programType = $this->resolveSyllabusProgramType($request, 'program_type');
+
+        if (Schema::hasColumn('subject_has_syllabi', 'program_type')) {
+            SubjectHasSyllabus::firstOrCreate([
+                'subject_id' => $request->subject_id,
+                'batch_id' => $request->batch,
+                'semester_id' => $request->semester,
+                'course_id' => $request->co_id,
+                'program_type' => $programType,
+            ]);
+        }
 
         // save syllabus subunit
         $cso_subunit = $request->cso_subunit;
@@ -1310,6 +1333,7 @@ class SubjectController extends Controller
                 'batch_id' => $request->batch,
                 'semester_id' => $request->semester,
                 'shift' => $shiftSlug,
+                'program_type' => $programType,
                 'co_id' => $request->co_id,
                 'cso_id' => $request->cso_id,
             ], [
@@ -1395,6 +1419,7 @@ class SubjectController extends Controller
     function toggleSyllabusStatus(Request $request, $subjectId, $batchId, $semesterId, $coId)
     {
         $isJsonRequest = $request->expectsJson() || $request->ajax();
+        $programType = $this->resolveSyllabusProgramType($request, 'program_type');
 
         $query = SyllabusManager::where('subject_id', $subjectId)
             ->where('batch_id', $batchId)
@@ -1403,6 +1428,10 @@ class SubjectController extends Controller
 
         if ($request->filled('shift')) {
             $query->where('shift', $request->shift);
+        }
+
+        if (Schema::hasColumn('syllabus_managers', 'program_type')) {
+            $query->where('program_type', $programType);
         }
 
         $records = $query->get();
@@ -1436,9 +1465,10 @@ class SubjectController extends Controller
         return redirect()->back()->with('success', 'Syllabus status changed to ' . ucfirst($nextStatus) . '.');
     }
 
-    function deleteSyllabusCo($subjectId, $batchId, $semesterId, $coId)
+    function deleteSyllabusCo(Request $request, $subjectId, $batchId, $semesterId, $coId)
     {
         $isJsonRequest = request()->expectsJson() || request()->ajax();
+        $programType = $this->resolveSyllabusProgramType($request, 'program_type');
         $hasAttendance = StudentAttendance::where('course_id', $coId)->exists();
         $hasTimetable  = SubjectHasRoutine::where('subject_course_id', $coId)
             ->where('batch_id', $batchId)
@@ -1466,8 +1496,13 @@ class SubjectController extends Controller
         $records = SyllabusManager::where('subject_id', $subjectId)
             ->where('batch_id', $batchId)
             ->where('semester_id', $semesterId)
-            ->where('co_id', $coId)
-            ->get();
+            ->where('co_id', $coId);
+
+        if (Schema::hasColumn('syllabus_managers', 'program_type')) {
+            $records->where('program_type', $programType);
+        }
+
+        $records = $records->get();
 
         foreach ($records as $record) {
             $record->syllabusSubunits()->delete();
@@ -1489,6 +1524,7 @@ class SubjectController extends Controller
         $id = $request->id;
         $subject = Subject::find($id);
         $subjectUsesShifts = $this->subjectUsesShifts((int) $id);
+        $selectedProgramType = $this->resolveSyllabusProgramType($request, 'filter_program_type');
 
         $syllabusQuery = SyllabusManager::with([
             'subject',
@@ -1507,6 +1543,10 @@ class SubjectController extends Controller
             $syllabusQuery->where('shift', $request->filter_shift);
         }
 
+        if (Schema::hasColumn('syllabus_managers', 'program_type')) {
+            $syllabusQuery->where('program_type', $selectedProgramType);
+        }
+
         $syllabusData = $syllabusQuery->get();
 
         // Organize data: Batch -> Semester -> Course -> CSOs
@@ -1517,7 +1557,8 @@ class SubjectController extends Controller
             $courseCode = $syllabus->courseobjective->course_code ?? 'N/A';
             $courseTitle = $syllabus->courseobjective->course_title ?? 'Unknown Course';
             $shiftLabel = Str::title($syllabus->shift ?? 'common');
-            $courseKey = $courseCode . ' - ' . $courseTitle . ' [' . $shiftLabel . ']';
+            $programLabel = strtoupper((string) ($syllabus->program_type ?? $selectedProgramType));
+            $courseKey = $courseCode . ' - ' . $courseTitle . ' [' . $shiftLabel . ' | ' . $programLabel . ']';
 
             if (!isset($organized[$batchName])) {
                 $organized[$batchName] = [];
@@ -1538,6 +1579,7 @@ class SubjectController extends Controller
         $data = [
             'subject' => $subject,
             'organized_syllabus' => $organized,
+            'selected_program_type' => $selectedProgramType,
             'slug' => $request->slug ?? $subject->slug
         ];
 
@@ -2028,6 +2070,12 @@ class SubjectController extends Controller
         return $slugs;
     }
 
+    private function resolveSyllabusProgramType(Request $request, string $key = 'program_type'): string
+    {
+        $value = strtoupper(trim((string) $request->input($key, 'UG')));
+        return $value === 'PG' ? 'PG' : 'UG';
+    }
+
     private function normalizeTitle(?string $value): string
     {
         $normalized = mb_strtolower((string) $value);
@@ -2278,16 +2326,29 @@ class SubjectController extends Controller
 
         $combo1SubjectId = (int) ($request->combo1 ?? optional($combination->combomap)->combo_id_1 ?? 0);
         $combo2SubjectId = (int) ($request->combo2 ?? optional($combination->combomap)->combo_id_2 ?? 0);
+        $programType = $this->resolveCombinationProgramType($combination);
         $semester = $request->semester;
         $batch = $request->batch;
 
-        $combo1OfferedCourses =   SyllabusManager::with(['courseobjective.coursetypemaster', 'subject:id,title,code'])
+        $combo1OfferedCoursesQuery = SyllabusManager::with(['courseobjective.coursetypemaster', 'subject:id,title,code'])
             ->where('subject_id', $combo1SubjectId)->where('batch_id', $batch)->where('semester_id', $semester)
-            ->where('status', 'published')->get();
+            ->where('status', 'published');
 
-        $combo2OfferedCourses =   SyllabusManager::with(['courseobjective.coursetypemaster', 'subject:id,title,code'])
+        if (Schema::hasColumn('syllabus_managers', 'program_type')) {
+            $combo1OfferedCoursesQuery->whereRaw("UPPER(TRIM(COALESCE(program_type, ''))) = ?", [$programType]);
+        }
+
+        $combo1OfferedCourses = $combo1OfferedCoursesQuery->get();
+
+        $combo2OfferedCoursesQuery = SyllabusManager::with(['courseobjective.coursetypemaster', 'subject:id,title,code'])
             ->where('subject_id', $combo2SubjectId)->where('batch_id', $batch)->where('semester_id', $semester)
-            ->where('status', 'published')->get();
+            ->where('status', 'published');
+
+        if (Schema::hasColumn('syllabus_managers', 'program_type')) {
+            $combo2OfferedCoursesQuery->whereRaw("UPPER(TRIM(COALESCE(program_type, ''))) = ?", [$programType]);
+        }
+
+        $combo2OfferedCourses = $combo2OfferedCoursesQuery->get();
 
         $mapCourses = function ($syllabi, string $source) {
             return collect($syllabi)
@@ -2341,6 +2402,7 @@ class SubjectController extends Controller
             'semester' => (int) $request->semester,
             'combo1' => $combo1SubjectId,
             'combo2' => $combo2SubjectId,
+            'program_type' => $programType,
             'data' => $semesterCourses,
         ]);
     }
@@ -3015,6 +3077,7 @@ class SubjectController extends Controller
     private function getPublishedCoursesBySemesterForCombination(SubjectHasStudentProgam $combination, ?array $boundary = null): array
     {
         $boundary = $boundary ?: $this->getProgrammeBoundarySubjectIds($combination);
+        $programType = $this->resolveCombinationProgramType($combination);
 
         $query = SyllabusManager::with([
             'courseobjective:id,course_code,course_title,course_type,department',
@@ -3022,6 +3085,10 @@ class SubjectController extends Controller
             'courseobjective.departmentmaster:id,name,department_code',
         ])
             ->where('batch_id', $combination->batch_id);
+
+        if (Schema::hasColumn('syllabus_managers', 'program_type')) {
+            $query->whereRaw("UPPER(TRIM(COALESCE(program_type, ''))) = ?", [$programType]);
+        }
 
         if (Schema::hasColumn('syllabus_managers', 'status')) {
             $query->where('status', 'published');
@@ -3068,6 +3135,12 @@ class SubjectController extends Controller
         }
 
         return $bySemester;
+    }
+
+    private function resolveCombinationProgramType(?SubjectHasStudentProgam $combination): string
+    {
+        $programType = strtoupper(trim((string) ($combination->program_type ?? 'UG')));
+        return $programType === 'PG' ? 'PG' : 'UG';
     }
 
     private function resolveCurriculumCourseType(array $course): string
