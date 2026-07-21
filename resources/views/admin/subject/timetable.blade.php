@@ -311,7 +311,7 @@ $days = Weekday::all();
               </form>
             </div>
           </div>
-          <div class="card custom-card mb-4">
+          <!-- <div class="card custom-card mb-4">
             <div class="card-body">
               <h5 class="card-title text-dark mb-3">Quick Slot Entry</h5>
               <div class="row g-3 align-items-end">
@@ -359,7 +359,7 @@ $days = Weekday::all();
                 </div>
               </div>
             </div>
-          </div>
+          </div> -->
           <div id="timetableGridArea"></div>
         </div>
       </div>
@@ -585,10 +585,46 @@ $days = Weekday::all();
           routine_id: Number(entry.routine_id || 0),
           weekday_id: dayNameToWeekdayId(entry.day_of_week),
           hour_id: Number(entry.hour_number || 0),
+          faculty_id: Number(entry.teacher_id || 0),
           teaching_assignment_id: Number(entry.teaching_assignment_id || 0),
           lecturehall_id: Number(entry.lecturehall_id || 0),
           shift_id: getShiftIdBySlug(String(entry.shift || getActiveShift() || 'common')),
         }));
+    }
+
+    async function fetchBookedFacultiesForSlot(day, hourNumber, ignoreRoutineId = 0) {
+      const subjectId = getCurrentSubjectId();
+      const shift = getActiveShift();
+
+      if (!subjectId || !day || !hourNumber) {
+        return [];
+      }
+
+      const conflictUrl = '{{ route("department.timetable.conflicts", ["hourNumber" => "HOUR_NO", "day" => "DAY_NAME"]) }}'
+        .replace('HOUR_NO', encodeURIComponent(String(hourNumber)))
+        .replace('DAY_NAME', encodeURIComponent(String(day)));
+
+      try {
+        const response = await fetch(`${conflictUrl}?subject_id=${encodeURIComponent(String(subjectId))}&shift=${encodeURIComponent(shift)}&ignore_routine_id=${encodeURIComponent(String(ignoreRoutineId || 0))}`, {
+          method: 'GET',
+          headers: {
+            'Accept': 'application/json',
+            'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content')
+          }
+        });
+
+        const data = await response.json();
+        if (!data?.success || !Array.isArray(data?.booked_faculties)) {
+          return [];
+        }
+
+        return data.booked_faculties
+          .map(id => Number(id || 0))
+          .filter(id => id > 0);
+      } catch (error) {
+        console.error('Failed to fetch booked faculties:', error);
+        return [];
+      }
     }
 
     async function validateTimetableConflictBeforeAdd({
@@ -990,7 +1026,7 @@ $days = Weekday::all();
       renderTimetable();
     }
 
-    function populateTeachingAssignmentOptions(selectedAssignmentId = '') {
+    async function populateTeachingAssignmentOptions(selectedAssignmentId = '', day = '', hourNumber = 0, ignoreRoutineId = 0) {
       const assignmentSelect = document.getElementById('modalTeachingAssignment');
       const assignmentHint = document.getElementById('assignmentHint');
       if (!assignmentSelect) return;
@@ -999,6 +1035,24 @@ $days = Weekday::all();
       const semesterId = Number(document.getElementById('semesterSelect')?.value || 0);
       const shift = getActiveShift();
       const programType = getActiveProgramType();
+      const blockedFacultyIds = new Set(await fetchBookedFacultiesForSlot(day, hourNumber, ignoreRoutineId));
+
+      const filterAvailableAssignments = (rows) => {
+        const selectedId = String(selectedAssignmentId || '');
+        return rows.filter(assignment => {
+          const assignmentId = String(assignment.id || '');
+          if (selectedId && assignmentId === selectedId) {
+            return true;
+          }
+
+          const facultyId = Number(assignment.faculty_id || 0);
+          if (facultyId <= 0) {
+            return true;
+          }
+
+          return !blockedFacultyIds.has(facultyId);
+        });
+      };
 
       const paintFallback = () => {
         const sortedAssignments = [...teachingAssignments].sort((a, b) => {
@@ -1006,9 +1060,10 @@ $days = Weekday::all();
           const right = `${b.course_label || ''}|${b.faculty_label || ''}|${b.delivery_type || ''}`;
           return left.localeCompare(right);
         });
+        const availableAssignments = filterAvailableAssignments(sortedAssignments);
 
         assignmentSelect.innerHTML = '<option value="">Select Assignment</option>';
-        sortedAssignments.forEach(assignment => {
+        availableAssignments.forEach(assignment => {
           const option = document.createElement('option');
           option.value = String(assignment.id);
           option.textContent = `${assignment.course_label || 'Course'} | ${assignment.faculty_label || 'Faculty'} | ${normalizeDeliveryType(assignment.delivery_type) || assignment.delivery_type || '-'} | Room: ${assignment.room || '-'}`;
@@ -1020,9 +1075,9 @@ $days = Weekday::all();
         }
 
         if (assignmentHint) {
-          assignmentHint.textContent = sortedAssignments.length ?
-            `Showing active teaching assignments (${sortedAssignments.length} row(s)).` :
-            'No active teaching assignments available.';
+          assignmentHint.textContent = availableAssignments.length ?
+            `Showing available teaching assignments (${availableAssignments.length}/${sortedAssignments.length} row(s)).` :
+            'No available faculty for this slot.';
         }
 
         initTeachingAssignmentLiveSearch();
@@ -1071,6 +1126,7 @@ $days = Weekday::all();
               const right = `${b.course_label || ''}|${b.faculty_label || ''}|${b.delivery_type || ''}`;
               return left.localeCompare(right);
             });
+          const availableRows = filterAvailableAssignments(rows);
 
           if (!rows.length) {
             paintFallback();
@@ -1082,7 +1138,7 @@ $days = Weekday::all();
           });
 
           assignmentSelect.innerHTML = '<option value="">Select Assignment</option>';
-          rows.forEach(assignment => {
+          availableRows.forEach(assignment => {
             const option = document.createElement('option');
             option.value = String(assignment.id);
             option.textContent = `${assignment.course_label || 'Course'} | ${assignment.faculty_label || 'Faculty'} | ${normalizeDeliveryType(assignment.delivery_type) || assignment.delivery_type || '-'} | Room: ${assignment.room || '-'}`;
@@ -1094,7 +1150,9 @@ $days = Weekday::all();
           }
 
           if (assignmentHint) {
-            assignmentHint.textContent = `Showing teaching assignments from timetable-data (${rows.length} row(s)).`;
+            assignmentHint.textContent = availableRows.length ?
+              `Showing available teaching assignments (${availableRows.length}/${rows.length} row(s)).` :
+              'No available faculty for this slot.';
           }
 
           initTeachingAssignmentLiveSearch();
@@ -1243,11 +1301,11 @@ $days = Weekday::all();
       if (entryKey) {
         const entry = getEntryByKey(entryKey);
         if (entry) {
-          populateTeachingAssignmentOptions(entry.teaching_assignment_id);
+          populateTeachingAssignmentOptions(entry.teaching_assignment_id, day, hourNumber, Number(entry.routine_id || 0));
           if (saveButton) saveButton.textContent = 'Update Slot';
         }
       } else {
-        populateTeachingAssignmentOptions('');
+        populateTeachingAssignmentOptions('', day, hourNumber, 0);
         if (assignmentSelect) assignmentSelect.value = '';
         renderCourseAssignmentInfo('');
         if (saveButton) saveButton.textContent = 'Save Slot';
@@ -1548,21 +1606,36 @@ $days = Weekday::all();
       const programTypeSelect = document.getElementById('programTypeSelect');
       if (batchSelect) {
         batchSelect.addEventListener('change', function() {
-          populateTeachingAssignmentOptions(document.getElementById('modalTeachingAssignment')?.value || '');
+          populateTeachingAssignmentOptions(
+            document.getElementById('modalTeachingAssignment')?.value || '',
+            document.getElementById('selectedDay')?.value || '',
+            Number(document.getElementById('selectedHour')?.value || 0),
+            Number(getEntryByKey(editingEntryKey || '')?.routine_id || 0)
+          );
           populateQuickCourseOptions();
           renderQuickAssignmentInfo(document.getElementById('quickCourseSelect')?.value || '');
         });
       }
       if (semesterSelect) {
         semesterSelect.addEventListener('change', function() {
-          populateTeachingAssignmentOptions(document.getElementById('modalTeachingAssignment')?.value || '');
+          populateTeachingAssignmentOptions(
+            document.getElementById('modalTeachingAssignment')?.value || '',
+            document.getElementById('selectedDay')?.value || '',
+            Number(document.getElementById('selectedHour')?.value || 0),
+            Number(getEntryByKey(editingEntryKey || '')?.routine_id || 0)
+          );
           populateQuickCourseOptions();
           renderQuickAssignmentInfo(document.getElementById('quickCourseSelect')?.value || '');
         });
       }
       if (programTypeSelect) {
         programTypeSelect.addEventListener('change', function() {
-          populateTeachingAssignmentOptions(document.getElementById('modalTeachingAssignment')?.value || '');
+          populateTeachingAssignmentOptions(
+            document.getElementById('modalTeachingAssignment')?.value || '',
+            document.getElementById('selectedDay')?.value || '',
+            Number(document.getElementById('selectedHour')?.value || 0),
+            Number(getEntryByKey(editingEntryKey || '')?.routine_id || 0)
+          );
           populateQuickCourseOptions();
           renderQuickAssignmentInfo(document.getElementById('quickCourseSelect')?.value || '');
           loadTimetable();
