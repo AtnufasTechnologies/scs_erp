@@ -8,8 +8,12 @@ use App\Models\DepartmentActivity;
 use App\Models\DepartmentActivityHasParticipant;
 use App\Models\EcFacultyDuty;
 use App\Models\ExamSystem\InvigilationDuty;
+use App\Models\BatchMaster;
 use App\Models\Faculty;
 use App\Models\FacultyLeaveApplication;
+use App\Models\Semester;
+use App\Models\ShiftMaster;
+use App\Models\Subject;
 use App\Models\SubjectFacultyMaster;
 use App\Models\SubjectHasRoutine;
 use App\Models\SubjectHasSyllabus;
@@ -19,6 +23,7 @@ use App\Models\UserHasRole;
 use App\Models\WorkDiary;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Facades\Storage;
 
 class FacultyDashboardController extends Controller
@@ -212,69 +217,171 @@ class FacultyDashboardController extends Controller
   {
 
     $userId = Auth::user()->id;
-    $facultyId =   SubjectFacultyMaster::where('access_id', $userId)->pluck('faculty_id');
+    $facultyId = (int) SubjectFacultyMaster::where('access_id', $userId)->value('faculty_id');
 
+    if ($facultyId <= 0) {
+      return redirect()->back()->with('error', 'Faculty mapping not found for this account.');
+    }
 
     $faculty = Faculty::findOrFail($facultyId);
 
-    if (!empty($request->batch)) {
-      $batchId = $request->batch;
-      $timetable = SubjectHasRoutine::where('faculty_id', $facultyId)
-        ->where('batch_id', $batchId) // Filter by batch if provided
-        ->with([
-          'weekdaymaster:id,title',
-          'hourmaster:id,title',
-          'syllabus.subject:id,title',
-          'syllabus.batchmaster:id,batch_name',
-          'syllabus.semestermaster:id,title',
-          'lecturehallmaster:id,title',
-          'subjectCourse.courseMaster:id,course_title,course_code,course_type',
-          'subjectCourse.courseMaster.coursetypemaster:id,title',
+    $assignedSubjectIds = SubjectFacultyMaster::where('faculty_id', $facultyId)
+      ->pluck('subject_id')
+      ->map(fn($id) => (int) $id)
+      ->filter(fn($id) => $id > 0)
+      ->unique()
+      ->values();
 
-        ])->get()->map(function ($routine) {
-          return [
-            'weekday' => $routine->weekdaymaster->title ?? '-',
-            'hour' => $routine->hourmaster->title ?? '-',
-            'subject' => $routine->syllabus->subject->title ?? '-',
-            'batch' => $routine->syllabus->batchmaster->batch_name ?? '-',
-            'semester' => $routine->syllabus->semestermaster->title ?? '-',
-            'lecture_hall' => $routine->lecturehallmaster->title ?? '-',
-            'course' => $routine->subjectCourse->courseMaster->course_code . '-' . $routine->subjectCourse->courseMaster->course_title,
-            'course_type' => $routine->subjectCourse->courseMaster->coursetypemaster->title ?? '-',
-            'shift' => ucfirst($routine->shift ?? 'common'),
-          ];
-        });
-    } else {
-      $timetable = SubjectHasRoutine::where('faculty_id', $facultyId)
+    $subjectOptions = Subject::whereIn('id', $assignedSubjectIds)
+      ->orderBy('title')
+      ->get(['id', 'title']);
 
-        ->with([
-          'weekdaymaster:id,title',
-          'hourmaster:id,title',
-          'syllabus.subject:id,title',
-          'syllabus.batchmaster:id,batch_name',
-          'syllabus.semestermaster:id,title',
-          'lecturehallmaster:id,title',
-          'subjectCourse.courseMaster:id,course_title,course_code,course_type',
-          'subjectCourse.courseMaster.coursetypemaster:id,title',
-
-        ])->get()->map(function ($routine) {
-          return [
-            'weekday' => $routine->weekdaymaster->title ?? '-',
-            'hour' => $routine->hourmaster->title ?? '-',
-            'subject' => $routine->syllabus->subject->title ?? '-',
-            'batch' => $routine->syllabus->batchmaster->batch_name ?? '-',
-            'semester' => $routine->syllabus->semestermaster->title ?? '-',
-            'lecture_hall' => $routine->lecturehallmaster->title ?? '-',
-            'course' => $routine->subjectCourse->courseMaster->course_code . '-' . $routine->subjectCourse->courseMaster->course_title,
-            'course_type' => $routine->subjectCourse->courseMaster->coursetypemaster->title ?? '-',
-            'shift' => ucfirst($routine->shift ?? 'common'),
-          ];
-        });
+    $selectedSubjectId = (int) $request->query('subject_id', 0);
+    if ($selectedSubjectId <= 0 && $subjectOptions->isNotEmpty()) {
+      $selectedSubjectId = (int) $subjectOptions->first()->id;
     }
+
+    if ($selectedSubjectId > 0 && !$assignedSubjectIds->contains($selectedSubjectId)) {
+      $selectedSubjectId = (int) ($subjectOptions->first()->id ?? 0);
+    }
+
+    $batchId = (int) $request->query('batch', 0);
+    $semesterId = (int) $request->query('semester_id', 0);
+    $programType = strtoupper(trim((string) $request->query('program_type', 'UG'))) === 'PG' ? 'PG' : 'UG';
+
+    $defaultShift = ShiftMaster::where('slug', 'common')->value('slug');
+    if (empty($defaultShift)) {
+      $defaultShift = ShiftMaster::orderBy('sort_order')->value('slug') ?: 'common';
+    }
+
+    $selectedSubject = $selectedSubjectId > 0 ? Subject::find($selectedSubjectId) : null;
+    $shiftOptionsQuery = ShiftMaster::where('is_active', 1)->orderBy('sort_order');
+    if ($selectedSubject) {
+      $subjectUsesShifts = (int) ($selectedSubject->has_shift_delivery ?? 0) === 1;
+      $enabledShiftIds = [];
+      $rawShiftIds = $selectedSubject->shift_ids;
+      if (is_string($rawShiftIds)) {
+        $decoded = json_decode($rawShiftIds, true);
+        $rawShiftIds = is_array($decoded) ? $decoded : [];
+      }
+      if (is_array($rawShiftIds)) {
+        $enabledShiftIds = collect($rawShiftIds)
+          ->map(fn($id) => (int) $id)
+          ->filter(fn($id) => $id > 0)
+          ->unique()
+          ->values()
+          ->all();
+      }
+
+      if ($subjectUsesShifts && !empty($enabledShiftIds)) {
+        $shiftOptionsQuery->whereIn('id', $enabledShiftIds);
+      } else {
+        $shiftOptionsQuery->where('slug', $defaultShift);
+      }
+    }
+
+    $shiftOptions = $shiftOptionsQuery->get(['id', 'title', 'slug']);
+    if ($shiftOptions->isEmpty()) {
+      $shiftOptions = ShiftMaster::where('slug', $defaultShift)
+        ->where('is_active', 1)
+        ->get(['id', 'title', 'slug']);
+    }
+
+    $activeShift = (string) $request->query('shift', $defaultShift);
+    if ($shiftOptions->isNotEmpty() && !$shiftOptions->pluck('slug')->contains($activeShift)) {
+      $activeShift = (string) ($shiftOptions->first()->slug ?? $defaultShift);
+    }
+
+    $timetableQuery = SubjectHasRoutine::query()
+      ->where(function ($query) use ($facultyId) {
+        $query->where('faculty_id', $facultyId)
+          ->orWhereHas('teachingAssignment', function ($assignmentQuery) use ($facultyId) {
+            $assignmentQuery->where('faculty_id', $facultyId);
+          });
+      })
+      ->with([
+        'weekdaymaster:id,title',
+        'hourmaster',
+        'teachingAssignment:id,course_id,faculty_id,delivery_type,allocation_group,room',
+        'teachingAssignment.course:id,course_code,course_title,course_type',
+        'teachingAssignment.course.coursetypemaster:id,title',
+        'syllabus.subject:id,title',
+        'syllabus.batchmaster:id,batch_name',
+        'syllabus.semestermaster:id,title',
+        'subjectCourse.courseMaster:id,course_title,course_code,course_type',
+        'subjectCourse.courseMaster.coursetypemaster:id,title',
+      ]);
+
+    if ($selectedSubjectId > 0) {
+      $timetableQuery->whereHas('syllabus', function ($query) use ($selectedSubjectId) {
+        $query->where('subject_id', $selectedSubjectId);
+      });
+    }
+
+    if ($batchId > 0) {
+      $timetableQuery->where('batch_id', $batchId);
+    }
+
+    if ($semesterId > 0) {
+      $timetableQuery->whereHas('syllabus', function ($query) use ($semesterId) {
+        $query->where('semester_id', $semesterId);
+      });
+    }
+
+    $timetableQuery->where('shift', $activeShift);
+
+    if (Schema::hasColumn('subject_has_routines', 'program_type')) {
+      $timetableQuery->where('program_type', $programType);
+    }
+
+    $timetable = $timetableQuery
+      ->orderBy('weekday_id')
+      ->orderBy('hour_id')
+      ->get()
+      ->map(function ($routine) use ($programType) {
+        $assignment = $routine->teachingAssignment;
+        $course = $routine->subjectCourse->courseMaster ?? optional($assignment)->course;
+
+        $hourNo = (int) ($routine->hourmaster->hour_no ?? $routine->hour_id ?? 0);
+        $hourName = (string) ($routine->hourmaster->name ?? $routine->hourmaster->title ?? ('Hour ' . $hourNo));
+        $startTime = (string) ($routine->hourmaster->start_time ?? '');
+        $endTime = (string) ($routine->hourmaster->end_time ?? '');
+        $hourLabel = $hourName;
+        if ($startTime !== '' && $endTime !== '') {
+          $hourLabel .= ' (' . $startTime . ' - ' . $endTime . ')';
+        }
+
+        $courseCode = (string) ($course->course_code ?? '');
+        $courseTitle = (string) ($course->course_title ?? '-');
+
+        return [
+          'weekday' => $routine->weekdaymaster->title ?? '-',
+          'hour' => $hourLabel,
+          'hour_sort' => $hourNo > 0 ? $hourNo : (int) ($routine->hour_id ?? 0),
+          'subject' => $routine->syllabus->subject->title ?? '-',
+          'batch' => $routine->syllabus->batchmaster->batch_name ?? '-',
+          'semester' => $routine->syllabus->semestermaster->title ?? '-',
+          'room' => trim((string) ($assignment->room ?? '')) !== '' ? trim((string) ($assignment->room ?? '')) : '-',
+          'course' => trim($courseCode . ($courseCode !== '' ? ' - ' : '') . $courseTitle),
+          'course_type' => (string) ($course->coursetypemaster->title ?? '-'),
+          'shift' => ucfirst((string) ($routine->shift ?? 'common')),
+          'program_type' => strtoupper((string) ($routine->program_type ?? $programType)) === 'PG' ? 'PG' : 'UG',
+        ];
+      })
+      ->values();
 
     return view('faculty.timetable', [
       'faculty' => $faculty,
-      'timetable' => $timetable
+      'timetable' => $timetable,
+      'subjectOptions' => $subjectOptions,
+      'selectedSubjectId' => $selectedSubjectId > 0 ? $selectedSubjectId : null,
+      'selectedBatchId' => $batchId > 0 ? $batchId : null,
+      'selectedSemesterId' => $semesterId > 0 ? $semesterId : null,
+      'selectedShift' => $activeShift,
+      'selectedProgramType' => $programType,
+      'shiftOptions' => $shiftOptions,
+      'semesterOptions' => Semester::orderBy('title')->get(['id', 'title']),
+      'batches' => BatchMaster::latest()->get(),
     ]);
   }
 

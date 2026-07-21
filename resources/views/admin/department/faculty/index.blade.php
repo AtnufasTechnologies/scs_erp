@@ -118,6 +118,69 @@ $faculties = Faculty::all();
   .action-btn:hover {
     transform: scale(1.05);
   }
+
+  .timetable-card {
+    background: #ffffff;
+    border-radius: 16px;
+    border: 1px solid #e5e7eb;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
+  }
+
+  .calendar-table {
+    border-collapse: separate;
+    border-spacing: 0;
+    width: 100%;
+    min-width: 960px;
+    background: #535353;
+  }
+
+  .calendar-table th,
+  .calendar-table td {
+    text-align: center;
+    vertical-align: middle;
+    border: 1px solid #e0e0e0;
+    padding: 8px;
+  }
+
+  .calendar-table th {
+    background: #5e6daa;
+    font-weight: 600;
+    color: #fff;
+  }
+
+  .calendar-table .hour-col {
+    background: #f0f4ff;
+    font-weight: bold;
+    color: #17472f;
+    width: 180px;
+  }
+
+  .calendar-block {
+    background: linear-gradient(135deg, #5e6daa 0%, #3b4a84 100%);
+    color: #fff;
+    border-radius: 8px;
+    font-size: 0.95em;
+    font-weight: 500;
+    box-shadow: 0 2px 8px #0001;
+    padding: 6px 4px;
+    margin: 2px 0;
+  }
+
+  .calendar-block .course {
+    font-size: 0.9em;
+    font-weight: 400;
+    color: #ffe082;
+  }
+
+  .calendar-block .semester {
+    font-size: 0.85em;
+    color: #b2ffef;
+  }
+
+  .calendar-block .shift {
+    font-size: 0.85em;
+    color: #ffd5f7;
+  }
 </style>
 
 <main class="page-content">
@@ -249,7 +312,7 @@ $faculties = Faculty::all();
 
             <!-- Action Buttons -->
             <div class="d-flex gap-2 mt-auto pt-2">
-              <a href="{{ route('department.faculty.timetable', $item->faculty->id) }}" class="btn btn-modern flex-fill" style="background: #dbeafe; color: #1e40af; padding: 10px; font-size: 13px;" title="View Timetable">
+              <a href="{{ route('department.faculty.timetable', $item->faculty->id) }}?subject_id={{ $subject->id }}" class="btn btn-modern flex-fill" style="background: #dbeafe; color: #1e40af; padding: 10px; font-size: 13px;" title="View Timetable">
                 <i class="fas fa-calendar me-1"></i> Timetable
               </a>
 
@@ -331,7 +394,7 @@ $faculties = Faculty::all();
                           <i class="fas fa-key"></i>
                         </span>
                         <input type="password" name="password" id="password{{ $item->id }}" class="form-control" required minlength="6" placeholder="Enter secure password (min 6 characters)" style="border-color: #e5e7eb;">
-                        <button class="btn" type="button" onclick="togglePassword({{ $item->id }})" style="background: #f9fafb; border: 1px solid #e5e7eb;">
+                        <button class="btn js-toggle-password" type="button" data-faculty-id="{{ (int) $item->id }}" style="background: #f9fafb; border: 1px solid #e5e7eb;">
                           <i class="fas fa-eye" id="toggleIcon{{ $item->id }}"></i>
                         </button>
                       </div>
@@ -399,6 +462,8 @@ $faculties = Faculty::all();
         </div>
         @endforelse
       </div>
+
+
     </div>
   </div>
 
@@ -489,6 +554,13 @@ $faculties = Faculty::all();
 
   // Password strength indicator
   document.addEventListener('DOMContentLoaded', function() {
+    document.querySelectorAll('.js-toggle-password').forEach(button => {
+      button.addEventListener('click', function() {
+        const id = this.getAttribute('data-faculty-id');
+        togglePassword(id);
+      });
+    });
+
     // Add event listeners to all password inputs
     const passwordInputs = document.querySelectorAll('input[name="password"]');
 

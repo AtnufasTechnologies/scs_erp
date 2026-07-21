@@ -578,7 +578,7 @@ if (!empty($deptFacultyIds)) {
               <td style="color: #6b7280;">{{$faculty->faculty->MOBILE_NO ?? '-'}}</td>
               <td style="color: #6b7280;">{{$faculty->faculty->MAIL_ID ?? '-'}}</td>
               <td>
-                <a href="{{ route('department.faculty.timetable', $faculty->faculty->id) }}" class="btn btn-sm btn-modern" style="background: {{ $hasTimetable ? '#16a34a' : '#dc2626' }}; color: white;">
+                <a href="{{ route('department.faculty.timetable', $faculty->faculty->id) }}?subject_id={{ $data->id }}" class="btn btn-sm btn-modern" style="background: {{ $hasTimetable ? '#16a34a' : '#dc2626' }}; color: white;">
                   <i class="fas {{ $hasTimetable ? 'fa-calendar-check' : 'fa-calendar-times' }} me-1"></i>
                   {{ $hasTimetable ? 'Timetable' : 'No Timetable' }}
                 </a>

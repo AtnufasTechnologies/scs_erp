@@ -1156,10 +1156,12 @@ $days = Weekday::all();
             const entryKey = makeEntryKey(entry);
             const entryMeta = formatEntryMeta(entry);
             const routineId = entry.routine_id ? Number(entry.routine_id) : 'null';
+            const roomLabel = (entry.room && String(entry.room).trim() !== '') ? String(entry.room).trim() : '-';
             return `
               <div class="slot-entry p-2 mb-2 text-start" style="font-size:12px;">
                 <div class="fw-bold">${escapeHtml(entry.subject_name || 'Course')}</div>
                 <div><i class="fas fa-user"></i> ${escapeHtml(entry.teacher_name || 'Teacher')}</div>
+                <div><i class="fas fa-door-open"></i> Room: ${escapeHtml(roomLabel)}</div>
                 <div>
                   ${entryMeta.map((meta, index) => `<span class="slot-chip ${index === 0 ? 'slot-chip-delivery' : 'slot-chip-group'}">${escapeHtml(meta)}</span>`).join('')}
                 </div>

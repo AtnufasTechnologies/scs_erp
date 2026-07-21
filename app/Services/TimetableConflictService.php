@@ -93,7 +93,6 @@ class TimetableConflictService
         'teachingAssignment.faculty:id,FIRST_NAME,LAST_NAME,USER_CODE',
         'syllabus.coursemaster:id,course_code,course_title',
       ])
-      ->where('weekday_id', $weekdayId)
       ->when($ignoreRoutineId > 0, fn($q) => $q->where('id', '!=', $ignoreRoutineId))
       ->when(
         Schema::hasColumn('subject_has_routines', 'program_type'),
@@ -203,7 +202,7 @@ class TimetableConflictService
     }
 
     foreach ($draftEntries as $entry) {
-      if (!$this->isRelevantDraftEntry($entry, $weekdayId, $ignoreRoutineId)) {
+      if (!$this->isRelevantDraftEntry($entry, $weekdayId, $ignoreRoutineId, $shiftId)) {
         continue;
       }
 
@@ -232,64 +231,9 @@ class TimetableConflictService
 
   public function checkRoomConflict(TeachingAssignment $incomingAssignment, HourMaster $incomingHour, $existingRoutines, array $draftEntries, int $weekdayId, int $ignoreRoutineId, int $shiftId): array
   {
-    $incomingRoom = trim((string) ($incomingAssignment->room ?? ''));
-    if ($incomingRoom === '') {
-      return [
-        'success' => true,
-        'message' => 'No room conflict check needed.',
-      ];
-    }
-
-    foreach ($existingRoutines as $routine) {
-      if ((int) $routine->weekday_id !== $weekdayId) {
-        continue;
-      }
-      if ((int) ($routine->id ?? 0) === $ignoreRoutineId) {
-        continue;
-      }
-
-      $existingRoom = trim((string) ($routine->teachingAssignment->room ?? ''));
-      if ($existingRoom === '' || strcasecmp($existingRoom, $incomingRoom) !== 0) {
-        continue;
-      }
-
-      $existingHour = $routine->hourmaster;
-      if (!$existingHour || !$this->isTimeOverlapping($incomingHour, $existingHour)) {
-        continue;
-      }
-
-      return [
-        'success' => false,
-        'message' => "Room {$incomingRoom} is already occupied during {$this->formatTimeRange($existingHour)}.",
-      ];
-    }
-
-    foreach ($draftEntries as $entry) {
-      if (!$this->isRelevantDraftEntry($entry, $weekdayId, $ignoreRoutineId)) {
-        continue;
-      }
-
-      $assignmentId = (int) ($entry['teaching_assignment_id'] ?? 0);
-      $assignment = $assignmentId > 0 ? TeachingAssignment::query()->find($assignmentId) : null;
-      $draftRoom = trim((string) ($assignment->room ?? ''));
-      if ($draftRoom === '' || strcasecmp($draftRoom, $incomingRoom) !== 0) {
-        continue;
-      }
-
-      $draftHour = $this->resolveHourSlot((int) ($entry['hour_id'] ?? 0), (int) ($entry['shift_id'] ?? $shiftId));
-      if (!$draftHour || !$this->isTimeOverlapping($incomingHour, $draftHour)) {
-        continue;
-      }
-
-      return [
-        'success' => false,
-        'message' => "Room {$incomingRoom} is already occupied during {$this->formatTimeRange($draftHour)} in current draft timetable.",
-      ];
-    }
-
     return [
       'success' => true,
-      'message' => 'No room conflict found.',
+      'message' => 'Room conflict rule is disabled.',
     ];
   }
 
@@ -341,7 +285,7 @@ class TimetableConflictService
     }
 
     foreach ($draftEntries as $entry) {
-      if (!$this->isRelevantDraftEntry($entry, $weekdayId, $ignoreRoutineId)) {
+      if (!$this->isRelevantDraftEntry($entry, $weekdayId, $ignoreRoutineId, $shiftId)) {
         continue;
       }
 
@@ -401,12 +345,33 @@ class TimetableConflictService
       })
       ->count();
 
+    $existingAssignmentByRoutineId = $existingRoutines
+      ->mapWithKeys(function ($routine) {
+        return [
+          (int) ($routine->id ?? 0) => (int) ($routine->teaching_assignment_id ?? 0),
+        ];
+      })
+      ->all();
+
     $draftCount = collect($draftEntries)
-      ->filter(function ($entry) use ($assignmentId, $ignoreRoutineId) {
+      ->filter(function ($entry) use ($assignmentId, $ignoreRoutineId, $existingAssignmentByRoutineId) {
         if ((int) ($entry['routine_id'] ?? 0) === $ignoreRoutineId) {
           return false;
         }
-        return (int) ($entry['teaching_assignment_id'] ?? 0) === $assignmentId;
+
+        if ((int) ($entry['teaching_assignment_id'] ?? 0) !== $assignmentId) {
+          return false;
+        }
+
+        // Existing persisted rows are already counted from DB. Count only truly new
+        // draft rows, or edits that changed assignment to the incoming one.
+        $routineId = (int) ($entry['routine_id'] ?? 0);
+        if ($routineId <= 0) {
+          return true;
+        }
+
+        $existingAssignmentId = (int) ($existingAssignmentByRoutineId[$routineId] ?? 0);
+        return $existingAssignmentId !== $assignmentId;
       })
       ->count();
 
@@ -519,12 +484,17 @@ class TimetableConflictService
     return 'another class';
   }
 
-  private function isRelevantDraftEntry(array $entry, int $weekdayId, int $ignoreRoutineId): bool
+  private function isRelevantDraftEntry(array $entry, int $weekdayId, int $ignoreRoutineId, int $shiftId = 0): bool
   {
     if ((int) ($entry['weekday_id'] ?? 0) !== $weekdayId) {
       return false;
     }
     if ($ignoreRoutineId > 0 && (int) ($entry['routine_id'] ?? 0) === $ignoreRoutineId) {
+      return false;
+    }
+
+    $entryShiftId = (int) ($entry['shift_id'] ?? 0);
+    if ($shiftId > 0 && $entryShiftId > 0 && $entryShiftId !== $shiftId) {
       return false;
     }
 

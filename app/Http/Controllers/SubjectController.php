@@ -1744,13 +1744,95 @@ class SubjectController extends Controller
         ]);
     }
 
-    function deptFacultyList($subjectId)
+    function deptFacultyList(Request $request, $subjectId, $slug)
     {
         $faculties = SubjectFacultyMaster::with('faculty')->where('subject_id', $subjectId)->get();
         $subject = Subject::find($subjectId);
+        $selectedBatch = (int) $request->query('batch', 0);
+
+        $facultyIds = $faculties
+            ->pluck('faculty_id')
+            ->filter()
+            ->map(fn($id) => (int) $id)
+            ->unique()
+            ->values();
+
+        $facultyTimetables = collect();
+        if ($facultyIds->isNotEmpty()) {
+            $routineQuery = SubjectHasRoutine::query()
+                ->whereHas('syllabus', function ($query) use ($subjectId) {
+                    $query->where('subject_id', $subjectId);
+                })
+                ->where(function ($query) use ($facultyIds) {
+                    $query->whereIn('faculty_id', $facultyIds)
+                        ->orWhereHas('teachingAssignment', function ($assignmentQuery) use ($facultyIds) {
+                            $assignmentQuery->whereIn('faculty_id', $facultyIds);
+                        });
+                })
+                ->with([
+                    'weekdaymaster:id,title',
+                    'hourmaster',
+                    'teachingAssignment:id,course_id,faculty_id,delivery_type,allocation_group',
+                    'teachingAssignment.course:id,course_code,course_title,course_type',
+                    'teachingAssignment.course.coursetypemaster:id,title',
+                    'syllabus.subject:id,title',
+                    'syllabus.batchmaster:id,batch_name',
+                    'syllabus.semestermaster:id,title',
+                    'lecturehallmaster:id,title',
+                    'subjectCourse.courseMaster:id,course_title,course_code,course_type',
+                    'subjectCourse.courseMaster.coursetypemaster:id,title',
+                ]);
+
+            if ($selectedBatch > 0) {
+                $routineQuery->where('batch_id', $selectedBatch);
+            }
+
+            $facultyTimetables = $routineQuery
+                ->orderBy('faculty_id')
+                ->orderBy('weekday_id')
+                ->orderBy('hour_id')
+                ->get()
+                ->map(function ($routine) {
+                    $assignment = $routine->teachingAssignment;
+                    $course = $routine->subjectCourse->courseMaster ?? optional($assignment)->course;
+
+                    $hourNo = (int) ($routine->hourmaster->hour_no ?? $routine->hour_id ?? 0);
+                    $hourName = (string) ($routine->hourmaster->name ?? $routine->hourmaster->title ?? ('Hour ' . $hourNo));
+                    $startTime = (string) ($routine->hourmaster->start_time ?? '');
+                    $endTime = (string) ($routine->hourmaster->end_time ?? '');
+                    $hourLabel = $hourName;
+                    if ($startTime !== '' && $endTime !== '') {
+                        $hourLabel .= ' (' . $startTime . ' - ' . $endTime . ')';
+                    }
+
+                    $courseCode = (string) ($course->course_code ?? '');
+                    $courseTitle = (string) ($course->course_title ?? '-');
+
+                    return [
+                        'faculty_id' => (int) ($assignment->faculty_id ?? $routine->faculty_id ?? 0),
+                        'weekday' => $routine->weekdaymaster->title ?? '-',
+                        'hour' => $hourLabel,
+                        'hour_sort' => $hourNo > 0 ? $hourNo : (int) ($routine->hour_id ?? 0),
+                        'subject' => $routine->syllabus->subject->title ?? '-',
+                        'batch' => $routine->syllabus->batchmaster->batch_name ?? '-',
+                        'semester' => $routine->syllabus->semestermaster->title ?? '-',
+                        'lecture_hall' => $routine->lecturehallmaster->title ?? '-',
+                        'course' => trim($courseCode . ($courseCode !== '' ? ' - ' : '') . $courseTitle),
+                        'course_type' => (string) ($course->coursetypemaster->title ?? '-'),
+                        'shift' => ucfirst((string) ($routine->shift ?? 'common')),
+                        'program_type' => strtoupper((string) ($routine->program_type ?? 'UG')) === 'PG' ? 'PG' : 'UG',
+                    ];
+                })
+                ->groupBy('faculty_id')
+                ->map(fn($entries) => $entries->values());
+        }
+
         return view('admin.department.faculty.index', [
             'data' => $faculties,
             'subject' => $subject,
+            'batches' => BatchMaster::latest()->get(),
+            'selectedBatch' => $selectedBatch > 0 ? $selectedBatch : null,
+            'facultyTimetables' => $facultyTimetables,
         ]);
     }
 

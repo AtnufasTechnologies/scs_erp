@@ -54,7 +54,7 @@ if ($subjectId) {
     </div>
   </a>
 
-  <a href="{{route('department.faculty.list',[$data->id])}}">
+  <a href="{{route('department.faculty.list',[$data->id,$data->slug])}}">
     <div class="sidebar-icon" title="Faculty" data-bs-toggle="tooltip" data-bs-placement="right" data-bs-title="Faculty">
       <i class="fas fa-user fa-lg"></i>
     </div>

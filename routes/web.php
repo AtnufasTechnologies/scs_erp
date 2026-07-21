@@ -769,8 +769,8 @@ Route::group(['prefix' => '/erp'], function () {
         Route::get('students/{id}/fee-structures', [FeePaymentController::class, 'getStudentFeeStructures']);
         Route::get('students/{rollno}/unpaid-fees', [FeePaymentController::class, 'getStudentUnpaidFees']);
     });
-    // ========================================================
-    // Department routes
+
+    // Departmental routes ========================================================
 
     Route::group(['prefix' => '/deptartment',], function () {
         Route::get('dashboard', [SubjectController::class, 'departmentDashboard'])->name('department.dashboard');
@@ -863,7 +863,7 @@ Route::group(['prefix' => '/erp'], function () {
         Route::get('show-student-list', [SubjectController::class, 'showStudentList'])->name('department.show.student.list');
         Route::get('all-students', [SubjectController::class, 'allStudents'])->name('department.all.students');
         Route::get('student-profile', [SubjectController::class, 'studentProfile'])->name('department.student.profile');
-        Route::get('faculty-list/{subjectId}', [SubjectController::class, 'deptFacultyList'])->name('department.faculty.list');
+        Route::get('faculty-list/{subjectId}/{slug}', [SubjectController::class, 'deptFacultyList'])->name('department.faculty.list');
         // Department Activities
         Route::get('activities/{subjectId}', [DepartmentActivityController::class, 'index'])->name('department.activities.index');
         Route::post('activities', [DepartmentActivityController::class, 'store'])->name('department.activities.store');
