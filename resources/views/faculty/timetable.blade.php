@@ -190,8 +190,9 @@
                 <div class="col-md-1">
                   <label for="programTypeFilter" class="form-label small text-muted mb-1">Type</label>
                   <select id="programTypeFilter" class="form-select" name="program_type">
-                    <option value="UG" {{ strtoupper((string) request('program_type', $selectedProgramType ?? 'UG')) === 'UG' ? 'selected' : '' }}>UG</option>
-                    <option value="PG" {{ strtoupper((string) request('program_type', $selectedProgramType ?? 'UG')) === 'PG' ? 'selected' : '' }}>PG</option>
+                    <option value="ALL" {{ strtoupper((string) request('program_type', $selectedProgramType ?? 'ALL')) === 'ALL' ? 'selected' : '' }}>All</option>
+                    <option value="UG" {{ strtoupper((string) request('program_type', $selectedProgramType ?? 'ALL')) === 'UG' ? 'selected' : '' }}>UG</option>
+                    <option value="PG" {{ strtoupper((string) request('program_type', $selectedProgramType ?? 'ALL')) === 'PG' ? 'selected' : '' }}>PG</option>
                   </select>
                 </div>
                 <div class="col-md-2">

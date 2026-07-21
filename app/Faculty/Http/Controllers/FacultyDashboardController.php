@@ -247,7 +247,8 @@ class FacultyDashboardController extends Controller
 
     $batchId = (int) $request->query('batch', 0);
     $semesterId = (int) $request->query('semester_id', 0);
-    $programType = strtoupper(trim((string) $request->query('program_type', 'UG'))) === 'PG' ? 'PG' : 'UG';
+    $requestedProgramType = strtoupper(trim((string) $request->query('program_type', 'ALL')));
+    $programType = in_array($requestedProgramType, ['UG', 'PG', 'ALL'], true) ? $requestedProgramType : 'ALL';
 
     $defaultShift = ShiftMaster::where('slug', 'common')->value('slug');
     if (empty($defaultShift)) {
@@ -330,7 +331,7 @@ class FacultyDashboardController extends Controller
 
     $timetableQuery->where('shift', $activeShift);
 
-    if (Schema::hasColumn('subject_has_routines', 'program_type')) {
+    if ($programType !== 'ALL' && Schema::hasColumn('subject_has_routines', 'program_type')) {
       $timetableQuery->where('program_type', $programType);
     }
 
