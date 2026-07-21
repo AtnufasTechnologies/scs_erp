@@ -176,23 +176,27 @@ class TimetableConflictService
       ];
     }
 
-    foreach ($existingRoutines as $routine) {
-      if ((int) $routine->weekday_id !== $weekdayId) {
-        continue;
-      }
-      if ((int) ($routine->id ?? 0) === $ignoreRoutineId) {
-        continue;
-      }
-      if ((int) ($routine->faculty_id ?? 0) !== $incomingFacultyId) {
-        continue;
-      }
+    $persistedFacultyRoutines = SubjectHasRoutine::query()
+      ->with([
+        'hourmaster:id,hour_no,name,start_time,end_time',
+        'faculty:id,FIRST_NAME,LAST_NAME,USER_CODE',
+        'teachingAssignment:id,subject_id,course_id,faculty_id',
+        'teachingAssignment.course:id,course_code,course_title',
+        'teachingAssignment.faculty:id,FIRST_NAME,LAST_NAME,USER_CODE',
+        'syllabus.coursemaster:id,course_code,course_title',
+      ])
+      ->where('weekday_id', $weekdayId)
+      ->when($ignoreRoutineId > 0, fn($q) => $q->where('id', '!=', $ignoreRoutineId))
+      ->where('faculty_id', $incomingFacultyId)
+      ->get();
 
-      $existingHour = $routine->hourmaster;
+    foreach ($persistedFacultyRoutines as $routine) {
+      $existingHour = $this->resolveRoutineHourSlot($routine, $shiftId);
       if (!$existingHour || !$this->isTimeOverlapping($incomingHour, $existingHour)) {
         continue;
       }
 
-      $facultyLabel = $this->facultyLabel($routine->teachingAssignment?->faculty);
+      $facultyLabel = $this->facultyLabel($routine->faculty ?? $routine->teachingAssignment?->faculty ?? $incomingAssignment->faculty);
       $courseLabel = $this->courseLabel($routine);
 
       return [
@@ -206,9 +210,14 @@ class TimetableConflictService
         continue;
       }
 
-      $assignmentId = (int) ($entry['teaching_assignment_id'] ?? 0);
-      $assignment = $assignmentId > 0 ? TeachingAssignment::query()->find($assignmentId) : null;
-      if (!$assignment || (int) ($assignment->faculty_id ?? 0) !== $incomingFacultyId) {
+      $draftFacultyId = (int) ($entry['faculty_id'] ?? 0);
+      if ($draftFacultyId <= 0) {
+        $assignmentId = (int) ($entry['teaching_assignment_id'] ?? 0);
+        $assignment = $assignmentId > 0 ? TeachingAssignment::query()->find($assignmentId) : null;
+        $draftFacultyId = (int) ($assignment->faculty_id ?? 0);
+      }
+
+      if ($draftFacultyId !== $incomingFacultyId) {
         continue;
       }
 
@@ -226,6 +235,55 @@ class TimetableConflictService
     return [
       'success' => true,
       'message' => 'No faculty conflict found.',
+    ];
+  }
+
+  public function getFacultyConflictsForSlot(int $weekdayId, int $hourInput, string $shift, int $ignoreRoutineId = 0): array
+  {
+    $shiftId = $this->resolveShiftId($shift);
+    if ($shiftId <= 0 || $weekdayId <= 0 || $hourInput <= 0) {
+      return [
+        'success' => false,
+        'message' => 'Invalid day, hour, or shift provided.',
+        'booked_faculties' => [],
+      ];
+    }
+
+    $incomingHour = $this->resolveHourSlot($hourInput, $shiftId);
+    if (!$incomingHour) {
+      return [
+        'success' => false,
+        'message' => 'Selected hour is not available for this shift.',
+        'booked_faculties' => [],
+      ];
+    }
+
+    $routines = SubjectHasRoutine::query()
+      ->with([
+        'hourmaster:id,hour_no,name,start_time,end_time',
+        'teachingAssignment:id,faculty_id',
+      ])
+      ->where('weekday_id', $weekdayId)
+      ->when($ignoreRoutineId > 0, fn($q) => $q->where('id', '!=', $ignoreRoutineId))
+      ->get();
+
+    $bookedFacultyIds = [];
+    foreach ($routines as $routine) {
+      $existingHour = $this->resolveRoutineHourSlot($routine, $shiftId);
+      if (!$existingHour || !$this->isTimeOverlapping($incomingHour, $existingHour)) {
+        continue;
+      }
+
+      $facultyId = $this->extractRoutineFacultyId($routine);
+      if ($facultyId > 0) {
+        $bookedFacultyIds[$facultyId] = $facultyId;
+      }
+    }
+
+    return [
+      'success' => true,
+      'message' => 'Faculty conflicts loaded.',
+      'booked_faculties' => array_values($bookedFacultyIds),
     ];
   }
 
@@ -273,7 +331,7 @@ class TimetableConflictService
         continue;
       }
 
-      $existingHour = $routine->hourmaster;
+      $existingHour = $this->resolveRoutineHourSlot($routine, $shiftId);
       if (!$existingHour || !$this->isTimeOverlapping($incomingHour, $existingHour)) {
         continue;
       }
@@ -435,6 +493,50 @@ class TimetableConflictService
       ->first();
   }
 
+  private function resolveRoutineHourSlot(SubjectHasRoutine $routine, int $fallbackShiftId = 0): ?HourMaster
+  {
+    $hourInput = (int) ($routine->hour_id ?? 0);
+    if ($hourInput <= 0) {
+      return null;
+    }
+
+    $shiftSlug = trim((string) ($routine->shift ?? ''));
+    $routineShiftId = $shiftSlug !== '' ? $this->resolveShiftId($shiftSlug) : 0;
+    $effectiveShiftId = $routineShiftId > 0 ? $routineShiftId : $fallbackShiftId;
+
+    if ($effectiveShiftId > 0) {
+      // In subject_has_routines, hour_id is often stored as hour_no. Prefer shift+hour_no.
+      $hourByNumber = HourMaster::query()
+        ->where('shift_id', $effectiveShiftId)
+        ->where('status', 1)
+        ->where('is_teaching', 1)
+        ->where('hour_no', $hourInput)
+        ->orderBy('hour_no')
+        ->first();
+
+      if ($hourByNumber) {
+        return $hourByNumber;
+      }
+
+      $hourById = HourMaster::query()
+        ->where('shift_id', $effectiveShiftId)
+        ->where('status', 1)
+        ->where('is_teaching', 1)
+        ->where('id', $hourInput)
+        ->first();
+
+      if ($hourById) {
+        return $hourById;
+      }
+    }
+
+    if ($routine->hourmaster instanceof HourMaster) {
+      return $routine->hourmaster;
+    }
+
+    return null;
+  }
+
   private function isTimeOverlapping(HourMaster $incomingHour, HourMaster $existingHour): bool
   {
     $incomingStart = strtotime((string) $incomingHour->start_time);
@@ -482,6 +584,16 @@ class TimetableConflictService
     }
 
     return 'another class';
+  }
+
+  private function extractRoutineFacultyId(SubjectHasRoutine $routine): int
+  {
+    $directFacultyId = (int) ($routine->faculty_id ?? 0);
+    if ($directFacultyId > 0) {
+      return $directFacultyId;
+    }
+
+    return (int) ($routine->teachingAssignment?->faculty_id ?? 0);
   }
 
   private function isRelevantDraftEntry(array $entry, int $weekdayId, int $ignoreRoutineId, int $shiftId = 0): bool

@@ -1307,7 +1307,7 @@ class TimetableController extends Controller
         }
     }
 
-    function getTeacherConflicts(Request $request, $hourNumber, $day)
+    function getTeacherConflicts(Request $request, $hourNumber, $day, TimetableConflictService $conflictService)
     {
         try {
             $subjectId = (int) $request->get('subject_id');
@@ -1331,19 +1331,14 @@ class TimetableController extends Controller
             }
 
             $weekdayId = $weekdays[$day];
+            $result = $conflictService->getFacultyConflictsForSlot(
+                (int) $weekdayId,
+                (int) $hourNumber,
+                (string) $activeShift,
+                (int) $request->get('ignore_routine_id', 0)
+            );
 
-            // Get all faculty IDs that are already booked at this specific hour and day
-            $bookedFaculties = SubjectHasRoutine::where('weekday_id', $weekdayId)
-                ->where('hour_id', $hourNumber)
-                ->where('shift', $activeShift)
-                ->whereNotNull('faculty_id')
-                ->pluck('faculty_id')
-                ->toArray();
-
-            return response()->json([
-                'success' => true,
-                'booked_faculties' => $bookedFaculties
-            ]);
+            return response()->json($result, $result['success'] ? 200 : 422);
         } catch (\Exception $e) {
             return response()->json([
                 'success' => false,

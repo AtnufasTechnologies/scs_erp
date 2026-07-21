@@ -311,7 +311,7 @@ $days = Weekday::all();
               </form>
             </div>
           </div>
-          <!-- <div class="card custom-card mb-4">
+          <div class="card custom-card mb-4">
             <div class="card-body">
               <h5 class="card-title text-dark mb-3">Quick Slot Entry</h5>
               <div class="row g-3 align-items-end">
@@ -330,7 +330,7 @@ $days = Weekday::all();
                   <select class="form-select" id="quickShiftSelect" style="border-radius:0.5em;">
                     <option value="">--Select</option>
                     @foreach ($shiftOptions as $shiftOption)
-                    <option value="{{ $shiftOption->id }}" data-slug="{{ $shiftOption->slug }}">{{ $shiftOption->title }}</option>
+                    <option value="{{ $shiftOption->slug }}" data-shift-id="{{ $shiftOption->id }}" {{ $shiftOption->slug === 'common' ? 'selected' : '' }}>{{ $shiftOption->title }}</option>
                     @endforeach
                   </select>
                 </div>
@@ -359,7 +359,7 @@ $days = Weekday::all();
                 </div>
               </div>
             </div>
-          </div> -->
+          </div>
           <div id="timetableGridArea"></div>
         </div>
       </div>
@@ -367,7 +367,7 @@ $days = Weekday::all();
   </div>
   <!-- Modal for slot assignment -->
   <div class="modal fade" id="slotModal" tabindex="-1" aria-labelledby="slotModalLabel" aria-hidden="true">
-    <div class="modal-dialog">
+    <div class="modal-dialog modal-lg">
       <div class="modal-content">
         <div class="modal-header">
           <h5 class="modal-title" id="slotModalLabel">Assign Course & Teacher</h5>
@@ -376,7 +376,7 @@ $days = Weekday::all();
         <div class="modal-body">
           <div class="mb-3">
             <label class="form-label">Teaching Assignment</label>
-            <select class="form-select" id="modalTeachingAssignment" style="border-radius:0.5em;">
+            <select class="dselect-example" id="modalTeachingAssignment" style="border-radius:0.5em;">
               <option value="">Select Assignment</option>
             </select>
             <small class="text-muted" id="assignmentHint">Showing active rows from Teaching Assignments.</small>
@@ -695,6 +695,23 @@ $days = Weekday::all();
       renderAssignmentInfo(assignmentId, 'quickAssignmentInfo');
     }
 
+    function initTeachingAssignmentLiveSearch() {
+      const select = document.getElementById('modalTeachingAssignment');
+      if (!select || typeof window.dselect !== 'function') return;
+
+      // Avoid duplicate wrappers when options are repainted.
+      const nextEl = select.nextElementSibling;
+      if (nextEl && nextEl.classList.contains('dselect-wrapper')) {
+        nextEl.remove();
+      }
+
+      window.dselect(select, {
+        search: true,
+        clearable: false,
+
+      });
+    }
+
     function formatHourLabel(hour) {
       const name = hour.name || `Hour ${hour.hour_no || hour.id}`;
       const timing = hour.start_time && hour.end_time ? ` (${hour.start_time} - ${hour.end_time})` : '';
@@ -1008,6 +1025,8 @@ $days = Weekday::all();
             'No active teaching assignments available.';
         }
 
+        initTeachingAssignmentLiveSearch();
+
         renderCourseAssignmentInfo(assignmentSelect.value);
       };
 
@@ -1077,6 +1096,8 @@ $days = Weekday::all();
           if (assignmentHint) {
             assignmentHint.textContent = `Showing teaching assignments from timetable-data (${rows.length} row(s)).`;
           }
+
+          initTeachingAssignmentLiveSearch();
 
           renderCourseAssignmentInfo(assignmentSelect.value);
         })
@@ -1500,6 +1521,8 @@ $days = Weekday::all();
           renderCourseAssignmentInfo(this.value);
         });
       }
+
+      initTeachingAssignmentLiveSearch();
 
       const slotModal = document.getElementById('slotModal');
       if (slotModal) {
