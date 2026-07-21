@@ -545,7 +545,7 @@ if (!empty($deptFacultyIds)) {
       <div class="d-flex justify-content-between align-items-center mb-4">
         <h5 style="color: #1a1a1a; font-weight: 700; margin: 0;">Departmental Faculties</h5>
         <button class="btn btn-modern" style="background: #5b4cdb; color: white;" data-bs-toggle="modal" data-bs-target="#addFaculty">
-          <i class="fas fa-plus-circle me-2"></i>Add Faculty
+          <i class="fas fa-plus-circle me-2"></i> Faculty
         </button>
       </div>
 

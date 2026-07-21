@@ -159,6 +159,81 @@ $days = Weekday::all();
       background: #e7fff4;
       color: #1d7f52;
     }
+
+    @media (max-width: 991.98px) {
+      .custom-navbar .container-fluid {
+        align-items: flex-start;
+      }
+
+      .custom-navbar .navbar-brand {
+        align-items: flex-start !important;
+        max-width: 100%;
+        margin-right: 0;
+      }
+
+      .custom-navbar .navbar-brand img {
+        max-height: 40px !important;
+      }
+
+      .custom-navbar .navbar-brand span {
+        white-space: normal;
+        line-height: 1.25;
+        font-size: 0.95rem;
+        word-break: break-word;
+      }
+
+      .card-title {
+        font-size: 1.1rem;
+      }
+
+      .timetable-filter-row>[class*="col-"] {
+        width: 100%;
+      }
+
+      .custom-table th,
+      .custom-table td {
+        padding: 0.55rem;
+        font-size: 0.86rem;
+      }
+
+      .slot-entry {
+        font-size: 11px;
+      }
+
+      .slot-entry .btn {
+        padding: 0.2rem 0.35rem;
+        font-size: 0.72rem;
+      }
+
+      .modal-dialog {
+        margin: 0.75rem;
+      }
+    }
+
+    @media (max-width: 575.98px) {
+      .custom-navbar .navbar-brand img {
+        max-height: 34px !important;
+      }
+
+      .custom-navbar .navbar-brand span {
+        font-size: 0.84rem;
+      }
+
+      .custom-table th,
+      .custom-table td {
+        padding: 0.42rem;
+        font-size: 0.78rem;
+      }
+
+      .period-cell {
+        min-width: 130px;
+      }
+
+      .slot-chip {
+        font-size: 10px;
+        padding: 0.15rem 0.4rem;
+      }
+    }
   </style>
   <div class="container-fluid py-4">
     <nav class="navbar navbar-expand-lg navbar-dark mb-4 custom-navbar">
@@ -187,7 +262,7 @@ $days = Weekday::all();
             <div class="card-body">
               <h5 class="card-title text-dark mb-3">Select Batch & Semester</h5>
               <form id="timetableSelectForm">
-                <div class="row g-3 align-items-end">
+                <div class="row g-3 align-items-end timetable-filter-row">
                   <div class="col-md-3">
                     <label class="form-label">Batch</label>
                     <select name="batch_id" class="form-select" id="batchSelect" style="border-radius:0.5em;">
