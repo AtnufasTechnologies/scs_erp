@@ -906,16 +906,16 @@
           @foreach($sorted as $day => $slots)
           <div class="sp-day-label"><i class="fas fa-sun" style="font-size:.75rem;"></i> {{ $day }}</div>
           <div style="display:flex;flex-wrap:wrap;margin-bottom:.5rem;">
-            @foreach($slots->sortBy('hour_id') as $slot)
+            @foreach($slots as $slot)
             <div class="sp-slot-badge">
-              <span class="hour-num">{{ $slot->hourmaster->title ?? '?' }}</span>
+              <span class="hour-num">{{ $slot['hour'] ?? '?' }}</span>
               <div>
-                <div style="font-weight:600;line-height:1.2;">{{ $slot->syllabus->coursemaster->course_code ?? '—' }}</div>
-                <div style="font-size:.72rem;color:#6c757d;line-height:1.2;">{{ Str::limit($slot->syllabus->coursemaster->course_title ?? '—', 28) }}</div>
+                <div style="font-weight:600;line-height:1.2;">{{ $slot['course_code'] ?? '—' }}</div>
+                <div style="font-size:.72rem;color:#6c757d;line-height:1.2;">{{ Str::limit($slot['course_title'] ?? '—', 28) }}</div>
                 <div style="font-size:.7rem;color:#3949ab;">
                   <i class="fas fa-user-tie" style="font-size:.65rem;"></i>
-                  {{ $slot->faculty ? $slot->faculty->FIRST_NAME.' '.$slot->faculty->LAST_NAME : '—' }}
-                  @if($slot->lecturehallmaster) &nbsp;·&nbsp;<i class="fas fa-door-open" style="font-size:.65rem;"></i> {{ $slot->lecturehallmaster->title }} @endif
+                  {{ $slot['faculty'] ?? '—' }}
+                  @if(!empty($slot['room'])) &nbsp;·&nbsp;<i class="fas fa-door-open" style="font-size:.65rem;"></i> {{ $slot['room'] }} @endif
                 </div>
               </div>
             </div>

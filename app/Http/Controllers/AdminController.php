@@ -60,7 +60,9 @@ use App\Models\Subject;
 use App\Models\SubjectCourseMaster;
 use App\Models\SubjectFacultyMaster;
 use App\Models\SubjectHasStudentProgam;
+use App\Models\TeachingAssignment;
 use App\Models\SyllabusManager;
+use App\Services\StudentTimetableService;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -220,12 +222,13 @@ class AdminController extends Controller
             'usertype:id,name',
             'bloodgroup',
             'batchmaster:id,batch_name',
-            'programgroup.programInfo',
+            'stdprogramenrolled',
             'feepayment.feepaymentinfo:id,quarter_title',
             'feepayment.gatewaytype',
             'academicpathway',
             'degreetrack',
-            'singleselection'
+            'singleselection',
+            'subjectmaster'
         ])->firstOrFail();
         $studentCourses = StudentCourseInfo::with([
             'coursemaster'
@@ -292,40 +295,11 @@ class AdminController extends Controller
         // All semesters for the modal filter tabs
         $availableSemesters = Semester::orderBy('id')->get();
 
-        // Timetable: prefer student's mapped shift, then fallback to common/null
-        $studentShift = strtolower(trim((string) ($data->programgroup?->programInfo?->shift ?? 'common')));
-        if ($studentShift === '') {
-            $studentShift = 'common';
-        }
-
-        $timetable = SubjectHasRoutine::where('batch_id', $data->batch)
-            ->where(function ($q) use ($studentShift) {
-                $q->where('shift', $studentShift);
-                if ($studentShift !== 'common') {
-                    $q->orWhere('shift', 'common')->orWhereNull('shift');
-                } else {
-                    $q->orWhereNull('shift');
-                }
-            })
-            ->with([
-                'weekdaymaster:id,title',
-                'hourmaster:id,name',
-                'lecturehallmaster:id,title',
-                'faculty:id,FIRST_NAME,LAST_NAME',
-                'coursemaster:id,course_title,course_code',
-            ])
-            ->orderBy('weekday_id')
-            ->orderBy('hour_id')
-            ->get()
-            ->sortBy(function ($r) use ($studentShift) {
-                $priority = $r->shift === $studentShift ? 0 : (($r->shift === 'common' || $r->shift === null) ? 1 : 2);
-                return ($priority * 10000) + ((int) ($r->weekday_id ?? 0) * 100) + (int) ($r->hour_id ?? 0);
-            })
-            ->unique(fn($r) => ($r->weekday_id ?? 'x') . '_' . ($r->hour_id ?? 'x'))
-            ->values();
+        $deliveryContext = $this->resolveStudentDeliveryContext($data, $studentCourses);
+        $timetable = StudentTimetableService::generate($id);
 
         // Group timetable by weekday
-        $timetableByDay = $timetable->groupBy(fn($r) => $r->weekdaymaster->title ?? 'Unknown');
+        $timetableByDay = $timetable->groupBy(fn($r) => $r['weekday'] ?? 'Unknown');
 
         // Attendance: per-course summary for the student
         $attendanceRaw = StudentAttendance::where('student_id', $id)
@@ -409,8 +383,6 @@ class AdminController extends Controller
                 ->orderByDesc('created_at')
                 ->get();
         }
-
-        $deliveryContext = $this->resolveStudentDeliveryContext($data, $studentCourses);
 
         return view('admin.master.student-profile', [
             'data'               => $data,
@@ -502,10 +474,30 @@ class AdminController extends Controller
                 ->all();
 
             if (!empty($courseIds)) {
-                $deliveryRows = ProgramWiseSemesterCourse::where('program_combo_refid', (int) $programCombination->id)
+                $deliveryRowsQuery = ProgramWiseSemesterCourse::where('program_combo_refid', (int) $programCombination->id)
                     ->where('batch', (int) $student->batch)
-                    ->whereIn('course_id', $courseIds)
-                    ->get(['semester', 'course_id', 'delivery_category']);
+                    ->whereIn('course_id', $courseIds);
+
+                $pathwayId = (int) ($student->academic_pathway_id ?? 0);
+                $degreeTrackId = (int) ($student->degree_track_id ?? 0);
+
+                if (Schema::hasColumn((new ProgramWiseSemesterCourse())->getTable(), 'academic_pathway_id')) {
+                    if ($pathwayId > 0) {
+                        $deliveryRowsQuery->where('academic_pathway_id', $pathwayId);
+                    } else {
+                        $deliveryRowsQuery->whereNull('academic_pathway_id');
+                    }
+                }
+
+                if (Schema::hasColumn((new ProgramWiseSemesterCourse())->getTable(), 'degree_track_id')) {
+                    if ($degreeTrackId > 0) {
+                        $deliveryRowsQuery->where('degree_track_id', $degreeTrackId);
+                    } else {
+                        $deliveryRowsQuery->whereNull('degree_track_id');
+                    }
+                }
+
+                $deliveryRows = $deliveryRowsQuery->get(['semester', 'course_id', 'delivery_category']);
 
                 foreach ($deliveryRows as $row) {
                     $key = (string) ((int) $row->semester) . '_' . (string) ((int) $row->course_id);
@@ -561,6 +553,200 @@ class AdminController extends Controller
             'courseOfferingSubjectMap' => $courseOfferingSubjectMap,
             'programOfferingSubjectTitle' => (string) ($programCombination?->subjectmaster?->title ?? ''),
         ];
+    }
+
+    private function resolveStudentTimetableRows(StudentMaster $student, array $deliveryContext, $studentCourses)
+    {
+        $batchId = (int) ($student->batch ?? 0);
+        if ($batchId <= 0) {
+            return collect();
+        }
+
+        $programCombinationId = 0;
+        if (!empty($student->new_program_id)) {
+            $programCombinationId = (int) SubjectHasStudentProgam::query()
+                ->where('student_program_id', (int) $student->new_program_id)
+                ->where('batch_id', $batchId)
+                ->value('id');
+        }
+
+        // Source of truth: student mapped courses + resolved per-course delivery type.
+        $studentCoursePairs = collect($studentCourses)
+            ->map(function ($course) use ($deliveryContext) {
+                $courseId = (int) ($course->course_id ?? 0);
+                $semesterId = (int) ($course->semester ?? $course->coursemaster?->semester_id ?? 0);
+                if ($courseId <= 0 || $semesterId <= 0) {
+                    return null;
+                }
+
+                $deliveryKey = (string) $semesterId . '_' . (string) $courseId;
+                $deliveryType = strtoupper(trim((string) ($deliveryContext['courseDeliveryMap'][$deliveryKey] ?? ($deliveryContext['studentMajorDeliveryType'] ?? ProgramWiseSemesterCourse::DELIVERY_PROGRAMME_COMMON))));
+                if ($deliveryType === '') {
+                    $deliveryType = ProgramWiseSemesterCourse::DELIVERY_PROGRAMME_COMMON;
+                }
+
+                return [
+                    'course_id' => $courseId,
+                    'semester_id' => $semesterId,
+                    'delivery_type' => $deliveryType,
+                ];
+            })
+            ->filter()
+            ->unique(fn($row) => $row['semester_id'] . '_' . $row['course_id'] . '_' . $row['delivery_type'])
+            ->values();
+
+        if ($studentCoursePairs->isEmpty() || $programCombinationId <= 0) {
+            return collect();
+        }
+
+        // CurriculumEngine applicability by enrolled program + batch + pathway + degree track.
+        $pathwayId = (int) ($student->academic_pathway_id ?? 0);
+        $degreeTrackId = (int) ($student->degree_track_id ?? 0);
+
+        $curriculumQuery = ProgramWiseSemesterCourse::query()
+            ->where('program_combo_refid', $programCombinationId)
+            ->where('batch', $batchId)
+            ->whereIn('course_id', $studentCoursePairs->pluck('course_id')->unique()->values()->all())
+            ->whereIn('semester', $studentCoursePairs->pluck('semester_id')->unique()->values()->all());
+
+        if (Schema::hasColumn((new ProgramWiseSemesterCourse())->getTable(), 'is_active')) {
+            $curriculumQuery->where('is_active', 1);
+        }
+
+        if (Schema::hasColumn((new ProgramWiseSemesterCourse())->getTable(), 'academic_pathway_id')) {
+            if ($pathwayId > 0) {
+                $curriculumQuery->where('academic_pathway_id', $pathwayId);
+            } else {
+                $curriculumQuery->whereNull('academic_pathway_id');
+            }
+        }
+
+        if (Schema::hasColumn((new ProgramWiseSemesterCourse())->getTable(), 'degree_track_id')) {
+            if ($degreeTrackId > 0) {
+                $curriculumQuery->where('degree_track_id', $degreeTrackId);
+            } else {
+                $curriculumQuery->whereNull('degree_track_id');
+            }
+        }
+
+        $curriculumRows = $curriculumQuery->get(['course_id', 'semester', 'delivery_category']);
+        if ($curriculumRows->isEmpty()) {
+            return collect();
+        }
+
+        $applicablePairKeys = $curriculumRows
+            ->map(function ($row) {
+                $delivery = strtoupper(trim((string) ($row->delivery_category ?? ProgramWiseSemesterCourse::DELIVERY_PROGRAMME_COMMON)));
+                if ($delivery === '') {
+                    $delivery = ProgramWiseSemesterCourse::DELIVERY_PROGRAMME_COMMON;
+                }
+                return (int) ($row->semester ?? 0) . '_' . (int) ($row->course_id ?? 0) . '_' . $delivery;
+            })
+            ->unique()
+            ->values();
+
+        $selectedPairs = $studentCoursePairs
+            ->filter(fn($pair) => $applicablePairKeys->contains($pair['semester_id'] . '_' . $pair['course_id'] . '_' . $pair['delivery_type']))
+            ->values();
+
+        if ($selectedPairs->isEmpty()) {
+            return collect();
+        }
+
+        // Resolve teacher assignment by course + delivery type.
+        $selectedCourseIds = $selectedPairs->pluck('course_id')->unique()->values();
+        $selectedPairKeys = $selectedPairs
+            ->map(fn($pair) => $pair['course_id'] . '_' . $pair['delivery_type'])
+            ->unique()
+            ->values();
+
+        $assignments = TeachingAssignment::query()
+            ->where('is_active', 1)
+            ->whereIn('course_id', $selectedCourseIds->all())
+            ->get(['id', 'course_id', 'faculty_id', 'delivery_type'])
+            ->map(function ($assignment) {
+                $deliveryType = strtoupper(trim((string) ($assignment->delivery_type ?? ProgramWiseSemesterCourse::DELIVERY_PROGRAMME_COMMON)));
+                if ($deliveryType === '') {
+                    $deliveryType = ProgramWiseSemesterCourse::DELIVERY_PROGRAMME_COMMON;
+                }
+                $assignment->normalized_delivery_type = $deliveryType;
+                return $assignment;
+            })
+            ->filter(fn($assignment) => $selectedPairKeys->contains(((int) $assignment->course_id) . '_' . $assignment->normalized_delivery_type))
+            ->values();
+        $assignmentIds = $assignments->pluck('id')->map(fn($id) => (int) $id)->filter(fn($id) => $id > 0)->unique()->values();
+        $assignmentFacultyIds = $assignments->pluck('faculty_id')->map(fn($id) => (int) $id)->filter(fn($id) => $id > 0)->unique()->values();
+
+        $subjectCourseIds = SubjectCourseMaster::query()
+            ->whereIn('course_master_id', $selectedCourseIds->all())
+            ->pluck('id')
+            ->map(fn($id) => (int) $id)
+            ->filter(fn($id) => $id > 0)
+            ->unique()
+            ->values();
+
+        $hasTeachingAssignmentId = Schema::hasColumn('subject_has_routines', 'teaching_assignment_id');
+        $hasTeachingAllocationId = Schema::hasColumn('subject_has_routines', 'teaching_allocation_id');
+
+        $routineQuery = SubjectHasRoutine::query()
+            ->where('batch_id', $batchId)
+            ->where(function ($outer) use (
+                $assignmentIds,
+                $assignmentFacultyIds,
+                $subjectCourseIds,
+                $hasTeachingAssignmentId,
+                $hasTeachingAllocationId
+            ) {
+                $matchedByAllocation = false;
+                if ($assignmentIds->isNotEmpty() && $hasTeachingAssignmentId) {
+                    $outer->whereIn('teaching_assignment_id', $assignmentIds->all());
+                    $matchedByAllocation = true;
+                }
+
+                if ($assignmentIds->isNotEmpty() && $hasTeachingAllocationId) {
+                    if ($matchedByAllocation) {
+                        $outer->orWhereIn('teaching_allocation_id', $assignmentIds->all());
+                    } else {
+                        $outer->whereIn('teaching_allocation_id', $assignmentIds->all());
+                        $matchedByAllocation = true;
+                    }
+                }
+
+                if ($subjectCourseIds->isNotEmpty() && $assignmentFacultyIds->isNotEmpty()) {
+                    $outer->orWhere(function ($legacy) use (
+                        $subjectCourseIds,
+                        $assignmentFacultyIds,
+                        $hasTeachingAssignmentId,
+                        $hasTeachingAllocationId
+                    ) {
+                        if ($hasTeachingAssignmentId) {
+                            $legacy->whereNull('teaching_assignment_id');
+                        }
+
+                        if ($hasTeachingAllocationId) {
+                            $legacy->whereNull('teaching_allocation_id');
+                        }
+
+                        $legacy->whereIn('subject_course_id', $subjectCourseIds->all())
+                            ->whereIn('faculty_id', $assignmentFacultyIds->all());
+                    });
+                }
+            })
+            ->with([
+                'weekdaymaster:id,title',
+                'hourmaster:id,name',
+                'faculty:id,FIRST_NAME,LAST_NAME',
+                'subjectCourse:id,subject_id,course_master_id',
+                'subjectCourse.courseMaster:id,course_code,course_title,semester_id',
+                'teachingAssignment:id,course_id,faculty_id,delivery_type,allocation_group,room',
+                'teachingAssignment.course:id,course_code,course_title,semester_id',
+                'teachingAllocation:id,course_id,faculty_id,delivery_type,allocation_group,room',
+                'teachingAllocation.course:id,course_code,course_title,semester_id',
+            ])
+            ->orderBy('weekday_id')
+            ->orderBy('hour_id');
+
+        return $routineQuery->get();
     }
 
     private function buildStudentCourseContext(int $studentId): array
