@@ -390,6 +390,9 @@ class FacultyDashboardController extends Controller
   {
     $userId = Auth::user()->id;
     $facultyId = SubjectFacultyMaster::where('access_id', $userId)->value('faculty_id');
+    $searchTerm = trim((string) $request->query('search', ''));
+    $requestedProgramType = strtoupper(trim((string) $request->query('program_type', 'ALL')));
+    $programType = in_array($requestedProgramType, ['UG', 'PG', 'ALL'], true) ? $requestedProgramType : 'ALL';
 
     // Get all subject IDs assigned to this faculty
     $assignedSubjectIds = SubjectFacultyMaster::where('faculty_id', $facultyId)
@@ -397,14 +400,35 @@ class FacultyDashboardController extends Controller
       ->unique();
 
     // Get all syllabi for those subjects with their relationships
-    $data = SubjectHasSyllabus::whereIn('subject_id', $assignedSubjectIds)
+    $dataQuery = SubjectHasSyllabus::whereIn('subject_id', $assignedSubjectIds)
       ->with([
         'subject:id,title',
         'batchmaster:id,batch_name',
         'semestermaster:id,title',
         'courseLink.courseMaster.coursetypemaster',
-      ])
-      ->get();
+      ]);
+
+    if ($programType !== 'ALL') {
+      $dataQuery->whereRaw("UPPER(TRIM(COALESCE(program_type, ''))) = ?", [$programType]);
+    }
+
+    if ($searchTerm !== '') {
+      $likeTerm = '%' . $searchTerm . '%';
+      $dataQuery->where(function ($query) use ($likeTerm) {
+        $query->whereHas('subject', function ($q) use ($likeTerm) {
+          $q->where('title', 'LIKE', $likeTerm);
+        })->orWhereHas('batchmaster', function ($q) use ($likeTerm) {
+          $q->where('batch_name', 'LIKE', $likeTerm);
+        })->orWhereHas('semestermaster', function ($q) use ($likeTerm) {
+          $q->where('title', 'LIKE', $likeTerm);
+        })->orWhereHas('courseLink.courseMaster', function ($q) use ($likeTerm) {
+          $q->where('course_code', 'LIKE', $likeTerm)
+            ->orWhere('course_title', 'LIKE', $likeTerm);
+        });
+      });
+    }
+
+    $data = $dataQuery->get();
 
     // Load all syllabus managers (CSOs) with their units for each subject
     $data->each(function ($syllabus) {
@@ -412,6 +436,9 @@ class FacultyDashboardController extends Controller
       $syllabusManagers = SyllabusManager::where('subject_id', $syllabus->subject_id)
         ->where('batch_id', $syllabus->batch_id)
         ->where('semester_id', $syllabus->semester_id)
+        ->when(!empty($syllabus->program_type), function ($query) use ($syllabus) {
+          $query->where('program_type', $syllabus->program_type);
+        })
         ->with([
           'cso:id,title,lectures_needed',
           'syllabusSubunits.csoSubunit.taxomonylevel'
@@ -430,13 +457,21 @@ class FacultyDashboardController extends Controller
       $syllabus->syllabusunits = $syllabusManagers->pluck('syllabusSubunits')->flatten();
     });
 
-    // Group by batch name
-    $batchWiseSubjects = $data->groupBy(function ($item) {
-      return $item->batchmaster->batch_name ?? 'Unknown Batch';
-    });
+    // Group by semester first, then batch.
+    $semesterWiseSubjects = $data
+      ->groupBy(function ($item) {
+        return $item->semestermaster->title ?? 'Unknown Semester';
+      })
+      ->map(function ($semesterRows) {
+        return $semesterRows->groupBy(function ($item) {
+          return $item->batchmaster->batch_name ?? 'Unknown Batch';
+        });
+      });
 
     return view('faculty.subjects', [
-      'batchWiseSubjects' => $batchWiseSubjects
+      'semesterWiseSubjects' => $semesterWiseSubjects,
+      'selectedProgramType' => $programType,
+      'searchTerm' => $searchTerm,
     ]);
   }
 

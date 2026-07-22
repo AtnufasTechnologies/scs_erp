@@ -2,450 +2,501 @@
 
 use App\Models\BatchMaster;
 use App\Models\Faculty;
-use App\Models\HourMaster;
 use App\Models\StudentMaster;
 use App\Models\StudentProgram;
+use App\Models\StudentSemesterConfig;
 use App\Models\SubjectHasStudentProgam;
+use App\Models\User;
 
 $totalStudents = StudentMaster::where('is_left', 0)->where('is_deleted', 0)->count();
 $totalFaculty = Faculty::where('IS_LEFT', 0)->count();
-$activeCourses = StudentProgram::count(); // Example static data
-$labels = HourMaster::pluck('name')->all();
-$batchId = BatchMaster::where('admission_active_batch', 1)->value('id');
-$batchName = BatchMaster::where('admission_active_batch', 1)->value('batch_name');
-$combinationCount = SubjectHasStudentProgam::with('batchmaster')->where('batch_id', $batchId)->count();
+$totalUsers = User::where('status', 'ACTIVE')->count();
+$activeCourses = StudentProgram::count();
+$activeBatch = BatchMaster::select('id', 'batch_name')->where('admission_active_batch', 1)->first();
+$batchName = $activeBatch->batch_name ?? 'Not Set';
+$combinationCount = $activeBatch
+  ? SubjectHasStudentProgam::where('batch_id', $activeBatch->id)->count()
+  : 0;
+$batchwiseStudentCounts = BatchMaster::query()
+  ->leftJoin('student_masters as sm', function ($join) {
+    $join->on('batch_masters.id', '=', 'sm.batch')
+      ->where('sm.is_deleted', 0)
+      ->where('sm.is_left', 0);
+  })
+  ->select('batch_masters.id', 'batch_masters.batch_name')
+  ->selectRaw('COUNT(sm.id) as students_count')
+  ->groupBy('batch_masters.id', 'batch_masters.batch_name')
+  ->orderByDesc('batch_masters.id')
+  ->limit(8)
+  ->get();
+$semesterwiseStudentCounts = StudentSemesterConfig::query()
+  ->join('student_masters as sm', function ($join) {
+    $join->on('student_semester_configs.student_id', '=', 'sm.id')
+      ->where('sm.is_deleted', 0)
+      ->where('sm.is_left', 0);
+  })
+  ->selectRaw('student_semester_configs.semester_id as semester, COUNT(DISTINCT student_semester_configs.student_id) as students_count')
+  ->whereNotNull('student_semester_configs.semester_id')
+  ->where('student_semester_configs.semester_id', '!=', '')
+  ->groupBy('student_semester_configs.semester_id')
+  ->orderByRaw('CAST(student_semester_configs.semester_id AS UNSIGNED) ASC')
+  ->get();
 $roletype = auth()->user()->userroletype;
+$roleName = $roletype->role_name ?? 'Admin';
 ?>
 @include('includes.header')
 @include('admin.sidebar')
 
-<div class="container-fluid">
+<div class="container-fluid dashboard-wrap">
+  <section class="hero-panel mb-5">
+    <div>
+      <p class="hero-kicker">ADMIN CONSOLE</p>
+      <h1>
+        <span class="text-capitalize text-light">Hi, {{ auth()->user()->name }}</span>
+      </h1>
+      <p class="hero-subtitle">Role: {{ $roleName }}</p>
 
-  <span style="font-weight: 100; font-size: 33px;">Hi, </span>
-  <span class="text-capitalize text-primary" style="font-weight: 700; font-size: 33px;">{{ auth()->user()->name }}</span> <span>({{ $roletype->role_name }})</span><br>
-  <strong>Stay Motivated</strong>
-  <p>{{$quote->body ?? ''}} <span class="text-muted">- {{$quote->author ?? 'Unknown'}}</span></p>
+    </div>
+    <div class="hero-badge">
+      <p>Active Academic Batch</p>
+      <h4>{{ $batchName }}</h4>
+    </div>
+  </section>
 
-  <div class="stats-grid">
-    <div class="stat-card">
-      <div class="stat-icon bg-primary">
-        <i class="fas fa-user-graduate"></i>
-      </div>
+  <section class="stats-grid mb-5">
+    <article class="stat-card">
+      <div class="stat-icon icon-students"><i class="fas fa-user-graduate"></i></div>
       <div class="stat-content">
         <h3>Total Students</h3>
-        <p class="stat-number">{{ $totalStudents ?? 0 }}</p>
-        <span class="stat-change positive">Active </span>
+        <p class="stat-number">{{ $totalStudents }}</p>
       </div>
-    </div>
+    </article>
 
-    <div class="stat-card">
-      <div class="stat-icon bg-success">
-        <i class="fas fa-user-tie"></i>
-      </div>
+    <article class="stat-card">
+      <div class="stat-icon icon-faculty"><i class="fas fa-user-tie"></i></div>
       <div class="stat-content">
         <h3>Total Faculty</h3>
-        <p class="stat-number">{{ $totalFaculty ?? 0 }}</p>
-        <span class="stat-change positive"></span>
+        <p class="stat-number">{{ $totalFaculty }}</p>
       </div>
-    </div>
+    </article>
 
-    <div class="stat-card">
-      <div class="stat-icon bg-warning">
-        <i class="fas fa-book-open"></i>
-      </div>
+    <article class="stat-card">
+      <div class="stat-icon icon-programs"><i class="fas fa-book-open"></i></div>
       <div class="stat-content">
-        <h3>Active Courses</h3>
-        <p class="stat-number">{{ $activeCourses ?? 0 }}</p>
-        <span class="stat-change positive"></span>
+        <h3>Program Masters</h3>
+        <p class="stat-number">{{ $activeCourses }}</p>
       </div>
-    </div>
+    </article>
 
-    <div class="stat-card">
-      <div class="stat-icon bg-danger">
-        <i class="fas fa-percentage"></i>
-      </div>
+    <article class="stat-card">
+      <div class="stat-icon icon-combinations"><i class="fas fa-layer-group"></i></div>
       <div class="stat-content">
-        <h3>Offered Combinations {{$batchName}}</h3>
-        <p class="stat-number">{{ $combinationCount}}</p>
-        <span class="stat-change positive">Academic Batch - {{$batchName}}</span>
+        <h3>Program Combinations</h3>
+        <p class="stat-number">{{ $combinationCount }}</p>
       </div>
+    </article>
+
+    <article class="stat-card">
+      <div class="stat-icon icon-users"><i class="fas fa-users"></i></div>
+      <div class="stat-content">
+        <h3>Active Users</h3>
+        <p class="stat-number">{{ $totalUsers }}</p>
+      </div>
+    </article>
+  </section>
+
+  <section class="quick-links-card">
+    <div class="card-head">
+      <h3>Quick Access</h3>
+      <p>Aligned with key admin sidebar modules</p>
     </div>
-  </div>
-  <div class="charts-section">
-    <div class="chart-card">
-      <h5> Admission Enrollment Trend - {{$batchName}}</h5>
-      <canvas id="enrollmentChart"></canvas>
-
+    <div class="quick-links-grid">
+      <a class="quick-link" href="{{ url('erp/admin/master/batch') }}">
+        <i class="fas fa-swatchbook"></i>
+        <span>Batches</span>
+      </a>
+      <a class="quick-link" href="{{ url('erp/admin/master/programs') }}">
+        <i class="fas fa-object-group"></i>
+        <span>Campus Stream Combination</span>
+      </a>
+      <a class="quick-link" href="{{ url('erp/admin/master/subjects') }}">
+        <i class="fas fa-building"></i>
+        <span>Departments</span>
+      </a>
+      <a class="quick-link" href="{{ route('itcell.admission.applications') }}">
+        <i class="fas fa-check-circle"></i>
+        <span>Admission Applications</span>
+      </a>
     </div>
+  </section>
 
-    <div class="chart-card">
-      <h5> Dept Wise Enrollment Distribution - {{$batchName}} </h5>
-
-      <canvas id="enrollmentDeptChart"></canvas>
-
-    </div>
-    <div class="chart-card">
-      <h5> Campus Wise Registration - {{$batchName}} </h5>
-
-      <canvas id="campusChart"></canvas>
-
-    </div>
-
-    <div class="chart-card">
-      <h3>Recent Notices</h3>
-      <div class="activity-list">
-        @forelse($recentNotices ?? [] as $notice)
-        <div class="activity-item">
-          <div class="activity-icon">
-            <i class="fas fa-bell"></i>
+  <section class="row g-3">
+    <div class="col-lg-4">
+      <div class="panel-card h-100">
+        <h3>Recent Notices</h3>
+        <div class="activity-list">
+          @forelse($recentNotices ?? [] as $notice)
+          <div class="activity-item">
+            <div class="activity-icon"><i class="fas fa-bell"></i></div>
+            <div class="activity-details">
+              <p class="activity-title">{{ $notice->title }}</p>
+              <span class="activity-time">{{ $notice->created_at->diffForHumans() }}</span>
+            </div>
           </div>
-          <div class="activity-details">
-            <p class="activity-title">{{ $notice->title }}</p>
-            <span class="activity-time">{{ $notice->created_at->diffForHumans() }}</span>
-          </div>
+          @empty
+          <p class="text-muted mb-0">No recent notices.</p>
+          @endforelse
         </div>
-        @empty
-        <p class="text-muted">No recent notices</p>
-        @endforelse
       </div>
     </div>
 
-  </div>
-  <!-- Hourwise Class Attendance Section -->
-  <!-- <div class="charts-section">
-    <div class="chart-card" style="grid-column: span 2;">
-      <h3>Hourwise Class Attendance (Today)</h3>
-
-
-      <table class="data-table" id="exportTable">
-        <thead>
-          <tr>
-            <th>#</th>
-            <th>Hour</th>
-            <th>Present</th>
-            <th>Absent</th>
-            <th>Attendance %</th>
-          </tr>
-        </thead>
-        <tbody>
-          @forelse($hourwiseAttendance ?? [] as $hour)
-          <tr>
-            <td>{{$loop->iteration}}</td>
-            <td>{{ $hour->title }}</td>
-            <td>{{ $hour->present }}</td>
-            <td>{{ $hour->absent }}</td>
-            <td>
-              @php
-              $total = $hour->present + $hour->absent;
-              $percent = $total > 0 ? round(($hour->present / $total) * 100, 1) : 0;
-              @endphp
-              {{ round($percent) }}%
-            </td>
-          </tr>
-          @empty
-          <tr>
-            <td colspan="7" class="text-center">No hourwise attendance data available</td>
-          </tr>
-          @endforelse
-        </tbody>
-      </table>
+    <div class="col-lg-4">
+      <div class="panel-card h-100">
+        <h3>Batch Wise Student Count</h3>
+        <div class="table-wrap">
+          <table class="data-table">
+            <thead>
+              <tr>
+                <th>#</th>
+                <th>Batch</th>
+                <th>Students</th>
+              </tr>
+            </thead>
+            <tbody>
+              @forelse($batchwiseStudentCounts as $batchCount)
+              <tr>
+                <td>{{ $loop->iteration }}</td>
+                <td>{{ $batchCount->batch_name }}</td>
+                <td>{{ $batchCount->students_count }}</td>
+              </tr>
+              @empty
+              <tr>
+                <td colspan="3" class="text-center">No batch-wise data found</td>
+              </tr>
+              @endforelse
+            </tbody>
+          </table>
+        </div>
+      </div>
     </div>
-  </div> -->
-  <!-- End Hourwise Class Attendance Section -->
 
-
-
-  <div class="data-table-section">
-    <div class="table-card">
-      <h3>Recent Fee Payments</h3>
-      <table class="data-table">
-        <thead>
-          <tr>
-            <th>Payment ID</th>
-            <th>Student</th>
-            <th>Amount</th>
-            <th>Status</th>
-            <th>Date</th>
-          </tr>
-        </thead>
-        <tbody>
-          @forelse($recentPayments ?? [] as $payment)
-          <tr>
-            <td>#{{ $payment->id }}</td>
-            <td>{{ $payment->student_name }}</td>
-            <td>₹{{ number_format($payment->amount, 2) }}</td>
-            <td><span class="badge badge-{{ $payment->status }}">{{ ucfirst($payment->status) }}</span></td>
-            <td>{{ $payment->created_at->format('M d, Y') }}</td>
-          </tr>
-          @empty
-          <tr>
-            <td colspan="5" class="text-center">No payments found</td>
-          </tr>
-          @endforelse
-        </tbody>
-      </table>
+    <div class="col-lg-4">
+      <div class="panel-card h-100">
+        <h3>Semester Wise Student Count</h3>
+        <div class="table-wrap">
+          <table class="data-table">
+            <thead>
+              <tr>
+                <th>#</th>
+                <th>Semester</th>
+                <th>Students</th>
+              </tr>
+            </thead>
+            <tbody>
+              @forelse($semesterwiseStudentCounts as $semesterCount)
+              <tr>
+                <td>{{ $loop->iteration }}</td>
+                <td>Semester {{ $semesterCount->semester }}</td>
+                <td>{{ $semesterCount->students_count }}</td>
+              </tr>
+              @empty
+              <tr>
+                <td colspan="3" class="text-center">No semester-wise data found</td>
+              </tr>
+              @endforelse
+            </tbody>
+          </table>
+        </div>
+      </div>
     </div>
-  </div>
+  </section>
 </div>
 
 <style>
-  .dashboard-container {
-    padding: 20px;
-    background: #f5f6fa;
+  .dashboard-wrap {
+    --dash-bg: #f5f8f7;
+    --dash-card: #ffffff;
+    --dash-ink: #13332d;
+    --dash-muted: #556971;
+    --dash-line: #d8e6e2;
+    --dash-accent: #0f4476;
+    --dash-accent-soft: #d7f2ee;
+    /* background: radial-gradient(circle at top right, #e5f4f1 0%, var(--dash-bg) 42%, #eef4f8 100%); */
+    padding-bottom: 24px;
+  }
+
+  .hero-panel {
+    background: linear-gradient(120deg, #3d49a6 0%, #5409b7 100%);
+    color: #f5fffc;
+    padding: 28px;
+    border-radius: 18px;
+    display: flex;
+    justify-content: space-between;
+    gap: 16px;
+    align-items: flex-start;
+    margin-bottom: 22px;
+    box-shadow: 0 12px 28px rgba(17, 63, 56, 0.18);
+  }
+
+  .hero-kicker {
+    margin: 0;
+    font-size: 12px;
+    letter-spacing: 0.12em;
+    opacity: 0.85;
+  }
+
+  .hero-panel h1 {
+    margin: 8px 0 4px;
+    font-size: 30px;
+    line-height: 1.2;
+    font-weight: 700;
+  }
+
+  .hero-subtitle {
+    margin: 0;
+    color: #d2fff6;
+    font-size: 14px;
+  }
+
+  .hero-quote {
+    margin-top: 14px;
+    font-size: 14px;
+    color: #defaf4;
+  }
+
+  .hero-quote span {
+    color: #b9efe4;
+  }
+
+  .hero-badge {
+    background: rgba(255, 255, 255, 0.14);
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    border-radius: 14px;
+    padding: 14px 16px;
+    min-width: 180px;
+  }
+
+  .hero-badge p {
+    margin: 0;
+    font-size: 12px;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+  }
+
+  .hero-badge h4 {
+    margin: 8px 0 0;
+    font-size: 20px;
+    color: #f3f9ff;
   }
 
   .stats-grid {
     display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
-    gap: 28px;
-    margin-bottom: 36px;
+    grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+    gap: 16px;
+    margin-bottom: 20px;
   }
 
   .stat-card {
-    background: linear-gradient(120deg, #f8fafc 60%, #e0e7ff 100%);
-    padding: 28px 24px;
-    border-radius: 18px;
+    background: #e8f0ff;
+    /* border: 1px solid grey; */
+    padding: 20px;
+    border-radius: 14px;
     display: flex;
     align-items: center;
-    box-shadow: 0 6px 24px rgba(102, 126, 234, 0.08), 0 1.5px 6px rgba(0, 0, 0, 0.03);
-    transition: transform 0.18s cubic-bezier(.4, 2, .6, 1), box-shadow 0.18s;
-    position: relative;
-    overflow: hidden;
-  }
-
-  .stat-card::before {
-    content: '';
-    position: absolute;
-    top: -40px;
-    right: -40px;
-    width: 90px;
-    height: 90px;
-    background: rgba(102, 126, 234, 0.09);
-    border-radius: 50%;
-    z-index: 0;
-  }
-
-  .stat-card:hover {
-    transform: translateY(-7px) scale(1.025);
-    box-shadow: 0 12px 32px rgba(102, 126, 234, 0.13), 0 2px 8px rgba(0, 0, 0, 0.04);
-  }
-
-  .stat-icon {
-    box-shadow: 0 2px 8px rgba(102, 126, 234, 0.10);
-    border: 2px solid #fff;
-  }
-
-  .stat-content {
-    position: relative;
-    z-index: 1;
-  }
-
-  .stat-content h3 {
-    font-size: 15px;
-    color: #5a5a89;
-    margin: 0 0 6px 0;
-    letter-spacing: 0.02em;
-    font-weight: 600;
-  }
-
-  .stat-number {
-    font-size: 32px;
-    font-weight: 700;
-    color: #22223b;
-    margin: 7px 0 3px 0;
-    letter-spacing: 0.01em;
-  }
-
-  .stat-change {
-    font-size: 13px;
-    font-weight: 500;
-    opacity: 0.85;
-  }
-
-  .stat-change.positive {
-    color: #22c55e;
-  }
-
-  .stat-change.negative {
-    color: #ef4444;
-  }
-
-  .stat-icon {
-    width: 60px;
-    height: 60px;
-    border-radius: 10px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    font-size: 24px;
-    color: white;
-    margin-right: 15px;
-  }
-
-  .bg-primary {
-    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-  }
-
-  .bg-success {
-    background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
-  }
-
-  .bg-warning {
-    background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);
-  }
-
-  .bg-danger {
-    background: linear-gradient(135deg, #fa709a 0%, #fee140 100%);
+    gap: 14px;
+    box-shadow: 15px 15px 30px #bebebe,
+      -15px -15px 30px #ffffff;
   }
 
   .stat-content h3 {
     font-size: 14px;
-    color: #666;
-    margin: 0 0 5px 0;
+    color: var(--dash-muted);
+    margin: 0;
+    font-weight: 600;
   }
 
   .stat-number {
-    font-size: 28px;
-    font-weight: bold;
-    color: #333;
-    margin: 5px 0;
+    font-size: 30px;
+    font-weight: 700;
+    color: var(--dash-ink);
+    margin: 6px 0 0;
   }
 
-  .stat-change {
-    font-size: 12px;
+  .stat-icon {
+    width: 52px;
+    height: 52px;
+    border-radius: 12px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 21px;
+    color: white;
   }
 
-  .stat-change.positive {
-    color: #4caf50;
+  .icon-students {
+    background: linear-gradient(135deg, #0369a1 0%, #0ea5e9 100%);
   }
 
-  .stat-change.negative {
-    color: #f44336;
+  .icon-faculty {
+    background: linear-gradient(135deg, #0f766e 0%, #14b8a6 100%);
   }
 
-  .charts-section {
-    display: grid;
-    grid-template-columns: 2fr 1fr;
-    gap: 20px;
-    margin-bottom: 30px;
+  .icon-programs {
+    background: linear-gradient(135deg, #ca8a04 0%, #f59e0b 100%);
   }
 
-  .chart-card {
-    background: white;
+  .icon-combinations {
+    background: linear-gradient(135deg, #4d7c0f 0%, #65a30d 100%);
+  }
+
+  .icon-users {
+    background: linear-gradient(135deg, #7c3aed 0%, #a855f7 100%);
+  }
+
+  .quick-links-card,
+  .panel-card {
+    background: var(--dash-card);
+    border: 1px solid var(--dash-line);
+    border-radius: 14px;
+    box-shadow: 0 4px 16px rgba(15, 45, 40, 0.06);
     padding: 20px;
-    border-radius: 10px;
-    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+    margin-bottom: 20px;
   }
 
-  .chart-card h3 {
-    margin-bottom: 20px;
-    color: #333;
+  .card-head h3,
+  .panel-card h3 {
+    margin: 0;
+    color: var(--dash-ink);
+    font-size: 19px;
+  }
+
+  .card-head p {
+    margin: 4px 0 0;
+    font-size: 12px;
+    color: var(--dash-muted);
+  }
+
+  .quick-links-grid {
+    margin-top: 14px;
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+    gap: 10px;
+  }
+
+  .quick-link {
+    border: 1px solid var(--dash-line);
+    border-radius: 12px;
+    padding: 12px 14px;
+    text-decoration: none;
+    color: var(--dash-ink);
+    background: linear-gradient(180deg, #ffffff 0%, #f3fbf9 100%);
+    display: flex;
+    align-items: center;
+    gap: 9px;
+    font-weight: 600;
+    font-size: 13px;
+    transition: all 0.2s ease;
+  }
+
+  .quick-link i {
+    color: var(--dash-accent);
+  }
+
+  .quick-link:hover {
+    border-color: #8ba9c4;
+    color: #0b413a;
+    transform: translateY(-1px);
   }
 
   .activity-list {
-    max-height: 400px;
+    margin-top: 14px;
+    max-height: 365px;
     overflow-y: auto;
   }
 
   .activity-item {
     display: flex;
-    padding: 15px 0;
-    border-bottom: 1px solid #eee;
+    padding: 12px 0;
+    border-bottom: 1px dashed var(--dash-line);
+  }
+
+  .activity-item:last-child {
+    border-bottom: none;
   }
 
   .activity-icon {
-    margin-right: 15px;
-    color: #667eea;
+    width: 34px;
+    min-width: 34px;
+    height: 34px;
+    border-radius: 50%;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    margin-right: 10px;
+    background: var(--dash-accent-soft);
+    color: var(--dash-accent);
   }
 
   .activity-title {
     margin: 0;
-    color: #333;
-    font-weight: 500;
+    color: #173f38;
+    font-weight: 600;
+    font-size: 14px;
   }
 
   .activity-time {
     font-size: 12px;
-    color: #999;
-  }
-
-  .table-card {
-    background: #fff;
-    padding: 28px 24px;
-    border-radius: 16px;
-    box-shadow: 0 6px 24px rgba(102, 126, 234, 0.08), 0 1.5px 6px rgba(0, 0, 0, 0.03);
-    margin-bottom: 24px;
-    transition: box-shadow 0.18s;
-  }
-
-  .table-card:hover {
-    box-shadow: 0 12px 32px rgba(102, 126, 234, 0.13), 0 2px 8px rgba(0, 0, 0, 0.04);
+    color: #636b80;
   }
 
   .data-table {
     width: 100%;
     border-collapse: separate;
     border-spacing: 0;
-    background: #f8fafc;
+    background: #f8fcfb;
     border-radius: 12px;
     overflow: hidden;
-    box-shadow: 0 1px 4px rgba(102, 126, 234, 0.06);
+    box-shadow: 0 1px 4px rgba(15, 45, 40, 0.06);
   }
 
   .data-table th {
-    background: linear-gradient(90deg, #e0e7ff 0%, #f8fafc 100%);
+    background: linear-gradient(90deg, #dbe4f2 0%, #f3fbf9 100%);
     padding: 14px 16px;
     text-align: left;
     font-weight: 700;
-    color: #4f46e5;
-    font-size: 15px;
-    border-bottom: 2px solid #e5e7eb;
+    color: #0e244f;
+    font-size: 13px;
+    border-bottom: 2px solid var(--dash-line);
     letter-spacing: 0.01em;
   }
 
   .data-table td {
     padding: 13px 16px;
-    border-bottom: 1px solid #e5e7eb;
+    border-bottom: 1px solid #e4efec;
     font-size: 14px;
-    color: #22223b;
+    color: #1b3f38;
     background: #fff;
     transition: background 0.15s;
   }
 
   .data-table tr:hover td {
-    background: #f1f5fd;
+    background: #f3fbf9;
   }
 
-  .badge {
-    display: inline-block;
-    padding: 6px 14px;
-    border-radius: 16px;
-    font-size: 13px;
-    font-weight: 600;
-    letter-spacing: 0.01em;
-    box-shadow: 0 1px 4px rgba(102, 126, 234, 0.07);
-    border: none;
-    margin-right: 4px;
-    margin-bottom: 2px;
-    vertical-align: middle;
+  .table-wrap {
+    margin-top: 14px;
+    overflow-x: auto;
   }
 
-  .badge-pending {
-    background: linear-gradient(90deg, #fffbe6 0%, #fff3cd 100%);
-    color: #b38600;
-    border: 1px solid #ffe066;
-  }
+  @media (max-width: 991px) {
+    .hero-panel {
+      flex-direction: column;
+    }
 
-  .badge-completed {
-    background: linear-gradient(90deg, #e6fffa 0%, #d4edda 100%);
-    color: #218838;
-    border: 1px solid #b7f7d8;
-  }
+    .hero-badge {
+      width: 100%;
+    }
 
-  .badge-cancelled {
-    background: linear-gradient(90deg, #ffeaea 0%, #f8d7da 100%);
-    color: #c82333;
-    border: 1px solid #f5c6cb;
   }
 </style>
 @include('includes.footer')

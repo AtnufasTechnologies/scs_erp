@@ -34,7 +34,7 @@
         <div class="parent-icon">
           <i class="fas fa-book"></i>
         </div>
-        <div class="menu-title">Subjects </div>
+        <div class="menu-title">My Courses </div>
       </a>
     </li>
 

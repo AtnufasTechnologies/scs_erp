@@ -7,12 +7,12 @@
   <main class="page-content">
     <!--start breadcrumb-->
     <div class="page-breadcrumb d-none d-sm-flex align-items-center gap-2">
-      <div class="breadcrumb-title pe-3">Subjects</div>
+      <div class="breadcrumb-title pe-3">Alloted</div>
       <div class="ps-2">
         <nav aria-label="breadcrumb">
           <ol class="breadcrumb mb-0 p-0">
             <li class="breadcrumb-item"><a href="{{ route('faculty.dashboard') }}"><i class="bx bx-home-alt"></i></a></li>
-            <li class="breadcrumb-item active" aria-current="page">My Subjects</li>
+            <li class="breadcrumb-item active" aria-current="page">My Courses</li>
           </ol>
         </nav>
       </div>
@@ -27,12 +27,12 @@
             <div class="card-body py-4">
               <div class="d-flex align-items-center justify-content-between">
                 <div>
-                  <h4 class="mb-2 fw-bold text-white"><i class="fas fa-book-open me-2"></i>My Assigned Subjects</h4>
-                  <p class="mb-0 text-white-50">View and track your teaching assignments organized by batch and semester</p>
+                  <h4 class="mb-2 fw-bold text-white"><i class="fas fa-book-open me-2"></i>My Assigned Courses</h4>
+                  <p class="mb-0 text-white-50">View and track your teaching assignments organized by semester and batch</p>
                 </div>
                 <div class="text-end">
-                  <div class="display-6 text-white fw-bold">{{ count($batchWiseSubjects) }}</div>
-                  <small class="text-white-50">Batches</small>
+                  <div class="display-6 text-white fw-bold">{{ count($semesterWiseSubjects) }}</div>
+                  <small class="text-white-50">Semesters</small>
                 </div>
               </div>
             </div>
@@ -40,48 +40,71 @@
         </div>
       </div>
 
-      <!-- Subjects by Batch -->
-      @forelse($batchWiseSubjects as $batchName => $subjects)
+      <div class="row mb-4">
+        <div class="col-12">
+          <div class="card shadow-sm border-0">
+            <div class="card-body">
+              <form method="GET" action="" class="row g-3 align-items-end">
+                <div class="col-md-4">
+                  <label for="searchFilter" class="form-label small text-muted mb-1">Search</label>
+                  <input type="text" id="searchFilter" name="search" class="form-control" placeholder="Subject, course code, course title, batch..." value="{{ $searchTerm ?? '' }}">
+                </div>
+                <div class="col-md-3">
+                  <label for="programTypeFilter" class="form-label small text-muted mb-1">Program Type</label>
+                  <select id="programTypeFilter" name="program_type" class="form-select">
+                    <option value="ALL" {{ strtoupper((string) ($selectedProgramType ?? 'ALL')) === 'ALL' ? 'selected' : '' }}>All</option>
+                    <option value="UG" {{ strtoupper((string) ($selectedProgramType ?? 'ALL')) === 'UG' ? 'selected' : '' }}>UG</option>
+                    <option value="PG" {{ strtoupper((string) ($selectedProgramType ?? 'ALL')) === 'PG' ? 'selected' : '' }}>PG</option>
+                  </select>
+                </div>
+                <div class="col-md-2">
+                  <button type="submit" class="btn btn-primary w-100"><i class="fas fa-search me-1"></i>Filter</button>
+                </div>
+                <div class="col-md-2">
+                  <a href="{{ route('faculty.subjects') }}" class="btn btn-outline-secondary w-100">Reset</a>
+                </div>
+              </form>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Subjects by Semester -->
+      @forelse($semesterWiseSubjects as $semesterName => $batchGroups)
       <div class="row mb-4">
         <div class="col-12">
           <div class="card shadow-sm border-0">
             <div class="card-header bg-white border-bottom py-3">
               <div class="d-flex align-items-center justify-content-between">
                 <h5 class="mb-0 fw-bold">
-                  <i class="fas fa-users text-primary me-2"></i>
-                  Batch: {{ $batchName }}
+                  <i class="fas fa-calendar-alt text-primary me-2"></i>
+                  Semester: {{ $semesterName }}
                 </h5>
                 <div class="d-flex gap-2">
                   <span class="badge bg-light-info text-info px-3 py-2">
-                    <i class="fas fa-book me-1"></i>{{ count($subjects) }} Subject{{ count($subjects) > 1 ? 's' : '' }}
+                    <i class="fas fa-book me-1"></i>{{ $batchGroups->flatten(1)->count() }} Subject{{ $batchGroups->flatten(1)->count() > 1 ? 's' : '' }}
                   </span>
                 </div>
               </div>
             </div>
             <div class="card-body p-0">
+              @foreach($batchGroups as $batchName => $semesterSubjects)
               @php
-              // Group by semester
-              $semesterGroups = $subjects->groupBy(function($item) {
-              return $item->semestermaster->id ?? 0;
-              });
+              $semesterSlug = preg_replace('/[^A-Za-z0-9]/', '', (string) $semesterName);
+              $batchSlug = preg_replace('/[^A-Za-z0-9]/', '', (string) $batchName);
+              $accordionId = 'accordion' . $semesterSlug . $batchSlug;
               @endphp
 
-              @foreach($semesterGroups as $semesterId => $semesterSubjects)
-              @php
-              $firstSubject = $semesterSubjects->first();
-              $semesterName = $firstSubject->semestermaster->title ?? 'Unknown Semester';
-              @endphp
-
-              <!-- Semester Section -->
+              <!-- Batch Section -->
               <div class="semester-section border-bottom">
                 <div class="semester-header bg-light px-4 py-3">
                   <h6 class="mb-0 text-primary">
-                    <i class="fas fa-calendar-alt me-2"></i>{{ $semesterName }}
+                    <i class="fas fa-users me-2"></i>Batch: {{ $batchName }}
                   </h6>
                 </div>
 
-                <!-- Courses in this Semester -->
-                <div class="accordion accordion-flush" id="accordion{{ str_replace(' ', '', $batchName) }}{{ $semesterId }}">
+                <!-- Courses in this Batch -->
+                <div class="accordion accordion-flush" id="{{ $accordionId }}">
                   @foreach($semesterSubjects as $index => $subjectData)
                   @php
                   $syllabus = $subjectData;
@@ -96,9 +119,9 @@
                   @endphp
 
                   <div class="accordion-item border-0">
-                    <h2 class="accordion-header" id="heading{{ str_replace(' ', '', $batchName) }}{{ $semesterId }}{{ $index }}">
+                    <h2 class="accordion-header" id="heading{{ $semesterSlug }}{{ $batchSlug }}{{ $index }}">
                       <button class="accordion-button collapsed px-4 py-3" type="button" data-bs-toggle="collapse"
-                        data-bs-target="#collapse{{ str_replace(' ', '', $batchName) }}{{ $semesterId }}{{ $index }}"
+                        data-bs-target="#collapse{{ $semesterSlug }}{{ $batchSlug }}{{ $index }}"
                         aria-expanded="false">
                         <div class="d-flex align-items-center justify-content-between w-100 me-3">
                           <div class="flex-grow-1">
@@ -106,6 +129,7 @@
                               @if($courseType)
                               <span class="badge bg-primary">{{ $courseType->title }}</span>
                               @endif
+                              <span class="badge bg-light-info text-info">{{ strtoupper((string) ($syllabus->program_type ?? 'UG')) === 'PG' ? 'PG' : 'UG' }}</span>
                               <h6 class="mb-0 fw-bold">{{ $subject->title ?? 'N/A' }}</h6>
                             </div>
                             <div class="d-flex align-items-center gap-3 text-muted">
@@ -148,9 +172,9 @@
                         </div>
                       </button>
                     </h2>
-                    <div id="collapse{{ str_replace(' ', '', $batchName) }}{{ $semesterId }}{{ $index }}"
+                    <div id="collapse{{ $semesterSlug }}{{ $batchSlug }}{{ $index }}"
                       class="accordion-collapse collapse"
-                      data-bs-parent="#accordion{{ str_replace(' ', '', $batchName) }}{{ $semesterId }}">
+                      data-bs-parent="#{{ $accordionId }}">
                       <div class="accordion-body px-4 py-4 bg-light">
                         @if($syllabusUnits->count() > 0)
                         <!-- Instructional Units Table -->
