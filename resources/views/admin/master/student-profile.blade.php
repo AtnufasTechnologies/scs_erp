@@ -528,6 +528,9 @@ $userRole = StaticController::fetchUserRole($userId);
         @if($data->programgroup && $data->programgroup->programInfo)
         &nbsp;·&nbsp; {{ $data->programgroup->programInfo->name }}
         @endif
+        @if(!empty($programOfferingSubjectTitle))
+        &nbsp;·&nbsp; Offered By: {{ $programOfferingSubjectTitle }}
+        @endif
         @if($data->batchmaster)
         &nbsp;·&nbsp; Batch {{ $data->batchmaster->batch_name }}
         @endif
@@ -541,6 +544,12 @@ $userRole = StaticController::fetchUserRole($userId);
         @endif
         @if($data->bloodgroup)
         <span class="sp-badge"><i class="fas fa-tint"></i> {{ $data->bloodgroup->title ?? '' }}</span>
+        @endif
+        @if(!empty($studentMajorDeliveryType))
+        <span class="sp-badge"><i class="fas fa-route"></i> Delivery {{ $studentMajorDeliveryType }}</span>
+        @endif
+        @if(!empty($combo1Title) || !empty($combo2Title))
+        <span class="sp-badge"><i class="fas fa-code-branch"></i> Combo A: {{ $combo1Title ?: '—' }} | Combo B: {{ $combo2Title ?: '—' }}</span>
         @endif
         <span class="sp-badge"><i class="fas fa-layer-group"></i> Year {{ $data->current_year ?? '—' }}</span>
       </div>
@@ -746,7 +755,7 @@ $userRole = StaticController::fetchUserRole($userId);
       <div style="display:flex;flex-wrap:wrap;margin-bottom:.5rem;">
         @foreach($slots->sortBy('hour_id') as $slot)
         <div class="sp-slot-badge">
-          <span class="hour-num">{{ $slot->hourmaster->title ?? '?' }}</span>
+          <span class="hour-num">{{ $slot->hourmaster->name ?? $slot->hourmaster->title ?? '?' }}</span>
           <div>
             <div style="font-weight:600;line-height:1.2;">{{ $slot->coursemaster->course_code ?? '—' }}</div>
             <div style="font-size:.72rem;color:#6c757d;line-height:1.2;">{{ Str::limit($slot->coursemaster->course_title ?? '—', 28) }}</div>
@@ -896,6 +905,8 @@ $userRole = StaticController::fetchUserRole($userId);
               <th>Code</th>
               <th>Course Title</th>
               <th>Type</th>
+              <th>Delivery</th>
+              <th>Offered By</th>
               <th>Cr.</th>
               <th>Cia Marks </th>
               <th style="text-align:center;">Total</th>
@@ -908,6 +919,9 @@ $userRole = StaticController::fetchUserRole($userId);
             $typeTitle = $course->coursemaster?->coursetypemaster?->title ?? '';
             $ctKey = preg_replace('/\s.*/', '', $typeTitle);
             $ct = $ctColors[$ctKey] ?? $defaultCt;
+            $deliveryKey = (string) ($course->semester ?? $course->coursemaster?->semester_id ?? '') . '_' . (string) ($course->course_id ?? '');
+            $deliveryType = $courseDeliveryMap[$deliveryKey] ?? ($studentMajorDeliveryType ?? 'COMMON');
+            $offeredBySubject = $courseOfferingSubjectMap[$deliveryKey] ?? ($programOfferingSubjectTitle ?? '—');
             @endphp
             <?php
             $courseMarks = StaticController::getStudentCourseMarks($data->id, $course->course_id);
@@ -930,6 +944,12 @@ $userRole = StaticController::fetchUserRole($userId);
                 @else —
                 @endif
               </td>
+              <td>
+                <span style="background:#e3f2fd;color:#1565c0;border-radius:4px;padding:.1rem .5rem;font-size:.74rem;font-weight:700;white-space:nowrap;">
+                  {{ $deliveryType }}
+                </span>
+              </td>
+              <td style="font-size:.78rem;color:#374151;font-weight:600;white-space:nowrap;">{{ $offeredBySubject }}</td>
               <td>{{ $course->coursemaster?->credits ?? '—' }}</td>
               <td style="font-size:.8rem;color:#6c757d;">
                 @php
@@ -1065,6 +1085,10 @@ $userRole = StaticController::fetchUserRole($userId);
       'studentCourses' => $studentCourses,
       'coursesBySemester' => $coursesBySemester,
       'lockedCourseIds' => $lockedCourseIds,
+      'courseDeliveryMap' => $courseDeliveryMap ?? [],
+      'courseOfferingSubjectMap' => $courseOfferingSubjectMap ?? [],
+      'studentMajorDeliveryType' => $studentMajorDeliveryType ?? null,
+      'programOfferingSubjectTitle' => $programOfferingSubjectTitle ?? '',
       ])
     </div>
   </div>

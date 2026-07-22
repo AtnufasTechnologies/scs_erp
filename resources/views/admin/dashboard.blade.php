@@ -389,7 +389,7 @@ $roleName = $roletype->role_name ?? 'Admin';
     padding: 12px 14px;
     text-decoration: none;
     color: var(--dash-ink);
-    background: linear-gradient(180deg, #ffffff 0%, #f3fbf9 100%);
+    background: #e8f0ff;
     display: flex;
     align-items: center;
     gap: 9px;
@@ -460,7 +460,7 @@ $roleName = $roletype->role_name ?? 'Admin';
   }
 
   .data-table th {
-    background: linear-gradient(90deg, #dbe4f2 0%, #f3fbf9 100%);
+    background: #e8f0ff;
     padding: 14px 16px;
     text-align: left;
     font-weight: 700;

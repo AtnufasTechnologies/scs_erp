@@ -457,8 +457,8 @@ $typeLabelMap = [
 
                     <td>
                       <select name="course_type_map[{{$courseId}}]" class="form-control form-control-sm" disabled>
-                        <option value="AUTO">Compulsory</option>
-                        <option value="STUDENT_CHOICE" selected>Elective</option>
+                        <option value="AUTO" selected>Compulsory</option>
+                        <option value="STUDENT_CHOICE">Elective</option>
                       </select>
                     </td>
                     @if($isSingleMajorCourse)
@@ -936,7 +936,7 @@ $typeLabelMap = [
           '<td>' + escapeHtml(course.source_subject || 'NA') + ' ' + sourceCode + '</td>' +
           '<td>' + escapeHtml(course.course_type_title || 'NA') + '</td>' +
           '<td><span class="badge generated-delivery-preview ' + badgeClass + '">' + escapeHtml(delivery) + '</span><input type="hidden" name="delivery_category_map[' + String(courseId) + ']" class="delivery-category-map-input" value="' + escapeHtml(delivery) + '"></td>' +
-          '<td><select name="course_type_map[' + String(courseId) + ']" class="form-control form-control-sm" disabled><option value="AUTO">Compulsory</option><option value="STUDENT_CHOICE" selected>Elective</option></select></td>' +
+          '<td><select name="course_type_map[' + String(courseId) + ']" class="form-control form-control-sm" disabled><option value="AUTO" selected>Compulsory</option><option value="STUDENT_CHOICE">Elective</option></select></td>' +
           specializationColumns +
           '</tr>';
       }).join('');

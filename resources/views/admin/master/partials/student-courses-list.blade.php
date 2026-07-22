@@ -46,6 +46,8 @@ $defaultCt = ['bg'=>'#f5f5f5','color'=>'#555'];
           <th>Code</th>
           <th>Course Title</th>
           <th>Type</th>
+          <th>Delivery</th>
+          <th>Offered By</th>
           <th>Cr.</th>
           <th style="text-align:center;">Actions</th>
         </tr>
@@ -57,6 +59,9 @@ $defaultCt = ['bg'=>'#f5f5f5','color'=>'#555'];
         $typeTitle = $course->coursemaster?->coursetypemaster?->title ?? '';
         $ctKey = preg_replace('/\s.*/', '', $typeTitle);
         $ct = $ctColors[$ctKey] ?? $defaultCt;
+        $deliveryKey = (string) ($course->semester ?? $course->coursemaster?->semester_id ?? '') . '_' . (string) ($course->course_id ?? '');
+        $deliveryType = $courseDeliveryMap[$deliveryKey] ?? ($studentMajorDeliveryType ?? 'COMMON');
+        $offeredBySubject = $courseOfferingSubjectMap[$deliveryKey] ?? ($programOfferingSubjectTitle ?? '—');
         @endphp
         <tr>
           <td style="color:#adb5bd;">{{ $i+1 }}</td>
@@ -75,6 +80,12 @@ $defaultCt = ['bg'=>'#f5f5f5','color'=>'#555'];
             @else —
             @endif
           </td>
+          <td>
+            <span style="background:#e3f2fd;color:#1565c0;border-radius:4px;padding:.1rem .5rem;font-size:.74rem;font-weight:700;white-space:nowrap;">
+              {{ $deliveryType }}
+            </span>
+          </td>
+          <td style="font-size:.78rem;color:#374151;font-weight:600;white-space:nowrap;">{{ $offeredBySubject }}</td>
           <td>{{ $course->coursemaster?->credits ?? '—' }}</td>
           <td style="text-align:center;white-space:nowrap;">
             @if($locked)
