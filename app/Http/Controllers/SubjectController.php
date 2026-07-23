@@ -3511,11 +3511,17 @@ class SubjectController extends Controller
             ->latest()
             ->get();
 
+        $deliveryTypeMap = $this->getTeachingAssignmentDeliveryTypeMap(
+            (int) $subjectInfo->id,
+            $courses->pluck('course_master_id')->map(fn($value) => (int) $value)->filter()->unique()->values()->all()
+        );
+
         return view('admin.subject.teaching.index', [
             'subject' => $subjectInfo,
             'courses' => $courses,
             'faculties' => $faculties,
             'assignments' => $assignments,
+            'deliveryTypeMap' => $deliveryTypeMap,
         ]);
     }
 
@@ -3532,7 +3538,7 @@ class SubjectController extends Controller
         $validated = $request->validate([
             'course_id' => 'required|integer|exists:program_course_masters,id',
             'faculty_id' => 'required|integer|exists:faculties,id',
-            'delivery_type' => 'required|string|max:100',
+            'delivery_type' => 'nullable|string|max:100',
             'status' => 'required|in:0,1',
             'room' => 'nullable|string|max:255',
             'remarks' => 'nullable|string',
@@ -3560,10 +3566,23 @@ class SubjectController extends Controller
             return redirect()->back()->with('error', 'Selected faculty is not mapped to this department.');
         }
 
+        $resolvedDeliveryType = $this->resolveTeachingAssignmentDeliveryType(
+            (int) $subject->id,
+            (int) $validated['course_id'],
+            $request->input('delivery_type')
+        );
+
+        if (!$resolvedDeliveryType) {
+            if ($request->expectsJson()) {
+                return response()->json(['message' => 'Unable to resolve delivery type from curriculum. Please select a valid curriculum-mapped delivery type.'], 422);
+            }
+            return redirect()->back()->with('error', 'Unable to resolve delivery type from curriculum. Please select a valid curriculum-mapped delivery type.');
+        }
+
         $duplicateExists = TeachingAssignment::where('subject_id', $subject->id)
             ->where('course_id', $validated['course_id'])
             ->where('faculty_id', $validated['faculty_id'])
-            ->where('delivery_type', $validated['delivery_type'])
+            ->where('delivery_type', $resolvedDeliveryType)
             ->exists();
 
         if ($duplicateExists) {
@@ -3575,7 +3594,7 @@ class SubjectController extends Controller
 
         $lastGroup = TeachingAssignment::where('subject_id', $subject->id)
             ->where('course_id', $validated['course_id'])
-            ->where('delivery_type', $validated['delivery_type'])
+            ->where('delivery_type', $resolvedDeliveryType)
             ->max('allocation_group');
 
         $nextAllocationGroup = ((int) $lastGroup) + 1;
@@ -3583,7 +3602,7 @@ class SubjectController extends Controller
         $assignment = TeachingAssignment::create([
             'subject_id' => $subject->id,
             'course_id' => $validated['course_id'],
-            'delivery_type' => $validated['delivery_type'],
+            'delivery_type' => $resolvedDeliveryType,
             'faculty_id' => $validated['faculty_id'],
             'allocation_group' => $nextAllocationGroup,
             'is_active' => (int) $validated['status'],
@@ -3621,7 +3640,7 @@ class SubjectController extends Controller
         $validated = $request->validate([
             'course_id' => 'required|integer|exists:program_course_masters,id',
             'faculty_id' => 'required|integer|exists:faculties,id',
-            'delivery_type' => 'required|string|max:100',
+            'delivery_type' => 'nullable|string|max:100',
             'status' => 'required|in:0,1',
             'room' => 'nullable|string|max:255',
             'remarks' => 'nullable|string',
@@ -3649,10 +3668,23 @@ class SubjectController extends Controller
             return redirect()->back()->with('error', 'Selected faculty is not mapped to this department.');
         }
 
+        $resolvedDeliveryType = $this->resolveTeachingAssignmentDeliveryType(
+            (int) $assignment->subject_id,
+            (int) $validated['course_id'],
+            $request->input('delivery_type')
+        );
+
+        if (!$resolvedDeliveryType) {
+            if ($request->expectsJson()) {
+                return response()->json(['message' => 'Unable to resolve delivery type from curriculum. Please select a valid curriculum-mapped delivery type.'], 422);
+            }
+            return redirect()->back()->with('error', 'Unable to resolve delivery type from curriculum. Please select a valid curriculum-mapped delivery type.');
+        }
+
         $duplicateExists = TeachingAssignment::where('subject_id', $assignment->subject_id)
             ->where('course_id', $validated['course_id'])
             ->where('faculty_id', $validated['faculty_id'])
-            ->where('delivery_type', $validated['delivery_type'])
+            ->where('delivery_type', $resolvedDeliveryType)
             ->where('id', '!=', $assignment->id)
             ->exists();
 
@@ -3666,12 +3698,12 @@ class SubjectController extends Controller
         $combinationChanged =
             (int) $assignment->course_id !== (int) $validated['course_id'] ||
             (int) $assignment->faculty_id !== (int) $validated['faculty_id'] ||
-            (string) $assignment->delivery_type !== (string) $validated['delivery_type'];
+            (string) $assignment->delivery_type !== (string) $resolvedDeliveryType;
 
         if ($combinationChanged) {
             $lastGroup = TeachingAssignment::where('subject_id', $assignment->subject_id)
                 ->where('course_id', $validated['course_id'])
-                ->where('delivery_type', $validated['delivery_type'])
+                ->where('delivery_type', $resolvedDeliveryType)
                 ->where('id', '!=', $assignment->id)
                 ->max('allocation_group');
             $assignment->allocation_group = ((int) $lastGroup) + 1;
@@ -3679,7 +3711,7 @@ class SubjectController extends Controller
 
         $assignment->course_id = $validated['course_id'];
         $assignment->faculty_id = $validated['faculty_id'];
-        $assignment->delivery_type = $validated['delivery_type'];
+        $assignment->delivery_type = $resolvedDeliveryType;
         $assignment->is_active = (int) $validated['status'];
         $assignment->room = $validated['room'] ?? '';
         $assignment->remarks = $validated['remarks'] ?? '';
@@ -3756,6 +3788,119 @@ class SubjectController extends Controller
             'course_id' => $assignment->course_id,
             'faculty_id' => $assignment->faculty_id,
         ];
+    }
+
+    private function getTeachingAssignmentDeliveryTypeMap(int $subjectId, array $courseIds): array
+    {
+        $courseIds = collect($courseIds)
+            ->map(fn($value) => (int) $value)
+            ->filter(fn($value) => $value > 0)
+            ->unique()
+            ->values()
+            ->all();
+
+        if (empty($courseIds)) {
+            return [];
+        }
+
+        $curriculumTable = $this->getCurriculumEngineTable();
+        if (!Schema::hasTable($curriculumTable) || !Schema::hasColumn($curriculumTable, 'delivery_category')) {
+            return [];
+        }
+
+        $hasOfferingDeptColumn = Schema::hasColumn($curriculumTable, 'offering_dept');
+
+        $baseQuery = ProgramWiseSemesterCourse::query()
+            ->whereIn('course_id', $courseIds)
+            ->whereNotNull('delivery_category')
+            ->select(['course_id', 'delivery_category']);
+
+        $collectByCourse = function ($rows) {
+            $mapped = [];
+
+            foreach ($rows as $row) {
+                $courseId = (int) ($row->course_id ?? 0);
+                if ($courseId <= 0) {
+                    continue;
+                }
+
+                $normalized = $this->normalizeDeliveryCategoryInput((string) ($row->delivery_category ?? ''));
+                if (!$normalized) {
+                    continue;
+                }
+
+                if (!isset($mapped[$courseId])) {
+                    $mapped[$courseId] = [];
+                }
+
+                if (!in_array($normalized, $mapped[$courseId], true)) {
+                    $mapped[$courseId][] = $normalized;
+                }
+            }
+
+            return $mapped;
+        };
+
+        $fallbackMap = $collectByCourse((clone $baseQuery)->get());
+        $effectiveMap = $fallbackMap;
+
+        if ($hasOfferingDeptColumn) {
+            $subjectScopedMap = $collectByCourse(
+                (clone $baseQuery)
+                    ->where('offering_dept', $subjectId)
+                    ->get()
+            );
+
+            $effectiveMap = [];
+            foreach ($courseIds as $courseId) {
+                $effectiveMap[$courseId] = $subjectScopedMap[$courseId] ?? $fallbackMap[$courseId] ?? [];
+            }
+        }
+
+        $sortOrder = [
+            ProgramWiseSemesterCourse::DELIVERY_MAJOR_COMBO1 => 1,
+            ProgramWiseSemesterCourse::DELIVERY_MAJOR_COMBO2 => 2,
+            ProgramWiseSemesterCourse::DELIVERY_PROGRAMME_COMMON => 3,
+            ProgramWiseSemesterCourse::DELIVERY_OPEN_CHOICE => 4,
+        ];
+
+        foreach ($effectiveMap as $courseId => $types) {
+            usort($types, function ($left, $right) use ($sortOrder) {
+                $leftRank = $sortOrder[$left] ?? 99;
+                $rightRank = $sortOrder[$right] ?? 99;
+
+                if ($leftRank === $rightRank) {
+                    return strcmp((string) $left, (string) $right);
+                }
+
+                return $leftRank <=> $rightRank;
+            });
+
+            $effectiveMap[$courseId] = array_values(array_unique($types));
+        }
+
+        return $effectiveMap;
+    }
+
+    private function resolveTeachingAssignmentDeliveryType(int $subjectId, int $courseId, ?string $requestedDeliveryType): ?string
+    {
+        if ($courseId <= 0) {
+            return null;
+        }
+
+        $allowedTypes = $this->getTeachingAssignmentDeliveryTypeMap($subjectId, [$courseId]);
+        $typesForCourse = $allowedTypes[$courseId] ?? [];
+        $normalizedRequestedType = $this->normalizeDeliveryCategoryInput($requestedDeliveryType);
+
+        if (count($typesForCourse) === 1) {
+            return (string) $typesForCourse[0];
+        }
+
+        if (!empty($typesForCourse) && $normalizedRequestedType && in_array($normalizedRequestedType, $typesForCourse, true)) {
+            return $normalizedRequestedType;
+        }
+
+        return null;
     }
 
     private function syncRoutinesWithTeachingAssignment(TeachingAssignment $assignment): void

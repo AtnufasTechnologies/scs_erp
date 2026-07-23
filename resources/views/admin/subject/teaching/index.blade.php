@@ -73,12 +73,9 @@
           <div class="col-lg-4">
             <label class="form-label fw-semibold">Delivery Type <span class="text-danger">*</span></label>
             <select name="delivery_type" class="form-control" required>
-              <option value="">--Select--</option>
-              <option value="CORE A">CORE A</option>
-              <option value="CORE B">CORE B</option>
-              <option value="COMMON">COMMON</option>
-              <option value="MDC">MDC</option>
+              <option value="">--Select course first--</option>
             </select>
+            <small class="text-muted d-block mt-1" id="deliveryTypeHelpText">Delivery type is picked from curriculum mapping.</small>
           </div>
 
           <div class="col-lg-4">
@@ -176,6 +173,9 @@
 
 </div>
 
+<script type="application/json" id="deliveryTypeMapJson">
+  @json($deliveryTypeMap ?? [])
+</script>
 <script>
   (function() {
     const form = document.getElementById('teachingAssignmentForm');
@@ -189,6 +189,61 @@
     const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content');
     const createUrl = "{{ route('department.teaching.assignment.store', $subject->id) }}";
     const updateUrlTemplate = "{{ route('department.teaching.assignment.update', ['id' => '__ID__']) }}";
+    const deliveryTypeMapSource = document.getElementById('deliveryTypeMapJson');
+    const deliveryTypeMap = deliveryTypeMapSource ? JSON.parse(deliveryTypeMapSource.textContent || '{}') : {};
+    const deliveryTypeSelect = form.querySelector('[name="delivery_type"]');
+    const courseSelect = form.querySelector('[name="course_id"]');
+    const deliveryTypeHelpText = document.getElementById('deliveryTypeHelpText');
+
+    function deliveryTypeLabel(type) {
+      const normalized = (type || '').toUpperCase();
+      if (normalized === 'CORE-A') return 'CORE A';
+      if (normalized === 'CORE-B') return 'CORE B';
+      if (normalized === 'COMMON') return 'COMMON';
+      if (normalized === 'MDC') return 'MDC';
+      return normalized;
+    }
+
+    function setDeliveryOptionsForCourse(courseId, preferredValue = '') {
+      const key = String(courseId || '').trim();
+      const options = key !== '' && Array.isArray(deliveryTypeMap[key]) ? deliveryTypeMap[key] : [];
+      const normalizedPreferred = (preferredValue || '').trim().toUpperCase().replace(/\s+/g, '-');
+
+      deliveryTypeSelect.innerHTML = '';
+
+      if (options.length === 0) {
+        deliveryTypeSelect.appendChild(new Option('--No curriculum delivery type found--', ''));
+        deliveryTypeSelect.value = '';
+        if (deliveryTypeHelpText) {
+          deliveryTypeHelpText.textContent = 'No curriculum delivery type mapping found for this course.';
+          deliveryTypeHelpText.classList.add('text-danger');
+        }
+        return;
+      }
+
+      if (options.length > 1) {
+        deliveryTypeSelect.appendChild(new Option('--Select--', ''));
+      }
+
+      options.forEach((value) => {
+        deliveryTypeSelect.appendChild(new Option(deliveryTypeLabel(value), value));
+      });
+
+      if (normalizedPreferred !== '' && options.includes(normalizedPreferred)) {
+        deliveryTypeSelect.value = normalizedPreferred;
+      } else if (options.length === 1) {
+        deliveryTypeSelect.value = options[0];
+      } else {
+        deliveryTypeSelect.value = '';
+      }
+
+      if (deliveryTypeHelpText) {
+        deliveryTypeHelpText.textContent = options.length > 1 ?
+          'Delivery types available from curriculum mapping for this course.' :
+          'Delivery type auto-selected from curriculum mapping.';
+        deliveryTypeHelpText.classList.remove('text-danger');
+      }
+    }
 
     function escapeHtml(value) {
       const div = document.createElement('div');
@@ -280,6 +335,7 @@
       cancelEditBtn.style.display = 'none';
       form.querySelector('[name="course_id"]').dispatchEvent(new Event('change'));
       form.querySelector('[name="faculty_id"]').dispatchEvent(new Event('change'));
+      setDeliveryOptionsForCourse(form.querySelector('[name="course_id"]').value);
     }
 
     async function submitForm(event) {
@@ -350,12 +406,12 @@
       assignmentIdInput.value = editButton.dataset.id || '';
       form.querySelector('[name="course_id"]').value = editButton.dataset.course_id || '';
       form.querySelector('[name="faculty_id"]').value = editButton.dataset.faculty_id || '';
-      form.querySelector('[name="delivery_type"]').value = editButton.dataset.delivery_type || '';
       form.querySelector('[name="status"]').value = editButton.dataset.status || '1';
       form.querySelector('[name="room"]').value = editButton.dataset.room || '';
       form.querySelector('[name="remarks"]').value = editButton.dataset.remarks || '';
 
       form.querySelector('[name="course_id"]').dispatchEvent(new Event('change'));
+      setDeliveryOptionsForCourse(editButton.dataset.course_id || '', editButton.dataset.delivery_type || '');
       form.querySelector('[name="faculty_id"]').dispatchEvent(new Event('change'));
 
       submitBtn.textContent = 'Update Assignment';
@@ -371,6 +427,11 @@
       resetInlineForm();
     });
 
+    courseSelect.addEventListener('change', function() {
+      setDeliveryOptionsForCourse(this.value);
+    });
+
+    setDeliveryOptionsForCourse(courseSelect.value);
     form.addEventListener('submit', submitForm);
   })();
 </script>
