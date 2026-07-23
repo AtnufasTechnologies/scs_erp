@@ -3791,11 +3791,126 @@ class SubjectController extends Controller
         $query->update($updatePayload);
     }
 
-    function mySpecializations(int $id, $slug)
+    function mySpecializations(Request $request, int $id, $slug)
     {
         $subject = Subject::find($id);
+        if (!$subject) {
+            return redirect()->back()->with('error', 'Subject not found.');
+        }
+
         $data = SpecializationMaster::where('subject_id', $id)->latest()->get();
-        return view('admin.subject.specialization', ['data' => $data, 'subject' => $subject]);
+        $activeSpecializations = $data->where('is_active', 1)->values();
+        $specializationLookup = $data->keyBy('id');
+
+        $selectedBatchId = (int) $request->query('batch', 0);
+        $selectedProgramComboId = (int) $request->query('program_combo', 0);
+        $studentSearch = trim((string) $request->query('student_search', ''));
+
+        $batchOptions = BatchMaster::orderByDesc('id')->get(['id', 'batch_name']);
+        $offeredProgramCombinations = collect();
+        $selectedProgramCombination = null;
+        $availableSpecializationsForSelectedProgram = collect();
+        $students = collect();
+        $studentAssignmentMap = collect();
+
+        if ($selectedBatchId > 0) {
+            $activeSpecializationIds = $activeSpecializations->pluck('id')->map(fn($v) => (int) $v)->all();
+
+            $offeredProgramCombinations = SubjectHasStudentProgam::with([
+                'studentprograminfo:id,name,program_type',
+                'studentprograminfo.programtypemaster:id,name',
+            ])->where('subject_id', (int) $subject->id)
+                ->where('batch_id', $selectedBatchId)
+                ->orderBy('student_program_id')
+                ->get(['id', 'student_program_id', 'batch_id', 'program_type', 'specialization_ids'])
+                ->filter(function ($combination) use ($activeSpecializationIds) {
+                    $specializationIds = collect($combination->specialization_ids ?? [])
+                        ->map(fn($v) => (int) $v)
+                        ->filter(fn($v) => $v > 0)
+                        ->values();
+
+                    if ($specializationIds->isEmpty() || empty($activeSpecializationIds)) {
+                        return false;
+                    }
+
+                    return $specializationIds->intersect($activeSpecializationIds)->isNotEmpty();
+                })
+                ->values();
+
+            $selectedProgramCombination = $offeredProgramCombinations->firstWhere('id', $selectedProgramComboId);
+            if ($selectedProgramCombination) {
+                $allowedSpecializationIds = collect($selectedProgramCombination->specialization_ids ?? [])
+                    ->map(fn($v) => (int) $v)
+                    ->filter(fn($v) => $v > 0)
+                    ->values();
+
+                $availableSpecializationsForSelectedProgram = $activeSpecializations
+                    ->filter(fn($item) => $allowedSpecializationIds->contains((int) $item->id))
+                    ->values();
+
+                $studentsQuery = StudentMaster::query()
+                    ->select(['id', 'roll_no', 'first_name', 'last_name', 'new_program_id', 'batch'])
+                    ->where('batch', $selectedBatchId)
+                    ->where('new_program_id', (int) $selectedProgramCombination->student_program_id);
+
+                if (Schema::hasColumn('student_masters', 'is_deleted')) {
+                    $studentsQuery->where('is_deleted', 0);
+                }
+
+                if (Schema::hasColumn('student_masters', 'is_left')) {
+                    $studentsQuery->where('is_left', 0);
+                }
+
+                if ($studentSearch !== '') {
+                    $studentsQuery->where(function ($query) use ($studentSearch) {
+                        $query->where('roll_no', 'like', '%' . $studentSearch . '%')
+                            ->orWhere('first_name', 'like', '%' . $studentSearch . '%')
+                            ->orWhere('last_name', 'like', '%' . $studentSearch . '%');
+                    });
+                }
+
+                $students = $studentsQuery
+                    ->orderBy('roll_no')
+                    ->orderBy('first_name')
+                    ->get();
+
+                if ($students->isNotEmpty()) {
+                    $assignmentQuery = DB::table('student_specializations')
+                        ->where('subject_has_student_program_id', (int) $selectedProgramCombination->id)
+                        ->whereIn('student_id', $students->pluck('id')->all());
+
+                    if (Schema::hasColumn('student_specializations', 'deleted_at')) {
+                        $assignmentQuery->whereNull('deleted_at');
+                    }
+
+                    if (Schema::hasColumn('student_specializations', 'is_active')) {
+                        $assignmentQuery->where('is_active', 1);
+                    }
+
+                    $studentAssignmentMap = $assignmentQuery
+                        ->select('student_id', 'specialization_id', 'semester_id')
+                        ->orderByDesc('id')
+                        ->get()
+                        ->unique('student_id')
+                        ->keyBy('student_id');
+                }
+            }
+        }
+
+        return view('admin.subject.specialization', [
+            'data' => $data,
+            'subject' => $subject,
+            'batchOptions' => $batchOptions,
+            'selectedBatchId' => $selectedBatchId,
+            'offeredProgramCombinations' => $offeredProgramCombinations,
+            'selectedProgramComboId' => $selectedProgramComboId,
+            'selectedProgramCombination' => $selectedProgramCombination,
+            'availableSpecializationsForSelectedProgram' => $availableSpecializationsForSelectedProgram,
+            'students' => $students,
+            'studentSearch' => $studentSearch,
+            'studentAssignmentMap' => $studentAssignmentMap,
+            'specializationLookup' => $specializationLookup,
+        ]);
     }
 
     function storeMySpecialization(Request $request)
@@ -3835,6 +3950,147 @@ class SubjectController extends Controller
         ]);
 
         return redirect()->back()->with('success', 'Updated successfully.');
+    }
+
+    function storeStudentSpecializationAssignments(Request $request, int $id, $slug)
+    {
+        $request->validate([
+            'batch' => 'required|integer|exists:batch_masters,id',
+            'program_combo_id' => 'required|integer|exists:subject_has_student_progams,id',
+            'specialization_id' => 'required|integer|exists:specialization_masters,id',
+            'student_ids' => 'required|array|min:1',
+            'student_ids.*' => 'required|integer|exists:student_masters,id',
+            'student_search' => 'nullable|string|max:100',
+        ]);
+
+        $subject = Subject::find((int) $id);
+        if (!$subject) {
+            return redirect()->back()->with('error', 'Subject not found.');
+        }
+
+        $batchId = (int) $request->batch;
+        $programComboId = (int) $request->program_combo_id;
+        $specializationId = (int) $request->specialization_id;
+        $studentIds = collect($request->input('student_ids', []))->map(fn($v) => (int) $v)->filter(fn($v) => $v > 0)->unique()->values();
+
+        $programCombination = SubjectHasStudentProgam::where('id', $programComboId)
+            ->where('subject_id', (int) $subject->id)
+            ->where('batch_id', $batchId)
+            ->first();
+
+        if (!$programCombination) {
+            return redirect()->back()->with('error', 'Invalid program combination for selected batch.');
+        }
+
+        $specialization = SpecializationMaster::where('id', $specializationId)
+            ->where('subject_id', (int) $subject->id)
+            ->where('is_active', 1)
+            ->first();
+
+        if (!$specialization) {
+            return redirect()->back()->with('error', 'Please select an active specialization from this department.');
+        }
+
+        $allowedSpecializationIds = collect($programCombination->specialization_ids ?? [])
+            ->map(fn($v) => (int) $v)
+            ->filter(fn($v) => $v > 0)
+            ->values();
+
+        if (!$allowedSpecializationIds->contains($specializationId)) {
+            return redirect()->back()->with('error', 'Selected specialization is not offered for the selected program.');
+        }
+
+        $eligibleStudentsQuery = StudentMaster::query()
+            ->where('batch', $batchId)
+            ->where('new_program_id', (int) $programCombination->student_program_id)
+            ->whereIn('id', $studentIds->all());
+
+        if (Schema::hasColumn('student_masters', 'is_deleted')) {
+            $eligibleStudentsQuery->where('is_deleted', 0);
+        }
+
+        if (Schema::hasColumn('student_masters', 'is_left')) {
+            $eligibleStudentsQuery->where('is_left', 0);
+        }
+
+        $eligibleStudentIds = $eligibleStudentsQuery->pluck('id')->map(fn($v) => (int) $v)->values();
+
+        if ($eligibleStudentIds->isEmpty()) {
+            return redirect()->back()->with('error', 'No eligible students found for assignment.');
+        }
+
+        $hasSemesterColumn = Schema::hasColumn('student_specializations', 'semester_id');
+        $hasActiveColumn = Schema::hasColumn('student_specializations', 'is_active');
+        $hasDeletedAt = Schema::hasColumn('student_specializations', 'deleted_at');
+
+        DB::transaction(function () use ($eligibleStudentIds, $programComboId, $specializationId, $hasSemesterColumn, $hasActiveColumn, $hasDeletedAt) {
+            foreach ($eligibleStudentIds as $studentId) {
+                $existingQuery = DB::table('student_specializations')
+                    ->where('student_id', (int) $studentId)
+                    ->where('subject_has_student_program_id', $programComboId);
+
+                if ($hasSemesterColumn) {
+                    $existingQuery->whereNull('semester_id');
+                }
+
+                $existing = $existingQuery->orderByDesc('id')->first();
+
+                if ($existing) {
+                    $updatePayload = [
+                        'specialization_id' => $specializationId,
+                        'updated_at' => now(),
+                    ];
+
+                    if ($hasActiveColumn) {
+                        $updatePayload['is_active'] = 1;
+                    }
+
+                    if ($hasDeletedAt) {
+                        $updatePayload['deleted_at'] = null;
+                    }
+
+                    DB::table('student_specializations')
+                        ->where('id', (int) $existing->id)
+                        ->update($updatePayload);
+                } else {
+                    $insertPayload = [
+                        'student_id' => (int) $studentId,
+                        'subject_has_student_program_id' => $programComboId,
+                        'specialization_id' => $specializationId,
+                        'created_at' => now(),
+                        'updated_at' => now(),
+                    ];
+
+                    if ($hasSemesterColumn) {
+                        $insertPayload['semester_id'] = null;
+                    }
+
+                    if ($hasActiveColumn) {
+                        $insertPayload['is_active'] = 1;
+                    }
+
+                    if ($hasDeletedAt) {
+                        $insertPayload['deleted_at'] = null;
+                    }
+
+                    DB::table('student_specializations')->insert($insertPayload);
+                }
+            }
+        });
+
+        $queryParams = [
+            'batch' => $batchId,
+            'program_combo' => $programComboId,
+        ];
+
+        $search = trim((string) $request->input('student_search', ''));
+        if ($search !== '') {
+            $queryParams['student_search'] = $search;
+        }
+
+        return redirect()
+            ->route('department.specialization.master', ['id' => $id, 'slug' => $slug] + $queryParams)
+            ->with('success', 'Specialization assigned to ' . $eligibleStudentIds->count() . ' student(s).');
     }
 
 

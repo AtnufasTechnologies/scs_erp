@@ -2,9 +2,29 @@
 @include('includes.dept-sidebar')
 <div class="main-content">
   <h4>My Specialization Master</h4>
-  <div class="alert alert-warning">
-    Create your own specializations and combine them with Programs. Applicants get to choose which one they want to go ahead with. Note: it can only be used if status is set to <span class="badge badge-success">Active </span>
+
+  @if(session('success'))
+  <div class="alert alert-success">{{ session('success') }}</div>
+  @endif
+
+  @if(session('error'))
+  <div class="alert alert-danger">{{ session('error') }}</div>
+  @endif
+
+  @if($errors->any())
+  <div class="alert alert-danger">
+    <ul class="mb-0">
+      @foreach($errors->all() as $error)
+      <li>{{ $error }}</li>
+      @endforeach
+    </ul>
   </div>
+  @endif
+
+  <div class="alert alert-warning">
+    Create your own specializations and combine them with Programs. Applicants get to choose which one they want to get enrolled during admission. Note: it can only be used if status is set to <span class="badge badge-success">Active </span>
+  </div>
+
   <form action="{{route('department.store.specialization')}}" method="post">
     @csrf
     <div class="row">
@@ -26,6 +46,154 @@
     </div>
   </form>
 
+  <hr>
+
+  <div class="card shadow-sm mb-4">
+    <div class="card-header bg-light">
+      <h5 class="mb-0">Manual Student Specialization Assignment</h5>
+      <small class="text-muted">Select batch, choose program offering specializations, filter students, and assign specialization in bulk.</small>
+    </div>
+    <div class="card-body">
+      @php
+      $selectedBatchId = (int) ($selectedBatchId ?? 0);
+      $selectedProgramComboId = (int) ($selectedProgramComboId ?? 0);
+      $studentSearch = $studentSearch ?? '';
+      $batchOptions = $batchOptions ?? collect();
+      $offeredProgramCombinations = $offeredProgramCombinations ?? collect();
+      $selectedProgramCombination = $selectedProgramCombination ?? null;
+      $students = $students ?? collect();
+      $availableSpecializationsForSelectedProgram = $availableSpecializationsForSelectedProgram ?? collect();
+      $studentAssignmentMap = $studentAssignmentMap ?? collect();
+      $specializationLookup = $specializationLookup ?? collect();
+      @endphp
+
+      <form method="get" action="{{ route('department.specialization.master', [$subject->id, $subject->slug ?? $subject->title ?? 'subject']) }}" class="mb-4" id="specializationFilterForm">
+        <div class="row g-3 align-items-end">
+          <div class="col-lg-3 col-md-6">
+            <label class="form-label">Batch</label>
+            <select name="batch" id="specBatchSelect" class="form-control" required>
+              <option value="">Select batch</option>
+              @foreach($batchOptions as $batch)
+              <option value="{{ $batch->id }}" {{ $selectedBatchId === (int) $batch->id ? 'selected' : '' }}>{{ $batch->batch_name }}</option>
+              @endforeach
+            </select>
+          </div>
+
+          <div class="col-lg-4 col-md-6">
+            <label class="form-label">Program (Offered with Specializations)</label>
+            <select name="program_combo" id="specProgramSelect" class="form-control" {{ $selectedBatchId > 0 ? '' : 'disabled' }}>
+              <option value="">Select program</option>
+              @foreach($offeredProgramCombinations as $combo)
+              @php
+              $programName = $combo->studentprograminfo->name ?? 'Program';
+              $programType = $combo->studentprograminfo->programtypemaster->name ?? ($combo->program_type ?? 'N/A');
+              @endphp
+              <option value="{{ $combo->id }}" {{ $selectedProgramComboId === (int) $combo->id ? 'selected' : '' }}>
+                {{ $programName }} ({{ $programType }})
+              </option>
+              @endforeach
+            </select>
+          </div>
+
+          <div class="col-lg-3 col-md-6">
+            <label class="form-label">Search Student</label>
+            <input type="text" name="student_search" class="form-control" value="{{ $studentSearch }}" placeholder="Roll no / Name">
+          </div>
+
+          <div class="col-lg-2 col-md-6">
+            <button type="submit" class="btn btn-primary w-100"><i class="fa fa-filter"></i> Generate</button>
+          </div>
+        </div>
+      </form>
+
+      @if($selectedBatchId > 0 && $offeredProgramCombinations->isEmpty())
+      <div class="alert alert-info mb-0">
+        No programs with active specialization mapping found for this batch.
+      </div>
+      @endif
+
+      @if($selectedProgramCombination)
+      <form method="post" action="{{ route('department.specialization.assign.students', [$subject->id, $subject->slug ?? $subject->title ?? 'subject']) }}">
+        @csrf
+        <input type="hidden" name="batch" value="{{ $selectedBatchId }}">
+        <input type="hidden" name="program_combo_id" value="{{ $selectedProgramComboId }}">
+        <input type="hidden" name="student_search" value="{{ $studentSearch }}">
+
+        <div class="row g-3 mb-3">
+          <div class="col-lg-5 col-md-6">
+            <label class="form-label">Choose Specialization</label>
+            <select name="specialization_id" class="form-control" required>
+              <option value="">Select specialization</option>
+              @foreach($availableSpecializationsForSelectedProgram as $spec)
+              <option value="{{ $spec->id }}">{{ $spec->name }}</option>
+              @endforeach
+            </select>
+          </div>
+
+          <div class="col-lg-5 col-md-6">
+            <label class="form-label">Quick Filter in Generated List</label>
+            <input type="text" id="studentQuickFilter" class="form-control" placeholder="Type roll number or name to filter instantly...">
+          </div>
+
+          <div class="col-lg-2 col-md-12 d-flex align-items-end">
+            <button type="submit" class="btn btn-success w-100" {{ $students->isEmpty() ? 'disabled' : '' }}>
+              <i class="fa fa-save"></i> Assign
+            </button>
+          </div>
+        </div>
+
+        @if($availableSpecializationsForSelectedProgram->isEmpty())
+        <div class="alert alert-warning">
+          No active specialization is available for the selected program. Add/activate specialization and map it to the program first.
+        </div>
+        @endif
+
+        <div class="table-responsive">
+          <table class="table table-bordered table-sm align-middle" id="studentSpecTable">
+            <thead class="table-light">
+              <tr>
+                <th style="width: 60px;">
+                  <input type="checkbox" id="selectAllStudents">
+                </th>
+                <th style="width: 80px;">#</th>
+                <th style="width: 180px;">Roll No</th>
+                <th>Student Name</th>
+                <th style="width: 260px;">Current Specialization</th>
+              </tr>
+            </thead>
+            <tbody>
+              @forelse($students as $index => $student)
+              @php
+              $currentAssignment = $studentAssignmentMap->get((int) $student->id);
+              $currentSpec = $currentAssignment ? $specializationLookup->get((int) $currentAssignment->specialization_id) : null;
+              @endphp
+              <tr class="student-row">
+                <td>
+                  <input type="checkbox" name="student_ids[]" value="{{ $student->id }}" class="student-checkbox">
+                </td>
+                <td>{{ $index + 1 }}</td>
+                <td class="student-roll">{{ $student->roll_no ?: '-' }}</td>
+                <td class="student-name">{{ trim(($student->first_name ?? '') . ' ' . ($student->last_name ?? '')) ?: '-' }}</td>
+                <td>
+                  @if($currentSpec)
+                  <span class="badge badge-info">{{ $currentSpec->name }}</span>
+                  @else
+                  <span class="badge badge-secondary">Not Assigned</span>
+                  @endif
+                </td>
+              </tr>
+              @empty
+              <tr>
+                <td colspan="5" class="text-center text-muted">No students found for selected batch/program.</td>
+              </tr>
+              @endforelse
+            </tbody>
+          </table>
+        </div>
+      </form>
+      @endif
+    </div>
+  </div>
 
   <div class="row">
     @foreach ($data as $item)
@@ -71,5 +239,47 @@
 
 
 </div>
+
+<script>
+  document.addEventListener('DOMContentLoaded', function() {
+    var batchSelect = document.getElementById('specBatchSelect');
+    var programSelect = document.getElementById('specProgramSelect');
+    var filterForm = document.getElementById('specializationFilterForm');
+    var selectAll = document.getElementById('selectAllStudents');
+    var studentCheckboxes = document.querySelectorAll('.student-checkbox');
+    var quickFilter = document.getElementById('studentQuickFilter');
+    var studentRows = document.querySelectorAll('#studentSpecTable tbody .student-row');
+
+    if (batchSelect && filterForm) {
+      batchSelect.addEventListener('change', function() {
+        if (programSelect) {
+          programSelect.value = '';
+        }
+        filterForm.submit();
+      });
+    }
+
+    if (selectAll) {
+      selectAll.addEventListener('change', function() {
+        studentCheckboxes.forEach(function(checkbox) {
+          checkbox.checked = selectAll.checked;
+        });
+      });
+    }
+
+    if (quickFilter) {
+      quickFilter.addEventListener('input', function() {
+        var search = quickFilter.value.toLowerCase().trim();
+
+        studentRows.forEach(function(row) {
+          var roll = (row.querySelector('.student-roll')?.textContent || '').toLowerCase();
+          var name = (row.querySelector('.student-name')?.textContent || '').toLowerCase();
+          var visible = !search || roll.indexOf(search) !== -1 || name.indexOf(search) !== -1;
+          row.style.display = visible ? '' : 'none';
+        });
+      });
+    }
+  });
+</script>
 
 @include('includes.footer')

@@ -906,6 +906,7 @@ Route::group(['prefix' => '/erp'], function () {
         Route::get('my-specializations/{id}/{slug}', [SubjectController::class, 'mySpecializations'])->name('department.specialization.master');
         Route::post('store-my-specialization', [SubjectController::class, 'storeMySpecialization'])->name('department.store.specialization');
         Route::put('update-my-specialization/{id}', [SubjectController::class, 'updateMySpecialization'])->name('department.update.specialization');
+        Route::post('my-specializations/{id}/{slug}/assign-students', [SubjectController::class, 'storeStudentSpecializationAssignments'])->name('department.specialization.assign.students');
 
         //Student Group Allotment
         Route::get('student-group-allotment/{id}/{slug}', [SubjectController::class, 'studentGroupAllotment'])->name('department.student.group.allocation');
