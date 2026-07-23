@@ -12,6 +12,7 @@ class SubjectHasStudentProgam extends Model
     protected $fillable = [
         'subject_id',
         'batch_id',
+        'shift_id',
         'student_program_id',
         'campus_id',
         'program_type',
@@ -42,6 +43,11 @@ class SubjectHasStudentProgam extends Model
     function campusmaster()
     {
         return $this->hasOne(Campus::class, 'id', 'campus_id');
+    }
+
+    function shiftmaster()
+    {
+        return $this->hasOne(ShiftMaster::class, 'id', 'shift_id');
     }
 
     function studentmaster()

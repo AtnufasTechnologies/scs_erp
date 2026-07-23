@@ -10,6 +10,7 @@ use App\Models\SubjectCourseMaster;
 use App\Models\SubjectHasDeptAdmin;
 use App\Models\SubjectHasRoutine;
 use App\Models\SpecializationMaster;
+use App\Models\ShiftMaster;
 
 
 $batches = BatchMaster::latest()->get();
@@ -17,6 +18,26 @@ $semesters = Semester::get();
 $course_master = SubjectCourseMaster::with('courseMaster')->where('subject_id', $data->id)->get();
 $faculties = Faculty::all();
 $mainStreams = ProgramMaster::all();
+$subjectShiftIds = collect($data->shift_ids ?? [])->map(fn($id) => (int) $id)->filter()->unique()->values();
+$subjectHasShiftDelivery = (int) ($data->has_shift_delivery ?? 0) === 1;
+
+$shiftQuery = ShiftMaster::where('is_active', 1)->orderBy('sort_order');
+if ($subjectHasShiftDelivery) {
+  if ($subjectShiftIds->isNotEmpty()) {
+    $shiftQuery->whereIn('id', $subjectShiftIds->all());
+  } else {
+    $shiftQuery->whereRaw('1 = 0');
+  }
+} else {
+  $commonShiftId = ShiftMaster::where('slug', 'common')->value('id');
+  if (!empty($commonShiftId)) {
+    $shiftQuery->where('id', (int) $commonShiftId);
+  } else {
+    $shiftQuery->whereRaw('1 = 0');
+  }
+}
+
+$shiftMasters = $shiftQuery->get(['id', 'slug', 'title']);
 
 $deptFacultyIds = collect($deptfaculties ?? [])->pluck('faculty_id')->filter()->unique()->values()->all();
 $facultyIdsWithTimetable = [];
@@ -400,6 +421,7 @@ if (!empty($deptFacultyIds)) {
               <th style="color: #e9ebef; font-weight: 600;">Curriculam</th>
               <th style="color: #e9ebef; font-weight: 600;">Tracking ID</th>
               <th style="color: #e9ebef; font-weight: 600;">Batch</th>
+              <th style="color: #e9ebef; font-weight: 600;">Shift</th>
               <th style="color: #e9ebef; font-weight: 600;">Code</th>
               <th style="color: #e9ebef; font-weight: 600;">Program</th>
               <th style="color: #e9ebef; font-weight: 600;">Specialization</th>
@@ -428,6 +450,7 @@ if (!empty($deptFacultyIds)) {
               </td>
 
               <td style="color: #1a1a1a;">{{$combination->batchmaster->batch_name ?? '-'}}</td>
+              <td style="color: #1a1a1a;">{{ $combination->shift ?? '-' }}</td>
               <td style="color: #1a1a1a;">
                 <a href="{{ route('department.show.student.list', ['program_id' => $combination->studentprograminfo->id,
                  'slug' => $combination->studentprograminfo->name, 'batch_id' => $combination->batchmaster->id]) }}">
@@ -511,7 +534,18 @@ if (!empty($deptFacultyIds)) {
                           @method('PUT')
                           <div class="mb-3">
                             <label for="totalSeats{{ $combination->id }}" class="form-label">Total Seats</label>
-                            <input type="number" class="form-control" id="totalSeats{{ $combination->id }}" name="total_seats" value="{{ $combination->total_seats ?? '' }}" required>
+                            <input type="number" class="form-control" id="totalSeats{{ $combination->id }}" name="total_seats" value="{{ $combination->total_seats ?? '' }}">
+                          </div>
+                          <div class="mb-3">
+                            <label for="shiftId{{ $combination->id }}" class="form-label">Shift</label>
+                            <select class="form-select" id="shiftId{{ $combination->id }}" name="shift_id">
+                              <option value="">-- Select Shift --</option>
+                              @foreach($shiftMasters as $shift)
+                              <option value="{{ $shift->slug }}" {{ $combination->shift  == $shift->slug ? 'selected' : '' }}>
+                                {{ $shift->title }}
+                              </option>
+                              @endforeach
+                            </select>
                           </div>
 
                       </div>

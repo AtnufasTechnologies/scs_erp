@@ -5,11 +5,13 @@ namespace App\Services;
 use App\Models\ProgramWiseSemesterCourse;
 use App\Models\StudentCourseInfo;
 use App\Models\StudentMaster;
+use App\Models\StudentProgram;
 use App\Models\StudentSpecialization;
 use App\Models\SubjectCourseMaster;
 use App\Models\SubjectHasRoutine;
 use App\Models\SubjectHasStudentProgam;
 use App\Models\TeachingAssignment;
+use App\Models\ShiftMaster;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Schema;
 
@@ -43,21 +45,78 @@ class StudentTimetableService
         ->value('semester');
     }
 
+    if ($semesterId <= 0 && Schema::hasTable('student_specializations') && Schema::hasColumn('student_specializations', 'semester_id')) {
+      $specSemesterQuery = StudentSpecialization::query()
+        ->where('student_id', $studentId)
+        ->whereNotNull('semester_id')
+        ->orderByDesc('id');
+
+      if (Schema::hasColumn('student_specializations', 'is_active')) {
+        $specSemesterQuery->where('is_active', 1);
+      }
+
+      $semesterId = (int) $specSemesterQuery->value('semester_id');
+    }
+
     if ($programId <= 0 || $batchId <= 0 || $semesterId <= 0) {
       return collect();
     }
 
-    $programCombinationId = (int) SubjectHasStudentProgam::query()
+    $programCombinationQuery = SubjectHasStudentProgam::query()
       ->where('student_program_id', $programId)
-      ->where('batch_id', $batchId)
+      ->where('batch_id', $batchId);
+
+    if (Schema::hasColumn('subject_has_student_progams', 'campus_id')) {
+      $campusId = (int) ($student->campus_id ?? 0);
+      if ($campusId > 0) {
+        $programCombinationQuery->where('campus_id', $campusId);
+      }
+    }
+
+    $combinationSelect = ['id'];
+    if (Schema::hasColumn('subject_has_student_progams', 'shift')) {
+      $combinationSelect[] = 'shift';
+    }
+    if (Schema::hasColumn('subject_has_student_progams', 'shift_id')) {
+      $combinationSelect[] = 'shift_id';
+    }
+
+    $programCombination = $programCombinationQuery
       ->orderByDesc('id')
-      ->value('id');
+      ->first($combinationSelect);
+
+    if (!$programCombination) {
+      $programCombination = SubjectHasStudentProgam::query()
+        ->where('student_program_id', $programId)
+        ->where('batch_id', $batchId)
+        ->orderByDesc('id')
+        ->first($combinationSelect);
+    }
+
+    $programCombinationId = (int) ($programCombination->id ?? 0);
 
     $specializationId = self::resolveSpecializationId($student, $programCombinationId, $semesterId);
+
+    $fallbackProgramShift = '';
+    if (Schema::hasColumn('student_programs', 'shift')) {
+      $fallbackProgramShift = (string) StudentProgram::query()
+        ->where('id', $programId)
+        ->value('shift');
+    }
+
+    $programShiftFilter = self::resolveProgramShiftFilter(
+      Schema::hasColumn('subject_has_student_progams', 'shift_id') ? (int) ($programCombination->shift_id ?? 0) : 0,
+      Schema::hasColumn('subject_has_student_progams', 'shift') ? (string) ($programCombination->shift ?? '') : '',
+      $fallbackProgramShift
+    );
+    $programShiftTokens = (array) ($programShiftFilter['tokens'] ?? []);
+    $allowBlankShift = (bool) ($programShiftFilter['allow_blank'] ?? false);
 
     $curriculumTable = (new ProgramWiseSemesterCourse())->getTable();
     $curriculumGroupColumn = self::firstExistingColumn($curriculumTable, ['allocation_group', 'group', 'group_no']);
     $curriculumSpecColumn = self::firstExistingColumn($curriculumTable, ['specialization_master_id', 'specialization_id']);
+    $curriculumSpecIdsColumn = Schema::hasColumn($curriculumTable, 'specialization_master_ids') ? 'specialization_master_ids' : null;
+    $curriculumSpecModeColumn = Schema::hasColumn($curriculumTable, 'specialization_mode') ? 'specialization_mode' : null;
 
     $curriculumQuery = ProgramWiseSemesterCourse::query()
       ->with('programinfo:id,course_code,course_title')
@@ -75,17 +134,31 @@ class StudentTimetableService
 
     if (Schema::hasColumn($curriculumTable, 'academic_pathway_id')) {
       if ($pathwayId > 0) {
-        $curriculumQuery->where('academic_pathway_id', $pathwayId);
+        $curriculumQuery->where(function ($query) use ($pathwayId) {
+          $query->where('academic_pathway_id', $pathwayId)
+            ->orWhereNull('academic_pathway_id')
+            ->orWhere('academic_pathway_id', 0);
+        });
       } else {
-        $curriculumQuery->whereNull('academic_pathway_id');
+        $curriculumQuery->where(function ($query) {
+          $query->whereNull('academic_pathway_id')
+            ->orWhere('academic_pathway_id', 0);
+        });
       }
     }
 
     if (Schema::hasColumn($curriculumTable, 'degree_track_id')) {
       if ($degreeTrackId > 0) {
-        $curriculumQuery->where('degree_track_id', $degreeTrackId);
+        $curriculumQuery->where(function ($query) use ($degreeTrackId) {
+          $query->where('degree_track_id', $degreeTrackId)
+            ->orWhereNull('degree_track_id')
+            ->orWhere('degree_track_id', 0);
+        });
       } else {
-        $curriculumQuery->whereNull('degree_track_id');
+        $curriculumQuery->where(function ($query) {
+          $query->whereNull('degree_track_id')
+            ->orWhere('degree_track_id', 0);
+        });
       }
     }
 
@@ -99,12 +172,30 @@ class StudentTimetableService
 
       if ($hasSpecIdColumn || $hasSpecIdsColumn) {
         $curriculumQuery->where(function ($query) use ($specializationId, $hasSpecIdColumn, $hasSpecIdsColumn) {
+          $applied = false;
+
           if ($hasSpecIdColumn) {
-            $query->orWhere('specialization_master_id', $specializationId);
+            $query->where(function ($builder) use ($specializationId) {
+              $builder->whereNull('specialization_master_id')
+                ->orWhere('specialization_master_id', 0)
+                ->orWhere('specialization_master_id', $specializationId);
+            });
+            $applied = true;
           }
 
           if ($hasSpecIdsColumn) {
-            $query->orWhereJsonContains('specialization_master_ids', $specializationId);
+            $specIdsMatcher = function ($builder) use ($specializationId) {
+              $builder->whereNull('specialization_master_ids')
+                ->orWhere('specialization_master_ids', '')
+                ->orWhere('specialization_master_ids', '[]')
+                ->orWhereJsonContains('specialization_master_ids', $specializationId);
+            };
+
+            if ($applied) {
+              $query->orWhere($specIdsMatcher);
+            } else {
+              $query->where($specIdsMatcher);
+            }
           }
         });
       }
@@ -117,15 +208,98 @@ class StudentTimetableService
     if ($curriculumSpecColumn) {
       $curriculumSelect[] = $curriculumSpecColumn;
     }
+    if ($curriculumSpecIdsColumn) {
+      $curriculumSelect[] = $curriculumSpecIdsColumn;
+    }
+    if ($curriculumSpecModeColumn) {
+      $curriculumSelect[] = $curriculumSpecModeColumn;
+    }
 
     $curriculumRows = $curriculumQuery->get($curriculumSelect);
     if ($curriculumRows->isEmpty()) {
-      return collect();
+      // Fallback: if pathway/track-restricted lookup returns nothing,
+      // retry with base program+batch+semester scope to avoid empty timetable.
+      $fallbackQuery = ProgramWiseSemesterCourse::query()
+        ->with('programinfo:id,course_code,course_title')
+        ->where('batch', $batchId)
+        ->where('semester', $semesterId);
+
+      if (Schema::hasColumn($curriculumTable, 'program_id')) {
+        $fallbackQuery->where('program_id', $programId);
+      } elseif (Schema::hasColumn($curriculumTable, 'program_combo_refid')) {
+        if ($programCombinationId <= 0) {
+          return collect();
+        }
+        $fallbackQuery->where('program_combo_refid', $programCombinationId);
+      }
+
+      if (Schema::hasColumn($curriculumTable, 'is_active')) {
+        $fallbackQuery->where('is_active', 1);
+      }
+
+      if ($specializationId > 0) {
+        $hasSpecIdColumn = Schema::hasColumn($curriculumTable, 'specialization_master_id');
+        $hasSpecIdsColumn = Schema::hasColumn($curriculumTable, 'specialization_master_ids');
+
+        if ($hasSpecIdColumn || $hasSpecIdsColumn) {
+          $fallbackQuery->where(function ($query) use ($specializationId, $hasSpecIdColumn, $hasSpecIdsColumn) {
+            $applied = false;
+
+            if ($hasSpecIdColumn) {
+              $query->where(function ($builder) use ($specializationId) {
+                $builder->whereNull('specialization_master_id')
+                  ->orWhere('specialization_master_id', 0)
+                  ->orWhere('specialization_master_id', $specializationId);
+              });
+              $applied = true;
+            }
+
+            if ($hasSpecIdsColumn) {
+              $specIdsMatcher = function ($builder) use ($specializationId) {
+                $builder->whereNull('specialization_master_ids')
+                  ->orWhere('specialization_master_ids', '')
+                  ->orWhere('specialization_master_ids', '[]')
+                  ->orWhereJsonContains('specialization_master_ids', $specializationId);
+              };
+
+              if ($applied) {
+                $query->orWhere($specIdsMatcher);
+              } else {
+                $query->where($specIdsMatcher);
+              }
+            }
+          });
+        }
+      }
+
+      $curriculumRows = $fallbackQuery->get($curriculumSelect);
+      if ($curriculumRows->isEmpty()) {
+        return collect();
+      }
     }
 
     $curriculumFilters = $curriculumRows
-      ->map(function ($row) use ($curriculumGroupColumn, $curriculumSpecColumn) {
+      ->filter(function ($row) use ($specializationId, $curriculumSpecColumn, $curriculumSpecIdsColumn, $curriculumSpecModeColumn) {
+        return self::isCurriculumApplicableForStudentSpecialization(
+          $row,
+          $specializationId,
+          $curriculumSpecColumn,
+          $curriculumSpecIdsColumn,
+          $curriculumSpecModeColumn
+        );
+      })
+      ->map(function ($row) use ($curriculumGroupColumn, $curriculumSpecColumn, $curriculumSpecIdsColumn, $curriculumSpecModeColumn) {
         $deliveryType = self::normalizeDeliveryType((string) ($row->delivery_category ?? ProgramWiseSemesterCourse::DELIVERY_PROGRAMME_COMMON));
+        $specializationMode = self::normalizeSpecializationMode((string) ($curriculumSpecModeColumn ? ($row->{$curriculumSpecModeColumn} ?? '') : ''));
+
+        $specializationIds = self::extractSpecializationIds(
+          $curriculumSpecIdsColumn ? ($row->{$curriculumSpecIdsColumn} ?? null) : null,
+          $curriculumSpecColumn ? ($row->{$curriculumSpecColumn} ?? null) : null
+        );
+
+        $requiresSpecializationMatch = $specializationMode !== ''
+          && !self::isCommonSpecializationMode($specializationMode)
+          && !empty($specializationIds);
 
         $groupValue = null;
         if ($curriculumGroupColumn) {
@@ -144,6 +318,8 @@ class StudentTimetableService
           'delivery_type' => $deliveryType,
           'group' => $groupValue,
           'specialization_id' => $specValue,
+          'specialization_ids' => $specializationIds,
+          'requires_specialization_match' => $requiresSpecializationMatch,
           'course_code' => (string) ($row->programinfo?->course_code ?? ''),
           'course_title' => (string) ($row->programinfo?->course_title ?? ''),
         ];
@@ -155,32 +331,28 @@ class StudentTimetableService
       return collect();
     }
 
-    $studentAllocationGroupsByCourse = [];
-    if (Schema::hasColumn('student_course_infos', 'allocation_group_id')) {
-      $groupRowsQuery = StudentCourseInfo::query()
-        ->where('student_id', $studentId)
-        ->whereIn('course_id', $curriculumFilters->pluck('course_id')->unique()->values()->all())
-        ->where(function ($query) use ($semesterId) {
-          $query->where('semester', $semesterId)
-            ->orWhereNull('semester');
-        });
+    $enrolledCourseQuery = StudentCourseInfo::query()
+      ->where('student_id', $studentId)
+      ->whereIn('course_id', $curriculumFilters->pluck('course_id')->unique()->values()->all())
+      ->where(function ($query) use ($semesterId) {
+        $query->where('semester', $semesterId)->orWhereNull('semester');
+      });
 
-      if (Schema::hasColumn('student_course_infos', 'is_deleted')) {
-        $groupRowsQuery->where('is_deleted', 0);
-      }
+    if (Schema::hasColumn('student_course_infos', 'is_deleted')) {
+      $enrolledCourseQuery->where('is_deleted', 0);
+    }
 
-      $groupRows = $groupRowsQuery
-        ->orderByDesc('id')
-        ->get(['course_id', 'semester', 'allocation_group_id']);
+    $enrolledCourseRows = $enrolledCourseQuery
+      ->orderByDesc('id')
+      ->get(['course_id', 'semester', 'allocation_group_id']);
 
-      $groupRowsByCourse = $groupRows->groupBy(fn($row) => (int) ($row->course_id ?? 0));
+    if ($enrolledCourseRows->isEmpty()) {
+      return collect();
+    }
 
-      foreach ($groupRowsByCourse as $courseId => $rowsForCourse) {
-        $courseId = (int) $courseId;
-        if ($courseId <= 0) {
-          continue;
-        }
-
+    $enrolledByCourse = $enrolledCourseRows
+      ->groupBy(fn($row) => (int) ($row->course_id ?? 0))
+      ->map(function ($rowsForCourse) use ($semesterId) {
         $bestRow = $rowsForCourse->first(function ($row) use ($semesterId) {
           return (int) ($row->semester ?? 0) === (int) $semesterId;
         });
@@ -196,8 +368,57 @@ class StudentTimetableService
         }
 
         $rawGroup = $bestRow?->allocation_group_id;
-        $studentAllocationGroupsByCourse[$courseId] = is_null($rawGroup) || $rawGroup === '' ? null : (int) $rawGroup;
-      }
+
+        return [
+          'allocation_group_id' => is_null($rawGroup) || $rawGroup === '' ? null : (int) $rawGroup,
+        ];
+      });
+
+    $effectiveCurriculumFilters = $curriculumFilters
+      ->filter(function ($filter) use ($enrolledByCourse) {
+        $courseId = (int) ($filter['course_id'] ?? 0);
+        if ($courseId <= 0 || !$enrolledByCourse->has($courseId)) {
+          return false;
+        }
+
+        $studentAllocationId = $enrolledByCourse->get($courseId)['allocation_group_id'] ?? null;
+        $curriculumAllocationId = $filter['group'] ?? null;
+
+        // Rule: allocation should match when curriculum row is allocation-specific.
+        if (!is_null($curriculumAllocationId)) {
+          return !is_null($studentAllocationId) && (int) $studentAllocationId === (int) $curriculumAllocationId;
+        }
+
+        return true;
+      })
+      ->values();
+
+    if ($effectiveCurriculumFilters->isEmpty()) {
+      return collect();
+    }
+
+    $effectiveCourseIds = $effectiveCurriculumFilters
+      ->pluck('course_id')
+      ->map(fn($id) => (int) $id)
+      ->filter(fn($id) => $id > 0)
+      ->unique()
+      ->values();
+
+    $subjectCourseMap = SubjectCourseMaster::query()
+      ->whereIn('course_master_id', $effectiveCourseIds->all())
+      ->get(['id', 'course_master_id'])
+      ->groupBy('course_master_id');
+
+    $subjectCourseIds = $subjectCourseMap
+      ->flatten(1)
+      ->pluck('id')
+      ->map(fn($id) => (int) $id)
+      ->filter(fn($id) => $id > 0)
+      ->unique()
+      ->values();
+
+    if ($subjectCourseIds->isEmpty()) {
+      return collect();
     }
 
     $assignmentTable = (new TeachingAssignment())->getTable();
@@ -210,72 +431,10 @@ class StudentTimetableService
         'faculty:id,FIRST_NAME,LAST_NAME',
       ])
       ->where('is_active', 1)
-      ->whereIn('course_id', $curriculumFilters->pluck('course_id')->unique()->values()->all())
+      ->whereIn('course_id', $effectiveCourseIds->all())
       ->get();
 
-    $matchedAssignments = $assignments
-      ->filter(function ($assignment) use ($curriculumFilters, $assignmentGroupColumn, $assignmentSpecColumn) {
-        $courseId = (int) ($assignment->course_id ?? 0);
-        $deliveryType = self::normalizeDeliveryType((string) ($assignment->delivery_type ?? ProgramWiseSemesterCourse::DELIVERY_PROGRAMME_COMMON));
-
-        $assignmentGroup = null;
-        if ($assignmentGroupColumn) {
-          $rawGroup = $assignment->{$assignmentGroupColumn};
-          $assignmentGroup = is_null($rawGroup) || $rawGroup === '' ? null : (int) $rawGroup;
-        }
-
-        $assignmentSpec = null;
-        if ($assignmentSpecColumn) {
-          $rawSpec = $assignment->{$assignmentSpecColumn};
-          $assignmentSpec = is_null($rawSpec) || $rawSpec === '' ? null : (int) $rawSpec;
-        }
-
-        return $curriculumFilters->contains(function ($filter) use ($courseId, $deliveryType, $assignmentGroup, $assignmentSpec) {
-          if ($filter['course_id'] !== $courseId) {
-            return false;
-          }
-
-          if ($filter['delivery_type'] !== $deliveryType) {
-            return false;
-          }
-
-          if (!is_null($filter['group'])) {
-            if (is_null($assignmentGroup) || (int) $filter['group'] !== (int) $assignmentGroup) {
-              return false;
-            }
-          }
-
-          if (!is_null($filter['specialization_id'])) {
-            if (is_null($assignmentSpec) || (int) $filter['specialization_id'] !== (int) $assignmentSpec) {
-              return false;
-            }
-          }
-
-          return true;
-        });
-      })
-      ->values();
-
-    if ($matchedAssignments->isEmpty()) {
-      return collect();
-    }
-
-    $assignmentById = $matchedAssignments->keyBy('id');
-    $facultyIds = $matchedAssignments->pluck('faculty_id')->filter()->map(fn($id) => (int) $id)->unique()->values();
-    $courseIds = $matchedAssignments->pluck('course_id')->filter()->map(fn($id) => (int) $id)->unique()->values();
-
-    $subjectCourseMap = SubjectCourseMaster::query()
-      ->whereIn('course_master_id', $courseIds->all())
-      ->get(['id', 'course_master_id'])
-      ->groupBy('course_master_id');
-
-    $subjectCourseIds = $subjectCourseMap
-      ->flatten(1)
-      ->pluck('id')
-      ->map(fn($id) => (int) $id)
-      ->filter(fn($id) => $id > 0)
-      ->unique()
-      ->values();
+    $assignmentById = $assignments->keyBy('id');
 
     $routineTable = (new SubjectHasRoutine())->getTable();
     $hasTeachingAssignmentId = Schema::hasColumn($routineTable, 'teaching_assignment_id');
@@ -283,51 +442,38 @@ class StudentTimetableService
     $routineDeliveryColumn = self::firstExistingColumn($routineTable, ['delivery_type', 'delivery']);
     $routineGroupColumn = self::firstExistingColumn($routineTable, ['allocation_group', 'group', 'group_no']);
 
+    $assignmentIds = $assignments
+      ->pluck('id')
+      ->map(fn($id) => (int) $id)
+      ->filter(fn($id) => $id > 0)
+      ->unique()
+      ->values();
+
     $routineQuery = SubjectHasRoutine::query()
       ->where('batch_id', $batchId)
-      ->where(function ($query) use (
-        $matchedAssignments,
-        $facultyIds,
-        $subjectCourseIds,
-        $hasTeachingAssignmentId,
-        $hasTeachingAllocationId
-      ) {
-        $assignmentIds = $matchedAssignments
-          ->pluck('id')
-          ->map(fn($id) => (int) $id)
-          ->filter(fn($id) => $id > 0)
-          ->unique()
-          ->values();
+      ->where(function ($query) use ($subjectCourseIds, $assignmentIds, $hasTeachingAssignmentId, $hasTeachingAllocationId) {
+        $hasCondition = false;
 
-        $matchedByAssignment = false;
-
-        if ($hasTeachingAssignmentId && $assignmentIds->isNotEmpty()) {
-          $query->whereIn('teaching_assignment_id', $assignmentIds->all());
-          $matchedByAssignment = true;
+        if ($subjectCourseIds->isNotEmpty()) {
+          $query->whereIn('subject_course_id', $subjectCourseIds->all());
+          $hasCondition = true;
         }
 
-        if ($hasTeachingAllocationId && $assignmentIds->isNotEmpty()) {
-          if ($matchedByAssignment) {
-            $query->orWhereIn('teaching_allocation_id', $assignmentIds->all());
+        if ($hasTeachingAssignmentId && $assignmentIds->isNotEmpty()) {
+          if ($hasCondition) {
+            $query->orWhereIn('teaching_assignment_id', $assignmentIds->all());
           } else {
-            $query->whereIn('teaching_allocation_id', $assignmentIds->all());
-            $matchedByAssignment = true;
+            $query->whereIn('teaching_assignment_id', $assignmentIds->all());
+            $hasCondition = true;
           }
         }
 
-        if ($subjectCourseIds->isNotEmpty() && $facultyIds->isNotEmpty()) {
-          $query->orWhere(function ($fallback) use ($subjectCourseIds, $facultyIds, $hasTeachingAssignmentId, $hasTeachingAllocationId) {
-            if ($hasTeachingAssignmentId) {
-              $fallback->whereNull('teaching_assignment_id');
-            }
-
-            if ($hasTeachingAllocationId) {
-              $fallback->whereNull('teaching_allocation_id');
-            }
-
-            $fallback->whereIn('subject_course_id', $subjectCourseIds->all())
-              ->whereIn('faculty_id', $facultyIds->all());
-          });
+        if ($hasTeachingAllocationId && $assignmentIds->isNotEmpty()) {
+          if ($hasCondition) {
+            $query->orWhereIn('teaching_allocation_id', $assignmentIds->all());
+          } else {
+            $query->whereIn('teaching_allocation_id', $assignmentIds->all());
+          }
         }
       })
       ->with([
@@ -350,10 +496,23 @@ class StudentTimetableService
       ->orderBy('hour_id')
       ->get();
 
-    $assignmentsByCourse = $matchedAssignments->groupBy('course_id');
+    $curriculumByCourse = $effectiveCurriculumFilters
+      ->groupBy(fn($row) => (int) ($row['course_id'] ?? 0));
 
     $rows = $routineQuery
-      ->map(function ($routine) use ($assignmentById, $assignmentsByCourse, $assignmentGroupColumn, $routineDeliveryColumn, $routineGroupColumn, $studentAllocationGroupsByCourse) {
+      ->map(function ($routine) use (
+        $assignmentById,
+        $routineDeliveryColumn,
+        $routineGroupColumn,
+        $assignmentGroupColumn,
+        $curriculumByCourse,
+        $programShiftTokens,
+        $allowBlankShift
+      ) {
+        if (!self::matchesRoutineShift((string) ($routine->shift ?? ''), $programShiftTokens, $allowBlankShift)) {
+          return null;
+        }
+
         $assignment = null;
 
         if (!empty($routine->teaching_assignment_id)) {
@@ -366,72 +525,65 @@ class StudentTimetableService
 
         $resolvedCourse = $assignment?->course
           ?? $routine->subjectCourse?->courseMaster
-          ?? $routine->syllabus?->coursemaster;
-
-        if (!$assignment && !empty($routine->subjectCourse?->course_master_id)) {
-          $candidateAssignments = $assignmentsByCourse->get((int) $routine->subjectCourse->course_master_id, collect());
-
-          if ($routineDeliveryColumn) {
-            $routineDeliveryType = self::normalizeDeliveryType((string) ($routine->{$routineDeliveryColumn} ?? ''));
-            if ($routineDeliveryType !== '') {
-              $candidateAssignments = $candidateAssignments->filter(function ($item) use ($routineDeliveryType) {
-                return self::normalizeDeliveryType((string) ($item->delivery_type ?? '')) === $routineDeliveryType;
-              })->values();
-            }
-          }
-
-          if ($routineGroupColumn && $assignmentGroupColumn) {
-            $rawRoutineGroup = $routine->{$routineGroupColumn};
-            $routineGroup = is_null($rawRoutineGroup) || $rawRoutineGroup === '' ? null : (int) $rawRoutineGroup;
-            if (!is_null($routineGroup)) {
-              $candidateAssignments = $candidateAssignments->filter(function ($item) use ($routineGroup, $assignmentGroupColumn) {
-                $rawAssignmentGroup = $item->{$assignmentGroupColumn} ?? null;
-                $assignmentGroup = is_null($rawAssignmentGroup) || $rawAssignmentGroup === '' ? null : (int) $rawAssignmentGroup;
-                return !is_null($assignmentGroup) && $assignmentGroup === $routineGroup;
-              })->values();
-            }
-          }
-
-          if (!empty($routine->faculty_id)) {
-            $assignment = $candidateAssignments->first(fn($item) => (int) $item->faculty_id === (int) $routine->faculty_id);
-          }
-
-          if (!$assignment) {
-            $assignment = $candidateAssignments->first();
-          }
-        }
-
-        $courseCode = (string) ($assignment?->course?->course_code ?? $resolvedCourse?->course_code ?? '');
-        $courseTitle = (string) ($assignment?->course?->course_title ?? $resolvedCourse?->course_title ?? '');
-
-        $facultyModel = $assignment?->faculty ?? $routine->faculty;
-        $facultyName = trim((string) ($facultyModel?->FIRST_NAME ?? '') . ' ' . (string) ($facultyModel?->LAST_NAME ?? ''));
-
-        $deliveryType = self::normalizeDeliveryType((string) ($assignment?->delivery_type ?? ProgramWiseSemesterCourse::DELIVERY_PROGRAMME_COMMON));
-
-        $groupValue = null;
-        if ($assignment && $assignmentGroupColumn) {
-          $rawGroup = $assignment->{$assignmentGroupColumn};
-          $groupValue = is_null($rawGroup) || $rawGroup === '' ? null : (int) $rawGroup;
-        }
-
-        if (is_null($groupValue) && $routineGroupColumn) {
-          $rawRoutineGroup = $routine->{$routineGroupColumn};
-          $groupValue = is_null($rawRoutineGroup) || $rawRoutineGroup === '' ? null : (int) $rawRoutineGroup;
-        }
+          ?? $routine->syllabus?->coursemaster
+          ?? $routine->teachingAllocation?->course;
 
         $resolvedCourseId = (int) ($assignment?->course_id ?? $resolvedCourse?->id ?? 0);
-        $expectedGroup = $resolvedCourseId > 0 && array_key_exists($resolvedCourseId, $studentAllocationGroupsByCourse)
-          ? $studentAllocationGroupsByCourse[$resolvedCourseId]
-          : null;
-
-        if (!is_null($expectedGroup) && (int) $expectedGroup > 0) {
-          if (is_null($groupValue) || (int) $groupValue !== (int) $expectedGroup) {
-            return null;
-          }
+        if ($resolvedCourseId <= 0) {
+          return null;
         }
 
-        $room = trim((string) ($assignment?->room ?? ''));
+        $curriculumRowsForCourse = $curriculumByCourse->get($resolvedCourseId, collect());
+        if ($curriculumRowsForCourse->isEmpty()) {
+          return null;
+        }
+
+        $routineDelivery = '';
+        if ($routineDeliveryColumn) {
+          $routineDelivery = trim((string) ($routine->{$routineDeliveryColumn} ?? ''));
+        }
+        if ($routineDelivery === '') {
+          $routineDelivery = trim((string) ($assignment?->delivery_type ?? $routine->teachingAllocation?->delivery_type ?? ''));
+        }
+        $routineDelivery = $routineDelivery === '' ? '' : self::normalizeDeliveryType($routineDelivery);
+
+        $routineGroup = null;
+        if ($routineGroupColumn) {
+          $rawRoutineGroup = $routine->{$routineGroupColumn};
+          $routineGroup = is_null($rawRoutineGroup) || $rawRoutineGroup === '' ? null : (int) $rawRoutineGroup;
+        }
+        if (is_null($routineGroup) && $assignment && $assignmentGroupColumn) {
+          $rawAssignmentGroup = $assignment->{$assignmentGroupColumn} ?? null;
+          $routineGroup = is_null($rawAssignmentGroup) || $rawAssignmentGroup === '' ? null : (int) $rawAssignmentGroup;
+        }
+
+        $matchedCurriculum = $curriculumRowsForCourse->first(function ($curr) use ($routineDelivery, $routineGroup) {
+          $deliveryMatch = $routineDelivery === ''
+            ? true
+            : ((string) ($curr['delivery_type'] ?? '') === $routineDelivery);
+
+          if (!$deliveryMatch) {
+            return false;
+          }
+
+          if (!is_null($curr['group'] ?? null)) {
+            return !is_null($routineGroup) && (int) $curr['group'] === (int) $routineGroup;
+          }
+
+          return true;
+        });
+
+        if (!$matchedCurriculum) {
+          return null;
+        }
+
+        $courseCode = (string) ($resolvedCourse?->course_code ?? '');
+        $courseTitle = (string) ($resolvedCourse?->course_title ?? '');
+
+        $facultyModel = $assignment?->faculty ?? $routine->faculty ?? $routine->teachingAllocation?->faculty;
+        $facultyName = trim((string) ($facultyModel?->FIRST_NAME ?? '') . ' ' . (string) ($facultyModel?->LAST_NAME ?? ''));
+
+        $room = trim((string) ($assignment?->room ?? $routine->teachingAllocation?->room ?? ''));
         if ($room === '') {
           $room = trim((string) ($routine->lecturehallmaster?->title ?? ''));
         }
@@ -447,12 +599,19 @@ class StudentTimetableService
           'course_title' => $courseTitle,
           'faculty' => $facultyName,
           'room' => $room,
-          'delivery_type' => $deliveryType,
-          'group' => $groupValue,
+          'delivery_type' => (string) ($matchedCurriculum['delivery_type'] ?? ProgramWiseSemesterCourse::DELIVERY_PROGRAMME_COMMON),
+          'group' => $matchedCurriculum['group'] ?? null,
           'shift' => (string) ($routine->shift ?? ''),
         ];
       })
       ->filter(fn($row) => is_array($row) && !empty($row['weekday']) && !empty($row['hour']))
+      ->unique(fn($row) => implode('|', [
+        (string) ($row['weekday'] ?? ''),
+        (string) ($row['hour'] ?? ''),
+        (string) ($row['course_code'] ?? ''),
+        (string) ($row['faculty'] ?? ''),
+        (string) ($row['shift'] ?? ''),
+      ]))
       ->sortBy(fn($row) => sprintf('%02d-%03d', (int) $row['weekday_id'], (int) $row['hour_order']))
       ->values()
       ->map(function ($row) {
@@ -468,13 +627,19 @@ class StudentTimetableService
     $specializationId = 0;
 
     if (Schema::hasTable('student_specializations')) {
-      $query = StudentSpecialization::query()
+      $baseQuery = StudentSpecialization::query()
         ->where('student_id', (int) $student->id)
         ->orderByDesc('id');
 
       if ($programCombinationId > 0 && Schema::hasColumn('student_specializations', 'subject_has_student_program_id')) {
-        $query->where('subject_has_student_program_id', $programCombinationId);
+        $baseQuery->where('subject_has_student_program_id', $programCombinationId);
       }
+
+      if (Schema::hasColumn('student_specializations', 'is_active')) {
+        $baseQuery->where('is_active', 1);
+      }
+
+      $query = clone $baseQuery;
 
       if ($semesterId > 0 && Schema::hasColumn('student_specializations', 'semester_id')) {
         $query->where(function ($builder) use ($semesterId) {
@@ -482,11 +647,12 @@ class StudentTimetableService
         });
       }
 
-      if (Schema::hasColumn('student_specializations', 'is_active')) {
-        $query->where('is_active', 1);
-      }
-
       $specializationId = (int) $query->value('specialization_id');
+
+      // Fallback: if no specialization row matches current semester, use latest active row.
+      if ($specializationId <= 0 && $semesterId > 0 && Schema::hasColumn('student_specializations', 'semester_id')) {
+        $specializationId = (int) (clone $baseQuery)->value('specialization_id');
+      }
     }
 
     if ($specializationId > 0) {
@@ -514,6 +680,71 @@ class StudentTimetableService
     return null;
   }
 
+  private static function normalizeSpecializationMode(string $value): string
+  {
+    return strtoupper(trim($value));
+  }
+
+  private static function isCommonSpecializationMode(string $mode): bool
+  {
+    return in_array($mode, ['COMMON', 'PROGRAMME_COMMON', 'PROGRAM_COMMON', 'ALL'], true);
+  }
+
+  private static function extractSpecializationIds(mixed $rawIds, mixed $rawSingle): array
+  {
+    $ids = [];
+
+    if (is_array($rawIds)) {
+      $ids = $rawIds;
+    } elseif (is_string($rawIds) && trim($rawIds) !== '') {
+      $decoded = json_decode($rawIds, true);
+      if (is_array($decoded)) {
+        $ids = $decoded;
+      }
+    }
+
+    $single = (int) ($rawSingle ?? 0);
+    if ($single > 0) {
+      $ids[] = $single;
+    }
+
+    return collect($ids)
+      ->map(fn($id) => (int) $id)
+      ->filter(fn($id) => $id > 0)
+      ->unique()
+      ->values()
+      ->all();
+  }
+
+  private static function isCurriculumApplicableForStudentSpecialization(
+    mixed $row,
+    int $studentSpecializationId,
+    ?string $specColumn,
+    ?string $specIdsColumn,
+    ?string $specModeColumn
+  ): bool {
+    $mode = self::normalizeSpecializationMode((string) ($specModeColumn ? ($row->{$specModeColumn} ?? '') : ''));
+
+    if ($mode === '' || self::isCommonSpecializationMode($mode)) {
+      return true;
+    }
+
+    $specIds = self::extractSpecializationIds(
+      $specIdsColumn ? ($row->{$specIdsColumn} ?? null) : null,
+      $specColumn ? ($row->{$specColumn} ?? null) : null
+    );
+
+    if (empty($specIds)) {
+      return true;
+    }
+
+    if ($studentSpecializationId <= 0) {
+      return false;
+    }
+
+    return in_array($studentSpecializationId, $specIds, true);
+  }
+
   private static function normalizeDeliveryType(string $value): string
   {
     $normalized = strtoupper(trim($value));
@@ -539,5 +770,79 @@ class StudentTimetableService
       'MDC' => ProgramWiseSemesterCourse::DELIVERY_OPEN_CHOICE,
       default => $normalized,
     };
+  }
+
+  private static function resolveProgramShiftFilter(int $shiftId, ?string $programShiftSlug = null, ?string $fallbackShiftSlug = null): array
+  {
+    $tokens = [];
+    $allowBlank = false;
+
+    $programShiftToken = self::normalizeShiftToken((string) ($programShiftSlug ?? ''));
+    if ($programShiftToken !== '') {
+      $tokens[] = $programShiftToken;
+    }
+
+    if ($shiftId > 0) {
+      $shift = ShiftMaster::query()->where('id', $shiftId)->first(['slug', 'title']);
+      if ($shift) {
+        $slugToken = self::normalizeShiftToken((string) ($shift->slug ?? ''));
+        $titleToken = self::normalizeShiftToken((string) ($shift->title ?? ''));
+
+        if ($slugToken !== '') {
+          $tokens[] = $slugToken;
+        }
+        if ($titleToken !== '') {
+          $tokens[] = $titleToken;
+        }
+      }
+    }
+
+    if (empty($tokens)) {
+      $fallbackToken = self::normalizeShiftToken((string) ($fallbackShiftSlug ?? ''));
+      if ($fallbackToken !== '') {
+        $tokens[] = $fallbackToken;
+      }
+    }
+
+    $tokens = collect($tokens)->filter()->unique()->values()->all();
+    if (in_array('common', $tokens, true)) {
+      $allowBlank = true;
+    }
+
+    return [
+      'tokens' => $tokens,
+      'allow_blank' => $allowBlank,
+    ];
+  }
+
+  private static function matchesRoutineShift(string $routineShift, array $allowedShiftTokens, bool $allowBlank): bool
+  {
+    if (empty($allowedShiftTokens)) {
+      return true;
+    }
+
+    $normalizedRoutineShift = self::normalizeShiftToken($routineShift);
+    if ($normalizedRoutineShift === '') {
+      return $allowBlank;
+    }
+
+    return in_array($normalizedRoutineShift, $allowedShiftTokens, true);
+  }
+
+  private static function normalizeShiftToken(string $value): string
+  {
+    $normalized = strtolower(trim($value));
+    if ($normalized === '') {
+      return '';
+    }
+
+    $normalized = str_replace(['_', '-'], ' ', $normalized);
+    $normalized = preg_replace('/\s+/', ' ', $normalized) ?? $normalized;
+
+    if (str_ends_with($normalized, ' shift')) {
+      $normalized = trim(substr($normalized, 0, -6));
+    }
+
+    return str_replace(' ', '-', trim($normalized));
   }
 }

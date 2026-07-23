@@ -170,7 +170,7 @@ class SubjectController extends Controller
         }
 
         $combinations = SubjectHasStudentProgam::where('subject_id', $subjectId)
-            ->with(['studentprograminfo', 'batchmaster'])
+            ->with(['studentprograminfo', 'batchmaster', 'shiftmaster'])
             ->where('batch_id', $activeBatch)
             ->get();
 
@@ -418,7 +418,7 @@ class SubjectController extends Controller
         }
 
         $combinations = SubjectHasStudentProgam::where('subject_id', $subjectId)
-            ->with(['studentprograminfo', 'batchmaster'])
+            ->with(['studentprograminfo', 'batchmaster', 'shiftmaster'])
             ->where('batch_id', $activeBatch)
             ->withCount(['studentmaster' => function ($query) use ($activeBatch) {
                 $query->where('batch', $activeBatch);
@@ -512,12 +512,13 @@ class SubjectController extends Controller
         //updating
 
         $request->validate([
-            'total_seats' => 'required|integer|min:0',
+            'shift_id' => 'nullable|exists:shift_masters,slug',
         ]);
 
 
         $combination->total_seats = $request->total_seats;
-        $combination->total_available_seats = $request->total_seats - $enrolledCount;
+        $combination->shift = $request->filled('shift_id') ? $request->shift_id : null;
+        $combination->total_available_seats = $request->filled('total_seats') ? (int) $request->total_seats  - $enrolledCount : null;
         $combination->save();
 
         return redirect()->back()->with('success', 'Combination Updated');
