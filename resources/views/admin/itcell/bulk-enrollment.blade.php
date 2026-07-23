@@ -103,24 +103,25 @@ $donePercentage = $totalProgramCount > 0 ? round(($doneProgramCount / $totalProg
       <div class="alert alert-info">
         <h4 class="mb-1">Bulk Course Enrollment</h4>
         <p class="text-muted mb-0">Select batch, choose curriculum-ready programs, and enroll COMPULSORY curriculum courses in one run.</p>
-      </div>
-
-      <form action="{{ route('bulk.student.course.enrollment') }}" method="GET" class="row g-3 align-items-end mb-3" id="batchFilterForm">
-        <div class="input-group">
-          <select name="batch_id" class="dselect-example" id="batchSelect" required>
-            <option value="">Select batch</option>
-            @foreach(($batches ?? collect()) as $batch)
-            <option value="{{ $batch->id }}" {{ $selectedBatchId === (int) $batch->id ? 'selected' : '' }}>
-              {{ $batch->batch_name }}
-            </option>
-            @endforeach
-          </select>
-          @error('batch_id')
-          <span class="text-danger small">{{ $message }}</span>
-          @enderror
+        <div class="col-lg-3">
+          <form action="{{ route('bulk.student.course.enrollment') }}" method="GET" class="row g-3 align-items-end mb-3" id="batchFilterForm">
+            <div class="input-group">
+              <select name="batch_id" class="form-control" id="batchSelect" required>
+                <option value="">Select batch</option>
+                @foreach(($batches ?? collect()) as $batch)
+                <option value="{{ $batch->id }}" {{ $selectedBatchId === (int) $batch->id ? 'selected' : '' }}>
+                  {{ $batch->batch_name }}
+                </option>
+                @endforeach
+              </select>
+              @error('batch_id')
+              <span class="text-danger small">{{ $message }}</span>
+              @enderror
+            </div>
+          </form>
         </div>
-      </form>
 
+      </div>
     </div>
 
     @if(session('success'))

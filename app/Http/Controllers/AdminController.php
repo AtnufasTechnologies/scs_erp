@@ -1127,13 +1127,24 @@ class AdminController extends Controller
             &$skippedPrograms
         ) {
             foreach ($combinations as $combination) {
-                $autoMappings = ProgramWiseSemesterCourse::where('program_combo_refid', $combination->id)
-                    ->where('course_type', ProgramWiseSemesterCourse::TYPE_AUTO)
-                    ->get(['course_id', 'semester'])
-                    ->unique(fn($row) => ((int) $row->course_id) . '_' . ((int) $row->semester))
+                $curriculumMappings = ProgramWiseSemesterCourse::where('program_combo_refid', $combination->id)
+                    ->whereIn('course_type', [
+                        ProgramWiseSemesterCourse::TYPE_AUTO,
+                        ProgramWiseSemesterCourse::TYPE_STUDENT_CHOICE,
+                        'COMPULSORY',
+                        'ELECTIVE',
+                    ])
+                    ->get([
+                        'course_id',
+                        'semester',
+                        'course_type',
+                        'specialization_master_id',
+                        'specialization_master_ids',
+                    ])
+                    ->unique(fn($row) => ((int) $row->course_id) . '_' . ((int) $row->semester) . '_' . strtoupper((string) ($row->course_type ?? '')))
                     ->values();
 
-                if ($autoMappings->isEmpty()) {
+                if ($curriculumMappings->isEmpty()) {
                     $skippedPrograms[] = trim((optional($combination->studentprograminfo)->code ?? '') . ' - ' . (optional($combination->studentprograminfo)->name ?? 'Program'));
                     continue;
                 }
@@ -1157,11 +1168,73 @@ class AdminController extends Controller
                 $studentIds = $students->pluck('id')->all();
                 $academicYear = $batchName;
 
+                $programSpecializationIds = collect($combination->specialization_ids ?? [])
+                    ->map(fn($id) => (int) $id)
+                    ->filter(fn($id) => $id > 0)
+                    ->unique()
+                    ->values();
+
+                $studentSpecializationByStudentSemester = [];
+                $hasStudentSpecializations = false;
+                if (Schema::hasTable('student_specializations')) {
+                    $specializationRows = DB::table('student_specializations')
+                        ->whereIn('student_id', $studentIds)
+                        ->where('subject_has_student_program_id', (int) $combination->id)
+                        ->whereNull('deleted_at')
+                        ->where('is_active', 1)
+                        ->orderByDesc('id')
+                        ->get(['student_id', 'specialization_id', 'semester_id']);
+
+                    $hasStudentSpecializations = $specializationRows->isNotEmpty();
+
+                    foreach ($specializationRows as $row) {
+                        $studentId = (int) ($row->student_id ?? 0);
+                        $specializationId = (int) ($row->specialization_id ?? 0);
+                        $semesterId = (int) ($row->semester_id ?? 0);
+
+                        if ($studentId <= 0 || $specializationId <= 0) {
+                            continue;
+                        }
+
+                        if (!isset($studentSpecializationByStudentSemester[$studentId])) {
+                            $studentSpecializationByStudentSemester[$studentId] = [];
+                        }
+
+                        // Keep first row due to desc id ordering (latest record wins).
+                        if (!isset($studentSpecializationByStudentSemester[$studentId][$semesterId])) {
+                            $studentSpecializationByStudentSemester[$studentId][$semesterId] = $specializationId;
+                        }
+                    }
+                }
+
+                $programHasSpecializations = $programSpecializationIds->isNotEmpty() || $hasStudentSpecializations;
+
+                $normalizedMappings = $curriculumMappings->map(function ($row) {
+                    $type = strtoupper((string) ($row->course_type ?? ''));
+                    $specIds = collect($row->specialization_master_ids ?? [])
+                        ->map(fn($id) => (int) $id)
+                        ->filter(fn($id) => $id > 0)
+                        ->values();
+
+                    $singleSpec = (int) ($row->specialization_master_id ?? 0);
+                    if ($singleSpec > 0 && !$specIds->contains($singleSpec)) {
+                        $specIds->push($singleSpec);
+                    }
+
+                    return (object) [
+                        'course_id' => (int) ($row->course_id ?? 0),
+                        'semester' => (int) ($row->semester ?? 0),
+                        'course_type' => $type,
+                        'is_elective' => in_array($type, [ProgramWiseSemesterCourse::TYPE_STUDENT_CHOICE, 'ELECTIVE'], true) ? 1 : 0,
+                        'specialization_ids' => $specIds->unique()->values()->all(),
+                    ];
+                })->filter(fn($row) => $row->course_id > 0 && $row->semester > 0)->values();
+
                 $existingEnrollments = StudentCourseInfo::whereIn('student_id', $studentIds)
                     ->where('academic_year', $academicYear)
                     ->where('is_deleted', 0)
-                    ->where(function ($query) use ($autoMappings) {
-                        foreach ($autoMappings as $map) {
+                    ->where(function ($query) use ($normalizedMappings) {
+                        foreach ($normalizedMappings as $map) {
                             $query->orWhere(function ($q) use ($map) {
                                 $q->where('course_id', (int) $map->course_id)
                                     ->where('semester', (int) $map->semester);
@@ -1173,10 +1246,36 @@ class AdminController extends Controller
 
                 $insertRows = [];
 
+                $studentSpecForSemester = function (int $studentId, int $semester) use ($studentSpecializationByStudentSemester): int {
+                    $rows = $studentSpecializationByStudentSemester[$studentId] ?? [];
+                    if (isset($rows[$semester]) && (int) $rows[$semester] > 0) {
+                        return (int) $rows[$semester];
+                    }
+                    if (isset($rows[0]) && (int) $rows[0] > 0) {
+                        return (int) $rows[0];
+                    }
+                    return 0;
+                };
+
                 foreach ($students as $student) {
-                    foreach ($autoMappings as $map) {
+                    foreach ($normalizedMappings as $map) {
                         $courseId = (int) $map->course_id;
                         $semester = (int) $map->semester;
+
+                        $mappingSpecIds = collect($map->specialization_ids ?? [])
+                            ->map(fn($id) => (int) $id)
+                            ->filter(fn($id) => $id > 0)
+                            ->values();
+
+                        // If curriculum row is specialization-specific and the program has specializations,
+                        // enroll only matching students by specialization_id.
+                        if ($programHasSpecializations && $mappingSpecIds->isNotEmpty()) {
+                            $studentSpecId = $studentSpecForSemester((int) $student->id, $semester);
+                            if ($studentSpecId <= 0 || !$mappingSpecIds->contains($studentSpecId)) {
+                                continue;
+                            }
+                        }
+
                         $key = ((int) $student->id) . '_' . $courseId . '_' . $semester;
 
                         if (isset($existingEnrollments[$key])) {
@@ -1191,7 +1290,7 @@ class AdminController extends Controller
                             'campus_id' => (int) $student->campus_id,
                             'is_active' => 1,
                             'academic_year' => $academicYear,
-                            'is_elective' => 0,
+                            'is_elective' => (int) ($map->is_elective ?? 0),
                             'created_at' => $now,
                             'updated_at' => $now,
                         ];
