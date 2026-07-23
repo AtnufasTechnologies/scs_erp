@@ -155,6 +155,51 @@ class StudentTimetableService
       return collect();
     }
 
+    $studentAllocationGroupsByCourse = [];
+    if (Schema::hasColumn('student_course_infos', 'allocation_group_id')) {
+      $groupRowsQuery = StudentCourseInfo::query()
+        ->where('student_id', $studentId)
+        ->whereIn('course_id', $curriculumFilters->pluck('course_id')->unique()->values()->all())
+        ->where(function ($query) use ($semesterId) {
+          $query->where('semester', $semesterId)
+            ->orWhereNull('semester');
+        });
+
+      if (Schema::hasColumn('student_course_infos', 'is_deleted')) {
+        $groupRowsQuery->where('is_deleted', 0);
+      }
+
+      $groupRows = $groupRowsQuery
+        ->orderByDesc('id')
+        ->get(['course_id', 'semester', 'allocation_group_id']);
+
+      $groupRowsByCourse = $groupRows->groupBy(fn($row) => (int) ($row->course_id ?? 0));
+
+      foreach ($groupRowsByCourse as $courseId => $rowsForCourse) {
+        $courseId = (int) $courseId;
+        if ($courseId <= 0) {
+          continue;
+        }
+
+        $bestRow = $rowsForCourse->first(function ($row) use ($semesterId) {
+          return (int) ($row->semester ?? 0) === (int) $semesterId;
+        });
+
+        if (!$bestRow) {
+          $bestRow = $rowsForCourse->first(function ($row) {
+            return is_null($row->semester);
+          });
+        }
+
+        if (!$bestRow) {
+          $bestRow = $rowsForCourse->first();
+        }
+
+        $rawGroup = $bestRow?->allocation_group_id;
+        $studentAllocationGroupsByCourse[$courseId] = is_null($rawGroup) || $rawGroup === '' ? null : (int) $rawGroup;
+      }
+    }
+
     $assignmentTable = (new TeachingAssignment())->getTable();
     $assignmentGroupColumn = self::firstExistingColumn($assignmentTable, ['allocation_group', 'group', 'group_no']);
     $assignmentSpecColumn = self::firstExistingColumn($assignmentTable, ['specialization_master_id', 'specialization_id']);
@@ -308,7 +353,7 @@ class StudentTimetableService
     $assignmentsByCourse = $matchedAssignments->groupBy('course_id');
 
     $rows = $routineQuery
-      ->map(function ($routine) use ($assignmentById, $assignmentsByCourse, $assignmentGroupColumn, $routineDeliveryColumn, $routineGroupColumn) {
+      ->map(function ($routine) use ($assignmentById, $assignmentsByCourse, $assignmentGroupColumn, $routineDeliveryColumn, $routineGroupColumn, $studentAllocationGroupsByCourse) {
         $assignment = null;
 
         if (!empty($routine->teaching_assignment_id)) {
@@ -370,6 +415,22 @@ class StudentTimetableService
           $groupValue = is_null($rawGroup) || $rawGroup === '' ? null : (int) $rawGroup;
         }
 
+        if (is_null($groupValue) && $routineGroupColumn) {
+          $rawRoutineGroup = $routine->{$routineGroupColumn};
+          $groupValue = is_null($rawRoutineGroup) || $rawRoutineGroup === '' ? null : (int) $rawRoutineGroup;
+        }
+
+        $resolvedCourseId = (int) ($assignment?->course_id ?? $resolvedCourse?->id ?? 0);
+        $expectedGroup = $resolvedCourseId > 0 && array_key_exists($resolvedCourseId, $studentAllocationGroupsByCourse)
+          ? $studentAllocationGroupsByCourse[$resolvedCourseId]
+          : null;
+
+        if (!is_null($expectedGroup) && (int) $expectedGroup > 0) {
+          if (is_null($groupValue) || (int) $groupValue !== (int) $expectedGroup) {
+            return null;
+          }
+        }
+
         $room = trim((string) ($assignment?->room ?? ''));
         if ($room === '') {
           $room = trim((string) ($routine->lecturehallmaster?->title ?? ''));
@@ -391,7 +452,7 @@ class StudentTimetableService
           'shift' => (string) ($routine->shift ?? ''),
         ];
       })
-      ->filter(fn($row) => !empty($row['weekday']) && !empty($row['hour']))
+      ->filter(fn($row) => is_array($row) && !empty($row['weekday']) && !empty($row['hour']))
       ->sortBy(fn($row) => sprintf('%02d-%03d', (int) $row['weekday_id'], (int) $row['hour_order']))
       ->values()
       ->map(function ($row) {
