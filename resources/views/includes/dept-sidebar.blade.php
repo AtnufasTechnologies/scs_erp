@@ -73,13 +73,21 @@ if ($subjectId) {
   </a>
 
 
-  <a href="{{route('department.faculty.access',[$data->id,$data->slug])}}">
-    <div class="sidebar-icon" title="Settings" data-bs-toggle="tooltip" data-bs-placement="right" data-bs-title="Settings">
-      <i class="fas fa-cog fa-lg"></i>
+  <a href="{{route('department.student.group.allocation',[$data->id,$data->slug])}}">
+    <div class="sidebar-icon" title="Student Group Allotment" data-bs-toggle="tooltip" data-bs-placement="right" data-bs-title="Student Group Allotment">
+      <i class="fas fa-layer-group fa-lg"></i>
     </div>
   </a>
 
-  <a href="{{route('department.offerings.index')}}">
+  <a href="{{route('department.faculty.access',[$data->id,$data->slug])}}">
+    <div class="sidebar-icon" title="Access" data-bs-toggle="tooltip" data-bs-placement="right" data-bs-title="Access">
+      <i class="fas fa-fingerprint fa-lg"></i>
+    </div>
+  </a>
+
+
+
+  <!-- <a href="{{route('department.offerings.index')}}">
     <div class="sidebar-icon {{ request()->routeIs('department.offerings.*') ? 'active' : '' }}" title="Course Offerings" data-bs-toggle="tooltip" data-bs-placement="right" data-bs-title="Course Offerings">
       <i class="fas fa-ticket-alt fa-lg"></i>
     </div>
@@ -89,7 +97,7 @@ if ($subjectId) {
     <div class="sidebar-icon {{ request()->routeIs('department.seats.*') ? 'active' : '' }}" title="Course Seat Manager" data-bs-toggle="tooltip" data-bs-placement="right" data-bs-title="Course Seat Manager">
       <i class="fas fa-chair fa-lg"></i>
     </div>
-  </a>
+  </a> -->
 
   <a href="{{route('department.leave.index')}}" style="position: relative;">
     <div class="sidebar-icon {{ request()->routeIs('department.leave.*') ? 'active' : '' }}" title="Leave Sanction" data-bs-toggle="tooltip" data-bs-placement="right" data-bs-title="Leave Sanction">

@@ -232,6 +232,22 @@ if (!empty($deptFacultyIds)) {
         <div class="stats-card gradient-green">
           <div class="d-flex justify-content-between align-items-start">
             <div>
+              <div style="font-size: 14px; opacity: 0.9; margin-bottom: 8px;">Student Group </div>
+              <div style="font-size: 36px; font-weight: 700;">Allocation </div>
+
+              <div style="opacity: 0.9; font-size: 13px;">
+                <a href="{{route('department.student.group.allocation',[ $data->id, $data->title])}}" style="color: white; opacity: 0.9; font-size: 13px; text-decoration: none;">Manage →</a>
+              </div>
+            </div>
+
+          </div>
+        </div>
+      </div>
+
+      <div class="quick-item">
+        <div class="stats-card gradient-green">
+          <div class="d-flex justify-content-between align-items-start">
+            <div>
               <div style="font-size: 14px; opacity: 0.9; margin-bottom: 8px;">Time Table</div>
               <div style="font-size: 36px; font-weight: 700;">
                 <a href="{{ route('department.timetable', [$data->id,$data->title]) }}" style="color: white; text-decoration: none;">Scheduler</a>

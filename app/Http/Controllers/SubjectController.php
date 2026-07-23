@@ -1666,7 +1666,7 @@ class SubjectController extends Controller
         $timetable = SubjectHasRoutine::where('batch_id', $data->batch)
             ->with([
                 'weekdaymaster:id,title',
-                'hourmaster:id,title',
+                'hourmaster:id,name',
                 'lecturehallmaster:id,title',
                 'faculty:id,FIRST_NAME,LAST_NAME',
                 'coursemaster:id,course_title,course_code',
@@ -3835,5 +3835,362 @@ class SubjectController extends Controller
         ]);
 
         return redirect()->back()->with('success', 'Updated successfully.');
+    }
+
+
+    function studentGroupAllotment(Request $request, $id, $slug)
+    {
+        $subject  = Subject::find($id);
+        if (!$subject) {
+            return redirect()->back()->with('error', 'Subject not found.');
+        }
+
+        $batchOptions = BatchMaster::orderByDesc('id')->get(['id', 'batch_name']);
+        $selectedBatchId = (int) $request->query('batch', 0);
+
+        if ($selectedBatchId <= 0) {
+            $selectedBatchId = (int) BatchMaster::where('admission_active_batch', 1)->value('id');
+        }
+
+        $offeredCoursesByProgramType = collect();
+
+        $normalizeProgramType = function ($programTypeValue, $programTypeMasterName = null) {
+            $raw = strtoupper(trim((string) ($programTypeValue ?? '')));
+            if ($raw !== '') {
+                if (str_contains($raw, 'UG') || str_contains($raw, 'UNDER')) {
+                    return 'UG';
+                }
+
+                if (str_contains($raw, 'PG') || str_contains($raw, 'POST')) {
+                    return 'PG';
+                }
+            }
+
+            $masterRaw = strtoupper(trim((string) ($programTypeMasterName ?? '')));
+            if ($masterRaw !== '') {
+                if (str_contains($masterRaw, 'UG') || str_contains($masterRaw, 'UNDER')) {
+                    return 'UG';
+                }
+
+                if (str_contains($masterRaw, 'PG') || str_contains($masterRaw, 'POST')) {
+                    return 'PG';
+                }
+            }
+
+            return 'UNSPECIFIED';
+        };
+
+        if ($selectedBatchId > 0) {
+            $combinations = SubjectHasStudentProgam::with([
+                'studentprograminfo:id,program_type',
+                'studentprograminfo.programtypemaster:id,name',
+            ])->where('subject_id', (int) $subject->id)
+                ->where('batch_id', $selectedBatchId)
+                ->get(['id', 'student_program_id', 'batch_id', 'campus_id', 'program_type']);
+
+            $combinationIds = $combinations->pluck('id')->filter()->map(fn($v) => (int) $v)->unique()->values();
+            $programIds = $combinations->pluck('student_program_id')->filter()->map(fn($v) => (int) $v)->unique()->values();
+            $programTypeByCombinationId = [];
+            $programTypeByProgramId = [];
+
+            foreach ($combinations as $combination) {
+                $combinationId = (int) ($combination->id ?? 0);
+                $programId = (int) ($combination->student_program_id ?? 0);
+
+                if ($combinationId <= 0 || $programId <= 0) {
+                    continue;
+                }
+
+                $resolvedProgramType = $normalizeProgramType(
+                    $combination->program_type,
+                    optional($combination->studentprograminfo?->programtypemaster)->name
+                );
+
+                $programTypeByCombinationId[$combinationId] = $resolvedProgramType;
+
+                if (!isset($programTypeByProgramId[$programId])) {
+                    $programTypeByProgramId[$programId] = $resolvedProgramType;
+                }
+            }
+
+            if ($combinationIds->isNotEmpty()) {
+                $offeredMappingsQuery = ProgramWiseSemesterCourse::whereIn('program_combo_refid', $combinationIds->all());
+
+                if (Schema::hasColumn($this->getCurriculumEngineTable(), 'is_active')) {
+                    $offeredMappingsQuery->where('is_active', 1);
+                }
+
+                $offeredMappings = $offeredMappingsQuery
+                    ->get(['program_combo_refid', 'course_id', 'semester', 'course_type'])
+                    ->filter(function ($row) {
+                        return (int) ($row->course_id ?? 0) > 0 && (int) ($row->semester ?? 0) > 0;
+                    })
+                    ->values();
+
+                $courseIds = $offeredMappings->pluck('course_id')->map(fn($v) => (int) $v)->unique()->values();
+                $semesterIds = $offeredMappings->pluck('semester')->map(fn($v) => (int) $v)->unique()->values();
+
+                if ($courseIds->isNotEmpty()) {
+                    $courseMap = ProgramCourseMaster::with(['papertypemaster:id,name'])
+                        ->whereIn('id', $courseIds->all())
+                        ->get()
+                        ->keyBy('id');
+
+                    $semesterTitleMap = Semester::whereIn('id', $semesterIds->all())
+                        ->pluck('title', 'id');
+
+                    $matrix = [];
+                    $offeredKeySet = [];
+
+                    foreach ($offeredMappings as $map) {
+                        $combinationId = (int) ($map->program_combo_refid ?? 0);
+                        $programTypeLabel = $programTypeByCombinationId[$combinationId] ?? 'UNSPECIFIED';
+                        $courseId = (int) $map->course_id;
+                        $semesterId = (int) $map->semester;
+                        $course = $courseMap->get($courseId);
+
+                        if (!$course) {
+                            continue;
+                        }
+
+                        $offeredKeySet[$programTypeLabel][$courseId . '_' . $semesterId] = true;
+
+                        if (!isset($matrix[$programTypeLabel])) {
+                            $matrix[$programTypeLabel] = [];
+                        }
+
+                        if (!isset($matrix[$programTypeLabel][$semesterId])) {
+                            $matrix[$programTypeLabel][$semesterId] = [
+                                'semester_id' => $semesterId,
+                                'semester_title' => $semesterTitleMap->get($semesterId) ?? ('Semester ' . $semesterId),
+                                'courses' => [],
+                            ];
+                        }
+
+                        if (!isset($matrix[$programTypeLabel][$semesterId]['courses'][$courseId])) {
+                            $matrix[$programTypeLabel][$semesterId]['courses'][$courseId] = [
+                                'course_id' => $courseId,
+                                'course_code' => $course->course_code ?? '-',
+                                'course_title' => $course->course_title ?? '-',
+                                'paper_type' => $course->papertypemaster->name ?? '-',
+                                'course_types' => [],
+                                'students' => [],
+                                'student_count' => 0,
+                            ];
+                        }
+
+                        $courseTypeLabel = strtoupper((string) ($map->course_type ?? ''));
+                        if ($courseTypeLabel !== '') {
+                            $matrix[$programTypeLabel][$semesterId]['courses'][$courseId]['course_types'][$courseTypeLabel] = $courseTypeLabel;
+                        }
+                    }
+
+                    if (!empty($offeredKeySet) && $programIds->isNotEmpty()) {
+                        $enrollmentQuery = DB::table('student_course_infos as sci')
+                            ->join('student_masters as sm', 'sm.id', '=', 'sci.student_id')
+                            ->whereIn('sci.course_id', $courseIds->all())
+                            ->where('sm.batch', $selectedBatchId)
+                            ->whereIn('sm.new_program_id', $programIds->all())
+                            ->where('sm.is_deleted', 0)
+                            ->where('sm.is_left', 0)
+                            ->select([
+                                'sci.id as student_course_info_id',
+                                'sci.student_id',
+                                'sci.course_id',
+                                'sci.semester',
+                                'sm.new_program_id',
+                                'sm.roll_no',
+                                'sm.first_name',
+                                'sm.last_name',
+                            ]);
+
+                        if (Schema::hasColumn('student_course_infos', 'allocation_group_id')) {
+                            $enrollmentQuery->addSelect('sci.allocation_group_id');
+                        }
+
+                        if (Schema::hasColumn('student_course_infos', 'is_deleted')) {
+                            $enrollmentQuery->where('sci.is_deleted', 0);
+                        }
+
+                        $enrolledRows = $enrollmentQuery
+                            ->orderBy('sci.semester')
+                            ->orderBy('sci.course_id')
+                            ->orderBy('sm.roll_no')
+                            ->get()
+                            ->unique(fn($row) => ((int) $row->student_id) . '_' . ((int) $row->course_id) . '_' . ((int) $row->semester))
+                            ->values();
+
+                        foreach ($enrolledRows as $row) {
+                            $courseId = (int) ($row->course_id ?? 0);
+                            $semesterId = (int) ($row->semester ?? 0);
+                            $programId = (int) ($row->new_program_id ?? 0);
+                            $programTypeLabel = $programTypeByProgramId[$programId] ?? 'UNSPECIFIED';
+                            $offeredKey = $courseId . '_' . $semesterId;
+
+                            if (!isset($offeredKeySet[$programTypeLabel][$offeredKey])) {
+                                continue;
+                            }
+
+                            if (!isset($matrix[$programTypeLabel][$semesterId]['courses'][$courseId])) {
+                                continue;
+                            }
+
+                            $fullName = trim(((string) ($row->first_name ?? '')) . ' ' . ((string) ($row->last_name ?? '')));
+                            $matrix[$programTypeLabel][$semesterId]['courses'][$courseId]['students'][] = [
+                                'student_course_info_id' => (int) ($row->student_course_info_id ?? 0),
+                                'student_id' => (int) $row->student_id,
+                                'roll_no' => (string) ($row->roll_no ?? '-'),
+                                'name' => $fullName !== '' ? $fullName : '-',
+                                'allocation_group_id' => isset($row->allocation_group_id) ? (int) ($row->allocation_group_id ?? 0) : null,
+                            ];
+                        }
+                    }
+
+                    foreach ($matrix as &$programTypeGroup) {
+                        foreach ($programTypeGroup as &$semesterData) {
+                            foreach ($semesterData['courses'] as &$courseData) {
+                                $courseData['course_types'] = array_values($courseData['course_types']);
+                                sort($courseData['course_types']);
+
+                                $courseData['students'] = collect($courseData['students'])
+                                    ->unique('student_id')
+                                    ->sortBy('roll_no')
+                                    ->values()
+                                    ->all();
+
+                                $courseData['student_count'] = count($courseData['students']);
+                            }
+
+                            $semesterData['courses'] = collect($semesterData['courses'])
+                                ->sortBy('course_code')
+                                ->values()
+                                ->all();
+                        }
+                        $programTypeGroup = collect($programTypeGroup)
+                            ->sortBy('semester_id')
+                            ->values()
+                            ->all();
+                    }
+                    unset($programTypeGroup, $semesterData, $courseData);
+
+                    $orderedProgramTypes = ['UG', 'PG', 'UNSPECIFIED'];
+                    $offeredCoursesByProgramType = collect($orderedProgramTypes)
+                        ->filter(fn($type) => isset($matrix[$type]))
+                        ->mapWithKeys(fn($type) => [$type => collect($matrix[$type])->values()]);
+                }
+            }
+        }
+
+        return view('admin.subject.group.index', [
+            'subject' => $subject,
+            'batches' => $batchOptions,
+            'selected_batch' => $selectedBatchId,
+            'offered_courses_by_program_type' => $offeredCoursesByProgramType,
+        ]);
+    }
+
+    function saveStudentGroupAllocation(Request $request, $id, $slug)
+    {
+        $subject = Subject::find($id);
+        if (!$subject) {
+            return redirect()->back()->with('error', 'Subject not found.');
+        }
+
+        if (!Schema::hasColumn('student_course_infos', 'allocation_group_id')) {
+            return redirect()->back()->with('error', 'Missing column allocation_group_id. Please run migrations and try again.');
+        }
+
+        $request->validate([
+            'batch' => 'required|integer|exists:batch_masters,id',
+            'allocations' => 'required|array|min:1',
+            'allocations.*.student_course_info_id' => 'required|integer|exists:student_course_infos,id',
+            'allocations.*.allocation_group_id' => 'nullable|integer|min:1',
+        ]);
+
+        $batchId = (int) $request->batch;
+        $allocations = collect($request->input('allocations', []))
+            ->map(function ($row) {
+                return [
+                    'student_course_info_id' => (int) ($row['student_course_info_id'] ?? 0),
+                    'allocation_group_id' => isset($row['allocation_group_id']) && $row['allocation_group_id'] !== '' ? (int) $row['allocation_group_id'] : null,
+                ];
+            })
+            ->filter(fn($row) => $row['student_course_info_id'] > 0 && !empty($row['allocation_group_id']) && (int) $row['allocation_group_id'] > 0)
+            ->unique('student_course_info_id')
+            ->values();
+
+        if ($allocations->isEmpty()) {
+            return redirect()->back()->with('error', 'No valid student allocations were submitted.');
+        }
+
+        $combinations = SubjectHasStudentProgam::where('subject_id', (int) $subject->id)
+            ->where('batch_id', $batchId)
+            ->get(['id', 'student_program_id']);
+
+        $combinationIds = $combinations->pluck('id')->filter()->map(fn($v) => (int) $v)->unique()->values();
+        $programIds = $combinations->pluck('student_program_id')->filter()->map(fn($v) => (int) $v)->unique()->values();
+
+        if ($combinationIds->isEmpty() || $programIds->isEmpty()) {
+            return redirect()->back()->with('error', 'No subject program combinations found for the selected batch.');
+        }
+
+        $offeredMappings = ProgramWiseSemesterCourse::whereIn('program_combo_refid', $combinationIds->all())
+            ->get(['course_id', 'semester'])
+            ->filter(fn($row) => (int) ($row->course_id ?? 0) > 0 && (int) ($row->semester ?? 0) > 0)
+            ->unique(fn($row) => ((int) $row->course_id) . '_' . ((int) $row->semester))
+            ->values();
+
+        if ($offeredMappings->isEmpty()) {
+            return redirect()->back()->with('error', 'No offered courses found for the selected batch.');
+        }
+
+        $offeredKeySet = [];
+        foreach ($offeredMappings as $map) {
+            $offeredKeySet[(int) $map->course_id . '_' . (int) $map->semester] = true;
+        }
+
+        $sciIds = $allocations->pluck('student_course_info_id')->values()->all();
+
+        $validRowsQuery = DB::table('student_course_infos as sci')
+            ->join('student_masters as sm', 'sm.id', '=', 'sci.student_id')
+            ->whereIn('sci.id', $sciIds)
+            ->where('sm.batch', $batchId)
+            ->whereIn('sm.new_program_id', $programIds->all())
+            ->where('sm.is_deleted', 0)
+            ->where('sm.is_left', 0)
+            ->select('sci.id', 'sci.course_id', 'sci.semester');
+
+        if (Schema::hasColumn('student_course_infos', 'is_deleted')) {
+            $validRowsQuery->where('sci.is_deleted', 0);
+        }
+
+        $validRows = $validRowsQuery->get();
+
+        $validSciIdSet = [];
+        foreach ($validRows as $row) {
+            $offeredKey = (int) ($row->course_id ?? 0) . '_' . (int) ($row->semester ?? 0);
+            if (isset($offeredKeySet[$offeredKey])) {
+                $validSciIdSet[(int) $row->id] = true;
+            }
+        }
+
+        $updated = 0;
+        foreach ($allocations as $row) {
+            $sciId = (int) $row['student_course_info_id'];
+            if (!isset($validSciIdSet[$sciId])) {
+                continue;
+            }
+
+            StudentCourseInfo::where('id', $sciId)->update([
+                'allocation_group_id' => (int) $row['allocation_group_id'],
+            ]);
+            $updated++;
+        }
+
+        if ($updated === 0) {
+            return redirect()->back()->with('error', 'No valid group allocation rows were updated.');
+        }
+
+        return redirect()->back()->with('success', $updated . ' student group allocation(s) saved successfully.');
     }
 }
