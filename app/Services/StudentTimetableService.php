@@ -93,6 +93,34 @@ class StudentTimetableService
         ->first($combinationSelect);
     }
 
+    // If student_specializations stores the exact program-combination linkage,
+    // prefer that row to avoid selecting a wrong shift/combo when multiple rows exist.
+    if (Schema::hasTable('student_specializations') && Schema::hasColumn('student_specializations', 'subject_has_student_program_id')) {
+      $specComboQuery = StudentSpecialization::query()
+        ->where('student_id', $studentId)
+        ->whereNotNull('subject_has_student_program_id')
+        ->where('subject_has_student_program_id', '>', 0)
+        ->orderByDesc('id');
+
+      if (Schema::hasColumn('student_specializations', 'is_active')) {
+        $specComboQuery->where('is_active', 1);
+      }
+
+      if ($semesterId > 0 && Schema::hasColumn('student_specializations', 'semester_id')) {
+        $specComboQuery->where(function ($query) use ($semesterId) {
+          $query->whereNull('semester_id')->orWhere('semester_id', $semesterId);
+        });
+      }
+
+      $specializationComboId = (int) $specComboQuery->value('subject_has_student_program_id');
+      if ($specializationComboId > 0) {
+        $specializationCombo = SubjectHasStudentProgam::query()->where('id', $specializationComboId)->first($combinationSelect);
+        if ($specializationCombo) {
+          $programCombination = $specializationCombo;
+        }
+      }
+    }
+
     $programCombinationId = (int) ($programCombination->id ?? 0);
 
     $specializationId = self::resolveSpecializationId($student, $programCombinationId, $semesterId);
@@ -117,6 +145,8 @@ class StudentTimetableService
     $curriculumSpecColumn = self::firstExistingColumn($curriculumTable, ['specialization_master_id', 'specialization_id']);
     $curriculumSpecIdsColumn = Schema::hasColumn($curriculumTable, 'specialization_master_ids') ? 'specialization_master_ids' : null;
     $curriculumSpecModeColumn = Schema::hasColumn($curriculumTable, 'specialization_mode') ? 'specialization_mode' : null;
+    $curriculumPathwayColumn = Schema::hasColumn($curriculumTable, 'academic_pathway_id') ? 'academic_pathway_id' : null;
+    $curriculumDegreeTrackColumn = Schema::hasColumn($curriculumTable, 'degree_track_id') ? 'degree_track_id' : null;
 
     $curriculumQuery = ProgramWiseSemesterCourse::query()
       ->with('programinfo:id,course_code,course_title')
@@ -188,7 +218,8 @@ class StudentTimetableService
               $builder->whereNull('specialization_master_ids')
                 ->orWhere('specialization_master_ids', '')
                 ->orWhere('specialization_master_ids', '[]')
-                ->orWhereJsonContains('specialization_master_ids', $specializationId);
+                ->orWhereJsonContains('specialization_master_ids', $specializationId)
+                ->orWhereJsonContains('specialization_master_ids', (string) $specializationId);
             };
 
             if ($applied) {
@@ -213,6 +244,12 @@ class StudentTimetableService
     }
     if ($curriculumSpecModeColumn) {
       $curriculumSelect[] = $curriculumSpecModeColumn;
+    }
+    if ($curriculumPathwayColumn) {
+      $curriculumSelect[] = $curriculumPathwayColumn;
+    }
+    if ($curriculumDegreeTrackColumn) {
+      $curriculumSelect[] = $curriculumDegreeTrackColumn;
     }
 
     $curriculumRows = $curriculumQuery->get($curriculumSelect);
@@ -259,7 +296,8 @@ class StudentTimetableService
                 $builder->whereNull('specialization_master_ids')
                   ->orWhere('specialization_master_ids', '')
                   ->orWhere('specialization_master_ids', '[]')
-                  ->orWhereJsonContains('specialization_master_ids', $specializationId);
+                  ->orWhereJsonContains('specialization_master_ids', $specializationId)
+                  ->orWhereJsonContains('specialization_master_ids', (string) $specializationId);
               };
 
               if ($applied) {
@@ -276,6 +314,22 @@ class StudentTimetableService
       if ($curriculumRows->isEmpty()) {
         return collect();
       }
+    }
+
+    $curriculumRows = $curriculumRows
+      ->filter(function ($row) use ($pathwayId, $degreeTrackId, $curriculumPathwayColumn, $curriculumDegreeTrackColumn) {
+        return self::isCurriculumApplicableForStudentPathwayAndTrack(
+          $row,
+          $pathwayId,
+          $degreeTrackId,
+          $curriculumPathwayColumn,
+          $curriculumDegreeTrackColumn
+        );
+      })
+      ->values();
+
+    if ($curriculumRows->isEmpty()) {
+      return collect();
     }
 
     $curriculumFilters = $curriculumRows
@@ -653,6 +707,25 @@ class StudentTimetableService
       if ($specializationId <= 0 && $semesterId > 0 && Schema::hasColumn('student_specializations', 'semester_id')) {
         $specializationId = (int) (clone $baseQuery)->value('specialization_id');
       }
+
+      // Safety fallback: if combo-scoped specialization is missing, retry without combo constraint.
+      if ($specializationId <= 0 && $programCombinationId > 0 && Schema::hasColumn('student_specializations', 'subject_has_student_program_id')) {
+        $relaxedQuery = StudentSpecialization::query()
+          ->where('student_id', (int) $student->id)
+          ->orderByDesc('id');
+
+        if (Schema::hasColumn('student_specializations', 'is_active')) {
+          $relaxedQuery->where('is_active', 1);
+        }
+
+        if ($semesterId > 0 && Schema::hasColumn('student_specializations', 'semester_id')) {
+          $relaxedQuery->where(function ($builder) use ($semesterId) {
+            $builder->whereNull('semester_id')->orWhere('semester_id', $semesterId);
+          });
+        }
+
+        $specializationId = (int) $relaxedQuery->value('specialization_id');
+      }
     }
 
     if ($specializationId > 0) {
@@ -743,6 +816,39 @@ class StudentTimetableService
     }
 
     return in_array($studentSpecializationId, $specIds, true);
+  }
+
+  private static function isCurriculumApplicableForStudentPathwayAndTrack(
+    mixed $row,
+    int $studentPathwayId,
+    int $studentDegreeTrackId,
+    ?string $pathwayColumn,
+    ?string $degreeTrackColumn
+  ): bool {
+    if (!self::matchesStudentCurriculumDimension($row, $studentPathwayId, $pathwayColumn)) {
+      return false;
+    }
+
+    if (!self::matchesStudentCurriculumDimension($row, $studentDegreeTrackId, $degreeTrackColumn)) {
+      return false;
+    }
+
+    return true;
+  }
+
+  private static function matchesStudentCurriculumDimension(mixed $row, int $studentValue, ?string $column): bool
+  {
+    if (!$column) {
+      return true;
+    }
+
+    $curriculumValue = (int) ($row->{$column} ?? 0);
+
+    if ($studentValue > 0) {
+      return $curriculumValue === $studentValue;
+    }
+
+    return $curriculumValue <= 0;
   }
 
   private static function normalizeDeliveryType(string $value): string

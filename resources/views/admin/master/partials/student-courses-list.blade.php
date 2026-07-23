@@ -22,10 +22,7 @@ $enrolledProgramCode = $data->programgroup?->programInfo?->code ?? ($data->progr
       Enrolled Courses
       <span class="sp-count ms-2">{{ $studentCourses->count() }}</span>
     </div>
-    <div style="font-size:.8rem;color:#4b5563;margin-top:.25rem;">
-      <i class="fas fa-graduation-cap me-1" style="color:#1a237e;"></i>
-      Enrolled Program: <strong>{{ $enrolledProgramName }}</strong> ({{ $enrolledProgramCode }})
-    </div>
+
   </div>
 </div>
 
@@ -50,7 +47,7 @@ $enrolledProgramCode = $data->programgroup?->programInfo?->code ?? ($data->progr
           <th>RefID</th>
           <th>Code</th>
           <th>Course Title</th>
-          <th>Type</th>
+          <th>Course Type</th>
           <th>Delivery</th>
           <th>Offered By</th>
           <th>Cr.</th>
@@ -90,6 +87,7 @@ $enrolledProgramCode = $data->programgroup?->programInfo?->code ?? ($data->progr
           </td>
           <td style="font-size:.78rem;color:#374151;font-weight:600;white-space:nowrap;">{{ $offeredBySubject }}</td>
           <td>{{ $course->coursemaster?->credits ?? '—' }}</td>
+          <td> </td>
         </tr>
         @endforeach
       </tbody>

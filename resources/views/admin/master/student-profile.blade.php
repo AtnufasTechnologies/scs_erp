@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\StaticController;
+use App\Models\StudentSpecialization;
 use Illuminate\Support\Facades\Auth;
 
 $userId = Auth::user()->id;
@@ -617,13 +618,20 @@ $userRole = StaticController::fetchUserRole($userId);
         @if(!empty($programOfferingSubjectTitle))
         Offered By: {{ $programOfferingSubjectTitle }}
         @endif
+
         @if($data->stdprogramenrolled != null)
         &nbsp;·&nbsp;
         {{$data->stdprogramenrolled->code }} - {{ $data->stdprogramenrolled->name }}
         @endif
-
         @if($data->batchmaster)
         &nbsp;·&nbsp; Batch {{ $data->batchmaster->batch_name }}
+        @endif
+
+        @php
+        $specializationInfo = StudentSpecialization::with('studentspecialization')->where('student_id', $data->id)->first();
+        @endphp
+        @if ($specializationInfo != null)
+        &nbsp;·&nbsp; Specialization - {{ $specializationInfo->studentspecialization != null ? $specializationInfo->studentspecialization->name: ''}}
         @endif
       </p>
       <div>
@@ -636,11 +644,14 @@ $userRole = StaticController::fetchUserRole($userId);
         @if($data->bloodgroup)
         <span class="sp-badge"><i class="fas fa-tint"></i> {{ $data->bloodgroup->title ?? '' }}</span>
         @endif
+        @if($data->stdprogramenrolled->program_type == 2)
         @if(!empty($studentMajorDeliveryType))
         <span class="sp-badge"><i class="fas fa-route"></i> Delivery {{ $studentMajorDeliveryType }}</span>
+
         @endif
         @if(!empty($combo1Title) || !empty($combo2Title))
         <span class="sp-badge"><i class="fas fa-code-branch"></i> Combo A: {{ $combo1Title ?: '—' }} | Combo B: {{ $combo2Title ?: '—' }}</span>
+        @endif
         @endif
         <span class="sp-badge"><i class="fas fa-layer-group"></i> Year {{ $data->current_year ?? '—' }}</span>
       </div>
