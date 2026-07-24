@@ -7,7 +7,7 @@
   <main class="page-content">
     <style>
       .sp-hero {
-        background: linear-gradient(135deg, #6a11cb 30%, #2575fc 100%);
+        background: linear-gradient(135deg, #7411dd 30%, #0e4ab1 100%);
         padding: 2.5rem 2rem 4rem;
         color: #fff;
         position: relative
@@ -252,6 +252,81 @@
         font-size: .72rem;
         font-weight: 700;
         flex-shrink: 0
+      }
+
+      .sp-grid-wrap {
+        overflow-x: auto;
+        border: 1px solid #e8eaf6;
+        border-radius: 10px;
+        background: #fff
+      }
+
+      .sp-grid-table {
+        width: 100%;
+        min-width: 840px;
+        border-collapse: collapse
+      }
+
+      .sp-grid-table th,
+      .sp-grid-table td {
+        border: 1px solid #eef1ff;
+        vertical-align: top;
+        padding: .5rem
+      }
+
+      .sp-grid-table thead th {
+        background: #f6f8ff;
+        color: #27317a;
+        font-size: .74rem;
+        text-transform: uppercase;
+        letter-spacing: .04em;
+        white-space: nowrap
+      }
+
+      .sp-grid-table .day-col {
+        min-width: 105px;
+        font-weight: 700;
+        color: #27317a;
+        background: #f9faff
+      }
+
+      .sp-cell-empty {
+        color: #b0b7c3;
+        font-size: .78rem;
+        text-align: center;
+        padding: .6rem 0
+      }
+
+      .sp-slot-card {
+        border: 1px solid #dfe6ff;
+        border-radius: 8px;
+        padding: .45rem .5rem;
+        background: #fafbff;
+        margin-bottom: .4rem
+      }
+
+      .sp-slot-card:last-child {
+        margin-bottom: 0
+      }
+
+      .sp-slot-code {
+        font-size: .75rem;
+        font-weight: 700;
+        color: #1a237e;
+        line-height: 1.2
+      }
+
+      .sp-slot-title {
+        font-size: .72rem;
+        color: #4b5563;
+        line-height: 1.25;
+        margin-top: .15rem
+      }
+
+      .sp-slot-meta {
+        font-size: .69rem;
+        color: #5f6b86;
+        margin-top: .25rem
       }
 
       .sp-att-bar {
@@ -897,36 +972,112 @@
           <div class="sp-card-header">
             <div class="sp-icon" style="background:#fce4ec;color:#c62828;"><i class="fas fa-calendar-alt"></i></div>
             <h4>Weekly Timetable</h4>
-            <span class="sp-count">{{ $timetableByDay->sum(fn($s) => $s->count()) }} slots</span>
+            @php
+            $dayOrder = ['Monday'=>1,'Tuesday'=>2,'Wednesday'=>3,'Thursday'=>4,'Friday'=>5,'Saturday'=>6,'Sunday'=>7];
+            $allSlots = collect($timetableByDay ?? collect())->flatten(1)->values();
+            $orderedDays = collect($timetableByDay ?? collect())->keys()->sortBy(fn($d) => $dayOrder[$d] ?? 99)->values();
+            $hours = $allSlots->pluck('hour')->filter()->unique()->sortBy(function($hour) {
+            $hourText = (string) $hour;
+            if (preg_match('/\d+/', $hourText, $m)) {
+            return (int) $m[0];
+            }
+            return 999;
+            })->values();
+
+            $gridMap = [];
+            foreach ($allSlots as $slot) {
+            $day = (string) ($slot['weekday'] ?? 'Unknown');
+            $hour = (string) ($slot['hour'] ?? '');
+            if ($hour === '') {
+            continue;
+            }
+            if (!isset($gridMap[$day])) {
+            $gridMap[$day] = [];
+            }
+            if (!isset($gridMap[$day][$hour])) {
+            $gridMap[$day][$hour] = [];
+            }
+            $gridMap[$day][$hour][] = $slot;
+            }
+            @endphp
+            <span class="sp-count">{{ $allSlots->count() }} slots</span>
           </div>
-          @if($timetableByDay->isEmpty())
-          <div class="sp-empty"><i class="fas fa-calendar-times"></i>No timetable found for this batch.</div>
+
+          @if($allSlots->isEmpty())
+          <div class="sp-empty"><i class="fas fa-calendar-times"></i>No timetable found for this student.</div>
           @else
-          @php $dayOrder=['Monday'=>1,'Tuesday'=>2,'Wednesday'=>3,'Thursday'=>4,'Friday'=>5,'Saturday'=>6,'Sunday'=>7]; $sorted=$timetableByDay->sortBy(fn($s,$d)=>$dayOrder[$d]??99); @endphp
-          @foreach($sorted as $day => $slots)
-          <div class="sp-day-label"><i class="fas fa-sun" style="font-size:.75rem;"></i> {{ $day }}</div>
-          <div style="display:flex;flex-wrap:wrap;margin-bottom:.5rem;">
-            @foreach($slots as $slot)
-            <div class="sp-slot-badge">
-              <span class="hour-num">{{ $slot['hour'] ?? '?' }}</span>
-              <div>
-                <div style="font-weight:600;line-height:1.2;">{{ $slot['course_code'] ?? '—' }}</div>
-                <div style="font-size:.72rem;color:#6c757d;line-height:1.2;">{{ Str::limit($slot['course_title'] ?? '—', 28) }}</div>
-                <div style="font-size:.7rem;color:#3949ab;">
-                  <i class="fas fa-user-tie" style="font-size:.65rem;"></i>
-                  {{ $slot['faculty'] ?? '—' }}
-                  @if(!empty($slot['room'])) &nbsp;·&nbsp;<i class="fas fa-door-open" style="font-size:.65rem;"></i> {{ $slot['room'] }} @endif
-                </div>
-              </div>
-            </div>
-            @endforeach
+          <div class="sp-grid-wrap">
+            <table class="sp-grid-table">
+              <thead>
+                <tr>
+                  <th class="day-col">Day / Hour</th>
+                  @foreach($hours as $hour)
+                  <th>{{ $hour }}</th>
+                  @endforeach
+                </tr>
+              </thead>
+              <tbody>
+                @foreach($orderedDays as $day)
+                <tr>
+                  <td class="day-col">{{ $day }}</td>
+                  @foreach($hours as $hour)
+                  @php $cellSlots = $gridMap[$day][$hour] ?? []; @endphp
+                  <td>
+                    @if(empty($cellSlots))
+                    <div class="sp-cell-empty">-</div>
+                    @else
+                    @foreach($cellSlots as $slot)
+                    <div class="sp-slot-card">
+                      <div class="sp-slot-code">{{ $slot['course_code'] ?? '—' }}</div>
+                      <div class="sp-slot-title">{{ $slot['course_title'] ?? 'Untitled Course' }}</div>
+                      <div class="sp-slot-meta">
+                        <i class="fas fa-user-tie"></i>
+                        {{ $slot['faculty'] ?? 'TBA' }}
+                      </div>
+                      <div class="sp-slot-meta">
+                        <i class="fas fa-sitemap"></i>
+                        {{ $slot['delivery_type'] ?? 'COMMON' }}
+                        &nbsp;|&nbsp;
+                        Group {{ !is_null($slot['group'] ?? null) ? $slot['group'] : '—' }}
+                      </div>
+                      <div class="sp-slot-meta">
+                        <i class="fas fa-door-open"></i>
+                        {{ $slot['room'] ?? 'TBA' }}
+                        &nbsp;|&nbsp;
+                        Shift {{ $slot['shift'] ?? '—' }}
+                      </div>
+                    </div>
+                    @endforeach
+                    @endif
+                  </td>
+                  @endforeach
+                </tr>
+                @endforeach
+              </tbody>
+            </table>
           </div>
-          @endforeach
           @endif
         </div>
       </div>
       {{-- ── COURSES ── --}}
       <div id="tab-courses" class="std-tab-content">
+        @php
+        $courseDeliveryMap = $courseDeliveryMap ?? [];
+        $courseOfferingSubjectMap = $courseOfferingSubjectMap ?? [];
+        $studentMajorDeliveryType = $studentMajorDeliveryType ?? 'COMMON';
+        $programOfferingSubjectTitle = $programOfferingSubjectTitle ?? '—';
+        $ctColors = [
+        'CC' => ['bg'=>'#e8eaf6','color'=>'#1a237e'],
+        'GE' => ['bg'=>'#e8f5e9','color'=>'#1b5e20'],
+        'SEC' => ['bg'=>'#fff3e0','color'=>'#e65100'],
+        'DSE' => ['bg'=>'#fce4ec','color'=>'#880e4f'],
+        'AECC' => ['bg'=>'#e3f2fd','color'=>'#0d47a1'],
+        'MDC' => ['bg'=>'#f3e5f5','color'=>'#4a148c'],
+        'MAJ' => ['bg'=>'#e0f7fa','color'=>'#006064'],
+        'MIN' => ['bg'=>'#fff8e1','color'=>'#f57f17'],
+        ];
+        $defaultCt = ['bg'=>'#f5f5f5','color'=>'#555'];
+        @endphp
         <div class="sp-card">
           <div class="sp-card-header">
             <div class="sp-icon" style="background:#e8eaf6;color:#1a237e;"><i class="fas fa-book-open"></i></div>
@@ -937,57 +1088,56 @@
           <div class="sp-empty"><i class="fas fa-book"></i>No courses found.</div>
           @else
           @foreach($coursesBySemester as $semTitle => $courses)
-          @php
-          $activeCount = $courses->where('is_active', 1)->count();
-          @endphp
-          <div style="display:flex;align-items:center;gap:.5rem;margin:.9rem 0 .5rem;">
-            <div style="background:#e8eaf6;color:#1a237e;border-radius:6px;padding:.2rem .65rem;font-size:.78rem;font-weight:700;">
-              <i class="fas fa-layer-group" style="font-size:.72rem;"></i> {{ $semTitle }}
-            </div>
-            <span class="sp-count">{{ $courses->count() }} course{{ $courses->count()!=1?'s':'' }}</span>
-            @if($activeCount > 0)
-            <span style="background:#e8f5e9;color:#2e7d32;border-radius:50px;padding:.1rem .5rem;font-size:.72rem;font-weight:600;">{{ $activeCount }} Active</span>
-            @endif
+          <div style="display:flex;align-items:center;gap:.5rem;margin:.9rem 0 .5rem;padding-bottom:.6rem;border-bottom:1px solid #f0f0f0;">
+            <span style="background:#e8eaf6;color:#1a237e;border-radius:6px;padding:.25rem .8rem;font-weight:700;font-size:.82rem;">
+              <i class="fas fa-layer-group me-1"></i>{{ $semTitle }}
+            </span>
+            <span class="sp-count">{{ $courses->count() }} courses</span>
           </div>
-          <table class="sp-table mb-3">
+          <table class="sp-table mb-3" style="min-width:600px;">
             <thead>
               <tr>
                 <th>#</th>
                 <th>Code</th>
                 <th>Course Title</th>
-                <th>Type</th>
-                <th>Credits</th>
-                <th>Int / Ext / Total</th>
-                <th>Status</th>
+                <th>Course Type</th>
+                <th>Delivery</th>
+                <th>Offered By</th>
+                <th>Cr.</th>
               </tr>
             </thead>
             <tbody>
               @foreach($courses as $i => $course)
               @php
-              $ct = $course->coursemaster?->coursetypemaster;
-              $ctColors = ['CC'=>['#e3f2fd','#1565c0'],'GE'=>['#e8f5e9','#2e7d32'],'SEC'=>['#fff3e0','#e65100'],'DSE'=>['#f3e5f5','#6a1b9a']];
-              $ctKey = $ct?->title ?? '';
-              $ctBg = $ctColors[$ctKey][0] ?? '#f0f0f0';
-              $ctFg = $ctColors[$ctKey][1] ?? '#555';
+              $typeTitle = $course->coursemaster?->coursetypemaster?->title ?? '';
+              $ctKey = preg_replace('/\s.*/', '', $typeTitle);
+              $ct = $ctColors[$ctKey] ?? $defaultCt;
+              $ctBg = $ct['bg'];
+              $ctFg = $ct['color'];
+              $deliveryKey = (string) ($course->semester ?? $course->coursemaster?->semester_id ?? '') . '_' . (string) ($course->course_id ?? '');
+              $deliveryType = $courseDeliveryMap[$deliveryKey] ?? $studentMajorDeliveryType;
+              $offeredBySubject = $courseOfferingSubjectMap[$deliveryKey] ?? $programOfferingSubjectTitle;
               @endphp
               <tr>
                 <td style="color:#adb5bd;">{{ $i+1 }}</td>
                 <td><span style="background:#e8eaf6;color:#3949ab;border-radius:4px;padding:.1rem .45rem;font-size:.78rem;font-weight:600;">{{ $course->coursemaster?->course_code ?? '—' }}</span></td>
-                <td>{{ $course->coursemaster?->course_title ?? '—' }}</td>
+                <td style="font-weight:500;">{{ $course->coursemaster?->course_title ?? '—' }}</td>
                 <td>
-                  @if($ct)
-                  <span style="background:{{ $ctBg }};color:{{ $ctFg }};border-radius:4px;padding:.1rem .45rem;font-size:.75rem;font-weight:700;" title="{{ $ct->description }}">{{ $ct->title }}</span>
+                  @if($typeTitle)
+                  <span style="background:{{ $ctBg }};color:{{ $ctFg }};border-radius:4px;padding:.1rem .5rem;font-size:.76rem;font-weight:700;white-space:nowrap;">
+                    {{ $typeTitle }}
+                  </span>
                   @else
-                  <span style="color:#adb5bd;">—</span>
+                  —
                   @endif
                 </td>
-                <td style="font-weight:600;">{{ $course->coursemaster?->credits ?? '—' }}</td>
-                <td style="font-size:.8rem;color:#555;">
-                  {{ $course->coursemaster?->internal ?? '—' }} /
-                  {{ $course->coursemaster?->external ?? '—' }} /
-                  {{ $course->coursemaster?->total ?? '—' }}
+                <td>
+                  <span style="background:#e3f2fd;color:#1565c0;border-radius:4px;padding:.1rem .5rem;font-size:.74rem;font-weight:700;white-space:nowrap;">
+                    {{ $deliveryType }}
+                  </span>
                 </td>
-                <td>@if($course->is_active==1)<span class="pill-active">Active</span>@else<span class="pill-inactive">Inactive</span>@endif</td>
+                <td style="font-size:.78rem;color:#374151;font-weight:600;white-space:nowrap;">{{ $offeredBySubject }}</td>
+                <td>{{ $course->coursemaster?->credits ?? '—' }}</td>
               </tr>
               @endforeach
             </tbody>

@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\InterMark;
 use App\Models\ProgramWiseSemesterCourse;
+use App\Models\Semester;
 use App\Models\StudentAttendance;
 use App\Models\StudentCourseInfo;
 use App\Models\StudentMaster;
@@ -117,12 +118,22 @@ class StudentDashboardController extends Controller
       'coursemaster.coursetypemaster:id,title,description',
     ])
       ->where('student_id', $studentId)
-      ->get();
+      ->orderByDesc('id')
+      ->get()
+      ->unique(fn($c) => ($c->semester ?? $c->coursemaster?->semester_id ?? 'na') . '_' . $c->course_id)
+      ->values();
 
-    // Group courses by semester for semester-wise display
+    $semesterMap = Semester::pluck('title', 'id')->toArray();
+
+    // Group by semester stored on enrollment row (same as student-profile/admin logic)
     $coursesBySemester = $studentCourses
-      ->sortBy(fn($c) => $c->coursemaster?->semester_id ?? 999)
-      ->groupBy(fn($c) => $c->coursemaster?->semestermaster?->title ?? ('Sem ' . ($c->semester ?? '?')));
+      ->sortBy(fn($c) => $c->semester ?? $c->coursemaster?->semester_id ?? 999)
+      ->groupBy(function ($c) use ($semesterMap) {
+        $semId = $c->semester ?? $c->coursemaster?->semester_id;
+        return $semesterMap[$semId] ?? ('Semester ' . ($semId ?? '?'));
+      });
+
+    $deliveryContext = $this->resolveStudentDeliveryContext($student, $studentCourses);
 
     $timetable = StudentTimetableService::generate((int) $studentId);
 
@@ -265,6 +276,10 @@ class StudentDashboardController extends Controller
       'data'                              => $student,
       'studentCourses'                    => $studentCourses,
       'coursesBySemester'                 => $coursesBySemester,
+      'courseDeliveryMap'                 => $deliveryContext['courseDeliveryMap'],
+      'courseOfferingSubjectMap'          => $deliveryContext['courseOfferingSubjectMap'],
+      'studentMajorDeliveryType'          => $deliveryContext['studentMajorDeliveryType'],
+      'programOfferingSubjectTitle'       => $deliveryContext['programOfferingSubjectTitle'],
       'timetableByDay'                    => $timetableByDay,
       'attendanceSummary'                 => $attendanceSummary,
       'internalMarks'                     => $internalMarks,
@@ -286,7 +301,11 @@ class StudentDashboardController extends Controller
   {
     $programCombination = null;
     if ($student && !empty($student->new_program_id) && !empty($student->batch)) {
-      $programCombination = SubjectHasStudentProgam::query()
+      $programCombination = SubjectHasStudentProgam::with([
+        'subjectmaster:id,title,code',
+        'combomap.combo1:id,title,code',
+        'combomap.combo2:id,title,code',
+      ])
         ->where('student_program_id', (int) $student->new_program_id)
         ->where('batch_id', (int) $student->batch)
         ->orderBy('id')
@@ -319,10 +338,19 @@ class StudentDashboardController extends Controller
     ])->filter()->unique()->values();
 
     $courseDeliveryMap = [];
+    $courseOfferingSubjectMap = [];
+    $programType = strtoupper(trim((string) ($programCombination?->program_type ?? '')));
     if ($programCombination && $studentCourses) {
       $courseIds = collect($studentCourses)
         ->pluck('course_id')
         ->map(fn($id) => (int) $id)
+        ->filter(fn($id) => $id > 0)
+        ->unique()
+        ->values()
+        ->all();
+
+      $semesterIds = collect($studentCourses)
+        ->map(fn($course) => (int) ($course->semester ?? $course->coursemaster?->semester_id ?? 0))
         ->filter(fn($id) => $id > 0)
         ->unique()
         ->values()
@@ -361,6 +389,42 @@ class StudentDashboardController extends Controller
           }
         }
       }
+
+      if (!empty($courseIds) && !empty($semesterIds)) {
+        $syllabusQuery = SyllabusManager::with('subject:id,title,code')
+          ->where('batch_id', (int) $student->batch)
+          ->whereIn('co_id', $courseIds)
+          ->whereIn('semester_id', $semesterIds);
+
+        if (Schema::hasColumn('syllabus_managers', 'status')) {
+          $syllabusQuery->where('status', 'published');
+        }
+
+        if ($programType !== '' && Schema::hasColumn('syllabus_managers', 'program_type')) {
+          $syllabusQuery->whereRaw("UPPER(TRIM(COALESCE(program_type, ''))) = ?", [$programType]);
+        }
+
+        $syllabusRows = $syllabusQuery->get(['semester_id', 'co_id', 'subject_id']);
+        foreach ($syllabusRows as $row) {
+          $key = (string) ((int) $row->semester_id) . '_' . (string) ((int) $row->co_id);
+          $subjectTitle = trim((string) ($row->subject?->title ?? ''));
+          if ($subjectTitle === '') {
+            continue;
+          }
+
+          if (!isset($courseOfferingSubjectMap[$key])) {
+            $courseOfferingSubjectMap[$key] = [];
+          }
+
+          if (!in_array($subjectTitle, $courseOfferingSubjectMap[$key], true)) {
+            $courseOfferingSubjectMap[$key][] = $subjectTitle;
+          }
+        }
+
+        foreach ($courseOfferingSubjectMap as $key => $subjects) {
+          $courseOfferingSubjectMap[$key] = implode(' / ', $subjects);
+        }
+      }
     }
 
     return [
@@ -368,6 +432,8 @@ class StudentDashboardController extends Controller
       'studentMajorDeliveryType' => $studentMajorDeliveryType,
       'studentApplicableDeliveryTypes' => $studentApplicableDeliveryTypes,
       'courseDeliveryMap' => $courseDeliveryMap,
+      'courseOfferingSubjectMap' => $courseOfferingSubjectMap,
+      'programOfferingSubjectTitle' => (string) ($programCombination?->subjectmaster?->title ?? ''),
     ];
   }
 
