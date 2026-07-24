@@ -1,9 +1,3 @@
-<?php
-
-use App\Models\HourMaster;
-
-$hourMaster = HourMaster::all();
-?>
 @include('includes.header')
 
 <div class="wrapper">
@@ -54,16 +48,16 @@ $hourMaster = HourMaster::all();
       </div>
       @else
       <div class="row">
-        <div class="col-lg-8 col-md-10 mx-auto">
+        <div class="col-lg-6 col-md-10 mx-auto">
           <div class="card shadow-sm">
-            <div class="card-body p-4">
+            <div class="card-header fw-bold"> <i class="fal fa-qrcode"></i> QR BASED (AUTO SYSTEM )</div>
+            <div class="card-body p-4 js-attendance-config-card">
               <!-- Subject Selection Dropdown -->
-
               <div class="mb-4">
-                <label for="subjectSelect" class="form-label fw-bold">
+                <label for="subjectSelectQr" class="form-label fw-bold">
                   <i class="fa fa-book me-2"></i>Select Subject
                 </label>
-                <select class="form-select form-select-lg" id="subjectSelect">
+                <select class="form-select js-subject-select" id="subjectSelectQr">
                   <option value="" selected disabled>Choose a subject...</option>
                   @foreach($syllabusAssignments as $item)
                   <option value="{{ $item->id }}"
@@ -86,30 +80,89 @@ $hourMaster = HourMaster::all();
               <div class="row">
                 <div class="col-lg-3">
                   <div class="mb-4">
-                    <label for="hourSelect" class="form-label fw-bold">Hour</label>
-                    <select id="hourSelect" class="form-select">
-                      <option value="" selected disabled>Choose hour...</option>
-                      @foreach(App\Models\HourMaster::orderBy('id')->get() as $hour)
-                      <option value="{{ $hour->id }}">{{ $hour->title ?? $hour->hour_name ?? 'Hour '.$hour->id }}</option>
-                      @endforeach
+                    <label for="hourSelectQr" class="form-label fw-bold">Hour</label>
+                    <select id="hourSelectQr" class="form-select js-hour-select">
+                      <option value="" selected disabled>Select subject first...</option>
                     </select>
                   </div>
                 </div>
                 <div class="col-lg-3">
-                  <label for="attendanceType" class="form-label fw-bold">Attendance Type</label>
-                  <select id="attendance_type" class="form-select" name="attendance_type">
+                  <label for="attendanceTypeQr" class="form-label fw-bold">Class Type</label>
+                  <select id="attendanceTypeQr" class="form-select js-attendance-type" name="attendance_type">
                     <option value="regular" selected>Regular</option>
                     <option value="remedial">Remedial</option>
                   </select>
                 </div>
                 <div class="col-lg-6">
-                  <label for="attendanceDate" class="form-label fw-bold">Date</label>
-                  <input type="date" id="attendanceDate" class="form-control" max="{{ date('Y-m-d') }}" value="{{ date('Y-m-d') }}">
+                  <label for="attendanceDateQr" class="form-label fw-bold">Date</label>
+                  <input type="date" id="attendanceDateQr" class="form-control js-attendance-date" max="{{ date('Y-m-d') }}" value="{{ date('Y-m-d') }}">
                 </div>
               </div>
 
               <div class="mb-4 text-center">
-                <button type="button" class="btn btn-success btn-lg" id="btnLoadStudents" disabled>
+                <button type="button" class="btn btn-success btn-lg mt-3 js-load-students" id="btnLoadStudentsQr" disabled>
+                  Generate QR <i class="fal fa-qrcode"></i>
+                </button>
+              </div>
+
+            </div>
+          </div>
+        </div>
+
+        <div class="col-lg-6 col-md-10 mx-auto">
+          <div class="card shadow-sm">
+            <div class="card-header fw-bold"><i class="far fa-clipboard-list-check"></i> MANUAL RECORDER</div>
+            <div class="card-body p-4 js-attendance-config-card">
+              <!-- Subject Selection Dropdown -->
+
+              <div class="mb-4">
+                <label for="subjectSelectManual" class="form-label fw-bold">
+                  <i class="fa fa-book me-2"></i>Select Subject
+                </label>
+                <select class="form-select js-subject-select" id="subjectSelectManual">
+                  <option value="" selected disabled>Choose a subject...</option>
+                  @foreach($syllabusAssignments as $item)
+                  <option value="{{ $item->id }}"
+                    data-semester-id="{{ $item->syllabus->semester_id ?? '' }}"
+                    data-batch-id="{{ $item->syllabus->batch_id ?? '' }}"
+                    data-batch-name="{{ $item->syllabus->batchmaster->batch_name ?? '' }}"
+                    data-syllabus-id="{{ $item->syllabus->id ?? '' }}"
+                    data-shift="{{ strtolower($item->shift ?? 'common') }}">
+                    {{ $item->syllabus->courseLink->courseMaster->course_title ?? 'N/A' }}
+                    ({{ $item->syllabus->courseLink->courseMaster->course_code ?? 'N/A' }})
+                    - {{ $item->syllabus->semestermaster->title ?? 'N/A' }}
+                    | Batch: {{ $item->syllabus->batchmaster->batch_name ?? 'N/A' }}
+                    | Shift: {{ ucfirst($item->shift ?? 'common') }}
+                  </option>
+                  @endforeach
+                </select>
+              </div>
+
+
+              <div class="row">
+                <div class="col-lg-3">
+                  <div class="mb-4">
+                    <label for="hourSelectManual" class="form-label fw-bold">Hour</label>
+                    <select id="hourSelectManual" class="form-select js-hour-select">
+                      <option value="" selected disabled>Select subject first...</option>
+                    </select>
+                  </div>
+                </div>
+                <div class="col-lg-3">
+                  <label for="attendanceTypeManual" class="form-label fw-bold">Class Type</label>
+                  <select id="attendanceTypeManual" class="form-select js-attendance-type" name="attendance_type">
+                    <option value="regular" selected>Regular</option>
+                    <option value="remedial">Remedial</option>
+                  </select>
+                </div>
+                <div class="col-lg-6">
+                  <label for="attendanceDateManual" class="form-label fw-bold">Date</label>
+                  <input type="date" id="attendanceDateManual" class="form-control js-attendance-date" max="{{ date('Y-m-d') }}" value="{{ date('Y-m-d') }}">
+                </div>
+              </div>
+
+              <div class="mb-4 text-center">
+                <button type="button" class="btn btn-success btn-lg mt-3 js-load-students" id="btnLoadStudentsManual" disabled>
                   <i class="fa fa-users me-2"></i>Load Students
                 </button>
               </div>
@@ -125,50 +178,105 @@ $hourMaster = HourMaster::all();
 
 <script>
   document.addEventListener('DOMContentLoaded', function() {
-    const subjectSelect = document.getElementById('subjectSelect');
-    const hourSelect = document.getElementById('hourSelect');
-    const attendanceDate = document.getElementById('attendanceDate');
-    const attendanceTypeSelect = document.getElementById('attendance_type');
-    const btnLoadStudents = document.getElementById('btnLoadStudents');
+    const hoursEndpoint = `{{ route('faculty.attendance.hours') }}`;
 
-    function checkEnableButton() {
-      if (subjectSelect.value && hourSelect.value && attendanceDate.value) {
-        btnLoadStudents.disabled = false;
-      } else {
-        btnLoadStudents.disabled = true;
+    function wireAttendanceCard(card) {
+      const subjectSelect = card.querySelector('.js-subject-select');
+      const hourSelect = card.querySelector('.js-hour-select');
+      const attendanceDate = card.querySelector('.js-attendance-date');
+      const attendanceTypeSelect = card.querySelector('.js-attendance-type');
+      const btnLoadStudents = card.querySelector('.js-load-students');
+
+      if (!subjectSelect || !hourSelect || !attendanceDate || !attendanceTypeSelect || !btnLoadStudents) {
+        return;
       }
+
+      function checkEnableButton() {
+        btnLoadStudents.disabled = !(subjectSelect.value && hourSelect.value && attendanceDate.value);
+      }
+
+      async function loadHoursForSelectedSubject() {
+        const selectedOption = subjectSelect.options[subjectSelect.selectedIndex];
+        const shift = selectedOption?.dataset?.shift || '';
+        const recId = subjectSelect.value || '';
+
+        hourSelect.innerHTML = '<option value="" selected disabled>Loading hours...</option>';
+        hourSelect.disabled = true;
+        checkEnableButton();
+
+        if (!shift) {
+          hourSelect.innerHTML = '<option value="" selected disabled>No shift mapped for subject</option>';
+          return;
+        }
+
+        try {
+          const response = await fetch(`${hoursEndpoint}?rec_id=${encodeURIComponent(recId)}&shift=${encodeURIComponent(shift)}`, {
+            headers: {
+              'X-Requested-With': 'XMLHttpRequest'
+            }
+          });
+
+          const result = await response.json();
+          if (!response.ok || !result.success) {
+            throw new Error(result.message || 'Unable to fetch hours.');
+          }
+
+          const hours = Array.isArray(result.data) ? result.data : [];
+          if (hours.length === 0) {
+            hourSelect.innerHTML = '<option value="" selected disabled>No teaching hours for selected shift</option>';
+            return;
+          }
+
+          hourSelect.innerHTML = '<option value="" selected disabled>Choose hour...</option>';
+          hours.forEach((hour) => {
+            const option = document.createElement('option');
+            option.value = hour.id;
+            option.textContent = hour.label;
+            hourSelect.appendChild(option);
+          });
+
+          hourSelect.disabled = false;
+        } catch (error) {
+          console.error('Failed to load hours by shift', error);
+          hourSelect.innerHTML = '<option value="" selected disabled>Failed to load hours</option>';
+        }
+      }
+
+      subjectSelect.addEventListener('change', function() {
+        loadHoursForSelectedSubject();
+        checkEnableButton();
+      });
+
+      hourSelect.addEventListener('change', checkEnableButton);
+      attendanceDate.addEventListener('change', checkEnableButton);
+
+      attendanceDate.addEventListener('input', function() {
+        const selectedDate = new Date(this.value);
+        if (selectedDate.getDay() === 0) {
+          alert('⚠️ Sunday is a holiday. Please select a weekday for attendance.');
+          this.value = '';
+          checkEnableButton();
+        }
+      });
+
+      btnLoadStudents.addEventListener('click', function() {
+        const selectedOption = subjectSelect.options[subjectSelect.selectedIndex];
+        const recId = subjectSelect.value;
+        const hourId = hourSelect.value;
+        const date = attendanceDate.value;
+        const semesterId = selectedOption.dataset.semesterId;
+        const batchId = selectedOption.dataset.batchId;
+        const syllabusId = selectedOption.dataset.syllabusId;
+        const attendanceType = attendanceTypeSelect.value || 'regular';
+        const url = `{{ url('erp/faculty/attendance/create') }}?rec_id=${recId}&syllabus_id=${syllabusId}&hour_id=${hourId}&attendance_date=${date}&semester_id=${semesterId}&batch_id=${batchId}&attendance_type=${encodeURIComponent(attendanceType)}`;
+        window.location.href = url;
+      });
+
+      checkEnableButton();
     }
 
-    subjectSelect.addEventListener('change', checkEnableButton);
-    hourSelect.addEventListener('change', checkEnableButton);
-    attendanceDate.addEventListener('change', checkEnableButton);
-
-    btnLoadStudents.addEventListener('click', function() {
-      const selectedOption = subjectSelect.options[subjectSelect.selectedIndex];
-      const recId = subjectSelect.value;
-      const hourId = hourSelect.value;
-      const date = attendanceDate.value;
-      const semesterId = selectedOption.dataset.semesterId;
-      const batchId = selectedOption.dataset.batchId;
-      const syllabusId = selectedOption.dataset.syllabusId;
-      const attendanceType = attendanceTypeSelect ? attendanceTypeSelect.value : 'regular';
-      // Redirect or fetch students as needed
-      // Example: redirect to attendance creation page with params
-      const url = `{{ url('erp/faculty/attendance/create') }}?rec_id=${recId}&syllabus_id=${syllabusId}&hour_id=${hourId}&attendance_date=${date}&semester_id=${semesterId}&batch_id=${batchId}&attendance_type=${encodeURIComponent(attendanceType)}`;
-      window.location.href = url;
-    });
-  });
-  document.addEventListener('DOMContentLoaded', function() {
-    // Prevent Sunday selection in attendance date
-    const dateInput = document.getElementById('attendanceDate');
-
-    dateInput.addEventListener('input', function() {
-      const selectedDate = new Date(this.value);
-      // getDay() returns 0 for Sunday
-      if (selectedDate.getDay() === 0) {
-        alert('⚠️ Sunday is a holiday. Please select a weekday for attendance.');
-        this.value = ''; // Clear the invalid date
-      }
+    document.querySelectorAll('.js-attendance-config-card').forEach((card) => {
+      wireAttendanceCard(card);
     });
   });
 </script>

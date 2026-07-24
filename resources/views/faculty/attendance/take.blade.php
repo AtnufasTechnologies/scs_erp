@@ -1,9 +1,3 @@
-<?php
-
-use App\Models\HourMaster;
-
-$hourmaster = HourMaster::all();
-?>
 @include('includes.header')
 
 <div class="wrapper">
@@ -43,17 +37,8 @@ $hourmaster = HourMaster::all();
     <div class="container-fluid py-4">
       <div class="row mb-4">
         <div class="col-12">
-          <h2 class="fw-bold">Take Attendance</h2>
-          <p class="text-muted mb-1">
-            <strong> Code:</strong> {{ $syllabusAssignment->courseLink->courseMaster->course_code ?? 'N/A' }}
-            | <strong>{{ $syllabusAssignment->semestermaster->title ?? 'N/A' }} - ({{$syllabusAssignment->batchmaster->batch_name ?? 'N/A' }})</strong>
-            | <strong>Shift:</strong> {{ $routineShift ?? 'Common' }}
-          </p>
-          <p class="text-muted">
-            <strong>Course:</strong> {{ $syllabusAssignment->courseLink->courseMaster->course_title ?? 'N/A' }}
+          <h2 class="fw-bold">Manual Attendance Recorder</h2>
 
-
-          </p>
         </div>
       </div>
 
@@ -74,11 +59,13 @@ $hourmaster = HourMaster::all();
               </div>
 
               <div class="col-md-4">
-                <label for="hour_id" class="form-label">Selected Hour</label>
+                <label for="hour_id" class="form-label">Selected Teaching Hour</label>
                 <select name="hour_id" id="hour_id" class="form-select">
-                  @foreach ($hourmaster as $hour)
-                  <option value="{{ $hour->id }}" {{ $hour->id == $hourId ? 'selected' : '' }}>{{ $hour->title }}</option>
-                  @endforeach
+                  @forelse (($availableHours ?? collect()) as $hour)
+                  <option value="{{ $hour->id }}" {{ (int) $hour->id === (int) $hourId ? 'selected' : '' }}>{{ $hour->label }}</option>
+                  @empty
+                  <option value="" selected disabled>No teaching hours for this shift</option>
+                  @endforelse
                 </select>
               </div>
 
@@ -91,6 +78,14 @@ $hourmaster = HourMaster::all();
               <div>
                 <strong>Quick Marking:</strong> All students are marked <strong class="text-success">PRESENT</strong> by default.
                 Only check the box for students who are <strong class="text-danger">ABSENT</strong>.
+                <p class="text-muted mb-1">
+                  <strong> Code:</strong> {{ $syllabusAssignment->courseLink->courseMaster->course_code ?? 'N/A' }}
+                  | <strong>{{ $syllabusAssignment->semestermaster->title ?? 'N/A' }} - ({{$syllabusAssignment->batchmaster->batch_name ?? 'N/A' }})</strong>
+                  | <strong>Shift:</strong> {{ $routineShift ?? 'Common' }}
+                </p>
+                <p class="text-muted">
+                  <strong>Course:</strong> {{ $syllabusAssignment->courseLink->courseMaster->course_title ?? 'N/A' }}
+                </p>
               </div>
             </div>
 
@@ -123,6 +118,26 @@ $hourmaster = HourMaster::all();
                 </span>
               </div>
             </div>
+
+            <div class="row mt-3">
+              <div class="col-md-8">
+                <div class="alert alert-light border">
+                  <strong>Summary:</strong>
+                  <span class="ms-2">Total: <strong id="totalCount">{{ $students->count() }}</strong></span>
+                  <span class="ms-3 text-success">Present: <strong id="presentCount">{{ $students->count() }}</strong></span>
+                  <span class="ms-3 text-danger">Absent: <strong id="absentCount">0</strong></span>
+                </div>
+
+              </div>
+              <div class="col-lg-4 ">
+                <button type="submit" class="btn-lg btn-success" id="submitBtn">
+                  <span id="submitBtnText"><i class="fa fa-save me-1"></i>Save Attendance</span>
+                  <span id="loader" class="spinner-border spinner-border-sm d-none" role="status" aria-hidden="true"></span>
+                </button>
+              </div>
+
+            </div>
+
 
             <div class="table-responsive">
               <table class="table table-hover">
@@ -166,26 +181,7 @@ $hourmaster = HourMaster::all();
               </table>
             </div>
 
-            <div class="row mt-3">
-              <div class="col-md-12">
-                <div class="alert alert-light border">
-                  <strong>Summary:</strong>
-                  <span class="ms-2">Total: <strong id="totalCount">{{ $students->count() }}</strong></span>
-                  <span class="ms-3 text-success">Present: <strong id="presentCount">{{ $students->count() }}</strong></span>
-                  <span class="ms-3 text-danger">Absent: <strong id="absentCount">0</strong></span>
-                </div>
-              </div>
-            </div>
 
-            <div class="d-flex justify-content-between mt-4">
-              <a href="{{ route('faculty.attendance.index') }}" class="btn btn-secondary">
-                <i class="bi bi-arrow-left me-1"></i>Back
-              </a>
-              <button type="submit" class="btn btn-primary" id="submitBtn">
-                <span id="submitBtnText"><i class="bi bi-save me-1"></i>Save Attendance</span>
-                <span id="loader" class="spinner-border spinner-border-sm d-none" role="status" aria-hidden="true"></span>
-              </button>
-            </div>
             @endif
           </form>
         </div>

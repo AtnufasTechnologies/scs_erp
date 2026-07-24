@@ -70,7 +70,7 @@
             </select>
           </div>
 
-          <div class="col-lg-4">
+          <div class="col-lg-3">
             <label class="form-label fw-semibold">Delivery Type <span class="text-danger">*</span></label>
             <select name="delivery_type" class="form-control" required>
               <option value="">--Select course first--</option>
@@ -78,7 +78,7 @@
             <small class="text-muted d-block mt-1" id="deliveryTypeHelpText">Delivery type is picked from curriculum mapping.</small>
           </div>
 
-          <div class="col-lg-4">
+          <div class="col-lg-3">
             <label class="form-label fw-semibold">Status <span class="text-danger">*</span></label>
             <select name="status" class="form-control">
               <option value="1">Active</option>
@@ -86,7 +86,17 @@
             </select>
           </div>
 
-          <div class="col-lg-4">
+          <div class="col-lg-3">
+            <label class="form-label fw-semibold">Shift <span class="text-danger">*</span></label>
+            <select name="shift_id" class="form-control" required>
+              <option value="">--Select--</option>
+              @foreach($shiftOptions as $shift)
+              <option value="{{ $shift->id }}">{{ $shift->title ?? strtoupper($shift->slug) }}</option>
+              @endforeach
+            </select>
+          </div>
+
+          <div class="col-lg-3">
             <label class="form-label fw-semibold">Room Allocation</label>
             <input type="text" name="room" class="form-control" placeholder="Room no / Lab">
           </div>
@@ -118,6 +128,7 @@
               <th>Course</th>
               <th>Faculty</th>
               <th>Delivery Type</th>
+              <th>Shift</th>
               <th>Allocation Group</th>
               <th>Status</th>
               <th>Room</th>
@@ -132,6 +143,7 @@
               <td>{{ $assignment->course->course_code ?? '-' }} - {{ $assignment->course->course_title ?? '-' }}</td>
               <td>{{ $assignment->faculty->USER_CODE ?? '-' }} - {{ $assignment->faculty->FIRST_NAME ?? '-' }} {{ $assignment->faculty->LAST_NAME ?? '' }}</td>
               <td>{{ $assignment->delivery_type }}</td>
+              <td>{{ $assignment->shiftmaster->title ?? $assignment->shiftmaster->slug ?? '-' }}</td>
               <td>{{ $assignment->allocation_group_label }}</td>
               <td>
                 @if($assignment->is_active)
@@ -150,6 +162,7 @@
                   data-course_id="{{ $assignment->course_id }}"
                   data-faculty_id="{{ $assignment->faculty_id }}"
                   data-delivery_type="{{ $assignment->delivery_type }}"
+                  data-shift_id="{{ (int) ($assignment->shift_id ?? 0) }}"
                   data-status="{{ $assignment->is_active }}"
                   data-room="{{ $assignment->room }}"
                   data-remarks="{{ $assignment->remarks }}">Edit</button>
@@ -162,7 +175,7 @@
             </tr>
             @empty
             <tr id="teachingAssignmentEmptyRow">
-              <td colspan="9" class="text-center">No teaching assignments found.</td>
+              <td colspan="10" class="text-center">No teaching assignments found.</td>
             </tr>
             @endforelse
           </tbody>
@@ -283,6 +296,7 @@
       const safeCourse = escapeHtml(assignment.course_text || '-');
       const safeFaculty = escapeHtml(assignment.faculty_text || '-');
       const safeDelivery = escapeHtml(assignment.delivery_type || '-');
+      const safeShift = escapeHtml(assignment.shift_text || '-');
       const safeGroup = escapeHtml(assignment.allocation_group_label || '-');
       const safeRoom = escapeHtml(assignment.room || '-');
       const safeRemarks = escapeHtml(assignment.remarks || '-');
@@ -295,6 +309,7 @@
           <td>${safeCourse}</td>
           <td>${safeFaculty}</td>
           <td>${safeDelivery}</td>
+          <td>${safeShift}</td>
           <td>${safeGroup}</td>
           <td>${getStatusBadge(assignment.is_active)}</td>
           <td>${safeRoom}</td>
@@ -307,6 +322,7 @@
               data-course_id="${assignment.course_id}"
               data-faculty_id="${assignment.faculty_id}"
               data-delivery_type="${escapeHtml(assignment.delivery_type || '')}"
+              data-shift_id="${assignment.shift_id || ''}"
               data-status="${assignment.is_active}"
               data-room="${safeRoomData}"
               data-remarks="${safeRemarksData}"
@@ -406,6 +422,7 @@
       assignmentIdInput.value = editButton.dataset.id || '';
       form.querySelector('[name="course_id"]').value = editButton.dataset.course_id || '';
       form.querySelector('[name="faculty_id"]').value = editButton.dataset.faculty_id || '';
+      form.querySelector('[name="shift_id"]').value = editButton.dataset.shift_id || '';
       form.querySelector('[name="status"]').value = editButton.dataset.status || '1';
       form.querySelector('[name="room"]').value = editButton.dataset.room || '';
       form.querySelector('[name="remarks"]').value = editButton.dataset.remarks || '';

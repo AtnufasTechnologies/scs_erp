@@ -57,6 +57,15 @@
     </li>
 
     <li>
+      <a href="{{route('faculty.attendance.index')}}">
+        <div class="parent-icon">
+          <i class="fas fa-clipboard-list"></i>
+        </div>
+        <div class="menu-title">Attendance </div>
+      </a>
+    </li>
+
+    <li>
       <a href="{{route('faculty.mentorship.index')}}">
         <div class="parent-icon">
           <i class="fas fa-hands-helping"></i>
@@ -83,14 +92,7 @@
       </a>
     </li>
 
-    <li>
-      <a href="{{route('faculty.attendance.index')}}">
-        <div class="parent-icon">
-          <i class="fas fa-clipboard-list"></i>
-        </div>
-        <div class="menu-title">Attendance </div>
-      </a>
-    </li>
+
 
     <li>
       <a href="{{route('faculty.attendance.view.remedial-class')}}">

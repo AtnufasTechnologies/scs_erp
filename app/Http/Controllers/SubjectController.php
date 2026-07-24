@@ -3508,9 +3508,36 @@ class SubjectController extends Controller
             ->with([
                 'course:id,course_code,course_title',
                 'faculty:id,USER_CODE,FIRST_NAME,LAST_NAME',
+                'shiftmaster:id,title,slug',
             ])
             ->latest()
             ->get();
+
+        $subjectShiftIds = collect($subjectInfo->shift_ids ?? [])
+            ->map(fn($value) => (int) $value)
+            ->filter(fn($value) => $value > 0)
+            ->unique()
+            ->values();
+
+        $subjectHasShiftDelivery = (int) ($subjectInfo->has_shift_delivery ?? 0) === 1;
+        $shiftQuery = ShiftMaster::where('is_active', 1)->orderBy('sort_order');
+
+        if ($subjectHasShiftDelivery) {
+            if ($subjectShiftIds->isNotEmpty()) {
+                $shiftQuery->whereIn('id', $subjectShiftIds->all());
+            } else {
+                $shiftQuery->whereRaw('1 = 0');
+            }
+        } else {
+            $commonShiftId = (int) ShiftMaster::where('slug', 'common')->value('id');
+            if ($commonShiftId > 0) {
+                $shiftQuery->where('id', $commonShiftId);
+            } else {
+                $shiftQuery->whereRaw('1 = 0');
+            }
+        }
+
+        $shiftOptions = $shiftQuery->get(['id', 'title', 'slug']);
 
         $deliveryTypeMap = $this->getTeachingAssignmentDeliveryTypeMap(
             (int) $subjectInfo->id,
@@ -3523,6 +3550,7 @@ class SubjectController extends Controller
             'faculties' => $faculties,
             'assignments' => $assignments,
             'deliveryTypeMap' => $deliveryTypeMap,
+            'shiftOptions' => $shiftOptions,
         ]);
     }
 
@@ -3540,6 +3568,7 @@ class SubjectController extends Controller
             'course_id' => 'required|integer|exists:program_course_masters,id',
             'faculty_id' => 'required|integer|exists:faculties,id',
             'delivery_type' => 'nullable|string|max:100',
+            'shift_id' => 'required|integer|exists:shift_masters,id',
             'status' => 'required|in:0,1',
             'room' => 'nullable|string|max:255',
             'remarks' => 'nullable|string',
@@ -3580,10 +3609,18 @@ class SubjectController extends Controller
             return redirect()->back()->with('error', 'Unable to resolve delivery type from curriculum. Please select a valid curriculum-mapped delivery type.');
         }
 
+        if (!$this->isTeachingAssignmentShiftAllowed($subject, (int) $validated['shift_id'])) {
+            if ($request->expectsJson()) {
+                return response()->json(['message' => 'Selected shift is not applicable for this subject.'], 422);
+            }
+            return redirect()->back()->with('error', 'Selected shift is not applicable for this subject.');
+        }
+
         $duplicateExists = TeachingAssignment::where('subject_id', $subject->id)
             ->where('course_id', $validated['course_id'])
             ->where('faculty_id', $validated['faculty_id'])
             ->where('delivery_type', $resolvedDeliveryType)
+            ->where('shift_id', (int) $validated['shift_id'])
             ->exists();
 
         if ($duplicateExists) {
@@ -3593,17 +3630,18 @@ class SubjectController extends Controller
             return redirect()->back()->with('error', 'Duplicate entry: this course, faculty and delivery type already exists.');
         }
 
-        $lastGroup = TeachingAssignment::where('subject_id', $subject->id)
-            ->where('course_id', $validated['course_id'])
-            ->where('delivery_type', $resolvedDeliveryType)
-            ->max('allocation_group');
-
-        $nextAllocationGroup = ((int) $lastGroup) + 1;
+        $nextAllocationGroup = $this->resolveTeachingAssignmentAllocationGroup(
+            (int) $subject->id,
+            (int) $validated['course_id'],
+            (string) $resolvedDeliveryType,
+            (int) $validated['shift_id']
+        );
 
         $assignment = TeachingAssignment::create([
             'subject_id' => $subject->id,
             'course_id' => $validated['course_id'],
             'delivery_type' => $resolvedDeliveryType,
+            'shift_id' => (int) $validated['shift_id'],
             'faculty_id' => $validated['faculty_id'],
             'allocation_group' => $nextAllocationGroup,
             'is_active' => (int) $validated['status'],
@@ -3616,6 +3654,7 @@ class SubjectController extends Controller
         $assignment->load([
             'course:id,course_code,course_title',
             'faculty:id,USER_CODE,FIRST_NAME,LAST_NAME',
+            'shiftmaster:id,title,slug',
         ]);
 
         if ($request->expectsJson()) {
@@ -3642,6 +3681,7 @@ class SubjectController extends Controller
             'course_id' => 'required|integer|exists:program_course_masters,id',
             'faculty_id' => 'required|integer|exists:faculties,id',
             'delivery_type' => 'nullable|string|max:100',
+            'shift_id' => 'required|integer|exists:shift_masters,id',
             'status' => 'required|in:0,1',
             'room' => 'nullable|string|max:255',
             'remarks' => 'nullable|string',
@@ -3682,10 +3722,19 @@ class SubjectController extends Controller
             return redirect()->back()->with('error', 'Unable to resolve delivery type from curriculum. Please select a valid curriculum-mapped delivery type.');
         }
 
+        $subject = Subject::find($assignment->subject_id);
+        if (!$subject || !$this->isTeachingAssignmentShiftAllowed($subject, (int) $validated['shift_id'])) {
+            if ($request->expectsJson()) {
+                return response()->json(['message' => 'Selected shift is not applicable for this subject.'], 422);
+            }
+            return redirect()->back()->with('error', 'Selected shift is not applicable for this subject.');
+        }
+
         $duplicateExists = TeachingAssignment::where('subject_id', $assignment->subject_id)
             ->where('course_id', $validated['course_id'])
             ->where('faculty_id', $validated['faculty_id'])
             ->where('delivery_type', $resolvedDeliveryType)
+            ->where('shift_id', (int) $validated['shift_id'])
             ->where('id', '!=', $assignment->id)
             ->exists();
 
@@ -3699,20 +3748,23 @@ class SubjectController extends Controller
         $combinationChanged =
             (int) $assignment->course_id !== (int) $validated['course_id'] ||
             (int) $assignment->faculty_id !== (int) $validated['faculty_id'] ||
-            (string) $assignment->delivery_type !== (string) $resolvedDeliveryType;
+            (string) $assignment->delivery_type !== (string) $resolvedDeliveryType ||
+            (int) ($assignment->shift_id ?? 0) !== (int) $validated['shift_id'];
 
         if ($combinationChanged) {
-            $lastGroup = TeachingAssignment::where('subject_id', $assignment->subject_id)
-                ->where('course_id', $validated['course_id'])
-                ->where('delivery_type', $resolvedDeliveryType)
-                ->where('id', '!=', $assignment->id)
-                ->max('allocation_group');
-            $assignment->allocation_group = ((int) $lastGroup) + 1;
+            $assignment->allocation_group = $this->resolveTeachingAssignmentAllocationGroup(
+                (int) $assignment->subject_id,
+                (int) $validated['course_id'],
+                (string) $resolvedDeliveryType,
+                (int) $validated['shift_id'],
+                (int) $assignment->id
+            );
         }
 
         $assignment->course_id = $validated['course_id'];
         $assignment->faculty_id = $validated['faculty_id'];
         $assignment->delivery_type = $resolvedDeliveryType;
+        $assignment->shift_id = (int) $validated['shift_id'];
         $assignment->is_active = (int) $validated['status'];
         $assignment->room = $validated['room'] ?? '';
         $assignment->remarks = $validated['remarks'] ?? '';
@@ -3748,6 +3800,7 @@ class SubjectController extends Controller
         $assignment->load([
             'course:id,course_code,course_title',
             'faculty:id,USER_CODE,FIRST_NAME,LAST_NAME',
+            'shiftmaster:id,title,slug',
         ]);
 
         if ($request->expectsJson()) {
@@ -3778,6 +3831,8 @@ class SubjectController extends Controller
             'course_text' => trim(($assignment->course->course_code ?? '-') . ' - ' . ($assignment->course->course_title ?? '-')),
             'faculty_text' => trim(($assignment->faculty->USER_CODE ?? '-') . ' - ' . ($assignment->faculty->FIRST_NAME ?? '-') . ' ' . ($assignment->faculty->LAST_NAME ?? '')),
             'delivery_type' => $assignment->delivery_type,
+            'shift_id' => (int) ($assignment->shift_id ?? 0),
+            'shift_text' => trim((string) ($assignment->shiftmaster->title ?? $assignment->shiftmaster->slug ?? '-')),
             'allocation_group' => $assignment->allocation_group,
             'allocation_group_label' => $assignment->allocation_group_label,
             'is_active' => (int) $assignment->is_active,
@@ -3789,6 +3844,62 @@ class SubjectController extends Controller
             'course_id' => $assignment->course_id,
             'faculty_id' => $assignment->faculty_id,
         ];
+    }
+
+    private function resolveTeachingAssignmentAllocationGroup(
+        int $subjectId,
+        int $courseId,
+        string $deliveryType,
+        int $shiftId,
+        ?int $ignoreAssignmentId = null
+    ): int {
+        $baseQuery = TeachingAssignment::query()
+            ->where('subject_id', $subjectId)
+            ->where('course_id', $courseId)
+            ->where('delivery_type', $deliveryType);
+
+        if (!empty($ignoreAssignmentId)) {
+            $baseQuery->where('id', '!=', $ignoreAssignmentId);
+        }
+
+        $sameShiftQuery = (clone $baseQuery)->where('shift_id', $shiftId);
+        $sameShiftMaxGroup = (int) ($sameShiftQuery->max('allocation_group') ?? 0);
+
+        // Rule: If same course is added for same shift, create a new group.
+        if ($sameShiftMaxGroup > 0) {
+            return $sameShiftMaxGroup + 1;
+        }
+
+        // Rule: If shift is different, do not create a new group.
+        $existingGroupAnyShift = (int) ((clone $baseQuery)->orderBy('allocation_group')->value('allocation_group') ?? 0);
+        if ($existingGroupAnyShift > 0) {
+            return $existingGroupAnyShift;
+        }
+
+        return 1;
+    }
+
+    private function isTeachingAssignmentShiftAllowed(Subject $subject, int $shiftId): bool
+    {
+        if ($shiftId <= 0) {
+            return false;
+        }
+
+        $hasShiftDelivery = (int) ($subject->has_shift_delivery ?? 0) === 1;
+
+        if ($hasShiftDelivery) {
+            $subjectShiftIds = collect($subject->shift_ids ?? [])
+                ->map(fn($value) => (int) $value)
+                ->filter(fn($value) => $value > 0)
+                ->unique()
+                ->values()
+                ->all();
+
+            return in_array($shiftId, $subjectShiftIds, true);
+        }
+
+        $commonShiftId = (int) ShiftMaster::where('slug', 'common')->value('id');
+        return $commonShiftId > 0 && $commonShiftId === $shiftId;
     }
 
     private function getTeachingAssignmentDeliveryTypeMap(int $subjectId, array $courseIds): array

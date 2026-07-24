@@ -14,6 +14,7 @@ class TeachingAssignment extends Model
         'subject_id',
         'course_id',
         'delivery_type',
+        'shift_id',
         'faculty_id',
         'allocation_group',
         'is_active',
@@ -34,6 +35,11 @@ class TeachingAssignment extends Model
     public function faculty()
     {
         return $this->belongsTo(Faculty::class, 'faculty_id');
+    }
+
+    public function shiftmaster()
+    {
+        return $this->belongsTo(ShiftMaster::class, 'shift_id', 'id');
     }
 
     public function getAllocationGroupLabelAttribute(): string
