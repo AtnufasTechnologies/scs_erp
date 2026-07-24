@@ -3,6 +3,8 @@
 namespace App\Http\Controllers;
 
 use App\Models\InterMark;
+use App\Models\BatchMaster;
+use App\Models\ProgramCourseMaster;
 use App\Models\ProgramWiseSemesterCourse;
 use App\Models\Semester;
 use App\Models\StudentAttendance;
@@ -134,6 +136,7 @@ class StudentDashboardController extends Controller
       });
 
     $deliveryContext = $this->resolveStudentDeliveryContext($student, $studentCourses);
+    $electiveOptions = $this->resolveStudentElectiveOptions($student, $studentCourses);
 
     $timetable = StudentTimetableService::generate((int) $studentId);
 
@@ -280,6 +283,7 @@ class StudentDashboardController extends Controller
       'courseOfferingSubjectMap'          => $deliveryContext['courseOfferingSubjectMap'],
       'studentMajorDeliveryType'          => $deliveryContext['studentMajorDeliveryType'],
       'programOfferingSubjectTitle'       => $deliveryContext['programOfferingSubjectTitle'],
+      'electiveCoursesBySemester'         => $electiveOptions,
       'timetableByDay'                    => $timetableByDay,
       'attendanceSummary'                 => $attendanceSummary,
       'internalMarks'                     => $internalMarks,
@@ -295,6 +299,301 @@ class StudentDashboardController extends Controller
       'mentorshipAssignmentSubmissions'   => $mentorshipAssignmentSubmissions,
       'mentorshipStats'                   => $mentorshipStats,
     ]);
+  }
+
+  public function confirmElectives(Request $request)
+  {
+    $studentId = (int) $this->getStudent();
+    $student = StudentMaster::findOrFail($studentId);
+
+    $validated = $request->validate([
+      'semester_id' => 'required|integer|exists:semesters,id',
+      'course_id' => 'required|integer|exists:program_course_masters,id',
+    ]);
+
+    $semesterId = (int) $validated['semester_id'];
+    $requestedCourseId = (int) $validated['course_id'];
+
+    $studentCourses = StudentCourseInfo::with(['coursemaster:id,semester_id'])
+      ->where('student_id', $studentId)
+      ->get();
+
+    $electiveOptions = $this->resolveStudentElectiveOptions($student, $studentCourses);
+    $allowedCourseIds = collect($electiveOptions->get($semesterId, collect()))
+      ->pluck('id')
+      ->map(fn($id) => (int) $id)
+      ->filter(fn($id) => $id > 0)
+      ->unique();
+
+    if ($allowedCourseIds->isEmpty()) {
+      return redirect()->route('student.console.dashboard')
+        ->with('error', 'No elective choices are available for the selected semester.')
+        ->withFragment('tab-courses');
+    }
+
+    if (!$allowedCourseIds->contains($requestedCourseId)) {
+      return redirect()->route('student.console.dashboard')
+        ->with('error', 'Please select valid elective courses for the chosen semester.')
+        ->withFragment('tab-courses');
+    }
+
+    $academicYear = (string) (BatchMaster::find($student->batch)?->batch_name ?? date('Y'));
+    $enrolled = 0;
+    $skipped = 0;
+
+    $exists = StudentCourseInfo::where('student_id', $studentId)
+      ->where('course_id', $requestedCourseId)
+      ->where('semester', $semesterId)
+      ->where('academic_year', $academicYear)
+      ->where('is_deleted', 0)
+      ->exists();
+
+    if ($exists) {
+      $skipped++;
+    } else {
+      StudentCourseInfo::create([
+        'student_id' => $studentId,
+        'course_id' => $requestedCourseId,
+        'semester' => $semesterId,
+        'campus_id' => (int) ($student->campus_id ?? 0),
+        'is_active' => 1,
+        'academic_year' => $academicYear,
+        'is_elective' => 1,
+      ]);
+
+      $enrolled++;
+    }
+
+    $message = $enrolled . ' elective course(s) confirmed successfully.';
+    if ($skipped > 0) {
+      $message .= ' ' . $skipped . ' already enrolled (skipped).';
+    }
+
+    return redirect()->route('student.console.dashboard')
+      ->with('success', $message)
+      ->withFragment('tab-courses');
+  }
+
+  private function resolveStudentElectiveOptions(StudentMaster $student, $studentCourses)
+  {
+    $programCombination = null;
+    if (!empty($student->new_program_id) && !empty($student->batch)) {
+      $programCombination = SubjectHasStudentProgam::with([
+        'combomap:id,combo_id_1,combo_id_2',
+      ])
+        ->where('student_program_id', (int) $student->new_program_id)
+        ->where('batch_id', (int) $student->batch)
+        ->orderBy('id')
+        ->first();
+    }
+
+    if (!$programCombination) {
+      return collect();
+    }
+
+    $comboSubjectIds = collect([
+      (int) ($programCombination?->combomap?->combo_id_1 ?? 0),
+      (int) ($programCombination?->combomap?->combo_id_2 ?? 0),
+    ])
+      ->filter(fn($id) => $id > 0)
+      ->unique()
+      ->values();
+
+    if ($comboSubjectIds->isEmpty()) {
+      $fallbackSubjectId = (int) ($programCombination?->subject_id ?? 0);
+      if ($fallbackSubjectId > 0) {
+        $comboSubjectIds->push($fallbackSubjectId);
+      }
+    }
+
+    $programType = strtoupper(trim((string) ($programCombination?->program_type ?? '')));
+
+    $pathwayId = (int) ($student->academic_pathway_id ?? 0);
+    $degreeTrackId = (int) ($student->degree_track_id ?? 0);
+
+    $query = ProgramWiseSemesterCourse::query()
+      ->where('program_combo_refid', (int) $programCombination->id)
+      ->where('batch', (int) $student->batch)
+      ->whereIn('course_type', [
+        ProgramWiseSemesterCourse::TYPE_STUDENT_CHOICE,
+        'ELECTIVE',
+      ]);
+
+    if (Schema::hasColumn((new ProgramWiseSemesterCourse())->getTable(), 'is_active')) {
+      $query->where('is_active', 1);
+    }
+
+    if (Schema::hasColumn((new ProgramWiseSemesterCourse())->getTable(), 'academic_pathway_id')) {
+      if ($pathwayId > 0) {
+        $query->where('academic_pathway_id', $pathwayId);
+      } else {
+        $query->whereNull('academic_pathway_id');
+      }
+    }
+
+    if (Schema::hasColumn((new ProgramWiseSemesterCourse())->getTable(), 'degree_track_id')) {
+      if ($degreeTrackId > 0) {
+        $query->where('degree_track_id', $degreeTrackId);
+      } else {
+        $query->whereNull('degree_track_id');
+      }
+    }
+
+    $rows = $query->get([
+      'course_id',
+      'semester',
+      'specialization_master_id',
+      'specialization_master_ids',
+    ]);
+
+    if ($rows->isEmpty()) {
+      return collect();
+    }
+
+    $studentSpecializations = collect();
+    if (Schema::hasTable('student_specializations')) {
+      $studentSpecializations = DB::table('student_specializations')
+        ->where('student_id', (int) $student->id)
+        ->where('subject_has_student_program_id', (int) $programCombination->id)
+        ->where('is_active', 1)
+        ->whereNull('deleted_at')
+        ->orderByDesc('id')
+        ->get(['specialization_id', 'semester_id']);
+    }
+
+    $studentSpecBySemester = [];
+    foreach ($studentSpecializations as $specRow) {
+      $semId = (int) ($specRow->semester_id ?? 0);
+      $specId = (int) ($specRow->specialization_id ?? 0);
+      if ($specId <= 0) {
+        continue;
+      }
+      if (!isset($studentSpecBySemester[$semId])) {
+        $studentSpecBySemester[$semId] = $specId;
+      }
+    }
+
+    $enrolledPairKeys = collect($studentCourses)
+      ->map(function ($course) {
+        $sem = (int) ($course->semester ?? $course->coursemaster?->semester_id ?? 0);
+        $courseId = (int) ($course->course_id ?? 0);
+        return $sem . '_' . $courseId;
+      })
+      ->filter(fn($key) => $key !== '0_0')
+      ->unique();
+
+    $eligiblePairs = $rows->map(function ($row) use ($studentSpecBySemester, $enrolledPairKeys) {
+      $semester = (int) ($row->semester ?? 0);
+      $courseId = (int) ($row->course_id ?? 0);
+      if ($semester <= 0 || $courseId <= 0) {
+        return null;
+      }
+
+      $mappingSpecIds = collect($row->specialization_master_ids ?? [])
+        ->map(fn($id) => (int) $id)
+        ->filter(fn($id) => $id > 0)
+        ->values();
+
+      $singleSpecId = (int) ($row->specialization_master_id ?? 0);
+      if ($singleSpecId > 0 && !$mappingSpecIds->contains($singleSpecId)) {
+        $mappingSpecIds->push($singleSpecId);
+      }
+
+      if ($mappingSpecIds->isNotEmpty()) {
+        $studentSpecId = (int) ($studentSpecBySemester[$semester] ?? $studentSpecBySemester[0] ?? 0);
+        if ($studentSpecId <= 0 || !$mappingSpecIds->contains($studentSpecId)) {
+          return null;
+        }
+      }
+
+      $pairKey = $semester . '_' . $courseId;
+      if ($enrolledPairKeys->contains($pairKey)) {
+        return null;
+      }
+
+      return [
+        'semester' => $semester,
+        'course_id' => $courseId,
+      ];
+    })->filter()->unique(fn($pair) => $pair['semester'] . '_' . $pair['course_id'])->values();
+
+    if ($eligiblePairs->isEmpty()) {
+      return collect();
+    }
+
+    $courseIds = $eligiblePairs->pluck('course_id')->unique()->values()->all();
+    $courses = ProgramCourseMaster::with(['semestermaster:id,title', 'coursetypemaster:id,title'])
+      ->whereIn('id', $courseIds)
+      ->orderBy('course_title')
+      ->get()
+      ->keyBy('id');
+
+    $excludedMdcPairKeys = collect();
+    if ($comboSubjectIds->isNotEmpty()) {
+      $mdcPairs = $eligiblePairs->filter(function ($pair) use ($courses) {
+        $course = $courses->get((int) ($pair['course_id'] ?? 0));
+        if (!$course) {
+          return false;
+        }
+
+        $typeTitle = strtoupper(trim((string) ($course->coursetypemaster?->title ?? '')));
+        if ($typeTitle === '') {
+          return false;
+        }
+
+        $typeKey = preg_replace('/\s.*/', '', $typeTitle);
+        return $typeKey === ProgramWiseSemesterCourse::DELIVERY_OPEN_CHOICE;
+      })->values();
+
+      if ($mdcPairs->isNotEmpty()) {
+        $mdcCourseIds = $mdcPairs->pluck('course_id')->map(fn($id) => (int) $id)->unique()->values()->all();
+        $mdcSemesterIds = $mdcPairs->pluck('semester')->map(fn($id) => (int) $id)->unique()->values()->all();
+
+        $syllabusQuery = DB::table('syllabus_managers')
+          ->where('batch_id', (int) $student->batch)
+          ->whereIn('co_id', $mdcCourseIds)
+          ->whereIn('semester_id', $mdcSemesterIds)
+          ->whereIn('subject_id', $comboSubjectIds->all());
+
+        if (Schema::hasColumn('syllabus_managers', 'deleted_at')) {
+          $syllabusQuery->whereNull('deleted_at');
+        }
+
+        if (Schema::hasColumn('syllabus_managers', 'status')) {
+          $syllabusQuery->where('status', 'published');
+        }
+
+        if ($programType !== '' && Schema::hasColumn('syllabus_managers', 'program_type')) {
+          $syllabusQuery->whereRaw("UPPER(TRIM(COALESCE(program_type, ''))) = ?", [$programType]);
+        }
+
+        $excludedMdcPairKeys = $syllabusQuery
+          ->get(['semester_id', 'co_id'])
+          ->map(fn($row) => (int) ($row->semester_id ?? 0) . '_' . (int) ($row->co_id ?? 0))
+          ->filter(fn($key) => $key !== '0_0')
+          ->unique()
+          ->values();
+      }
+    }
+
+    return $eligiblePairs
+      ->groupBy('semester')
+      ->map(function ($pairs, $semesterId) use ($courses, $excludedMdcPairKeys) {
+        return $pairs->map(function ($pair) use ($courses, $semesterId, $excludedMdcPairKeys) {
+          $pairKey = (int) ($pair['semester'] ?? 0) . '_' . (int) ($pair['course_id'] ?? 0);
+          if ($excludedMdcPairKeys->contains($pairKey)) {
+            return null;
+          }
+
+          $course = $courses->get((int) $pair['course_id']);
+          if (!$course) {
+            return null;
+          }
+
+          $course->student_semester_id = (int) $semesterId;
+          return $course;
+        })->filter()->values();
+      });
   }
 
   private function resolveStudentDeliveryContext(?StudentMaster $student, $studentCourses): array

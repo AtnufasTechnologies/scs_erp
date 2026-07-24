@@ -727,6 +727,7 @@ Route::group(['prefix' => '/erp'], function () {
         //==Exclusive Console Access ONLY via Login ================= New Working Routes 04/05/2026
         Route::group(['prefix' => 'console'], function () {
             Route::get('dashboard', [StudentDashboardController::class, 'index'])->name('student.console.dashboard');
+            Route::post('electives/confirm', [StudentDashboardController::class, 'confirmElectives'])->name('student.console.electives.confirm');
         });
 
         Route::get('feedback', [StudentDashboardController::class, 'feedbackList'])->name('student.feedback.list');

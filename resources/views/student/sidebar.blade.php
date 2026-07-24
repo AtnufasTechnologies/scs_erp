@@ -81,7 +81,7 @@ $rolename = UserHasRole::where('user_id', Auth::id())->value('role_name');
     </li>
 
     {{-- Syllabus and Feedbacks--}}
-    <li>
+    <!-- <li>
       <a href="{{ route('student.feedback.list') }}">
         <div class="parent-icon"><i class="fas fa-star"></i></div>
         <div class="menu-title">
@@ -91,7 +91,7 @@ $rolename = UserHasRole::where('user_id', Auth::id())->value('role_name');
           @endif
         </div>
       </a>
-    </li>
+    </li> -->
 
     {{-- Mentorship --}}
     <li>

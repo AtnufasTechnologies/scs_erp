@@ -1084,6 +1084,74 @@
             <h4>Enrolled Courses</h4>
             <span class="sp-count">{{ $studentCourses->count() }}</span>
           </div>
+
+          @php
+          $electiveCoursesBySemester = $electiveCoursesBySemester ?? collect();
+          $electiveSemesterMeta = $electiveCoursesBySemester->mapWithKeys(function ($courses, $semId) {
+          return [(int) $semId => ($courses->first()?->semestermaster?->title ?? ('Semester ' . $semId))];
+          });
+          @endphp
+
+          @if($electiveCoursesBySemester->isNotEmpty())
+          <div style="border:1px solid #dbe7f5;background:#f8fbff;border-radius:10px;padding:1rem;margin-bottom:1rem;">
+            <div style="display:flex;align-items:center;justify-content:space-between;gap:.75rem;flex-wrap:wrap;margin-bottom:.75rem;">
+              <div style="font-size:.92rem;font-weight:700;color:#1a237e;">
+                <i class="fas fa-list-check me-1"></i> Elective Course Selection
+              </div>
+              <span style="font-size:.74rem;color:#5f6b86;">Choose your electives semester-wise and confirm once.</span>
+            </div>
+
+            <form action="{{ route('student.console.electives.confirm') }}" method="POST" id="studentElectiveForm">
+              @csrf
+              <div class="row g-2 align-items-end">
+                <div class="col-md-4">
+                  <label for="electiveSemesterFilter" style="font-size:.75rem;font-weight:600;color:#5f6b86;">Select Semester</label>
+                  <select class="form-select form-select-sm" name="semester_id" id="electiveSemesterFilter" required>
+                    <option value="">Choose semester</option>
+                    @foreach($electiveSemesterMeta as $semId => $semTitle)
+                    <option value="{{ $semId }}" {{ (string) old('semester_id') === (string) $semId ? 'selected' : '' }}>{{ $semTitle }}</option>
+                    @endforeach
+                  </select>
+                </div>
+
+                <div class="col-md-8">
+                  <label style="font-size:.75rem;font-weight:600;color:#5f6b86;">Available Elective Courses</label>
+                  <input type="hidden" name="course_id" id="electiveCourseId" value="{{ old('course_id') }}">
+                  <div id="electiveCourseChecklist" style="border:1px solid #d7deec;border-radius:8px;background:#fff;padding:.55rem;max-height:220px;overflow:auto;">
+                    @foreach($electiveCoursesBySemester as $semId => $semCourses)
+                    <div class="elective-semester-group" data-sem="{{ $semId }}" style="margin-bottom:.35rem;">
+                      @foreach($semCourses as $optCourse)
+                      <label style="display:flex;align-items:flex-start;gap:.55rem;padding:.45rem .55rem;border:1px solid #edf1f7;border-radius:7px;margin-bottom:.35rem;cursor:pointer;background:#fbfcff;">
+                        <input
+                          type="checkbox"
+                          class="elective-course-check"
+                          value="{{ $optCourse->id }}"
+                          data-sem="{{ $semId }}"
+                          {{ (string) old('course_id') === (string) $optCourse->id ? 'checked' : '' }}
+                          style="margin-top:.2rem;">
+                        <span style="line-height:1.25;">
+                          <span style="display:block;font-size:.78rem;font-weight:700;color:#1f2a44;">{{ $optCourse->course_code }} - {{ $optCourse->course_title }}</span>
+                          @if($optCourse->coursetypemaster)
+                          <span style="display:inline-block;margin-top:.18rem;font-size:.7rem;color:#475569;background:#eef2ff;padding:.1rem .4rem;border-radius:999px;">{{ $optCourse->coursetypemaster->title }}</span>
+                          @endif
+                        </span>
+                      </label>
+                      @endforeach
+                    </div>
+                    @endforeach
+                  </div>
+                </div>
+
+                <div class="col-12 d-flex justify-content-end mt-2">
+                  <button type="submit" class="btn btn-sm btn-primary">
+                    <i class="fas fa-check-circle me-1"></i> Confirm Electives
+                  </button>
+                </div>
+              </div>
+            </form>
+          </div>
+          @endif
+
           @if($studentCourses->isEmpty())
           <div class="sp-empty"><i class="fas fa-book"></i>No courses found.</div>
           @else
@@ -1715,4 +1783,72 @@
     filePreview.style.display = 'none';
     uploadArea.style.opacity = '1';
   }
+
+  function initElectiveSelector() {
+    const semesterSelect = document.getElementById('electiveSemesterFilter');
+    const courseIdInput = document.getElementById('electiveCourseId');
+    const electiveForm = document.getElementById('studentElectiveForm');
+    const groups = Array.from(document.querySelectorAll('.elective-semester-group'));
+    const checks = Array.from(document.querySelectorAll('.elective-course-check'));
+
+    if (!semesterSelect || !courseIdInput || !electiveForm || !groups.length || !checks.length) {
+      return;
+    }
+
+    const toggleOptions = () => {
+      const selectedSem = semesterSelect.value;
+
+      groups.forEach((group) => {
+        const sem = group.getAttribute('data-sem') || '';
+        const shouldShow = selectedSem !== '' && sem === selectedSem;
+        group.style.display = shouldShow ? '' : 'none';
+
+        if (!shouldShow) {
+          group.querySelectorAll('.elective-course-check').forEach((check) => {
+            check.checked = false;
+          });
+        }
+      });
+
+      const checkedVisible = checks.filter((check) => {
+        const group = check.closest('.elective-semester-group');
+        return group && group.style.display !== 'none' && check.checked;
+      });
+
+      if (checkedVisible.length > 1) {
+        checkedVisible.slice(1).forEach((check) => {
+          check.checked = false;
+        });
+      }
+
+      courseIdInput.value = checkedVisible[0] ? checkedVisible[0].value : '';
+    };
+
+    checks.forEach((check) => {
+      check.addEventListener('change', function() {
+        if (this.checked) {
+          checks.forEach((other) => {
+            if (other !== this) {
+              other.checked = false;
+            }
+          });
+          courseIdInput.value = this.value;
+        } else if (courseIdInput.value === this.value) {
+          courseIdInput.value = '';
+        }
+      });
+    });
+
+    electiveForm.addEventListener('submit', function(e) {
+      if (!courseIdInput.value) {
+        e.preventDefault();
+        alert('Please select one elective course.');
+      }
+    });
+
+    semesterSelect.addEventListener('change', toggleOptions);
+    toggleOptions();
+  }
+
+  document.addEventListener('DOMContentLoaded', initElectiveSelector);
 </script>
