@@ -1,3 +1,7 @@
+<?php
+$roletype = auth()->user()->userroletype;
+$roleName = $roletype->role_name ?? '';
+?>
 @include('includes.header')
 
 <div class="wrapper">
@@ -5,31 +9,28 @@
 
   <!--start main wrapper-->
   <main class="page-content faculty-dashboard">
+    <section class="hero-panel mb-5">
+      <div>
+        <p class="hero-kicker">ADMIN CONSOLE</p>
+        <h1>
+          <span class="text-capitalize text-light">Hi, {{ Auth::user()->name }}</span>
+        </h1>
+        <p class="hero-subtitle">Role: {{ $roleName }}</p>
 
-    <!--start welcome banner-->
-    <div class="welcome-banner mb-4">
-      <div class="row align-items-center">
-        <div class="col-lg-8 col-md-7">
-          <div class="welcome-content">
-            <h2 class="welcome-title">Welcome back, {{ Auth::user()->name }}</h2>
-            <p class="welcome-subtitle">Here's what's happening with your work today</p>
-          </div>
-        </div>
-        <div class="col-lg-4 col-md-5 text-md-end mt-3 mt-md-0">
-          <div class="date-display">
-            <div class="date-label">Today</div>
-            <div class="date-value">{{ date('d M Y') }}</div>
-            <div class="date-day">{{ date('l') }}</div>
-          </div>
-        </div>
       </div>
-    </div>
+      <div class="hero-badge">
+        <p>Today</p>
+        <h4>{{ date('d M Y')}}</h4>
+        <p>
+          <{{ date('l') }} /p>
+      </div>
+    </section>
     <!--end welcome banner-->
 
     <!--start key metrics-->
     <div class="row g-3 mb-4">
       <div class="col-xl-3 col-md-6">
-        <div class="metric-card">
+        <div class="stat-card">
           <div class="metric-icon subjects">
             <i class="fas fa-book"></i>
           </div>
@@ -39,8 +40,8 @@
           </div>
         </div>
       </div>
-      <div class="col-xl-3 col-md-6">
-        <div class="metric-card">
+      <!-- <div class="col-xl-3 col-md-6">
+        <div class="stat-card">
           <div class="metric-icon feedback">
             <i class="fas fa-star"></i>
           </div>
@@ -49,9 +50,9 @@
             <div class="metric-value">4.5 <span class="metric-unit">/5.0</span></div>
           </div>
         </div>
-      </div>
+      </div> -->
       <div class="col-xl-3 col-md-6">
-        <div class="metric-card">
+        <div class="stat-card">
           <div class="metric-icon leave">
             <i class="fas fa-calendar-alt"></i>
           </div>
@@ -62,7 +63,7 @@
         </div>
       </div>
       <div class="col-xl-3 col-md-6">
-        <div class="metric-card">
+        <div class="stat-card">
           <div class="metric-icon activities">
             <i class="fas fa-clipboard-list"></i>
           </div>

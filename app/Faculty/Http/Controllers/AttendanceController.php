@@ -237,7 +237,8 @@ class AttendanceController extends Controller
 
     $query = StudentAttendance::orderBy('attendance_date', 'desc')
       ->orderBy('hour_id', 'asc')
-      ->where('faculty_id', $facultyId);
+      ->where('faculty_id', $facultyId)
+      ->with('hourmaster');
 
     if (!empty($request->attendance_date)) {
       $query->where('attendance_date', $request->attendance_date);

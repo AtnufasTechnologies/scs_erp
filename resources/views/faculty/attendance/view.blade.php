@@ -110,7 +110,7 @@ use Carbon\Carbon;
               <td>{{$loop->iteration}}</td>
               <td>{{ date('d M Y', strtotime($record->attendance_date)) }}</td>
               <td>{{ $record->semester_id }}</td>
-              <td>{{$record->hour_id }}</td>
+              <td>{{$record->hourmaster->name }} - {{$record->hourmaster->start_time }}</td>
               <td>{{ $record->courseinfo->coursetypemaster->title ?? 'N/A' }}</td>
               <td>{{ $record->courseinfo->course_code ?? 'N/A' }}</td>
               <td>{{ $record->courseinfo->course_title ?? 'N/A' }}</td>

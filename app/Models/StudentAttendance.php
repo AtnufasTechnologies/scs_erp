@@ -102,4 +102,9 @@ class StudentAttendance extends Model
 
     return round(($present / $total) * 100, 2);
   }
+
+  function hourmaster()
+  {
+    return $this->hasOne(HourMaster::class, 'id', 'hour_id');
+  }
 }
