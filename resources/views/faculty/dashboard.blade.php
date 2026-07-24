@@ -385,7 +385,7 @@
       <div class="col-lg-4">
 
         <!-- Student Feedback Card -->
-        <div class="content-card mb-4">
+        <!-- <div class="content-card mb-4">
           <div class="card-header-custom">
             <h5 class="card-title-custom"><i class="fas fa-chart-line me-2"></i>Student Feedback</h5>
             <p class="card-subtitle-custom">Your performance ratings</p>
@@ -445,7 +445,7 @@
               </div>
             </div>
           </div>
-        </div>
+        </div> -->
 
         <!-- Leave Summary Card -->
         <div class="content-card mb-4">
