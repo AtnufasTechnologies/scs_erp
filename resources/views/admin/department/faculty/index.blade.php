@@ -3,6 +3,12 @@
 use App\Models\Faculty;
 
 $faculties = Faculty::all();
+$facultyIdsWithTimetable = collect($facultyTimetables ?? [])
+  ->filter(fn($entries) => collect($entries)->isNotEmpty())
+  ->keys()
+  ->map(fn($id) => (int) $id)
+  ->values()
+  ->all();
 ?>
 @include('includes.header')
 @include('includes.dept-sidebar')
@@ -181,6 +187,20 @@ $faculties = Faculty::all();
     font-size: 0.85em;
     color: #ffd5f7;
   }
+
+  .timetable-btn-has {
+    background: #dcfce7;
+    color: #166534;
+    padding: 10px;
+    font-size: 13px;
+  }
+
+  .timetable-btn-none {
+    background: #fee2e2;
+    color: #991b1b;
+    padding: 10px;
+    font-size: 13px;
+  }
 </style>
 
 <main class="page-content">
@@ -229,6 +249,14 @@ $faculties = Faculty::all();
       <!-- Faculty Cards Grid -->
       <div class="row g-4 mb-4">
         @forelse($data as $item)
+        @php
+        $facultyId = (int) ($item->faculty->id ?? 0);
+        $hasTimetable = in_array($facultyId, $facultyIdsWithTimetable, true);
+        $timetableBtnClass = $hasTimetable ? 'timetable-btn-has' : 'timetable-btn-none';
+        $timetableTitle = $hasTimetable ? 'View Timetable' : 'No timetable assigned';
+        $timetableIcon = $hasTimetable ? 'fa-calendar-check' : 'fa-calendar-times';
+        $timetableLabel = $hasTimetable ? 'Timetable' : 'No Timetable';
+        @endphp
         <div class="col-lg-6 col-xl-4 faculty-row" data-search="{{ strtolower($item->faculty->FIRST_NAME . ' ' . $item->faculty->LAST_NAME . ' ' . $item->faculty->USER_CODE . ' ' . $item->faculty->MAIL_ID) }}" data-access="{{ $item->access_id ? 'with-access' : 'no-access' }}">
           <div class="faculty-card h-100">
             <!-- Card Header with Avatar and Status -->
@@ -312,8 +340,8 @@ $faculties = Faculty::all();
 
             <!-- Action Buttons -->
             <div class="d-flex gap-2 mt-auto pt-2">
-              <a href="{{ route('department.faculty.timetable', $item->faculty->id) }}?subject_id={{ $subject->id }}" class="btn btn-modern flex-fill" style="background: #dbeafe; color: #1e40af; padding: 10px; font-size: 13px;" title="View Timetable">
-                <i class="fas fa-calendar me-1"></i> Timetable
+              <a href="{{ route('department.faculty.timetable', $item->faculty->id) }}?subject_id={{ $subject->id }}" class="btn btn-modern flex-fill {{ $timetableBtnClass }}" title="{{ $timetableTitle }}">
+                <i class="fas {{ $timetableIcon }} me-1"></i> {{ $timetableLabel }}
               </a>
 
               @if(!$item->access_id && !$item->useraccess)

@@ -1617,7 +1617,8 @@ class SubjectController extends Controller
 
         $batches = BatchMaster::all();
 
-        $query = StudentMaster::where('is_left', '0')->where('is_deleted', '0')->with(['batchmaster', 'campusmaster', 'stdprogramenrolled']);
+        $query = StudentMaster::where('is_left', '0')->where('is_deleted', '0')
+            ->with(['batchmaster', 'campusmaster', 'stdprogramenrolled']);
 
         if ($request->filled('batch_id')) {
             $query->where('batch', $request->batch_id);

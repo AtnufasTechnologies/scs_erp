@@ -85,6 +85,7 @@
               <option value="">Select program</option>
               @foreach($offeredProgramCombinations as $combo)
               @php
+
               $programName = $combo->studentprograminfo->name ?? 'Program';
               $programType = $combo->studentprograminfo->programtypemaster->name ?? ($combo->program_type ?? 'N/A');
               @endphp
@@ -113,11 +114,54 @@
       @endif
 
       @if($selectedProgramCombination)
+      @php
+      $specializationWiseCounts = collect();
+      $totalGeneratedStudents = $students->count();
+      $assignedGeneratedStudents = 0;
+
+      if ($students->isNotEmpty()) {
+      $specializationWiseCounts = $students
+      ->map(function ($student) use ($studentAssignmentMap, $specializationLookup, &$assignedGeneratedStudents) {
+      $assignment = $studentAssignmentMap->get((int) $student->id);
+      if (!$assignment) {
+      return 'Not Assigned';
+      }
+
+      $assignedGeneratedStudents++;
+      $spec = $specializationLookup->get((int) $assignment->specialization_id);
+      return $spec->name ?? 'Unknown';
+      })
+      ->countBy()
+      ->sortDesc();
+      }
+      @endphp
+
       <form method="post" action="{{ route('department.specialization.assign.students', [$subject->id, $subject->slug ?? $subject->title ?? 'subject']) }}">
         @csrf
         <input type="hidden" name="batch" value="{{ $selectedBatchId }}">
         <input type="hidden" name="program_combo_id" value="{{ $selectedProgramComboId }}">
         <input type="hidden" name="student_search" value="{{ $studentSearch }}">
+
+        <div class="alert alert-light border mb-3">
+          <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-2">
+            <strong>Student Count by Specialization (Generated List)</strong>
+            <div>
+              <span class="badge badge-dark">Total: {{ $totalGeneratedStudents }}</span>
+              <span class="badge badge-success">Assigned: {{ $assignedGeneratedStudents }}</span>
+              <span class="badge badge-secondary">Unassigned: {{ max($totalGeneratedStudents - $assignedGeneratedStudents, 0) }}</span>
+            </div>
+          </div>
+
+          @if($specializationWiseCounts->isNotEmpty())
+          <div class="d-flex flex-wrap gap-2">
+            @foreach($specializationWiseCounts as $specializationName => $count)
+            <span class="badge {{ $specializationName === 'Not Assigned' ? 'badge-secondary' : 'badge-info' }}">
+              {{ $specializationName }}: {{ $count }}
+            </span>
+            @endforeach
+          </div>
+          @endif
+        </div>
 
         <div class="row g-3 mb-3">
           <div class="col-lg-5 col-md-6">
