@@ -63,6 +63,7 @@ use App\Http\Controllers\Hr\ApiScoreController;
 use App\Http\Controllers\SyllabusPdfController;
 use App\Http\Controllers\SubjectController;
 use App\Http\Controllers\ShiftMasterController;
+use App\Http\Controllers\StudentAttendanceScanController;
 use App\Http\Controllers\TestController;
 use App\Http\Controllers\TimetableController;
 use App\Http\Controllers\ITCellController;
@@ -927,6 +928,10 @@ Route::group(['prefix' => '/erp'], function () {
         Route::delete('attendance/{id}', [FacultyAttendanceController::class, 'deleteAttendance'])->name('faculty.attendance.delete');
         Route::get('attendance/create', [FacultyAttendanceController::class, 'getStudentList'])->name('faculty.attendance.create');
         Route::get('attendance/hours', [FacultyAttendanceController::class, 'getHoursByShift'])->name('faculty.attendance.hours');
+        Route::post('attendance/qr/generate', [FacultyAttendanceController::class, 'generateStudentAttendanceQr'])->name('faculty.attendance.qr.generate');
+        Route::post('attendance/qr/finalize', [FacultyAttendanceController::class, 'finalizeQrAttendance'])->name('faculty.attendance.qr.finalize');
+        Route::post('attendance/qr/delete', [FacultyAttendanceController::class, 'deleteQrRecord'])->name('faculty.attendance.qr.delete');
+        Route::get('attendance/qr-records', [FacultyAttendanceController::class, 'qrRecords'])->name('faculty.attendance.qr.records');
         Route::put('attendance/{id}', [FacultyAttendanceController::class, 'updateAttendance'])->name('faculty.attendance.update');
         // Remedial classes
         Route::get('remedial-classes', [FacultyAttendanceController::class, 'extraClasses'])->name('faculty.remedial.classes');

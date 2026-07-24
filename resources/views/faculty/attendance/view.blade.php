@@ -41,7 +41,7 @@ use Carbon\Carbon;
         <div class="row">
           <div class="col-lg-3">
             <label for="">Attendance Date</label>
-            <input type="date" name="attendance_date" class="form-control">
+            <input type="date" name="attendance_date" class="form-control" value="{{ request('attendance_date') }}">
           </div>
           <div class="col-lg-6">
             <div class="mb-4">
@@ -52,11 +52,12 @@ use Carbon\Carbon;
                 <select class="form-select " name="course_filter">
                   <option value="" selected disabled>My Subjects</option>
                   @foreach($syllabusAssignments as $item)
-                  <option value="{{ $item->syllabus->courseLink->courseMaster->id}}">
+                  <option value="{{ $item->syllabus->courseLink->courseMaster->id}}" {{ (string) request('course_filter') === (string) ($item->syllabus->courseLink->courseMaster->id ?? '') ? 'selected' : '' }}>
                     {{ $item->syllabus->courseLink->courseMaster->course_title ?? 'N/A' }}
                     ({{ $item->syllabus->courseLink->courseMaster->course_code ?? 'N/A' }})
                     - {{ $item->syllabus->semestermaster->title ?? 'N/A' }}
                     | Batch: {{ $item->syllabus->batchmaster->batch_name ?? 'N/A' }}
+                    | Shift: {{ ucfirst($item->shift ?? 'common') }}
                   </option>
                   @endforeach
                 </select>
@@ -83,7 +84,7 @@ use Carbon\Carbon;
       </div>
       @else
       <div class="">
-        <table class="table table-sm table-bordered attendance-table" id="exportTable">
+        <table class="table table-hover table-bordered attendance-table" id="exportTable">
           <thead class="table-light">
             <tr>
               <th>#</th>
@@ -97,8 +98,6 @@ use Carbon\Carbon;
               <th>Student Name</th>
               <th class="text-center">Status</th>
               <th>Action</th>
-
-
             </tr>
           </thead>
           <tbody>
@@ -132,7 +131,7 @@ use Carbon\Carbon;
               <td>
 
                 <button type="button" class="btn btn-sm btn-primary" data-bs-toggle="modal" data-bs-target="#editAttendanceModal{{ $record->id }}">
-                  <i class="fa fa-edit"></i> Edit
+                  <i class="fa fa-edit"></i>
                 </button>
 
                 <!-- Edit Attendance Modal -->

@@ -44,7 +44,7 @@ class StudentAuthController extends Controller
     if (Hash::check($request->password, $user->password)) {
 
       Auth::login($user, true);
-      return redirect()->route('student.console.dashboard')->with('success', 'Login Successful');
+      return redirect()->intended(route('student.console.dashboard'))->with('success', 'Login Successful');
     } else {
       return redirect()->back()->with('error', 'Incorrect Password');
     }
