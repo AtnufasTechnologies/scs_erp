@@ -54,6 +54,7 @@ use App\Models\User;
 use App\Models\UserHasRole;
 use Illuminate\Support\Str;
 use Illuminate\Http\Request;
+use Carbon\Carbon;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
@@ -880,7 +881,6 @@ class SubjectController extends Controller
     {
         $request->validate([
             'subject_id' => 'required|exists:subjects,id',
-            'batch' => 'required',
             'course_code' => 'required|string|max:100',
             'course_title' => 'required|string|max:255',
             'course_type' => 'required',
@@ -890,7 +890,7 @@ class SubjectController extends Controller
         ]);
 
         $rec = new ProgramCourseMaster();
-        $rec->academic_year = $request->batch;
+        $rec->academic_year = (string) Carbon::now()->year;
         $rec->course_code = Str::upper($request->course_code);
         $rec->course_title = $request->course_title;
         $rec->course_type = $request->course_type;
@@ -948,12 +948,32 @@ class SubjectController extends Controller
     function getCsoListForCourse(Request $request, $courseId)
     {
         $defaultShift = $this->getDefaultShiftSlug();
+        $subject = Subject::find((int) $request->input('subject_id', 0));
+        $subjectUsesShifts = $subject ? ((int) ($subject->has_shift_delivery ?? 0) === 1) : false;
+        $allowedShiftSlugs = $this->getSubjectAllowedShiftSlugs($subject);
+        $requestedShift = (string) $request->input('shift', '');
+
+        $selectedShift = $defaultShift;
+        if ($subjectUsesShifts && !empty($allowedShiftSlugs)) {
+            $selectedShift = in_array($requestedShift, $allowedShiftSlugs, true)
+                ? $requestedShift
+                : ((string) ($allowedShiftSlugs[0] ?? $defaultShift));
+        }
+
         $query = CoHasCso::with(['csosubunits.taxomonylevel'])
-            ->where('co_id', $courseId)
-            ->where(function ($q) use ($defaultShift) {
+            ->where('co_id', $courseId);
+
+        if ($subjectUsesShifts && !empty($allowedShiftSlugs)) {
+            $query->where(function ($q) use ($selectedShift) {
+                $q->where('shift', $selectedShift)
+                    ->orWhereNull('shift');
+            });
+        } else {
+            $query->where(function ($q) use ($defaultShift) {
                 $q->where('shift', $defaultShift)
                     ->orWhereNull('shift');
             });
+        }
 
         $csos = $this->dedupeCsosByTitle($query->orderBy('id')->get());
 
@@ -1165,6 +1185,7 @@ class SubjectController extends Controller
     {
 
         $id = $request->id;
+        $subject = Subject::find((int) $id);
         $batches = BatchMaster::all();
         $semesters = Semester::all();
         $cos =  SubjectCourseMaster::with([
@@ -1185,6 +1206,9 @@ class SubjectController extends Controller
         $data['id'] = $id;
         $data['slug'] = $request->slug;
         $subjectUsesShifts = $this->subjectUsesShifts($id);
+        $shiftOptions = $this->getSubjectShiftOptions($subject);
+        $allowedShiftSlugs = $shiftOptions->pluck('slug')->filter()->values()->all();
+        $defaultShift = $this->getDefaultShiftSlug();
         $selectedProgramType = $this->resolveSyllabusProgramType($request, 'filter_program_type');
 
         $syllabusQuery = SyllabusManager::with([
@@ -1199,8 +1223,18 @@ class SubjectController extends Controller
             $syllabusQuery->where('batch_id', $request->filter_batch);
         }
 
-        if ($subjectUsesShifts && !empty($request->filter_shift) && $this->isKnownShift($request->filter_shift)) {
+        if ($subjectUsesShifts && !empty($request->filter_shift) && in_array($request->filter_shift, $allowedShiftSlugs, true)) {
             $syllabusQuery->where('shift', $request->filter_shift);
+        }
+
+        if ($subjectUsesShifts) {
+            if (!empty($allowedShiftSlugs)) {
+                $syllabusQuery->whereIn('shift', $allowedShiftSlugs);
+            }
+        } else {
+            $syllabusQuery->where(function ($query) use ($defaultShift) {
+                $query->where('shift', $defaultShift)->orWhereNull('shift');
+            });
         }
 
         if (Schema::hasColumn('syllabus_managers', 'program_type') && !empty($request->filter_program_type)) {
@@ -1248,9 +1282,6 @@ class SubjectController extends Controller
         }
 
         $data['organized_syllabus'] = $organized;
-        $shiftOptions = ShiftMaster::where('is_active', 1)
-            ->orderBy('sort_order')
-            ->get(['title', 'slug']);
 
         // Seat allocations keyed by "batch_id_semester_id_course_master_id" for quick lookup
         $seatAllocations = CourseSeatAllocation::where('subject_id', $id)
@@ -1277,37 +1308,32 @@ class SubjectController extends Controller
 
     function createSyllabus(Request $request)
     {
-        $allowedShifts = $this->getShiftSlugs();
+        $subject = Subject::find((int) $request->subject_id);
         $usesShifts = $this->subjectUsesShifts((int) $request->subject_id);
+        $allowedShifts = $this->getSubjectAllowedShiftSlugs($subject);
+        $defaultShift = $this->getDefaultShiftSlug();
         $request->validate([
             'subject_id' => 'required',
             'batch' => 'required',
             'semester' => 'required',
             'program_type' => 'required|in:UG,PG',
             'shift' => ['nullable', Rule::in($allowedShifts)],
-            'create_all_shifts' => 'nullable|boolean',
             'co_id' => 'required',
-            'cso_id' => 'required',
-            'cso_subunit' => 'required|array|min:1',
+            'cso_id' => 'required|array|min:1',
+            'cso_id.*' => 'integer|exists:co_has_csos,id',
+            'cso_subunit_map' => 'required|array|min:1',
             'status' => 'required|in:draft,published',
 
         ]);
 
-        // save syllabus main table (single or all shifts)
-        $defaultShift = $this->getDefaultShiftSlug();
+        // Save syllabus only for one selected shift.
         $targetShifts = [$defaultShift];
         if ($usesShifts) {
-            if ($request->boolean('create_all_shifts')) {
-                $targetShifts = collect($this->getShiftSlugs())
-                    ->reject(fn($shift) => $shift === $defaultShift)
-                    ->values()
-                    ->all();
-
-                if (empty($targetShifts)) {
-                    $targetShifts = [$defaultShift];
-                }
+            $selectedShift = (string) ($request->shift ?? '');
+            if ($selectedShift !== '' && in_array($selectedShift, $allowedShifts, true)) {
+                $targetShifts = [$selectedShift];
             } else {
-                $targetShifts = [$request->shift ?? $defaultShift];
+                $targetShifts = [$defaultShift];
             }
         }
 
@@ -1326,39 +1352,63 @@ class SubjectController extends Controller
             ]);
         }
 
-        // save syllabus subunit
-        $cso_subunit = $request->cso_subunit;
-        foreach ($targetShifts as $shiftSlug) {
-            $rec = SyllabusManager::updateOrCreate([
-                'subject_id' => $request->subject_id,
-                'batch_id' => $request->batch,
-                'semester_id' => $request->semester,
-                'shift' => $shiftSlug,
-                'program_type' => $programType,
-                'co_id' => $request->co_id,
-                'cso_id' => $request->cso_id,
-            ], [
-                'status' => $status,
-            ]);
+        $selectedCsoIds = collect((array) $request->cso_id)
+            ->map(fn($id) => (int) $id)
+            ->filter(fn($id) => $id > 0)
+            ->unique()
+            ->values();
 
-            if ($rec->wasRecentlyCreated) {
-                $createdCount++;
-            } else {
-                $updatedCount++;
-            }
+        $csoSubunitMap = collect((array) $request->cso_subunit_map)
+            ->map(function ($subunitIds) {
+                return collect((array) $subunitIds)
+                    ->map(fn($id) => (int) $id)
+                    ->filter(fn($id) => $id > 0)
+                    ->unique()
+                    ->values()
+                    ->all();
+            });
 
-            for ($i = 0; $i < count($cso_subunit); $i++) {
-                SyllabusSubunit::firstOrCreate([
-                    'syllabus_manager_id' => $rec->id,
-                    'unit_id' => $cso_subunit[$i],
-                ], [
-                    'is_completed' => 0,
-                ]);
-            }
+        $hasAtLeastOneSubunit = $selectedCsoIds
+            ->contains(fn($csoId) => !empty($csoSubunitMap->get((string) $csoId, [])));
+
+        if (!$hasAtLeastOneSubunit) {
+            return redirect()->back()->with('error', 'Please select at least one subunit for the selected CSO(s).');
         }
 
-        if ($usesShifts && $request->boolean('create_all_shifts')) {
-            return redirect()->back()->with('success', 'Syllabus saved for all active shifts with status: ' . ucfirst($status));
+        foreach ($targetShifts as $shiftSlug) {
+            foreach ($selectedCsoIds as $csoId) {
+                $subunitIds = (array) $csoSubunitMap->get((string) $csoId, []);
+                if (empty($subunitIds)) {
+                    continue;
+                }
+
+                $rec = SyllabusManager::updateOrCreate([
+                    'subject_id' => $request->subject_id,
+                    'batch_id' => $request->batch,
+                    'semester_id' => $request->semester,
+                    'shift' => $shiftSlug,
+                    'program_type' => $programType,
+                    'co_id' => $request->co_id,
+                    'cso_id' => $csoId,
+                ], [
+                    'status' => $status,
+                ]);
+
+                if ($rec->wasRecentlyCreated) {
+                    $createdCount++;
+                } else {
+                    $updatedCount++;
+                }
+
+                foreach ($subunitIds as $subunitId) {
+                    SyllabusSubunit::firstOrCreate([
+                        'syllabus_manager_id' => $rec->id,
+                        'unit_id' => $subunitId,
+                    ], [
+                        'is_completed' => 0,
+                    ]);
+                }
+            }
         }
 
         if ($createdCount > 0 && $updatedCount > 0) {
@@ -1525,6 +1575,7 @@ class SubjectController extends Controller
         $id = $request->id;
         $subject = Subject::find($id);
         $subjectUsesShifts = $this->subjectUsesShifts((int) $id);
+        $allowedShiftSlugs = $this->getSubjectAllowedShiftSlugs($subject);
         $selectedProgramType = $this->resolveSyllabusProgramType($request, 'filter_program_type');
 
         $syllabusQuery = SyllabusManager::with([
@@ -1540,8 +1591,17 @@ class SubjectController extends Controller
             $syllabusQuery->where('batch_id', $request->filter_batch);
         }
 
-        if ($subjectUsesShifts && !empty($request->filter_shift) && $this->isKnownShift($request->filter_shift)) {
+        if ($subjectUsesShifts && !empty($request->filter_shift) && in_array($request->filter_shift, $allowedShiftSlugs, true)) {
             $syllabusQuery->where('shift', $request->filter_shift);
+        }
+
+        if ($subjectUsesShifts && !empty($allowedShiftSlugs)) {
+            $syllabusQuery->whereIn('shift', $allowedShiftSlugs);
+        } elseif (!$subjectUsesShifts) {
+            $defaultShift = $this->getDefaultShiftSlug();
+            $syllabusQuery->where(function ($query) use ($defaultShift) {
+                $query->where('shift', $defaultShift)->orWhereNull('shift');
+            });
         }
 
         if (Schema::hasColumn('syllabus_managers', 'program_type')) {
@@ -2154,6 +2214,71 @@ class SubjectController extends Controller
         return $slugs;
     }
 
+    private function getSubjectShiftOptions(?Subject $subject)
+    {
+        $defaultShift = $this->getDefaultShiftSlug();
+        $query = ShiftMaster::where('is_active', 1)
+            ->orderBy('sort_order');
+
+        if ($subject && (int) ($subject->has_shift_delivery ?? 0) === 1) {
+            $enabledShiftIds = $this->getSubjectEnabledShiftIds($subject);
+            if (!empty($enabledShiftIds)) {
+                $query->whereIn('id', $enabledShiftIds);
+            } else {
+                $query->whereRaw('1 = 0');
+            }
+        } else {
+            $query->where('slug', $defaultShift);
+        }
+
+        $options = $query->get(['id', 'title', 'slug']);
+        if ($options->isEmpty()) {
+            $options = ShiftMaster::where('is_active', 1)
+                ->where('slug', $defaultShift)
+                ->get(['id', 'title', 'slug']);
+        }
+
+        return $options;
+    }
+
+    private function getSubjectAllowedShiftSlugs(?Subject $subject): array
+    {
+        $defaultShift = $this->getDefaultShiftSlug();
+        $slugs = $this->getSubjectShiftOptions($subject)
+            ->pluck('slug')
+            ->filter()
+            ->map(fn($slug) => (string) $slug)
+            ->unique()
+            ->values()
+            ->all();
+
+        if (empty($slugs)) {
+            return [$defaultShift];
+        }
+
+        return $slugs;
+    }
+
+    private function getSubjectEnabledShiftIds(?Subject $subject): array
+    {
+        if (!$subject) {
+            return [];
+        }
+
+        $shiftIds = $subject->shift_ids;
+        if (is_string($shiftIds)) {
+            $decoded = json_decode($shiftIds, true);
+            $shiftIds = is_array($decoded) ? $decoded : [];
+        }
+
+        return collect((array) $shiftIds)
+            ->map(fn($value) => (int) $value)
+            ->filter(fn($value) => $value > 0)
+            ->unique()
+            ->values()
+            ->all();
+    }
+
     private function resolveSyllabusProgramType(Request $request, string $key = 'program_type'): string
     {
         $value = strtoupper(trim((string) $request->input($key, 'UG')));
@@ -2569,6 +2694,26 @@ class SubjectController extends Controller
             return $respond(false, 'Pathway/Track columns are missing in curriculum table. Please run latest migrations and try again.', 422);
         }
 
+        $targetAcademicPathwayIds = [$academicPathwayId];
+        if ($hasAcademicPathwayColumn && $academicPathwayId === null && $degreeTrackId !== null) {
+            $degreeTrackName = strtoupper(trim((string) DB::table('degree_track_masters')
+                ->where('id', $degreeTrackId)
+                ->value('name')));
+
+            // "All Pathways + Regular" should create mappings for each explicit pathway only.
+            if ($degreeTrackName === 'REGULAR') {
+                $allPathwayIds = DB::table('academic_pathway_masters')
+                    ->pluck('id')
+                    ->map(fn($id) => (int) $id)
+                    ->filter(fn($id) => $id > 0)
+                    ->unique()
+                    ->values()
+                    ->all();
+
+                $targetAcademicPathwayIds = !empty($allPathwayIds) ? $allPathwayIds : [null];
+            }
+        }
+
         $combination = SubjectHasStudentProgam::with([
             'batchmaster:id,batch_name',
             'studentprograminfo:id,code,name',
@@ -2712,21 +2857,6 @@ class SubjectController extends Controller
             $courseId = (int) $selection['course_id'];
             $courseType = $selection['course_type'];
 
-            $existingQuery = ProgramWiseSemesterCourse::where('program_combo_refid', $refid)
-                ->where('batch', $batch)
-                ->where('semester', $semester)
-                ->where('course_id', $courseId);
-
-            if ($hasAcademicPathwayColumn) {
-                $existingQuery->where('academic_pathway_id', $academicPathwayId);
-            }
-
-            if ($hasDegreeTrackColumn) {
-                $existingQuery->where('degree_track_id', $degreeTrackId);
-            }
-
-            $existing = $existingQuery->first();
-
             $courseInfo = ProgramCourseMaster::with('coursetypemaster:id,title')->find($courseId);
             $offeringDeptId = (int) ($courseInfo->department ?? 0);
             $deliveryCategory = $selection['delivery_category'] ?? null;
@@ -2742,96 +2872,117 @@ class SubjectController extends Controller
                 $deliveryCategory = $this->deriveDeliveryCategory($combination, $courseInfo);
             }
 
-            if ($existing) {
-                $existing->course_type = $courseType;
+            foreach ($targetAcademicPathwayIds as $targetAcademicPathwayId) {
+                $existingQuery = ProgramWiseSemesterCourse::where('program_combo_refid', $refid)
+                    ->where('batch', $batch)
+                    ->where('semester', $semester)
+                    ->where('course_id', $courseId);
+
+                if ($hasAcademicPathwayColumn) {
+                    if ($targetAcademicPathwayId === null) {
+                        $existingQuery->whereNull('academic_pathway_id');
+                    } else {
+                        $existingQuery->where('academic_pathway_id', (int) $targetAcademicPathwayId);
+                    }
+                }
+
+                if ($hasDegreeTrackColumn) {
+                    $existingQuery->where('degree_track_id', $degreeTrackId);
+                }
+
+                $existing = $existingQuery->first();
+
+                if ($existing) {
+                    $existing->course_type = $courseType;
+                    if ($hasDeliveryCategoryColumn) {
+                        $existing->delivery_category = $deliveryCategory;
+                    }
+                    if ($hasSpecializationModeColumn) {
+                        $existing->specialization_mode = $isSingleMajor ? $specializationMode : 'COMMON';
+                    }
+                    if ($hasSpecializationMasterColumn) {
+                        $existing->specialization_master_id = ($isSingleMajor && $specializationMode === 'SPECIALIZATION' && $specializationMasterId > 0)
+                            ? $specializationMasterId
+                            : null;
+                    }
+                    if ($hasSpecializationMasterIdsColumn) {
+                        $existing->specialization_master_ids = ($isSingleMajor && $specializationMode === 'SPECIALIZATION')
+                            ? $specializationMasterIds
+                            : [];
+                    }
+                    if ($hasOfferingDeptColumn) {
+                        $existing->offering_dept = $offeringDeptId > 0 ? $offeringDeptId : null;
+                    }
+                    if ($hasDisplayOrderColumn) {
+                        $existing->display_order = $index + 1;
+                    }
+                    if ($hasIsActiveColumn) {
+                        $existing->is_active = true;
+                    }
+                    $existing->save();
+                    $updatedCount++;
+                    continue;
+                }
+
+                $createData = [
+                    'program_combo_refid' => $refid,
+                    'batch' => $batch,
+                    'semester' => $semester,
+                    'course_id' => $courseId,
+                    'course_type' => $courseType,
+                ];
+
+                if ($hasIsActiveColumn) {
+                    $createData['is_active'] = true;
+                }
+
+                if ($hasDisplayOrderColumn) {
+                    $createData['display_order'] = ($index + 1);
+                }
+
                 if ($hasDeliveryCategoryColumn) {
-                    $existing->delivery_category = $deliveryCategory;
+                    $createData['delivery_category'] = $deliveryCategory;
                 }
+
                 if ($hasSpecializationModeColumn) {
-                    $existing->specialization_mode = $isSingleMajor ? $specializationMode : 'COMMON';
+                    $createData['specialization_mode'] = $isSingleMajor ? $specializationMode : 'COMMON';
                 }
+
                 if ($hasSpecializationMasterColumn) {
-                    $existing->specialization_master_id = ($isSingleMajor && $specializationMode === 'SPECIALIZATION' && $specializationMasterId > 0)
+                    $createData['specialization_master_id'] = ($isSingleMajor && $specializationMode === 'SPECIALIZATION' && $specializationMasterId > 0)
                         ? $specializationMasterId
                         : null;
                 }
+
                 if ($hasSpecializationMasterIdsColumn) {
-                    $existing->specialization_master_ids = ($isSingleMajor && $specializationMode === 'SPECIALIZATION')
+                    $createData['specialization_master_ids'] = ($isSingleMajor && $specializationMode === 'SPECIALIZATION')
                         ? $specializationMasterIds
                         : [];
                 }
+
                 if ($hasOfferingDeptColumn) {
-                    $existing->offering_dept = $offeringDeptId > 0 ? $offeringDeptId : null;
+                    $createData['offering_dept'] = $offeringDeptId > 0 ? $offeringDeptId : null;
                 }
-                if ($hasDisplayOrderColumn) {
-                    $existing->display_order = $index + 1;
+
+                if ($hasAcademicPathwayColumn) {
+                    $createData['academic_pathway_id'] = $targetAcademicPathwayId;
                 }
-                if ($hasIsActiveColumn) {
-                    $existing->is_active = true;
+
+                if ($hasDegreeTrackColumn) {
+                    $createData['degree_track_id'] = $degreeTrackId;
                 }
-                $existing->save();
-                $updatedCount++;
-                continue;
-            }
 
-            $createData = [
-                'program_combo_refid' => $refid,
-                'batch' => $batch,
-                'semester' => $semester,
-                'course_id' => $courseId,
-                'course_type' => $courseType,
-            ];
+                $mapping = ProgramWiseSemesterCourse::create($createData);
 
-            if ($hasIsActiveColumn) {
-                $createData['is_active'] = true;
-            }
-
-            if ($hasDisplayOrderColumn) {
-                $createData['display_order'] = ($index + 1);
-            }
-
-            if ($hasDeliveryCategoryColumn) {
-                $createData['delivery_category'] = $deliveryCategory;
-            }
-
-            if ($hasSpecializationModeColumn) {
-                $createData['specialization_mode'] = $isSingleMajor ? $specializationMode : 'COMMON';
-            }
-
-            if ($hasSpecializationMasterColumn) {
-                $createData['specialization_master_id'] = ($isSingleMajor && $specializationMode === 'SPECIALIZATION' && $specializationMasterId > 0)
-                    ? $specializationMasterId
-                    : null;
-            }
-
-            if ($hasSpecializationMasterIdsColumn) {
-                $createData['specialization_master_ids'] = ($isSingleMajor && $specializationMode === 'SPECIALIZATION')
-                    ? $specializationMasterIds
-                    : [];
-            }
-
-            if ($hasOfferingDeptColumn) {
-                $createData['offering_dept'] = $offeringDeptId > 0 ? $offeringDeptId : null;
-            }
-
-            if ($hasAcademicPathwayColumn) {
-                $createData['academic_pathway_id'] = $academicPathwayId;
-            }
-
-            if ($hasDegreeTrackColumn) {
-                $createData['degree_track_id'] = $degreeTrackId;
-            }
-
-            $mapping = ProgramWiseSemesterCourse::create($createData);
-
-            if ($courseType === ProgramWiseSemesterCourse::TYPE_AUTO) {
-                $eligibleStudents = $this->getEligibleStudentsForCombination($combination);
-                if ($eligibleStudents->isNotEmpty()) {
-                    $this->enrollMappedCompulsaryCourse($combination, $mapping, $eligibleStudents);
+                if ($courseType === ProgramWiseSemesterCourse::TYPE_AUTO) {
+                    $eligibleStudents = $this->getEligibleStudentsForCombination($combination);
+                    if ($eligibleStudents->isNotEmpty()) {
+                        $this->enrollMappedCompulsaryCourse($combination, $mapping, $eligibleStudents);
+                    }
                 }
-            }
 
-            $createdCount++;
+                $createdCount++;
+            }
         }
 
         $message = 'Curriculum mapping saved.';

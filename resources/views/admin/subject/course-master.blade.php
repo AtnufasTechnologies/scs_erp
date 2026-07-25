@@ -1,12 +1,10 @@
 <?php
 
 use App\Http\Controllers\StaticController;
-use App\Models\BatchMaster;
 use App\Models\PaperTypeMaster;
 use App\Models\SubjectTypeMaster;
 
 $coursetypes = SubjectTypeMaster::all();
-$batches = BatchMaster::all();
 $papertypes = PaperTypeMaster::all();
 $userType = StaticController::fetchUserRole();
 ?>
@@ -62,17 +60,6 @@ $userType = StaticController::fetchUserRole();
             <div class="modal-body">
 
               <div class="row">
-                <div class="col-lg-6">
-                  <div class="mb-3">
-                    <label for="batch" class="form-label">Batch *</label>
-                    <select class="form-select dselect-example" id="" name="batch" required>
-                      <option value="">Select Batch</option>
-                      @foreach($batches as $batch)
-                      <option value="{{ $batch->id }}">{{ $batch->batch_name }}</option>
-                      @endforeach
-                    </select>
-                  </div>
-                </div>
                 <div class="col-lg-6">
                   <div class="mb-3">
                     <label for="courseType" class="form-label">Course Type *</label>
