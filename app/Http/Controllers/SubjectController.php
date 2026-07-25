@@ -2482,8 +2482,24 @@ class SubjectController extends Controller
 
         $publishedCoursesBySemester = $this->getPublishedCoursesBySemesterForCombination($data);
         $selectedSemester = (int) request('semester');
+        $combo2SubjectId = (int) ($comboBoundary['combo2'] ?? 0);
         $generatedCourses = $selectedSemester > 0
             ? collect($publishedCoursesBySemester[(string) $selectedSemester] ?? [])
+            ->filter(function ($course) use ($combo2SubjectId) {
+                $courseTypeTitle = strtoupper(trim((string) ($course['course_type_title'] ?? '')));
+                $sourceSubjectId = (int) ($course['source_subject_id'] ?? 0);
+
+                if (
+                    $combo2SubjectId > 0
+                    && $courseTypeTitle === ProgramWiseSemesterCourse::DELIVERY_OPEN_CHOICE
+                    && $sourceSubjectId === $combo2SubjectId
+                ) {
+                    return false;
+                }
+
+                return true;
+            })
+            ->values()
             : collect();
 
 
@@ -2600,6 +2616,16 @@ class SubjectController extends Controller
         // Keep combo1 precedence when a course appears in both combos.
         $semesterCourses = $combo2Courses
             ->concat($combo1Courses)
+            ->filter(function ($course) use ($combo2SubjectId) {
+                $courseTypeTitle = strtoupper(trim((string) ($course['course_type_title'] ?? '')));
+                $sourceSubjectId = (int) ($course['source_subject_id'] ?? 0);
+
+                return !(
+                    $combo2SubjectId > 0
+                    && $courseTypeTitle === ProgramWiseSemesterCourse::DELIVERY_OPEN_CHOICE
+                    && $sourceSubjectId === $combo2SubjectId
+                );
+            })
             ->keyBy('id')
             ->values()
             ->sortBy(fn($course) => ($course['course_code'] ?? '') . ' ' . ($course['course_title'] ?? ''))

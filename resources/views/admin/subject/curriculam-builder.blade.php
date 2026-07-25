@@ -389,6 +389,7 @@ $typeLabelMap = [
               All Offered Courses (Published Syllabus) - Semester <span id="generatedSemesterLabel">{{ $selectedSemester > 0 ? $selectedSemester : '-' }}</span>
               | Program Type <span id="generatedProgramTypeLabel">{{ strtoupper((string) ($data->program_type ?? 'UG')) === 'PG' ? 'PG' : 'UG' }}</span>
             </h6>
+            <div class="alert alert-warning">Select ony those MDC courses offered by your Department</div>
             <div id="generatedCoursesEmpty" class="alert alert-warning mb-0 {{$generatedCourses->isEmpty() ? '' : 'd-none'}}">No published syllabus courses found for this semester.</div>
             <div class="table-responsive">
               <table class="table table-bordered table-sm align-middle mb-0">

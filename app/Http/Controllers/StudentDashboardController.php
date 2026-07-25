@@ -406,13 +406,10 @@ class StudentDashboardController extends Controller
       }
     }
 
-    $programType = strtoupper(trim((string) ($programCombination?->program_type ?? '')));
-
     $pathwayId = (int) ($student->academic_pathway_id ?? 0);
     $degreeTrackId = (int) ($student->degree_track_id ?? 0);
 
     $query = ProgramWiseSemesterCourse::query()
-      ->where('program_combo_refid', (int) $programCombination->id)
       ->where('batch', (int) $student->batch)
       ->whereIn('course_type', [
         ProgramWiseSemesterCourse::TYPE_STUDENT_CHOICE,
@@ -424,24 +421,28 @@ class StudentDashboardController extends Controller
     }
 
     if (Schema::hasColumn((new ProgramWiseSemesterCourse())->getTable(), 'academic_pathway_id')) {
-      if ($pathwayId > 0) {
-        $query->where('academic_pathway_id', $pathwayId);
-      } else {
-        $query->whereNull('academic_pathway_id');
-      }
+      $query->where(function ($sub) use ($pathwayId) {
+        $sub->whereNull('academic_pathway_id');
+        if ($pathwayId > 0) {
+          $sub->orWhere('academic_pathway_id', $pathwayId);
+        }
+      });
     }
 
     if (Schema::hasColumn((new ProgramWiseSemesterCourse())->getTable(), 'degree_track_id')) {
-      if ($degreeTrackId > 0) {
-        $query->where('degree_track_id', $degreeTrackId);
-      } else {
-        $query->whereNull('degree_track_id');
-      }
+      $query->where(function ($sub) use ($degreeTrackId) {
+        $sub->whereNull('degree_track_id');
+        if ($degreeTrackId > 0) {
+          $sub->orWhere('degree_track_id', $degreeTrackId);
+        }
+      });
     }
 
     $rows = $query->get([
+      'program_combo_refid',
       'course_id',
       'semester',
+      'delivery_category',
       'specialization_master_id',
       'specialization_master_ids',
     ]);
@@ -512,8 +513,10 @@ class StudentDashboardController extends Controller
       }
 
       return [
+        'program_combo_refid' => (int) ($row->program_combo_refid ?? 0),
         'semester' => $semester,
         'course_id' => $courseId,
+        'delivery_category' => strtoupper(trim((string) ($row->delivery_category ?? ''))),
       ];
     })->filter()->unique(fn($pair) => $pair['semester'] . '_' . $pair['course_id'])->values();
 
@@ -528,60 +531,130 @@ class StudentDashboardController extends Controller
       ->get()
       ->keyBy('id');
 
+    $isMdcCourse = function ($course, string $deliveryCategory = ''): bool {
+      $normalizedDelivery = strtoupper(trim($deliveryCategory));
+      if ($normalizedDelivery === ProgramWiseSemesterCourse::DELIVERY_OPEN_CHOICE) {
+        return true;
+      }
+
+      if (!$course) {
+        return false;
+      }
+
+      $typeTitle = strtoupper(trim((string) ($course->coursetypemaster?->title ?? '')));
+      $typeKey = $typeTitle !== '' ? preg_replace('/\s.*/', '', $typeTitle) : '';
+      if ($typeKey === ProgramWiseSemesterCourse::DELIVERY_OPEN_CHOICE) {
+        return true;
+      }
+
+      $courseCode = strtoupper(trim((string) ($course->course_code ?? '')));
+      return str_contains($courseCode, ProgramWiseSemesterCourse::DELIVERY_OPEN_CHOICE);
+    };
+
+    // Elective selector should only show MDC courses.
+    $mdcEligiblePairs = $eligiblePairs->filter(function ($pair) use ($courses, $isMdcCourse) {
+      $course = $courses->get((int) ($pair['course_id'] ?? 0));
+      $deliveryCategory = (string) ($pair['delivery_category'] ?? '');
+      return $isMdcCourse($course, $deliveryCategory);
+    })->values();
+
+    if ($mdcEligiblePairs->isEmpty()) {
+      return collect();
+    }
+
+    // If student has already taken an MDC course, do not show it again in electives.
+    $studentTakenCourseIds = collect($studentCourses)
+      ->pluck('course_id')
+      ->map(fn($id) => (int) $id)
+      ->filter(fn($id) => $id > 0)
+      ->unique()
+      ->values();
+
+    $takenMdcCourseIds = collect();
+    if ($studentTakenCourseIds->isNotEmpty()) {
+      $takenMdcCourseIds = ProgramCourseMaster::with(['coursetypemaster:id,title'])
+        ->whereIn('id', $studentTakenCourseIds->all())
+        ->get()
+        ->filter(fn($course) => $isMdcCourse($course))
+        ->pluck('id')
+        ->map(fn($id) => (int) $id)
+        ->filter(fn($id) => $id > 0)
+        ->unique()
+        ->values();
+    }
+
     $excludedMdcPairKeys = collect();
-    if ($comboSubjectIds->isNotEmpty()) {
-      $mdcPairs = $eligiblePairs->filter(function ($pair) use ($courses) {
-        $course = $courses->get((int) ($pair['course_id'] ?? 0));
-        if (!$course) {
-          return false;
+    if ($comboSubjectIds->isNotEmpty() && !empty($student->new_program_id) && !empty($student->batch)) {
+      $comboCombinationIds = SubjectHasStudentProgam::query()
+        ->where('student_program_id', (int) $student->new_program_id)
+        ->where('batch_id', (int) $student->batch)
+        ->whereIn('subject_id', $comboSubjectIds->all())
+        ->pluck('id')
+        ->map(fn($id) => (int) $id)
+        ->filter(fn($id) => $id > 0)
+        ->unique()
+        ->values();
+
+      if ($comboCombinationIds->isNotEmpty()) {
+        $mdcCourseIds = $mdcEligiblePairs->pluck('course_id')->map(fn($id) => (int) $id)->unique()->values()->all();
+        $mdcSemesterIds = $mdcEligiblePairs->pluck('semester')->map(fn($id) => (int) $id)->unique()->values()->all();
+
+        $curriculumQuery = ProgramWiseSemesterCourse::query()
+          ->whereIn('program_combo_refid', $comboCombinationIds->all())
+          ->where('batch', (int) $student->batch)
+          ->whereIn('course_id', $mdcCourseIds)
+          ->whereIn('semester', $mdcSemesterIds);
+
+        if (Schema::hasColumn((new ProgramWiseSemesterCourse())->getTable(), 'is_active')) {
+          $curriculumQuery->where('is_active', 1);
         }
 
-        $typeTitle = strtoupper(trim((string) ($course->coursetypemaster?->title ?? '')));
-        if ($typeTitle === '') {
-          return false;
+        if (Schema::hasColumn((new ProgramWiseSemesterCourse())->getTable(), 'delivery_category')) {
+          $curriculumQuery->whereRaw("UPPER(TRIM(COALESCE(delivery_category, ''))) = ?", [ProgramWiseSemesterCourse::DELIVERY_OPEN_CHOICE]);
         }
 
-        $typeKey = preg_replace('/\s.*/', '', $typeTitle);
-        return $typeKey === ProgramWiseSemesterCourse::DELIVERY_OPEN_CHOICE;
-      })->values();
-
-      if ($mdcPairs->isNotEmpty()) {
-        $mdcCourseIds = $mdcPairs->pluck('course_id')->map(fn($id) => (int) $id)->unique()->values()->all();
-        $mdcSemesterIds = $mdcPairs->pluck('semester')->map(fn($id) => (int) $id)->unique()->values()->all();
-
-        $syllabusQuery = DB::table('syllabus_managers')
-          ->where('batch_id', (int) $student->batch)
-          ->whereIn('co_id', $mdcCourseIds)
-          ->whereIn('semester_id', $mdcSemesterIds)
-          ->whereIn('subject_id', $comboSubjectIds->all());
-
-        if (Schema::hasColumn('syllabus_managers', 'deleted_at')) {
-          $syllabusQuery->whereNull('deleted_at');
-        }
-
-        if (Schema::hasColumn('syllabus_managers', 'status')) {
-          $syllabusQuery->where('status', 'published');
-        }
-
-        if ($programType !== '' && Schema::hasColumn('syllabus_managers', 'program_type')) {
-          $syllabusQuery->whereRaw("UPPER(TRIM(COALESCE(program_type, ''))) = ?", [$programType]);
-        }
-
-        $excludedMdcPairKeys = $syllabusQuery
-          ->get(['semester_id', 'co_id'])
-          ->map(fn($row) => (int) ($row->semester_id ?? 0) . '_' . (int) ($row->co_id ?? 0))
+        $excludedMdcPairKeys = $curriculumQuery
+          ->get(['semester', 'course_id'])
+          ->map(fn($row) => (int) ($row->semester ?? 0) . '_' . (int) ($row->course_id ?? 0))
           ->filter(fn($key) => $key !== '0_0')
           ->unique()
           ->values();
+
+        $curriculumTable = (new ProgramWiseSemesterCourse())->getTable();
+        if (Schema::hasColumn($curriculumTable, 'offering_dept')) {
+          $offeringDeptExcludedKeys = ProgramWiseSemesterCourse::query()
+            ->where('batch', (int) $student->batch)
+            ->whereIn('course_id', $mdcCourseIds)
+            ->whereIn('semester', $mdcSemesterIds)
+            ->whereIn('offering_dept', $comboSubjectIds->all())
+            ->when(
+              Schema::hasColumn($curriculumTable, 'is_active'),
+              fn($q) => $q->where('is_active', 1)
+            )
+            ->get(['semester', 'course_id'])
+            ->map(fn($row) => (int) ($row->semester ?? 0) . '_' . (int) ($row->course_id ?? 0))
+            ->filter(fn($key) => $key !== '0_0')
+            ->unique()
+            ->values();
+
+          $excludedMdcPairKeys = $excludedMdcPairKeys
+            ->merge($offeringDeptExcludedKeys)
+            ->unique()
+            ->values();
+        }
       }
     }
 
-    return $eligiblePairs
+    return $mdcEligiblePairs
       ->groupBy('semester')
-      ->map(function ($pairs, $semesterId) use ($courses, $excludedMdcPairKeys) {
-        return $pairs->map(function ($pair) use ($courses, $semesterId, $excludedMdcPairKeys) {
+      ->map(function ($pairs, $semesterId) use ($courses, $excludedMdcPairKeys, $takenMdcCourseIds) {
+        return $pairs->map(function ($pair) use ($courses, $semesterId, $excludedMdcPairKeys, $takenMdcCourseIds) {
           $pairKey = (int) ($pair['semester'] ?? 0) . '_' . (int) ($pair['course_id'] ?? 0);
           if ($excludedMdcPairKeys->contains($pairKey)) {
+            return null;
+          }
+
+          if ($takenMdcCourseIds->contains((int) ($pair['course_id'] ?? 0))) {
             return null;
           }
 
