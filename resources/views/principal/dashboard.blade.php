@@ -216,6 +216,162 @@
       </div>
     </div>
 
+    <!-- ── Programs, Combo & Curriculum Overview ─────────────────────────── -->
+    <div class="row mt-4" id="programs-curriculum">
+      <div class="col-12">
+        <div class="card border-0 shadow-sm">
+          <div class="card-header bg-white d-flex align-items-center justify-content-between">
+            <h6 class="mb-0"><i class="fas fa-graduation-cap me-2 text-primary"></i>Programs, Combos &amp; Curriculum Status</h6>
+            <small class="text-muted">Curriculum coverage: semesters with at least one course mapped</small>
+          </div>
+          <div class="card-body p-0">
+            <div class="table-responsive">
+              <table class="table table-hover mb-0 align-middle" style="font-size:0.85rem;">
+                <thead class="table-dark">
+                  <tr>
+                    <th>Campus</th>
+                    <th>Program Code</th>
+                    <th>Program Name</th>
+                    <th>Shift</th>
+                    <th>Type</th>
+                    <th>Combo 1 (Major A)</th>
+                    <th>Combo 2 (Major B)</th>
+                    <th class="text-center">Curriculum</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  @forelse($programsOverview as $prog)
+                  @php
+                  $covered = $prog->curriculum_covered;
+                  $total = $prog->curriculum_total;
+                  $pct = $total > 0 ? round(($covered / $total) * 100) : 0;
+                  $badgeClass = $covered >= $total && $total > 0 ? 'success' : ($covered > 0 ? 'warning' : 'danger');
+                  $badgeText = $covered >= $total && $total > 0 ? 'Complete' : ($covered > 0 ? 'Partial' : 'Not Started');
+                  @endphp
+                  <tr>
+                    <td>{{ $prog->campusmaster->name ?? '—' }}</td>
+                    <td><code>{{ $prog->code }}</code></td>
+                    <td>{{ Str::title($prog->name) }}</td>
+                    <td>
+                      @if($prog->shiftmaster)
+                      <span class="badge bg-secondary">{{ $prog->shiftmaster->title }}</span>
+                      @else
+                      <span class="text-muted">Common</span>
+                      @endif
+                    </td>
+                    <td>
+                      @if($prog->programtypemaster)
+                      <span class="badge bg-info text-dark">{{ $prog->programtypemaster->name }}</span>
+                      @else
+                      <span class="text-muted">—</span>
+                      @endif
+                    </td>
+                    <td>
+                      @if($prog->combomap && $prog->combomap->combo1)
+                      <span class="badge bg-success">{{ $prog->combomap->combo1->title }}</span>
+                      @else
+                      <span class="text-muted">—</span>
+                      @endif
+                    </td>
+                    <td>
+                      @if($prog->combomap && $prog->combomap->combo2)
+                      <span class="badge bg-primary">{{ $prog->combomap->combo2->title }}</span>
+                      @else
+                      <span class="text-muted">—</span>
+                      @endif
+                    </td>
+                    <td class="text-center">
+                      @if(!$prog->has_combos)
+                      <span class="badge bg-secondary">No Combinations</span>
+                      @else
+                      <span class="badge bg-{{ $badgeClass }} me-1">{{ $badgeText }}</span>
+                      <small class="text-muted">{{ $covered }}/{{ $total }} sem</small>
+                      @if($total > 0)
+                      <div class="progress mt-1" style="height:5px;">
+                        <div class="progress-bar bg-{{ $badgeClass }}" style="width:{{ $pct }}%"></div>
+                      </div>
+                      @endif
+                      @endif
+                    </td>
+                  </tr>
+                  @empty
+                  <tr>
+                    <td colspan="8" class="text-center text-muted py-3">No programs found.</td>
+                  </tr>
+                  @endforelse
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── Subjects: Shifts & Specializations ───────────────────────────── -->
+    <div class="row mt-4 mb-4" id="subjects-overview">
+      <div class="col-12">
+        <div class="card border-0 shadow-sm">
+          <div class="card-header bg-white d-flex align-items-center justify-content-between">
+            <h6 class="mb-0"><i class="fas fa-book-open me-2 text-success"></i>Subjects — Shifts &amp; Specializations</h6>
+            <small class="text-muted">Departments configured in the system</small>
+          </div>
+          <div class="card-body p-0">
+            <div class="table-responsive">
+              <table class="table table-hover mb-0 align-middle" style="font-size:0.85rem;">
+                <thead class="table-dark">
+                  <tr>
+                    <th>Campus</th>
+                    <th>Subject / Department</th>
+                    <th>Shift Delivery</th>
+                    <th>Applicable Shifts</th>
+                    <th>Specializations</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  @forelse($subjectsOverview as $sub)
+                  <tr>
+                    <td>{{ $sub->campusmaster->name ?? '—' }}</td>
+                    <td><strong>{{ $sub->title }}</strong> <code class="ms-1 text-muted">{{ $sub->code }}</code></td>
+                    <td class="text-center">
+                      @if($sub->uses_shifts)
+                      <span class="badge bg-success"><i class="fas fa-check me-1"></i>Yes</span>
+                      @else
+                      <span class="badge bg-secondary">No</span>
+                      @endif
+                    </td>
+                    <td>
+                      @if($sub->uses_shifts && count($sub->applicable_shifts) > 0)
+                      @foreach($sub->applicable_shifts as $shift)
+                      <span class="badge bg-info text-dark me-1">{{ $shift }}</span>
+                      @endforeach
+                      @elseif($sub->uses_shifts)
+                      <span class="text-warning small">Shift mode on, none assigned</span>
+                      @else
+                      <span class="text-muted small">—</span>
+                      @endif
+                    </td>
+                    <td>
+                      @if($sub->specializations_list->isNotEmpty())
+                      @foreach($sub->specializations_list as $spec)
+                      <span class="badge bg-light text-dark border me-1 mb-1">{{ $spec->name }}</span>
+                      @endforeach
+                      @else
+                      <span class="text-muted small">None</span>
+                      @endif
+                    </td>
+                  </tr>
+                  @empty
+                  <tr>
+                    <td colspan="5" class="text-center text-muted py-3">No subjects found.</td>
+                  </tr>
+                  @endforelse
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
 
   </main>
 </div>

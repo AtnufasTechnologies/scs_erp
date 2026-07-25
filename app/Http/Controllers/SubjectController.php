@@ -849,12 +849,7 @@ class SubjectController extends Controller
 
         if ($request->ajax() || $request->expectsJson()) {
             $programTypeName = $data->programtypemaster->name ?? 'Unknown';
-            $comboLabel = 'N/A';
-            if ($data->programtypemaster && $data->programtypemaster->name === 'UGC') {
-                $comboLabel = ($data->combomap->combo1->title ?? 'Unknown') . ' - ' . ($data->combomap->combo2->title ?? 'Unknown');
-            } elseif ($data->programtypemaster && $data->programtypemaster->name !== 'UGC') {
-                $comboLabel = 'N/A for AICTE';
-            }
+            $comboLabel = ($data->combomap->combo1->title ?? 'Unknown') . ' - ' . ($data->combomap->combo2->title ?? 'Unknown');
 
             return response()->json([
                 'success' => true,
