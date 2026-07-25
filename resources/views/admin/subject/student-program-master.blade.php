@@ -133,7 +133,10 @@ $subjects = Subject::latest()->get();
             {{$d->combomap->combo1->title ?? 'Unknown'}} - {{$d->combomap->combo2->title ?? 'Unknown'}}
           </span>
           @else
-          <span class="badge badge-info">N/A for AICTE</span>
+          <span class="badge badge-info"> AICTE </span>
+          <span class="badge badge-success">
+            {{$d->combomap->combo1->title ?? 'Unknown'}} - {{$d->combomap->combo2->title ?? 'Unknown'}}
+          </span>
           @endif
 
           @endif
@@ -152,9 +155,7 @@ $subjects = Subject::latest()->get();
                   <h5 class="modal-title" id="exampleModalLabel">Edit Program</h5>
                   <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
                 </div>
-                <form action="{{route('admin.update.student.program.master',$d->id)}}" method="post">
-
-                  <!-- <form action="{{route('admin.update.student.program.master',$d->id)}}" method="post" class="js-program-edit-form" data-program-id="{{$d->id}}" data-modal-id="edit{{$d->id}}"> -->
+                <form action="{{route('admin.update.student.program.master',$d->id)}}" method="post" class="js-program-edit-form" data-program-id="{{$d->id}}" data-modal-id="edit{{$d->id}}">
                   @csrf
                   <input type="hidden" name="id" value="{{$d->id}}">
                   <div class="alert alert-danger d-none js-form-error" role="alert"></div>
@@ -300,7 +301,7 @@ $subjects = Subject::latest()->get();
         if ((payload.program_type || '').toUpperCase() === 'UGC') {
           comboNode.innerHTML = `<span class="badge badge-success">${payload.combo_label || 'Unknown - Unknown'}</span>`;
         } else {
-          comboNode.innerHTML = `<span class="badge badge-info">${payload.combo_label || 'N/A for AICTE'}</span>`;
+          comboNode.innerHTML = `<span class="badge badge-info">AICTE</span> <span class="badge badge-success">${payload.combo_label || 'Unknown - Unknown'}</span>`;
         }
       }
     }
