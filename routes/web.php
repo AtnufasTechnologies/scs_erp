@@ -63,6 +63,7 @@ use App\Http\Controllers\Hr\ApiScoreController;
 use App\Http\Controllers\SyllabusPdfController;
 use App\Http\Controllers\SubjectController;
 use App\Http\Controllers\ShiftMasterController;
+use App\Http\Controllers\StudentAttendanceScanController;
 use App\Http\Controllers\TestController;
 use App\Http\Controllers\TimetableController;
 use App\Http\Controllers\ITCellController;
@@ -148,6 +149,7 @@ Route::group(['prefix' => '/erp'], function () {
 
             Route::get('hour', [AdminController::class, 'hourMaster']);
             Route::post('hour', [AdminController::class, 'addHour']);
+            Route::put('hour/{id}', [AdminController::class, 'updateHour']);
             Route::get('delhour/{id}', [AdminController::class, 'delHour']);
 
             Route::get('blood-group', [AdminController::class, 'bloodGroupMaster']);
@@ -187,6 +189,7 @@ Route::group(['prefix' => '/erp'], function () {
             Route::post('update-academic-dept/{id}', [SubjectController::class, 'updateAcademicDept'])->name('admin.master.update.academic-dept');
             Route::get('toggle-subject-visibility/{id}', [SubjectController::class, 'toggleAdmissionFormVisibility'])->name('toggle.subject.visibility.admission');
             Route::get('toggle-subject-shift-mode/{id}', [SubjectController::class, 'toggleSubjectShiftMode'])->name('toggle.subject.shift.mode');
+            Route::post('update-subject-shifts/{id}', [SubjectController::class, 'updateSubjectShifts'])->name('update.subject.shift.mode');
             Route::get('unlink-subject-course/{id}', [AdminController::class, 'subjectCourseUnlinker'])->name('subject.course.unlinker');
             //lecture halls
 
@@ -347,7 +350,7 @@ Route::group(['prefix' => '/erp'], function () {
             Route::put('update-combination/{id}', [SubjectController::class, 'updateCombination'])->name('admin.update.combination');
             Route::get('student-program-master', [SubjectController::class, 'studentProgramMaster'])->name('admin.student-program-master');
             Route::post('add/new/student-program', [SubjectController::class, 'addNewStudentProgram'])->name('admin.add.new.student-program');
-            Route::post('update/student-program/{id}', [SubjectController::class, 'updateStudentProgram'])->name('admin.update.student-program');
+            Route::post('update/student-program/{id}', [SubjectController::class, 'updateStudentProgram'])->name('admin.update.student.program.master');
             Route::get('admission-combinations', [SubjectController::class, 'getAdmissionCombination'])->name('itcell.admission.combination-master');
         });
 
@@ -724,6 +727,7 @@ Route::group(['prefix' => '/erp'], function () {
         //==Exclusive Console Access ONLY via Login ================= New Working Routes 04/05/2026
         Route::group(['prefix' => 'console'], function () {
             Route::get('dashboard', [StudentDashboardController::class, 'index'])->name('student.console.dashboard');
+            Route::post('electives/confirm', [StudentDashboardController::class, 'confirmElectives'])->name('student.console.electives.confirm');
         });
 
         Route::get('feedback', [StudentDashboardController::class, 'feedbackList'])->name('student.feedback.list');
@@ -767,8 +771,8 @@ Route::group(['prefix' => '/erp'], function () {
         Route::get('students/{id}/fee-structures', [FeePaymentController::class, 'getStudentFeeStructures']);
         Route::get('students/{rollno}/unpaid-fees', [FeePaymentController::class, 'getStudentUnpaidFees']);
     });
-    // ========================================================
-    // Department routes
+
+    // Departmental routes ========================================================
 
     Route::group(['prefix' => '/deptartment',], function () {
         Route::get('dashboard', [SubjectController::class, 'departmentDashboard'])->name('department.dashboard');
@@ -780,6 +784,7 @@ Route::group(['prefix' => '/erp'], function () {
         Route::get('delete-semester/{id}', [SubjectController::class, 'deleteSemesterFromSubject'])->name('department.delete.subject.semester');
         Route::post('add-faculty-master', [SubjectController::class, 'addFacultyMasterToSubject'])->name('dept.add.faculty.master');
         Route::put('combination-update/{id}', [SubjectController::class, 'updateCombination'])->name('department.combination.update');
+        Route::put('combination-specializations/{id}', [SubjectController::class, 'updateCombinationSpecializations'])->name('department.combination.specializations.update');
         // Course Objectives
         Route::get('course/{id}/cso', [SubjectController::class, 'viewCourseSpecificObjective'])->name('department.view.cso');
         Route::get('course/{id}/cso-list', [SubjectController::class, 'getCsoListForCourse'])->name('department.get.cso.list');
@@ -799,6 +804,7 @@ Route::group(['prefix' => '/erp'], function () {
         Route::get('syllabus-manager', [SubjectController::class, 'syllabusManager'])->name('department.syllabus.manager');
         Route::get('course/{id}/cso-list', [SubjectController::class, 'getCsoListForCourse'])->name('department.get.cso.list');
         Route::post('create-syllabus', [SubjectController::class, 'createSyllabus'])->name('department.create.syllabus');
+        Route::post('syllabus-co/toggle-status/{subjectId}/{batchId}/{semesterId}/{coId}', [SubjectController::class, 'toggleSyllabusStatus'])->name('department.syllabus.co.toggle-status');
         Route::delete('syllabus-subunit/{id}', [SubjectController::class, 'deleteSyllabusSubunit'])->name('department.syllabus.subunit.delete');
         Route::delete('syllabus-co/{subjectId}/{batchId}/{semesterId}/{coId}', [SubjectController::class, 'deleteSyllabusCo'])->name('department.syllabus.co.delete');
         Route::get('syllabus-download-pdf', [SubjectController::class, 'downloadSyllabusPdf'])->name('department.syllabus.download.pdf');
@@ -826,8 +832,11 @@ Route::group(['prefix' => '/erp'], function () {
         // Faculty Timetable
 
         //timetable
-        Route::get('timetable/{id}', [TimetableController::class, 'index'])->name('department.timetable');
+        Route::get('timetable/{id}/{slug}', [TimetableController::class, 'index'])->name('department.timetable');
         Route::get('timetable/{subjectId}/{batchId}/{semesterId}', [TimetableController::class, 'editSemesterTimetable'])->name('department.timetable.edit');
+        Route::get('timetable-hours', [TimetableController::class, 'getTeachingHoursByShift'])->name('department.timetable.hours');
+        Route::get('timetable-quick-courses', [TimetableController::class, 'getQuickCourses'])->name('department.timetable.quick-courses');
+        Route::post('timetable-conflict-check', [TimetableController::class, 'validateTimetableConflict'])->name('department.timetable.conflict-check');
         Route::get('timetable-data/{subjectId}/{batchId}/{semesterId}', [TimetableController::class, 'getTimetableData'])->name('department.timetable.data');
         Route::get('timetable-conflicts/{hourNumber}/{day}', [TimetableController::class, 'getTeacherConflicts'])->name('department.timetable.conflicts');
         Route::delete('timetable-routine/{routineId}', [TimetableController::class, 'deleteRoutineSlot'])->name('department.timetable.delete');
@@ -856,7 +865,7 @@ Route::group(['prefix' => '/erp'], function () {
         Route::get('show-student-list', [SubjectController::class, 'showStudentList'])->name('department.show.student.list');
         Route::get('all-students', [SubjectController::class, 'allStudents'])->name('department.all.students');
         Route::get('student-profile', [SubjectController::class, 'studentProfile'])->name('department.student.profile');
-        Route::get('faculty-list/{subjectId}', [SubjectController::class, 'deptFacultyList'])->name('department.faculty.list');
+        Route::get('faculty-list/{subjectId}/{slug}', [SubjectController::class, 'deptFacultyList'])->name('department.faculty.list');
         // Department Activities
         Route::get('activities/{subjectId}', [DepartmentActivityController::class, 'index'])->name('department.activities.index');
         Route::post('activities', [DepartmentActivityController::class, 'store'])->name('department.activities.store');
@@ -880,11 +889,30 @@ Route::group(['prefix' => '/erp'], function () {
         Route::get('attendance-monitor', [SubjectController::class, 'attendanceMonitor'])->name('department.attendance.monitor');
 
         //program wise semester courses
-        Route::get('program-semester-course-design/{id}', [SubjectController::class, 'programSemesterCourseDesign'])->name('program.wise.semester.course.design');
-        Route::post('store.program.semster.courses.mapping', [SubjectController::class, 'storeProgramSemesterCoursesMapping'])->name('store.program.semster.courses.mapping');
+        Route::get('curriculam-builder-engine/{id}/{name}', [SubjectController::class, 'curriculamBuilder'])->name('curriculam.builder.engine');
+        Route::get('curriculam-course-fetcher', [SubjectController::class, 'fetchComboCourses'])->name('combo.course.fetching');
+
+        Route::get('curriculam-builder/{id}/published-courses', [SubjectController::class, 'publishedSyllabusCoursesForCurriculum'])->name('program.wise.semester.curriculam.builder.published-courses');
+        Route::post('store-curriculam-mapping', [SubjectController::class, 'storeProgramSemesterCoursesMapping'])->name('store.curriculam.mapping');
         Route::post('update.program.semster.courses.mapping/{id}', [SubjectController::class, 'updateProgramSemesterCoursesMapping'])->name('update.program.semster.courses.mapping');
         Route::post('update.program.semster.courses.order', [SubjectController::class, 'updateProgramSemesterCoursesOrder'])->name('update.program.semster.courses.order');
         Route::delete('program-semester-course-mapping/{id}', [SubjectController::class, 'deleteProgramSemesterCourseMapping'])->name('delete.program.semster.courses.mapping');
+
+        //Teaching Assignment
+        Route::get('teaching-assignment/{id}/{slug}', [SubjectController::class, 'teachingAssignment'])->name('department.teaching.assignment');
+        Route::post('teaching-assignment/{subjectId}', [SubjectController::class, 'storeTeachingAssignment'])->name('department.teaching.assignment.store');
+        Route::put('teaching-assignment/{id}', [SubjectController::class, 'updateTeachingAssignment'])->name('department.teaching.assignment.update');
+        Route::delete('teaching-assignment/{id}', [SubjectController::class, 'deleteTeachingAssignment'])->name('department.teaching.assignment.delete');
+
+        //Specialization
+        Route::get('my-specializations/{id}/{slug}', [SubjectController::class, 'mySpecializations'])->name('department.specialization.master');
+        Route::post('store-my-specialization', [SubjectController::class, 'storeMySpecialization'])->name('department.store.specialization');
+        Route::put('update-my-specialization/{id}', [SubjectController::class, 'updateMySpecialization'])->name('department.update.specialization');
+        Route::post('my-specializations/{id}/{slug}/assign-students', [SubjectController::class, 'storeStudentSpecializationAssignments'])->name('department.specialization.assign.students');
+
+        //Student Group Allotment
+        Route::get('student-group-allotment/{id}/{slug}', [SubjectController::class, 'studentGroupAllotment'])->name('department.student.group.allocation');
+        Route::post('student-group-allotment/{id}/{slug}/save', [SubjectController::class, 'saveStudentGroupAllocation'])->name('department.student.group.allocation.save');
     });
     // ========================================================
     // Faculty routes
@@ -900,6 +928,11 @@ Route::group(['prefix' => '/erp'], function () {
         Route::get('attendance/view', [FacultyAttendanceController::class, 'viewAttendance'])->name('faculty.attendance.view');
         Route::delete('attendance/{id}', [FacultyAttendanceController::class, 'deleteAttendance'])->name('faculty.attendance.delete');
         Route::get('attendance/create', [FacultyAttendanceController::class, 'getStudentList'])->name('faculty.attendance.create');
+        Route::get('attendance/hours', [FacultyAttendanceController::class, 'getHoursByShift'])->name('faculty.attendance.hours');
+        Route::post('attendance/qr/generate', [FacultyAttendanceController::class, 'generateStudentAttendanceQr'])->name('faculty.attendance.qr.generate');
+        Route::post('attendance/qr/finalize', [FacultyAttendanceController::class, 'finalizeQrAttendance'])->name('faculty.attendance.qr.finalize');
+        Route::post('attendance/qr/delete', [FacultyAttendanceController::class, 'deleteQrRecord'])->name('faculty.attendance.qr.delete');
+        Route::get('attendance/qr-records', [FacultyAttendanceController::class, 'qrRecords'])->name('faculty.attendance.qr.records');
         Route::put('attendance/{id}', [FacultyAttendanceController::class, 'updateAttendance'])->name('faculty.attendance.update');
         // Remedial classes
         Route::get('remedial-classes', [FacultyAttendanceController::class, 'extraClasses'])->name('faculty.remedial.classes');

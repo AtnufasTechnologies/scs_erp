@@ -15,6 +15,7 @@ class StudentCourseInfo extends Model
         'student_id',
         'course_id',
         'semester',
+        'allocation_group_id',
         'campus_id',
         'is_active',
         'academic_year',

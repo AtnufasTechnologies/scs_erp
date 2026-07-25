@@ -14,11 +14,14 @@ class SubjectHasRoutine extends Model
         'syllabus_id',
         'batch_id',
         'shift',
+        'program_type',
         'weekday_id',
         'hour_id',
         'lecturehall_id',
         'faculty_id',
         'subject_course_id',
+        'teaching_allocation_id',
+        'teaching_assignment_id',
         'substitution_faculty_id'
     ];
 
@@ -50,6 +53,16 @@ class SubjectHasRoutine extends Model
     function subjectCourse()
     {
         return $this->belongsTo(SubjectCourseMaster::class, 'subject_course_id', 'id');
+    }
+
+    function teachingAssignment()
+    {
+        return $this->belongsTo(TeachingAssignment::class, 'teaching_assignment_id', 'id');
+    }
+
+    function teachingAllocation()
+    {
+        return $this->belongsTo(TeachingAssignment::class, 'teaching_allocation_id', 'id');
     }
 
     function batch()

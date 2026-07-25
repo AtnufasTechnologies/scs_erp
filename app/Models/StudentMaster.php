@@ -155,4 +155,9 @@ class StudentMaster extends Model
             ->where('current_semester', 1)
             ->orderByDesc('semester_id');
     }
+
+    function subjectmaster()
+    {
+        return $this->hasOne(Subject::class, 'id', 'academic_dept_id');
+    }
 }

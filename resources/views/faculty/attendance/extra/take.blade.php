@@ -1,9 +1,3 @@
-<?php
-
-use App\Models\HourMaster;
-
-$hourmaster = HourMaster::all();
-?>
 @include('includes.header')
 
 <div class="wrapper">
@@ -76,9 +70,11 @@ $hourmaster = HourMaster::all();
               <div class="col-md-4">
                 <label for="hour_id" class="form-label">Selected Hour</label>
                 <select name="hour_id" id="hour_id" class="form-select">
-                  @foreach ($hourmaster as $hour)
-                  <option value="{{ $hour->id }}" {{ $hour->id == $hourId ? 'selected' : '' }}>{{ $hour->title }}</option>
-                  @endforeach
+                  @forelse (($availableHours ?? collect()) as $hour)
+                  <option value="{{ $hour->id }}" {{ (int) $hour->id === (int) $hourId ? 'selected' : '' }}>{{ $hour->label }}</option>
+                  @empty
+                  <option value="" selected disabled>No teaching hours for this shift</option>
+                  @endforelse
                 </select>
               </div>
 

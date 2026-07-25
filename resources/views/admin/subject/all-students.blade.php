@@ -91,10 +91,7 @@
               <tr class="student-row" data-search="{{ strtolower($student->roll_no . ' ' . $student->first_name . ' ' . $student->last_name) }}" style="border-bottom: 1px solid #f5f5f5;">
                 <td>{{ $loop->iteration }}</td>
                 <td>
-                  <a href="{{ route('department.student.profile', ['id' => $student->id, 'rollno' => $student->roll_no]) }}"
-                    style="color: #5b4cdb; font-weight: 700; font-size: 13px; text-transform: uppercase; text-decoration: none;">
-                    {{ $student->roll_no ?? 'N/A' }}
-                  </a>
+                  {{ $student->roll_no ?? 'N/A' }}
                 </td>
                 <td style="color: #1a1a1a; font-size: 13px; text-transform: capitalize; font-weight: 500;">
                   {{ $student->first_name }} {{ $student->last_name }}

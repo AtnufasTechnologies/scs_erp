@@ -2,9 +2,11 @@
 
 use App\Models\Campus;
 use App\Models\ProgramMaster;
+use App\Models\ShiftMaster;
 
 $programs = ProgramMaster::latest()->get();
 $campuses = Campus::latest()->get();
+$shiftMasters = $shiftMasters ?? ShiftMaster::where('is_active', 1)->orderBy('sort_order')->get(['id', 'title', 'slug']);
 ?>
 @include('includes.header')
 @include('admin.sidebar')
@@ -88,7 +90,7 @@ $campuses = Campus::latest()->get();
         <th>Code</th>
         <th>Academic Department Name</th>
         <th>Main Program Type</th>
-        <th>Shift Mode</th>
+        <th>Enabled Shifts</th>
         <th>Admission Form Visibility</th>
         <th>Edit</th>
         <th>View</th>
@@ -105,14 +107,62 @@ $campuses = Campus::latest()->get();
         <td><span>{{$item->code}}</span></td>
         <td><span>{{$item->title}}</span></td>
         <td><span class="text-capitalize">{{$item->main_program_type}}</span></td>
-        <td><a href="{{route('toggle.subject.shift.mode',[$item->id])}}">
-            <span class=" badge  {{$item->has_shift_delivery == 1? 'badge-success' : 'badge-danger'}}"">
-              {{$item->has_shift_delivery == 1? 'Enabled' : 'Disabled'}}</span>
-          </a>
+        <td>
+          @php
+          $selectedShiftIds = $item->shift_ids;
+          if (is_string($selectedShiftIds)) {
+          $selectedShiftIds = json_decode($selectedShiftIds, true);
+          }
+          $selectedShiftIds = collect($selectedShiftIds ?: [])->map(fn($id) => (int) $id)->filter()->values();
+          $enabledShifts = $shiftMasters->whereIn('id', $selectedShiftIds->all())->values();
+          @endphp
+
+          <button type="button" class="btn btn-sm btn-outline-primary" data-bs-toggle="modal" data-bs-target="#shiftMode{{$item->id}}">
+            <i class="fa fa-sliders"></i> Configure
+          </button>
+          <div class="mt-2">
+            <span class="badge {{$item->has_shift_delivery == 1 ? 'badge-success' : 'badge-danger'}}">
+              {{$item->has_shift_delivery == 1 ? 'Enabled' : 'Disabled'}}
+            </span>
+            @if($enabledShifts->count())
+            @foreach($enabledShifts as $enabledShift)
+            <span class="badge badge-info">{{$enabledShift->title}}</span>
+            @endforeach
+            @endif
+          </div>
+
+          <div class="modal fade" id="shiftMode{{$item->id}}" tabindex="-1" aria-hidden="true">
+            <div class="modal-dialog">
+              <div class="modal-content">
+                <div class="modal-header">
+                  <h5 class="modal-title">Configure Shift Delivery</h5>
+                  <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <form action="{{route('update.subject.shift.mode',[$item->id])}}" method="post">
+                  @csrf
+                  <div class="modal-body">
+                    <label class="form-label">Select Enabled Shifts (multi-select)</label>
+                    <select name="shift_ids[]" class="select-multiple" multiple size="6">
+                      @foreach($shiftMasters as $shiftOption)
+                      <option value="{{$shiftOption->id}}" {{$selectedShiftIds->contains((int) $shiftOption->id) ? 'selected' : ''}}>
+                        {{$shiftOption->title}}
+                      </option>
+                      @endforeach
+                    </select>
+                    <small class="text-muted">Select one or more shifts to enable delivery. Leave empty to disable shift mode.</small>
+                  </div>
+                  <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                    <button type="submit" class="btn btn-primary">Save Shifts</button>
+                  </div>
+                </form>
+              </div>
+            </div>
+          </div>
         </td>
         <td><a href=" {{route('toggle.subject.visibility.admission',[$item->id])}}">
-              <span class="badge {{$item->display_in_admission_form == 1? 'badge-success' : 'badge-danger'}}">
-                {{$item->display_in_admission_form == 1? 'Yes' : 'No'}}</span>
+            <span class="badge {{$item->display_in_admission_form == 1? 'badge-success' : 'badge-danger'}}">
+              {{$item->display_in_admission_form == 1? 'Yes' : 'No'}}</span>
           </a>
         </td>
         <td>

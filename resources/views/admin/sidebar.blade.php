@@ -43,7 +43,7 @@ $roleType = UserHasRole::where('user_id', $userId)->value('role_name');
         <li>
           <a href="{{url('erp/admin/master/batch')}}">
             <div class="parent-icon">
-              <i class="fas fa-arrow-alt-circle-right"></i>
+              <i class="fas fa-swatchbook"></i>
             </div>
             <div class="menu-title">Batches</div>
           </a>
@@ -52,7 +52,7 @@ $roleType = UserHasRole::where('user_id', $userId)->value('role_name');
         <li>
           <a href="{{url('erp/admin/master/blood-group')}}">
             <div class="parent-icon">
-              <i class="fas fa-arrow-alt-circle-right"></i>
+              <i class="fas fa-tint"></i>
             </div>
             <div class="menu-title">Blood Group</div>
           </a>
@@ -61,7 +61,7 @@ $roleType = UserHasRole::where('user_id', $userId)->value('role_name');
         <li>
           <a href="{{url('erp/admin/master/campus')}}">
             <div class="parent-icon">
-              <i class="fas fa-arrow-alt-circle-right"></i>
+              <i class="fas fa-map-marker-check"></i>
             </div>
             <div class="menu-title">Campuses </div>
           </a>
@@ -70,7 +70,7 @@ $roleType = UserHasRole::where('user_id', $userId)->value('role_name');
         <li>
           <a href="{{url('erp/admin/master/deanery')}}">
             <div class="parent-icon">
-              <i class="fas fa-arrow-alt-circle-right"></i>
+              <i class="fas fa-building"></i>
             </div>
             <div class="menu-title">Deneary</div>
           </a>
@@ -79,7 +79,7 @@ $roleType = UserHasRole::where('user_id', $userId)->value('role_name');
         <li>
           <a href="{{route('stream.master')}}">
             <div class="parent-icon">
-              <i class="fas fa-arrow-alt-circle-right"></i>
+              <i class="fas fa-folder-tree"></i>
             </div>
             <div class="menu-title"> Main Stream Master </div>
           </a>
@@ -87,7 +87,7 @@ $roleType = UserHasRole::where('user_id', $userId)->value('role_name');
         <li>
           <a href="{{url('erp/admin/master/programs')}}">
             <div class="parent-icon">
-              <i class="fas fa-arrow-alt-circle-right"></i>
+              <i class="fal fa-object-group"></i>
             </div>
             <div class="menu-title">Campus Stream Combination </div>
           </a>
@@ -96,13 +96,13 @@ $roleType = UserHasRole::where('user_id', $userId)->value('role_name');
         <li>
           <a href="{{url('erp/admin/master/hour')}}">
             <div class="parent-icon">
-              <i class="fas fa-arrow-alt-circle-right"></i>
+              <i class="fas fa-clock"></i>
             </div>
             <div class="menu-title">Hours</div>
           </a>
         </li>
 
-        <li>
+        <!-- <li>
           <a href="{{url('erp/admin/master/lecturehalls')}}">
             <div class="parent-icon">
               <i class="fas fa-arrow-alt-circle-right"></i>
@@ -118,12 +118,12 @@ $roleType = UserHasRole::where('user_id', $userId)->value('role_name');
             </div>
             <div class="menu-title">Rooms</div>
           </a>
-        </li>
+        </li> -->
 
         <li>
           <a href="{{url('erp/admin/master/religion')}}">
             <div class="parent-icon">
-              <i class="fas fa-arrow-alt-circle-right"></i>
+              <i class="fas fa-praying-hands"></i>
             </div>
             <div class="menu-title">Religion</div>
           </a>
@@ -132,7 +132,7 @@ $roleType = UserHasRole::where('user_id', $userId)->value('role_name');
         <li>
           <a href="{{url('erp/admin/master/semester')}}">
             <div class="parent-icon">
-              <i class="fas fa-arrow-alt-circle-right"></i>
+              <i class="far fa-calendar-star"></i>
             </div>
             <div class="menu-title">Semester</div>
           </a>
@@ -141,7 +141,7 @@ $roleType = UserHasRole::where('user_id', $userId)->value('role_name');
         <li>
           <a href="{{url('erp/admin/master/paper-type')}}">
             <div class="parent-icon">
-              <i class="fas fa-arrow-alt-circle-right"></i>
+              <i class="fas fa-windsock"></i>
             </div>
             <div class="menu-title">Paper Type</div>
           </a>
@@ -149,7 +149,7 @@ $roleType = UserHasRole::where('user_id', $userId)->value('role_name');
         <li>
           <a href="{{route('itcell.student-program-master')}}">
             <div class="parent-icon">
-              <i class="fas fa-arrow-alt-circle-right"></i>
+              <i class="fas fa-wreath"></i>
             </div>
             <div class="menu-title">Affiliation Settings</div>
           </a>
@@ -179,7 +179,7 @@ $roleType = UserHasRole::where('user_id', $userId)->value('role_name');
         <li>
           <a href="{{url('erp/admin/master/cognitive-lvl')}}">
             <div class="parent-icon">
-              <i class="fas fa-arrow-alt-circle-right"></i>
+              <i class="fas fa-list-ol"></i>
             </div>
             <div class="menu-title">RBT Levels</div>
           </a>
@@ -187,7 +187,7 @@ $roleType = UserHasRole::where('user_id', $userId)->value('role_name');
         <li>
           <a href="{{url('erp/admin/master/subjects')}}">
             <div class="parent-icon">
-              <i class="fas fa-arrow-alt-circle-right"></i>
+              <i class="fas fa-phone-office"></i>
             </div>
             <div class="menu-title">Departments </div>
           </a>
@@ -196,7 +196,7 @@ $roleType = UserHasRole::where('user_id', $userId)->value('role_name');
         <li>
           <a href="{{url('erp/admin/master/subject-type')}}">
             <div class="parent-icon">
-              <i class="fas fa-arrow-alt-circle-right"></i>
+              <i class="far fa-text-size"></i>
             </div>
             <div class="menu-title">Course Type </div>
           </a>
@@ -205,7 +205,7 @@ $roleType = UserHasRole::where('user_id', $userId)->value('role_name');
         <li>
           <a href="{{route('admin.course-master')}}">
             <div class="parent-icon">
-              <i class="fas fa-arrow-alt-circle-right"></i>
+              <i class="fas fa-font"></i>
             </div>
             <div class="menu-title">Course Master </div>
           </a>
@@ -215,7 +215,7 @@ $roleType = UserHasRole::where('user_id', $userId)->value('role_name');
         <li>
           <a href="{{route('admin.student-program-master')}}">
             <div class="parent-icon">
-              <i class="fas fa-arrow-alt-circle-right"></i>
+              <i class="far fa-tape"></i>
             </div>
             <div class="menu-title"> Program Master </div>
           </a>
@@ -224,7 +224,7 @@ $roleType = UserHasRole::where('user_id', $userId)->value('role_name');
         <li>
           <a href="{{route('itcell.admission.combination-master')}}">
             <div class="parent-icon">
-              <i class="fas fa-arrow-alt-circle-right"></i>
+              <i class="far fa-hurricane"></i>
             </div>
             <div class="menu-title">Program Combinations</div>
           </a>

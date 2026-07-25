@@ -1,8 +1,10 @@
 <?php
 
+use App\Http\Controllers\Api\StudentApiController;
 use App\Http\Controllers\FacultyApiController;
 use App\Http\Controllers\FeePaymentController;
 use App\Http\Controllers\LoginController;
+use App\Http\Controllers\StudentAttendanceScanController;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 
@@ -51,4 +53,13 @@ Route::middleware(['auth:sanctum'])->group(function () {
 Route::group(['prefix' => 'faculty'], function () {
     Route::post('login', [LoginController::class, 'facultyLogin']);
     Route::get('profile/{id}', [FacultyApiController::class, 'profile']);
+});
+
+Route::group(['prefix' => 'student'], function () {
+    Route::post('login', [StudentApiController::class, 'login']);
+    Route::post('student-profile', [StudentApiController::class, 'stdprofile']);
+
+
+    // Student QR attendance scan endpoint (temporary signed URL) - POST only.
+    Route::post('attendance/scan', [StudentAttendanceScanController::class, 'mark'])->name('student.attendance.scan');
 });

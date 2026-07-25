@@ -1,9 +1,3 @@
-<?php
-
-use App\Models\HourMaster;
-
-$hourMaster = HourMaster::all();
-?>
 @include('includes.header')
 
 <div class="wrapper">
@@ -31,7 +25,10 @@ $hourMaster = HourMaster::all();
           <h2 class="fw-bold">Student Attendance</h2>
           <p class="text-muted">Select a subject to take or view attendance</p>
         </div>
-        <a href="{{ route('faculty.attendance.view') }}"><button class="btn btn-primary">View Attendance List</button></a>
+        <div class="d-flex gap-2 flex-wrap">
+          <a href="{{ route('faculty.attendance.view') }}"><button class="btn btn-primary">View Attendance List</button></a>
+          <a href="{{ route('faculty.attendance.qr.records') }}"><button class="btn btn-dark"><i class="fa fa-qrcode me-1"></i>QR Records</button></a>
+        </div>
       </div>
 
       @if(session('success'))
@@ -54,16 +51,16 @@ $hourMaster = HourMaster::all();
       </div>
       @else
       <div class="row">
-        <div class="col-lg-8 col-md-10 mx-auto">
+        <div class="col-lg-6 col-md-10 mx-auto">
           <div class="card shadow-sm">
-            <div class="card-body p-4">
+            <div class="card-header fw-bold"> <i class="fal fa-qrcode"></i> QR BASED (AUTO SYSTEM )</div>
+            <div class="card-body p-4 js-attendance-config-card">
               <!-- Subject Selection Dropdown -->
-
               <div class="mb-4">
-                <label for="subjectSelect" class="form-label fw-bold">
+                <label for="subjectSelectQr" class="form-label fw-bold">
                   <i class="fa fa-book me-2"></i>Select Subject
                 </label>
-                <select class="form-select form-select-lg" id="subjectSelect">
+                <select class="form-select js-subject-select" id="subjectSelectQr">
                   <option value="" selected disabled>Choose a subject...</option>
                   @foreach($syllabusAssignments as $item)
                   <option value="{{ $item->id }}"
@@ -71,6 +68,7 @@ $hourMaster = HourMaster::all();
                     data-batch-id="{{ $item->syllabus->batch_id ?? '' }}"
                     data-batch-name="{{ $item->syllabus->batchmaster->batch_name ?? '' }}"
                     data-syllabus-id="{{ $item->syllabus->id ?? '' }}"
+                    data-course-id="{{ $item->syllabus->courseLink->courseMaster->id ?? '' }}"
                     data-shift="{{ strtolower($item->shift ?? 'common') }}">
                     {{ $item->syllabus->courseLink->courseMaster->course_title ?? 'N/A' }}
                     ({{ $item->syllabus->courseLink->courseMaster->course_code ?? 'N/A' }})
@@ -86,30 +84,97 @@ $hourMaster = HourMaster::all();
               <div class="row">
                 <div class="col-lg-3">
                   <div class="mb-4">
-                    <label for="hourSelect" class="form-label fw-bold">Hour</label>
-                    <select id="hourSelect" class="form-select">
-                      <option value="" selected disabled>Choose hour...</option>
-                      @foreach(App\Models\HourMaster::orderBy('id')->get() as $hour)
-                      <option value="{{ $hour->id }}">{{ $hour->title ?? $hour->hour_name ?? 'Hour '.$hour->id }}</option>
-                      @endforeach
+                    <label for="hourSelectQr" class="form-label fw-bold">Hour</label>
+                    <select id="hourSelectQr" class="form-select js-hour-select">
+                      <option value="" selected disabled>Select subject first...</option>
                     </select>
                   </div>
                 </div>
                 <div class="col-lg-3">
-                  <label for="attendanceType" class="form-label fw-bold">Attendance Type</label>
-                  <select id="attendance_type" class="form-select" name="attendance_type">
+                  <label for="attendanceTypeQr" class="form-label fw-bold">Class Type</label>
+                  <select id="attendanceTypeQr" class="form-select js-attendance-type" name="attendance_type">
+                    <option value="regular" selected>Regular</option>
+                    <option value="remedial">Remedial</option>
+                  </select>
+                </div>
+                <div class="col-lg-4">
+                  <label for="attendanceDateQr" class="form-label fw-bold">Date</label>
+                  <input type="date" id="attendanceDateQr" class="form-control js-attendance-date" max="{{ date('Y-m-d') }}" value="{{ date('Y-m-d') }}">
+                </div>
+                <div class="col-lg-2">
+                  <label for="qrExpiryMinutes" class="form-label fw-bold"> Expiry </label>
+                  <div class="input-group">
+                    <input type="number" id="qrExpiryMinutes" class="form-control js-expiry-minutes" min="1" max="60" value="5">
+
+                  </div>
+                </div>
+              </div>
+
+              <div class="mb-4 text-center">
+                <button type="button" class="btn btn-success btn-lg mt-3 js-load-students" id="btnLoadStudentsQr" disabled>
+                  Generate QR <i class="fal fa-qrcode"></i>
+                </button>
+              </div>
+
+            </div>
+          </div>
+        </div>
+
+        <div class="col-lg-6 col-md-10 mx-auto">
+          <div class="card shadow-sm">
+            <div class="card-header fw-bold"><i class="far fa-clipboard-list-check"></i> MANUAL RECORDER</div>
+            <div class="card-body p-4 js-attendance-config-card">
+              <!-- Subject Selection Dropdown -->
+
+              <div class="mb-4">
+                <label for="subjectSelectManual" class="form-label fw-bold">
+                  <i class="fa fa-book me-2"></i>Select Subject
+                </label>
+                <select class="form-select js-subject-select" id="subjectSelectManual">
+                  <option value="" selected disabled>Choose a subject...</option>
+                  @foreach($syllabusAssignments as $item)
+                  <option value="{{ $item->id }}"
+                    data-semester-id="{{ $item->syllabus->semester_id ?? '' }}"
+                    data-batch-id="{{ $item->syllabus->batch_id ?? '' }}"
+                    data-batch-name="{{ $item->syllabus->batchmaster->batch_name ?? '' }}"
+                    data-syllabus-id="{{ $item->syllabus->id ?? '' }}"
+                    data-course-id="{{ $item->syllabus->courseLink->courseMaster->id ?? '' }}"
+                    data-shift="{{ strtolower($item->shift ?? 'common') }}">
+                    {{ $item->syllabus->courseLink->courseMaster->course_title ?? 'N/A' }}
+                    ({{ $item->syllabus->courseLink->courseMaster->course_code ?? 'N/A' }})
+                    - {{ $item->syllabus->semestermaster->title ?? 'N/A' }}
+                    | Batch: {{ $item->syllabus->batchmaster->batch_name ?? 'N/A' }}
+                    | Shift: {{ ucfirst($item->shift ?? 'common') }}
+                  </option>
+                  @endforeach
+                </select>
+              </div>
+
+
+              <div class="row">
+                <div class="col-lg-3">
+                  <div class="mb-4">
+                    <label for="hourSelectManual" class="form-label fw-bold">Hour</label>
+                    <select id="hourSelectManual" class="form-select js-hour-select">
+                      <option value="" selected disabled>Select subject first...</option>
+                    </select>
+                  </div>
+                </div>
+                <div class="col-lg-3">
+                  <label for="attendanceTypeManual" class="form-label fw-bold">Class Type</label>
+                  <select id="attendanceTypeManual" class="form-select js-attendance-type" name="attendance_type">
                     <option value="regular" selected>Regular</option>
                     <option value="remedial">Remedial</option>
                   </select>
                 </div>
                 <div class="col-lg-6">
-                  <label for="attendanceDate" class="form-label fw-bold">Date</label>
-                  <input type="date" id="attendanceDate" class="form-control" max="{{ date('Y-m-d') }}" value="{{ date('Y-m-d') }}">
+                  <label for="attendanceDateManual" class="form-label fw-bold">Date</label>
+                  <input type="date" id="attendanceDateManual" class="form-control js-attendance-date" max="{{ date('Y-m-d') }}" value="{{ date('Y-m-d') }}">
                 </div>
               </div>
 
               <div class="mb-4 text-center">
-                <button type="button" class="btn btn-success btn-lg" id="btnLoadStudents" disabled>
+                <button type="button" class="btn btn-success btn-lg mt-3 js-load-students" id="btnLoadStudentsManual" disabled>
                   <i class="fa fa-users me-2"></i>Load Students
                 </button>
               </div>
@@ -120,56 +185,360 @@ $hourMaster = HourMaster::all();
       </div>
       @endif
     </div>
+
+    <div class="modal fade" id="studentAttendanceQrModal" tabindex="-1" aria-labelledby="studentAttendanceQrModalLabel" aria-hidden="true">
+      <div class="modal-dialog modal-dialog-centered modal-lg">
+        <div class="modal-content">
+          <div class="modal-header">
+            <h5 class="modal-title" id="studentAttendanceQrModalLabel"><i class="fa fa-qrcode me-2"></i>Student Attendance QR</h5>
+            <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+          </div>
+          <div class="modal-body">
+            <div class="row g-4 align-items-center">
+              <div class="col-md-6 text-center">
+                <div id="studentAttendanceQrCanvas" class="d-inline-block p-2 border rounded bg-white"></div>
+              </div>
+              <div class="col-md-6">
+                <p class="mb-2" id="studentAttendanceQrCourse"></p>
+                <p class="mb-2" id="studentAttendanceQrBatch"></p>
+                <p class="mb-2"><strong>Type:</strong> <span id="studentAttendanceQrType"></span></p>
+                <p class="mb-2"><strong>Expires:</strong> <span id="studentAttendanceQrExpiry"></span></p>
+                <p class="mb-2"><strong>Countdown:</strong> <span id="studentAttendanceQrCountdown" class="badge bg-dark">--:--</span></p>
+                <p class="mb-2" id="studentAttendanceQrFinalizeStatus"></p>
+                <div class="alert alert-warning mb-0">
+                  Students must scan this QR and log in with their student account. Attendance will be auto-recorded as PRESENT.
+                </div>
+              </div>
+            </div>
+            <div class="mt-3">
+              <label class="form-label fw-semibold">Scan URL</label>
+              <input type="text" class="form-control" id="studentAttendanceQrUrl" readonly>
+            </div>
+            <div class="mt-3 d-flex justify-content-end">
+              <button type="button" class="btn btn-outline-danger" id="btnDeleteActiveQr">
+                <i class="fa fa-trash me-1"></i>Delete QR
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
   </main>
 </div>
 
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
 <script>
   document.addEventListener('DOMContentLoaded', function() {
-    const subjectSelect = document.getElementById('subjectSelect');
-    const hourSelect = document.getElementById('hourSelect');
-    const attendanceDate = document.getElementById('attendanceDate');
-    const attendanceTypeSelect = document.getElementById('attendance_type');
-    const btnLoadStudents = document.getElementById('btnLoadStudents');
+    const hoursEndpoint = `{{ route('faculty.attendance.hours') }}`;
+    const generateQrEndpoint = `{{ route('faculty.attendance.qr.generate') }}`;
+    const finalizeQrEndpoint = `{{ route('faculty.attendance.qr.finalize') }}`;
+    const deleteQrEndpoint = `{{ route('faculty.attendance.qr.delete') }}`;
+    const csrfToken = `{{ csrf_token() }}`;
+    const qrModalElement = document.getElementById('studentAttendanceQrModal');
+    const qrModal = qrModalElement ? new bootstrap.Modal(qrModalElement) : null;
+    let countdownInterval = null;
+    let finalizeInFlight = false;
+    let activeQrRecordId = 0;
 
-    function checkEnableButton() {
-      if (subjectSelect.value && hourSelect.value && attendanceDate.value) {
-        btnLoadStudents.disabled = false;
-      } else {
-        btnLoadStudents.disabled = true;
+    function formatDuration(totalSeconds) {
+      const safeSeconds = Math.max(0, totalSeconds);
+      const mins = Math.floor(safeSeconds / 60).toString().padStart(2, '0');
+      const secs = (safeSeconds % 60).toString().padStart(2, '0');
+      return `${mins}:${secs}`;
+    }
+
+    function showFinalizeStatus(message, isError = false) {
+      const target = document.getElementById('studentAttendanceQrFinalizeStatus');
+      if (!target) {
+        return;
+      }
+
+      target.textContent = message || '';
+      target.className = isError ? 'mb-2 text-danger fw-semibold' : 'mb-2 text-success fw-semibold';
+    }
+
+    async function deleteActiveQr() {
+      if (!activeQrRecordId) {
+        return;
+      }
+
+      const shouldDelete = confirm('Delete this QR record? You can then regenerate for the same slot.');
+      if (!shouldDelete) {
+        return;
+      }
+
+      try {
+        const response = await fetch(deleteQrEndpoint, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'X-CSRF-TOKEN': csrfToken,
+            'X-Requested-With': 'XMLHttpRequest'
+          },
+          body: JSON.stringify({
+            record_id: Number(activeQrRecordId)
+          })
+        });
+
+        const result = await response.json();
+        if (!response.ok || !result.success) {
+          throw new Error(result.message || 'Unable to delete QR record.');
+        }
+
+        if (countdownInterval) {
+          clearInterval(countdownInterval);
+          countdownInterval = null;
+        }
+        activeQrRecordId = 0;
+        qrModal?.hide();
+        alert(result.message || 'QR deleted successfully.');
+      } catch (error) {
+        alert(error.message || 'Unable to delete QR record.');
       }
     }
 
-    subjectSelect.addEventListener('change', checkEnableButton);
-    hourSelect.addEventListener('change', checkEnableButton);
-    attendanceDate.addEventListener('change', checkEnableButton);
-
-    btnLoadStudents.addEventListener('click', function() {
-      const selectedOption = subjectSelect.options[subjectSelect.selectedIndex];
-      const recId = subjectSelect.value;
-      const hourId = hourSelect.value;
-      const date = attendanceDate.value;
-      const semesterId = selectedOption.dataset.semesterId;
-      const batchId = selectedOption.dataset.batchId;
-      const syllabusId = selectedOption.dataset.syllabusId;
-      const attendanceType = attendanceTypeSelect ? attendanceTypeSelect.value : 'regular';
-      // Redirect or fetch students as needed
-      // Example: redirect to attendance creation page with params
-      const url = `{{ url('erp/faculty/attendance/create') }}?rec_id=${recId}&syllabus_id=${syllabusId}&hour_id=${hourId}&attendance_date=${date}&semester_id=${semesterId}&batch_id=${batchId}&attendance_type=${encodeURIComponent(attendanceType)}`;
-      window.location.href = url;
-    });
-  });
-  document.addEventListener('DOMContentLoaded', function() {
-    // Prevent Sunday selection in attendance date
-    const dateInput = document.getElementById('attendanceDate');
-
-    dateInput.addEventListener('input', function() {
-      const selectedDate = new Date(this.value);
-      // getDay() returns 0 for Sunday
-      if (selectedDate.getDay() === 0) {
-        alert('⚠️ Sunday is a holiday. Please select a weekday for attendance.');
-        this.value = ''; // Clear the invalid date
+    async function finalizeExpiredQr(recordId) {
+      if (!recordId || finalizeInFlight) {
+        return;
       }
+
+      finalizeInFlight = true;
+      showFinalizeStatus('QR expired. Finalizing attendance...');
+
+      try {
+        const response = await fetch(finalizeQrEndpoint, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'X-CSRF-TOKEN': csrfToken,
+            'X-Requested-With': 'XMLHttpRequest'
+          },
+          body: JSON.stringify({
+            record_id: Number(recordId)
+          })
+        });
+
+        const result = await response.json();
+        if (!response.ok || !result.success) {
+          throw new Error(result.message || 'Unable to finalize attendance for expired QR.');
+        }
+
+        const data = result.data || {};
+        const summary = `Finalized. Total: ${data.total_students ?? 0}, Present: ${data.present_students ?? 0}, Absent Marked: ${data.absent_marked ?? 0}`;
+        showFinalizeStatus(summary, false);
+      } catch (error) {
+        showFinalizeStatus(error.message || 'Failed to finalize expired QR.', true);
+      } finally {
+        finalizeInFlight = false;
+      }
+    }
+
+    function startCountdown(payload) {
+      const countdownNode = document.getElementById('studentAttendanceQrCountdown');
+      if (!countdownNode) {
+        return;
+      }
+
+      if (countdownInterval) {
+        clearInterval(countdownInterval);
+      }
+
+      const expiryIso = payload.expires_at_iso || '';
+      const expiryTs = Date.parse(expiryIso);
+      if (!Number.isFinite(expiryTs)) {
+        countdownNode.textContent = '--:--';
+        return;
+      }
+
+      const tick = () => {
+        const nowTs = Date.now();
+        const diffSeconds = Math.floor((expiryTs - nowTs) / 1000);
+        countdownNode.textContent = formatDuration(diffSeconds);
+
+        if (diffSeconds <= 0) {
+          clearInterval(countdownInterval);
+          countdownInterval = null;
+          countdownNode.textContent = '00:00';
+          finalizeExpiredQr(activeQrRecordId);
+        }
+      };
+
+      tick();
+      countdownInterval = setInterval(tick, 1000);
+    }
+
+    function renderAttendanceQr(payload) {
+      const qrContainer = document.getElementById('studentAttendanceQrCanvas');
+      const qrUrlInput = document.getElementById('studentAttendanceQrUrl');
+      const qrCourse = document.getElementById('studentAttendanceQrCourse');
+      const qrBatch = document.getElementById('studentAttendanceQrBatch');
+      const qrType = document.getElementById('studentAttendanceQrType');
+      const qrExpiry = document.getElementById('studentAttendanceQrExpiry');
+
+      if (!qrContainer || !qrUrlInput || !qrCourse || !qrBatch || !qrType || !qrExpiry) {
+        return;
+      }
+
+      qrContainer.innerHTML = '';
+      new QRCode(qrContainer, {
+        text: payload.scan_url,
+        width: 260,
+        height: 260,
+      });
+
+      qrUrlInput.value = payload.scan_url || '';
+      qrCourse.innerHTML = `<strong>Course:</strong> ${payload.course_label || 'N/A'}`;
+      qrBatch.innerHTML = `<strong>Batch:</strong> ${payload.batch_label || 'N/A'}`;
+      qrType.textContent = payload.attendance_type === 'remedial' ? 'Remedial' : 'Regular';
+      qrExpiry.textContent = payload.expires_at || 'N/A';
+      showFinalizeStatus('');
+      activeQrRecordId = Number(payload.record_id || 0);
+      startCountdown(payload);
+      qrModal?.show();
+    }
+
+    function wireAttendanceCard(card) {
+      const subjectSelect = card.querySelector('.js-subject-select');
+      const hourSelect = card.querySelector('.js-hour-select');
+      const attendanceDate = card.querySelector('.js-attendance-date');
+      const attendanceTypeSelect = card.querySelector('.js-attendance-type');
+      const expiryMinutesInput = card.querySelector('.js-expiry-minutes');
+      const btnLoadStudents = card.querySelector('.js-load-students');
+
+      if (!subjectSelect || !hourSelect || !attendanceDate || !attendanceTypeSelect || !btnLoadStudents) {
+        return;
+      }
+
+      function checkEnableButton() {
+        btnLoadStudents.disabled = !(subjectSelect.value && hourSelect.value && attendanceDate.value);
+      }
+
+      async function loadHoursForSelectedSubject() {
+        const selectedOption = subjectSelect.options[subjectSelect.selectedIndex];
+        const shift = selectedOption?.dataset?.shift || '';
+        const recId = subjectSelect.value || '';
+
+        hourSelect.innerHTML = '<option value="" selected disabled>Loading hours...</option>';
+        hourSelect.disabled = true;
+        checkEnableButton();
+
+        if (!shift) {
+          hourSelect.innerHTML = '<option value="" selected disabled>No shift mapped for subject</option>';
+          return;
+        }
+
+        try {
+          const response = await fetch(`${hoursEndpoint}?rec_id=${encodeURIComponent(recId)}&shift=${encodeURIComponent(shift)}`, {
+            headers: {
+              'X-Requested-With': 'XMLHttpRequest'
+            }
+          });
+
+          const result = await response.json();
+          if (!response.ok || !result.success) {
+            throw new Error(result.message || 'Unable to fetch hours.');
+          }
+
+          const hours = Array.isArray(result.data) ? result.data : [];
+          if (hours.length === 0) {
+            hourSelect.innerHTML = '<option value="" selected disabled>No teaching hours for selected shift</option>';
+            return;
+          }
+
+          hourSelect.innerHTML = '<option value="" selected disabled>Choose hour...</option>';
+          hours.forEach((hour) => {
+            const option = document.createElement('option');
+            option.value = hour.id;
+            option.textContent = hour.label;
+            hourSelect.appendChild(option);
+          });
+
+          hourSelect.disabled = false;
+        } catch (error) {
+          console.error('Failed to load hours by shift', error);
+          hourSelect.innerHTML = '<option value="" selected disabled>Failed to load hours</option>';
+        }
+      }
+
+      subjectSelect.addEventListener('change', function() {
+        loadHoursForSelectedSubject();
+        checkEnableButton();
+      });
+
+      hourSelect.addEventListener('change', checkEnableButton);
+      attendanceDate.addEventListener('change', checkEnableButton);
+
+      attendanceDate.addEventListener('input', function() {
+        const selectedDate = new Date(this.value);
+        if (selectedDate.getDay() === 0) {
+          alert('⚠️ Sunday is a holiday. Please select a weekday for attendance.');
+          this.value = '';
+          checkEnableButton();
+        }
+      });
+
+      btnLoadStudents.addEventListener('click', function() {
+        const selectedOption = subjectSelect.options[subjectSelect.selectedIndex];
+        const recId = subjectSelect.value;
+        const hourId = hourSelect.value;
+        const date = attendanceDate.value;
+        const semesterId = selectedOption.dataset.semesterId;
+        const batchId = selectedOption.dataset.batchId;
+        const syllabusId = selectedOption.dataset.syllabusId;
+        const attendanceType = attendanceTypeSelect.value || 'regular';
+        const expiryMinutes = Number(expiryMinutesInput?.value || 5);
+
+        if (btnLoadStudents.id === 'btnLoadStudentsQr') {
+          btnLoadStudents.disabled = true;
+
+          fetch(generateQrEndpoint, {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                'X-CSRF-TOKEN': csrfToken,
+                'X-Requested-With': 'XMLHttpRequest'
+              },
+              body: JSON.stringify({
+                routine_id: recId,
+                syllabus_id: syllabusId,
+                course_id: Number(selectedOption.dataset.courseId || 0),
+                hour_id: Number(hourId),
+                semester_id: Number(semesterId),
+                batch_id: Number(batchId),
+                attendance_date: date,
+                attendance_type: attendanceType,
+                expiry_minutes: Number.isFinite(expiryMinutes) && expiryMinutes > 0 ? expiryMinutes : 5,
+              })
+            })
+            .then(async (response) => {
+              const result = await response.json();
+              if (!response.ok || !result.success) {
+                throw new Error(result.message || 'Unable to generate QR code.');
+              }
+              renderAttendanceQr(result.data || {});
+            })
+            .catch((error) => {
+              alert(error.message || 'Unable to generate QR code.');
+            })
+            .finally(() => {
+              checkEnableButton();
+            });
+
+          return;
+        }
+
+        const url = `{{ url('erp/faculty/attendance/create') }}?rec_id=${recId}&syllabus_id=${syllabusId}&hour_id=${hourId}&attendance_date=${date}&semester_id=${semesterId}&batch_id=${batchId}&attendance_type=${encodeURIComponent(attendanceType)}`;
+        window.location.href = url;
+      });
+
+      checkEnableButton();
+    }
+
+    document.querySelectorAll('.js-attendance-config-card').forEach((card) => {
+      wireAttendanceCard(card);
     });
+
+    document.getElementById('btnDeleteActiveQr')?.addEventListener('click', deleteActiveQr);
   });
 </script>
 
