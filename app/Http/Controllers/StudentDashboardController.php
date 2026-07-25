@@ -338,6 +338,32 @@ class StudentDashboardController extends Controller
     }
 
     $academicYear = (string) (BatchMaster::find($student->batch)?->batch_name ?? date('Y'));
+
+    $requestedCourse = ProgramCourseMaster::with(['coursetypemaster:id,title'])->find($requestedCourseId);
+    $requestedTypeTitle = strtoupper(trim((string) ($requestedCourse?->coursetypemaster?->title ?? '')));
+    $requestedTypeKey = $requestedTypeTitle !== '' ? preg_replace('/\s.*/', '', $requestedTypeTitle) : '';
+    $isRequestedMdc = $requestedTypeKey === ProgramWiseSemesterCourse::DELIVERY_OPEN_CHOICE;
+
+    if ($isRequestedMdc) {
+      $existingSemesterMdcCourseId = StudentCourseInfo::with(['coursemaster.coursetypemaster:id,title'])
+        ->where('student_id', $studentId)
+        ->where('semester', $semesterId)
+        ->where('academic_year', $academicYear)
+        ->where('is_deleted', 0)
+        ->get()
+        ->first(function ($row) {
+          $typeTitle = strtoupper(trim((string) ($row->coursemaster?->coursetypemaster?->title ?? '')));
+          $typeKey = $typeTitle !== '' ? preg_replace('/\s.*/', '', $typeTitle) : '';
+          return $typeKey === ProgramWiseSemesterCourse::DELIVERY_OPEN_CHOICE;
+        });
+
+      if ($existingSemesterMdcCourseId && (int) ($existingSemesterMdcCourseId->course_id ?? 0) !== $requestedCourseId) {
+        return redirect()->route('student.console.dashboard')
+          ->with('error', 'Only one MDC course can be selected per semester.')
+          ->withFragment('tab-courses');
+      }
+    }
+
     $enrolled = 0;
     $skipped = 0;
 
