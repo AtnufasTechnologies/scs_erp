@@ -47,7 +47,7 @@ class FacultyDashboardController extends Controller
       ->limit(10)
       ->get();
 
-    // Get assigned subjects with progress (limit to 5 for dashboard)
+    // Get assigned subject routines with progress context.
     $allSubjectsRoutines = SubjectHasRoutine::where('faculty_id', $facultyId)
       ->with([
         'syllabus.subject:id,title',
@@ -55,32 +55,83 @@ class FacultyDashboardController extends Controller
         'syllabus.semestermaster:id,title',
         'syllabus.courseLink.courseMaster:id,course_title,course_code',
       ])
-      ->distinct()
-      ->get('syllabus_id');
+      ->get(['syllabus_id', 'shift']);
 
-    $assignedSubjects = $allSubjectsRoutines
+    $syllabusShiftMap = $allSubjectsRoutines
+      ->groupBy('syllabus_id')
+      ->map(function ($rows) {
+        return $rows
+          ->pluck('shift')
+          ->map(fn($shift) => strtolower(trim((string) $shift)))
+          ->filter()
+          ->unique()
+          ->values();
+      });
+
+    $distinctSubjectRoutines = $allSubjectsRoutines
+      ->unique('syllabus_id')
+      ->values();
+
+    $assignedSubjects = $distinctSubjectRoutines
       ->take(5)
-      ->map(function ($routine) {
+      ->map(function ($routine) use ($syllabusShiftMap) {
         $syllabus = $routine->syllabus;
         if (!$syllabus) return null;
 
-        // Get ALL syllabus managers (all CSOs) to fetch all subunits
-        $syllabusManagers = SyllabusManager::where('subject_id', $syllabus->subject_id)
+        $courseId = (int) ($syllabus->course_id ?? 0);
+        $assignedShifts = collect($syllabusShiftMap->get((int) $syllabus->id, []))
+          ->map(fn($shift) => strtolower(trim((string) $shift)))
+          ->filter()
+          ->unique()
+          ->values();
+
+        $baseManagersQuery = SyllabusManager::where('subject_id', $syllabus->subject_id)
           ->where('batch_id', $syllabus->batch_id)
           ->where('semester_id', $syllabus->semester_id)
-          ->with('syllabusSubunits')
-          ->get();
+          ->when($courseId > 0, function ($query) use ($courseId) {
+            $query->where('co_id', $courseId);
+          })
+          ->when(!empty($syllabus->program_type), function ($query) use ($syllabus) {
+            $query->where('program_type', $syllabus->program_type);
+          })
+          ->with('syllabusSubunits');
 
-        $totalUnits = 0;
-        $completedUnits = 0;
+        if ($assignedShifts->isNotEmpty()) {
+          $syllabusManagers = (clone $baseManagersQuery)
+            ->whereIn('shift', $assignedShifts->all())
+            ->get();
 
-        // Count units from all CSOs
-        foreach ($syllabusManagers as $manager) {
-          if ($manager->syllabusSubunits) {
-            $totalUnits += $manager->syllabusSubunits->count();
-            $completedUnits += $manager->syllabusSubunits->where('is_completed', 1)->count();
+          if ($syllabusManagers->isEmpty()) {
+            $syllabusManagers = (clone $baseManagersQuery)
+              ->where(function ($query) {
+                $query->whereNull('shift')
+                  ->orWhere('shift', '')
+                  ->orWhere('shift', 'common');
+              })
+              ->get();
+          }
+        } else {
+          $syllabusManagers = (clone $baseManagersQuery)
+            ->where(function ($query) {
+              $query->whereNull('shift')
+                ->orWhere('shift', '')
+                ->orWhere('shift', 'common');
+            })
+            ->get();
+
+          if ($syllabusManagers->isEmpty()) {
+            $syllabusManagers = $baseManagersQuery->get();
           }
         }
+
+        $uniqueUnits = $syllabusManagers
+          ->pluck('syllabusSubunits')
+          ->flatten(1)
+          ->unique('id')
+          ->values();
+
+        $totalUnits = $uniqueUnits->count();
+        $completedUnits = $uniqueUnits->where('is_completed', 1)->count();
 
         $completionPercentage = $totalUnits > 0 ? round(($completedUnits / $totalUnits) * 100) : 0;
 
@@ -98,7 +149,7 @@ class FacultyDashboardController extends Controller
       ->filter()
       ->values();
 
-    $totalSubjectsCount = $allSubjectsRoutines->count();
+    $totalSubjectsCount = $distinctSubjectRoutines->count();
 
     // Get leave statistics for current session
     $leaveStats = [
@@ -487,7 +538,7 @@ class FacultyDashboardController extends Controller
         })
         ->with([
           'cso:id,title,lectures_needed',
-          'syllabusSubunits.csoSubunit.taxomonylevel'
+          'syllabusSubunits.csoSubunit.taxonomies.rbtmaster'
         ]);
 
       // Shift-aware fetch: prefer assigned shift rows; fallback to common when shift-specific rows do not exist.

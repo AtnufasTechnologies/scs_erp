@@ -196,7 +196,7 @@
                                   <tr>
                                     <th class="text-center" style="width:4%;">#</th>
                                     <th style="width:38%;">Instructional Objective</th>
-                                    <th class="text-center" style="width:16%;">Bloom's Level</th>
+                                    <th class="text-center" style="width:16%;">RBT</th>
                                     <th class="text-center" style="width:10%;">Status</th>
                                     <th class="text-center" style="width:20%;">Tools</th>
                                     <th class="text-center" style="width:12%;">Mark Done</th>
@@ -230,6 +230,17 @@
                                   @php
                                   $resourceCount = App\Models\LearningResource::where('syllabus_subunit_id', $unit->id)->count();
                                   $questionCount = App\Models\QuestionBank::where('syllabus_subunit_id', $unit->id)->count();
+                                  $unitTaxonomyLevels = collect(optional(optional($unit->csoSubunit)->taxonomies)->all())
+                                  ->map(fn($taxonomy) => optional($taxonomy)->rbtmaster)
+                                  ->filter()
+                                  ->unique('id')
+                                  ->values();
+                                  $primaryTaxonomyLevel = $unitTaxonomyLevels->first();
+                                  $additionalTaxonomyCodes = $unitTaxonomyLevels
+                                  ->skip(1)
+                                  ->map(fn($level) => strtoupper((string) ($level->shortname ?? '')))
+                                  ->filter()
+                                  ->values();
                                   @endphp
                                   <tr class="scs-unit-row {{ $unit->is_completed ? 'scs-row-done' : '' }}">
                                     <td class="text-center">
@@ -242,11 +253,16 @@
                                       </div>
                                     </td>
                                     <td class="text-center">
-                                      @if($unit->csoSubunit && $unit->csoSubunit->taxomonylevel)
-                                      <span class="scs-bloom-badge scs-bloom-{{ strtolower($unit->csoSubunit->taxomonylevel->shortname) }}">
-                                        <strong>{{ $unit->csoSubunit->taxomonylevel->shortname }}</strong>
-                                        <span class="d-none d-xl-inline ms-1">{{ $unit->csoSubunit->taxomonylevel->fullname }}</span>
+                                      @if($primaryTaxonomyLevel)
+                                      <span class="scs-bloom-badge scs-bloom-{{ strtolower((string) $primaryTaxonomyLevel->shortname) }}">
+                                        <strong>{{ $primaryTaxonomyLevel->shortname }}</strong>
+
                                       </span>
+                                      @if($additionalTaxonomyCodes->isNotEmpty())
+                                      @foreach($additionalTaxonomyCodes as $taxonomyCode)
+                                      <span class="badge bg-light text-dark ms-1">{{ $taxonomyCode }}</span>
+                                      @endforeach
+                                      @endif
                                       @else
                                       <span class="text-muted small">—</span>
                                       @endif
@@ -300,7 +316,11 @@
                         @php
                         $resources = App\Models\LearningResource::where('syllabus_subunit_id', $unit->id)->with('uploader')->latest()->get();
                         $questions = App\Models\QuestionBank::where('syllabus_subunit_id', $unit->id)->with('cognitiveLevel')->latest()->get();
-                        $cognitiveLevels = App\Models\CognitiveLevelMaster::all();
+                        $applicableCognitiveLevels = collect(optional(optional($unit->csoSubunit)->taxonomies)->all())
+                        ->map(fn($taxonomy) => optional($taxonomy)->rbtmaster)
+                        ->filter()
+                        ->unique('id')
+                        ->values();
                         @endphp
 
                         <!-- Resources Modal -->
@@ -422,15 +442,18 @@
                                               <label class="scs-form-label">Cognitive Level (Bloom's Taxonomy) <span class="text-danger">*</span></label>
                                               <select class="form-select form-select-sm scs-bloom-level-select" name="cognitive_level_master_id" id="bloomLevel{{ $unit->id }}" required>
                                                 <option value="">— Select a level —</option>
-                                                @foreach($cognitiveLevels as $cl)
+                                                @foreach($applicableCognitiveLevels as $cl)
                                                 <option value="{{ $cl->id }}" data-shortname="{{ $cl->shortname }}" data-fullname="{{ $cl->fullname }}">{{ $cl->shortname }} – {{ $cl->fullname }}</option>
                                                 @endforeach
                                               </select>
+                                              @if($applicableCognitiveLevels->isEmpty())
+                                              <small class="text-danger">No taxonomy mapped for this subunit. Please update taxonomy in syllabus manager.</small>
+                                              @endif
                                             </div>
                                           </div>
                                         </div>
 
-                                        <button type="submit" class="btn scs-btn-purple btn-sm w-100 mt-2">
+                                        <button type="submit" class="btn scs-btn-purple btn-sm w-100 mt-2" {{ $applicableCognitiveLevels->isEmpty() ? 'disabled' : '' }}>
                                           <i class="fas fa-plus me-1"></i>Add to Question Bank
                                         </button>
                                       </form>
