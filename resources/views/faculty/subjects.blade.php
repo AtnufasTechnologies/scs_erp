@@ -516,6 +516,14 @@
         </div>
       </div>
       @endforelse
+
+      @if(isset($subjectsPaginator) && $subjectsPaginator->hasPages())
+      <div class="row mb-4">
+        <div class="col-12 d-flex justify-content-end">
+          {{ $subjectsPaginator->links() }}
+        </div>
+      </div>
+      @endif
     </div>
   </main>
   <!--end main wrapper-->
