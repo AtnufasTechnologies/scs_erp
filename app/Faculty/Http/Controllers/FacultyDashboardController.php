@@ -47,7 +47,7 @@ class FacultyDashboardController extends Controller
       ->limit(10)
       ->get();
 
-    // Get assigned subjects with progress (limit to 5 for dashboard)
+    // Get assigned subject routines with progress context.
     $allSubjectsRoutines = SubjectHasRoutine::where('faculty_id', $facultyId)
       ->with([
         'syllabus.subject:id,title',
@@ -55,32 +55,83 @@ class FacultyDashboardController extends Controller
         'syllabus.semestermaster:id,title',
         'syllabus.courseLink.courseMaster:id,course_title,course_code',
       ])
-      ->distinct()
-      ->get('syllabus_id');
+      ->get(['syllabus_id', 'shift']);
 
-    $assignedSubjects = $allSubjectsRoutines
+    $syllabusShiftMap = $allSubjectsRoutines
+      ->groupBy('syllabus_id')
+      ->map(function ($rows) {
+        return $rows
+          ->pluck('shift')
+          ->map(fn($shift) => strtolower(trim((string) $shift)))
+          ->filter()
+          ->unique()
+          ->values();
+      });
+
+    $distinctSubjectRoutines = $allSubjectsRoutines
+      ->unique('syllabus_id')
+      ->values();
+
+    $assignedSubjects = $distinctSubjectRoutines
       ->take(5)
-      ->map(function ($routine) {
+      ->map(function ($routine) use ($syllabusShiftMap) {
         $syllabus = $routine->syllabus;
         if (!$syllabus) return null;
 
-        // Get ALL syllabus managers (all CSOs) to fetch all subunits
-        $syllabusManagers = SyllabusManager::where('subject_id', $syllabus->subject_id)
+        $courseId = (int) ($syllabus->course_id ?? 0);
+        $assignedShifts = collect($syllabusShiftMap->get((int) $syllabus->id, []))
+          ->map(fn($shift) => strtolower(trim((string) $shift)))
+          ->filter()
+          ->unique()
+          ->values();
+
+        $baseManagersQuery = SyllabusManager::where('subject_id', $syllabus->subject_id)
           ->where('batch_id', $syllabus->batch_id)
           ->where('semester_id', $syllabus->semester_id)
-          ->with('syllabusSubunits')
-          ->get();
+          ->when($courseId > 0, function ($query) use ($courseId) {
+            $query->where('co_id', $courseId);
+          })
+          ->when(!empty($syllabus->program_type), function ($query) use ($syllabus) {
+            $query->where('program_type', $syllabus->program_type);
+          })
+          ->with('syllabusSubunits');
 
-        $totalUnits = 0;
-        $completedUnits = 0;
+        if ($assignedShifts->isNotEmpty()) {
+          $syllabusManagers = (clone $baseManagersQuery)
+            ->whereIn('shift', $assignedShifts->all())
+            ->get();
 
-        // Count units from all CSOs
-        foreach ($syllabusManagers as $manager) {
-          if ($manager->syllabusSubunits) {
-            $totalUnits += $manager->syllabusSubunits->count();
-            $completedUnits += $manager->syllabusSubunits->where('is_completed', 1)->count();
+          if ($syllabusManagers->isEmpty()) {
+            $syllabusManagers = (clone $baseManagersQuery)
+              ->where(function ($query) {
+                $query->whereNull('shift')
+                  ->orWhere('shift', '')
+                  ->orWhere('shift', 'common');
+              })
+              ->get();
+          }
+        } else {
+          $syllabusManagers = (clone $baseManagersQuery)
+            ->where(function ($query) {
+              $query->whereNull('shift')
+                ->orWhere('shift', '')
+                ->orWhere('shift', 'common');
+            })
+            ->get();
+
+          if ($syllabusManagers->isEmpty()) {
+            $syllabusManagers = $baseManagersQuery->get();
           }
         }
+
+        $uniqueUnits = $syllabusManagers
+          ->pluck('syllabusSubunits')
+          ->flatten(1)
+          ->unique('id')
+          ->values();
+
+        $totalUnits = $uniqueUnits->count();
+        $completedUnits = $uniqueUnits->where('is_completed', 1)->count();
 
         $completionPercentage = $totalUnits > 0 ? round(($completedUnits / $totalUnits) * 100) : 0;
 
@@ -98,7 +149,7 @@ class FacultyDashboardController extends Controller
       ->filter()
       ->values();
 
-    $totalSubjectsCount = $allSubjectsRoutines->count();
+    $totalSubjectsCount = $distinctSubjectRoutines->count();
 
     // Get leave statistics for current session
     $leaveStats = [
@@ -394,19 +445,50 @@ class FacultyDashboardController extends Controller
     $requestedProgramType = strtoupper(trim((string) $request->query('program_type', 'ALL')));
     $programType = in_array($requestedProgramType, ['UG', 'PG', 'ALL'], true) ? $requestedProgramType : 'ALL';
 
-    // Get all subject IDs assigned to this faculty
-    $assignedSubjectIds = SubjectFacultyMaster::where('faculty_id', $facultyId)
-      ->pluck('subject_id')
-      ->unique();
+    $assignedRoutines = SubjectHasRoutine::where('faculty_id', $facultyId)
+      ->whereNotNull('syllabus_id')
+      ->get(['syllabus_id', 'shift']);
 
-    // Get all syllabi for those subjects with their relationships
-    $dataQuery = SubjectHasSyllabus::whereIn('subject_id', $assignedSubjectIds)
-      ->with([
-        'subject:id,title',
-        'batchmaster:id,batch_name',
-        'semestermaster:id,title',
-        'courseLink.courseMaster.coursetypemaster',
-      ]);
+    $syllabusShiftMap = $assignedRoutines
+      ->groupBy('syllabus_id')
+      ->map(function ($rows) {
+        return $rows
+          ->pluck('shift')
+          ->map(fn($shift) => strtolower(trim((string) $shift)))
+          ->filter()
+          ->unique()
+          ->values();
+      });
+
+    $assignedSyllabusIds = $assignedRoutines
+      ->pluck('syllabus_id')
+      ->filter()
+      ->map(fn($id) => (int) $id)
+      ->unique()
+      ->values();
+
+    // Prefer exact syllabus assignments from routines. Fallback to subject-level mapping if no routines exist.
+    if ($assignedSyllabusIds->isNotEmpty()) {
+      $dataQuery = SubjectHasSyllabus::whereIn('id', $assignedSyllabusIds)
+        ->with([
+          'subject:id,title',
+          'batchmaster:id,batch_name',
+          'semestermaster:id,title',
+          'courseLink.courseMaster.coursetypemaster',
+        ]);
+    } else {
+      $assignedSubjectIds = SubjectFacultyMaster::where('faculty_id', $facultyId)
+        ->pluck('subject_id')
+        ->unique();
+
+      $dataQuery = SubjectHasSyllabus::whereIn('subject_id', $assignedSubjectIds)
+        ->with([
+          'subject:id,title',
+          'batchmaster:id,batch_name',
+          'semestermaster:id,title',
+          'courseLink.courseMaster.coursetypemaster',
+        ]);
+    }
 
     if ($programType !== 'ALL') {
       $dataQuery->whereRaw("UPPER(TRIM(COALESCE(program_type, ''))) = ?", [$programType]);
@@ -428,33 +510,92 @@ class FacultyDashboardController extends Controller
       });
     }
 
-    $data = $dataQuery->get();
+    $subjectsPaginator = $dataQuery
+      ->orderByDesc('id')
+      ->paginate(8)
+      ->withQueryString();
+
+    $data = collect($subjectsPaginator->items());
 
     // Load all syllabus managers (CSOs) with their units for each subject
-    $data->each(function ($syllabus) {
-      // Get all SyllabusManager records for this subject/batch/semester combination with CSO info
-      $syllabusManagers = SyllabusManager::where('subject_id', $syllabus->subject_id)
+    $data->each(function ($syllabus) use ($syllabusShiftMap) {
+      $courseId = (int) ($syllabus->course_id ?? 0);
+      $assignedShifts = collect($syllabusShiftMap->get((int) $syllabus->id, []))
+        ->map(fn($shift) => strtolower(trim((string) $shift)))
+        ->filter()
+        ->unique()
+        ->values();
+
+      // Build scoped base query for this exact course offering.
+      $baseManagersQuery = SyllabusManager::where('subject_id', $syllabus->subject_id)
         ->where('batch_id', $syllabus->batch_id)
         ->where('semester_id', $syllabus->semester_id)
+        ->when($courseId > 0, function ($query) use ($courseId) {
+          $query->where('co_id', $courseId);
+        })
         ->when(!empty($syllabus->program_type), function ($query) use ($syllabus) {
           $query->where('program_type', $syllabus->program_type);
         })
         ->with([
           'cso:id,title,lectures_needed',
-          'syllabusSubunits.csoSubunit.taxomonylevel'
-        ])
-        ->get();
+          'syllabusSubunits.csoSubunit.taxonomies.rbtmaster'
+        ]);
 
-      // Group by CSO and attach to syllabus
-      $syllabus->csoGroups = $syllabusManagers->map(function ($manager) {
-        return [
-          'cso' => $manager->cso,
-          'units' => $manager->syllabusSubunits
-        ];
-      });
+      // Shift-aware fetch: prefer assigned shift rows; fallback to common when shift-specific rows do not exist.
+      if ($assignedShifts->isNotEmpty()) {
+        $syllabusManagers = (clone $baseManagersQuery)
+          ->whereIn('shift', $assignedShifts->all())
+          ->get();
 
-      // Also keep flat list for backward compatibility with completion stats
-      $syllabus->syllabusunits = $syllabusManagers->pluck('syllabusSubunits')->flatten();
+        if ($syllabusManagers->isEmpty()) {
+          $syllabusManagers = (clone $baseManagersQuery)
+            ->where(function ($query) {
+              $query->whereNull('shift')
+                ->orWhere('shift', '')
+                ->orWhere('shift', 'common');
+            })
+            ->get();
+        }
+      } else {
+        $syllabusManagers = (clone $baseManagersQuery)
+          ->where(function ($query) {
+            $query->whereNull('shift')
+              ->orWhere('shift', '')
+              ->orWhere('shift', 'common');
+          })
+          ->get();
+
+        if ($syllabusManagers->isEmpty()) {
+          $syllabusManagers = $baseManagersQuery->get();
+        }
+      }
+
+      // Group by CSO and deduplicate units to avoid inflated counts.
+      $syllabus->csoGroups = $syllabusManagers
+        ->groupBy(function ($manager) {
+          return (int) ($manager->cso_id ?? 0);
+        })
+        ->map(function ($managers) {
+          $firstManager = $managers->first();
+          $uniqueUnits = $managers
+            ->pluck('syllabusSubunits')
+            ->flatten(1)
+            ->unique('id')
+            ->values();
+
+          return [
+            'cso' => optional($firstManager)->cso,
+            'units' => $uniqueUnits,
+          ];
+        })
+        ->values();
+
+      // Keep a flat deduplicated list for completion stats.
+      $syllabus->syllabusunits = $syllabus->csoGroups
+        ->pluck('units')
+        ->flatten(1)
+        ->unique('id')
+        ->values();
     });
 
     // Group by semester first, then batch.
@@ -470,6 +611,7 @@ class FacultyDashboardController extends Controller
 
     return view('faculty.subjects', [
       'semesterWiseSubjects' => $semesterWiseSubjects,
+      'subjectsPaginator' => $subjectsPaginator,
       'selectedProgramType' => $programType,
       'searchTerm' => $searchTerm,
     ]);

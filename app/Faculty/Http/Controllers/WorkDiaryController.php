@@ -6,7 +6,6 @@ use App\Http\Controllers\Controller;
 use App\Http\Controllers\StaticController;
 use App\Faculty\Models\FacultyHoliday;
 use App\Models\Faculty;
-use App\Models\HourMaster;
 use App\Models\MethodologyMaster;
 use App\Models\SubjectFacultyMaster;
 use App\Models\Weekday;
@@ -46,10 +45,17 @@ class WorkDiaryController extends Controller
       ->whereBetween('date', [$weekStart, $weekEnd])
       ->get();
 
-    // Get hours from HourMaster table (cached)
-    $hours = Cache::remember('hour_master_all', 3600, function () {
-      return HourMaster::orderBy('id')->get();
-    });
+    // Fixed 8 periods without querying HourMaster
+    $hours = collect([
+      (object) ['id' => 1, 'title' => '1st Hour'],
+      (object) ['id' => 2, 'title' => '2nd Hour'],
+      (object) ['id' => 3, 'title' => '3rd Hour'],
+      (object) ['id' => 4, 'title' => '4th Hour'],
+      (object) ['id' => 5, 'title' => '5th Hour'],
+      (object) ['id' => 6, 'title' => '6th Hour'],
+      (object) ['id' => 7, 'title' => '7th Hour'],
+      (object) ['id' => 8, 'title' => '8th Hour'],
+    ]);
 
     // Get weekdays from Weekday table (cached)
     $weekdays = Cache::remember('weekdays_titles', 3600, function () {
