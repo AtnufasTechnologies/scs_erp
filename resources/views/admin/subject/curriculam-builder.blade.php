@@ -868,8 +868,15 @@ $typeLabelMap = [
       specializationSelect.disabled = !specializationActive;
       specializationSelect.required = specializationActive;
 
+      const pluginContainer = specializationSelect.parentElement ? specializationSelect.parentElement.querySelector('.dashboardcode-bsmultiselect') : null;
+      if (pluginContainer) {
+        pluginContainer.classList.toggle('d-none', !specializationActive);
+      }
+
       if (!specializationActive) {
-        specializationSelect.value = '';
+        Array.from(specializationSelect.options || []).forEach((option) => {
+          option.selected = false;
+        });
       }
     }
 
@@ -1114,6 +1121,7 @@ $typeLabelMap = [
 
       if (modeSelector) {
         toggleSpecializationSelector(modeSelector.closest('tr'));
+        initSpecializationMultiSelect(document);
         return;
       }
 

@@ -64,7 +64,7 @@ $roleName = $roletype->role_name ?? 'Admin';
   </section>
 
   <section class="stats-grid mb-5">
-    <article class="stat-card">
+    <article class="c">
       <div class="stat-icon icon-students"><i class="fas fa-user-graduate"></i></div>
       <div class="stat-content">
         <h3>Total Students</h3>
