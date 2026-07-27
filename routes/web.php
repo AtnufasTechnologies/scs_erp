@@ -45,6 +45,7 @@ use App\Http\Controllers\StudentAuthController;
 use App\Http\Controllers\ModerationDutyController;
 use App\Http\Controllers\PaymentBatchController;
 use App\Http\Controllers\PrincipalController;
+use App\Http\Controllers\PrincipalMonitoringController;
 use App\Http\Controllers\PromotionController;
 use App\Http\Controllers\SeatingAllocationController;
 use App\Http\Controllers\StudentCreditController;
@@ -67,6 +68,17 @@ use App\Http\Controllers\StudentAttendanceScanController;
 use App\Http\Controllers\TestController;
 use App\Http\Controllers\TimetableController;
 use App\Http\Controllers\ITCellController;
+use App\Http\Controllers\Dean\AttendanceMonitoringController as DeanAttendanceMonitoringController;
+use App\Http\Controllers\Dean\AttendanceRegularizationController as DeanAttendanceRegularizationController;
+use App\Http\Controllers\Dean\ClubsController as DeanClubsController;
+use App\Http\Controllers\Dean\CounsellingController as DeanCounsellingController;
+use App\Http\Controllers\Dean\DashboardController as DeanDashboardController;
+use App\Http\Controllers\Dean\DisciplineController as DeanDisciplineController;
+use App\Http\Controllers\Dean\EventMonitoringController as DeanEventMonitoringController;
+use App\Http\Controllers\Dean\MentoringDashboardController as DeanMentoringDashboardController;
+use App\Http\Controllers\Dean\ReportsController as DeanReportsController;
+use App\Http\Controllers\Dean\Student360Controller as DeanStudent360Controller;
+use App\Http\Controllers\Dean\StudentCouncilController as DeanStudentCouncilController;
 use App\Models\Department;
 use App\Models\User;
 use App\Models\UserType;
@@ -1158,6 +1170,12 @@ Route::group(['prefix' => '/erp'], function () {
         Route::post('work-diary/{id}/approve', [PrincipalController::class, 'approveWorkDiary'])->name('principal.work-diary.approve');
         Route::post('work-diary/bulk-approve', [PrincipalController::class, 'bulkApproveWorkDiary'])->name('principal.work-diary.bulk-approve');
 
+        // Student Affairs Monitoring (view-only)
+        Route::get('monitoring/mentoring', [PrincipalMonitoringController::class, 'mentoring'])->name('principal.monitoring.mentoring');
+        Route::get('monitoring/student-360', [PrincipalMonitoringController::class, 'student360'])->name('principal.monitoring.student360');
+        Route::get('monitoring/clubs-cells', [PrincipalMonitoringController::class, 'clubs'])->name('principal.monitoring.clubs');
+        Route::get('monitoring/clubs-cells/{club}', [PrincipalMonitoringController::class, 'clubMembers'])->name('principal.monitoring.clubs.show');
+
         // Vice-Principal Management (Principal only)
         Route::get('vp-management', [PrincipalController::class, 'vpIndex'])->name('principal.vp.index');
         Route::post('vp-management', [PrincipalController::class, 'vpStore'])->name('principal.vp.store');
@@ -1202,6 +1220,51 @@ Route::group(['prefix' => '/erp'], function () {
 
         // Report
         Route::get('events/{event}/report', [EventCoordinatorController::class, 'report'])->name('event-coordinator.report');
+    });
+
+    // ========================================================
+    // Dean of Student Affairs Module
+    Route::group(['prefix' => '/dean', 'middleware' => ['check.dean.access']], function () {
+        Route::get('dashboard', [DeanDashboardController::class, 'index'])->name('dean.dashboard');
+
+        Route::get('student-council', [DeanStudentCouncilController::class, 'index'])->name('dean.student-council.index');
+        Route::post('student-council', [DeanStudentCouncilController::class, 'store'])->name('dean.student-council.store');
+        Route::get('student-council/{council}/members', [DeanStudentCouncilController::class, 'members'])->name('dean.student-council.members');
+        Route::post('student-council/{council}/members', [DeanStudentCouncilController::class, 'storeMember'])->name('dean.student-council.members.store');
+        Route::get('student-council/{council}/meetings', [DeanStudentCouncilController::class, 'meetings'])->name('dean.student-council.meetings');
+        Route::post('student-council/{council}/meetings', [DeanStudentCouncilController::class, 'storeMeeting'])->name('dean.student-council.meetings.store');
+
+        Route::get('clubs', [DeanClubsController::class, 'index'])->name('dean.clubs.index');
+        Route::post('clubs', [DeanClubsController::class, 'store'])->name('dean.clubs.store');
+        Route::get('clubs/{club}', [DeanClubsController::class, 'show'])->name('dean.clubs.show');
+        Route::post('clubs/{club}/members', [DeanClubsController::class, 'storeMember'])->name('dean.clubs.members.store');
+        Route::put('clubs/{club}/members/{membership}', [DeanClubsController::class, 'updateMember'])->name('dean.clubs.members.update');
+        Route::delete('clubs/{club}/members/{membership}', [DeanClubsController::class, 'destroyMember'])->name('dean.clubs.members.destroy');
+
+        Route::get('event-monitoring', [DeanEventMonitoringController::class, 'index'])->name('dean.events.index');
+        Route::get('mentoring-dashboard', [DeanMentoringDashboardController::class, 'index'])->name('dean.mentoring.index');
+
+        Route::get('attendance-monitoring', [DeanAttendanceMonitoringController::class, 'index'])->name('dean.attendance.monitoring');
+        Route::get('attendance-regularization', [DeanAttendanceRegularizationController::class, 'index'])->name('dean.attendance.regularization');
+        Route::post('attendance-regularization/preview', [DeanAttendanceRegularizationController::class, 'preview'])->name('dean.attendance.regularization.preview');
+        Route::post('attendance-regularization/approve', [DeanAttendanceRegularizationController::class, 'approve'])->name('dean.attendance.regularization.approve');
+        Route::get('attendance-regularization/{regularization}/history', [DeanAttendanceRegularizationController::class, 'history'])->name('dean.attendance.regularization.history');
+
+        Route::get('discipline', [DeanDisciplineController::class, 'index'])->name('dean.discipline.index');
+        Route::post('discipline', [DeanDisciplineController::class, 'store'])->name('dean.discipline.store');
+        Route::post('discipline/{case}/actions', [DeanDisciplineController::class, 'storeAction'])->name('dean.discipline.actions.store');
+        Route::put('discipline/{case}/status', [DeanDisciplineController::class, 'updateStatus'])->name('dean.discipline.status.update');
+
+        Route::get('counselling', [DeanCounsellingController::class, 'index'])->name('dean.counselling.index');
+        Route::post('counselling', [DeanCounsellingController::class, 'store'])->name('dean.counselling.store');
+        Route::get('concern-categories', [\App\Http\Controllers\Dean\ConcernCategoryController::class, 'index'])->name('dean.concern-categories.index');
+        Route::post('concern-categories', [\App\Http\Controllers\Dean\ConcernCategoryController::class, 'store'])->name('dean.concern-categories.store');
+        Route::put('concern-categories/{category}', [\App\Http\Controllers\Dean\ConcernCategoryController::class, 'update'])->name('dean.concern-categories.update');
+        Route::post('concern-categories/{category}/toggle', [\App\Http\Controllers\Dean\ConcernCategoryController::class, 'toggle'])->name('dean.concern-categories.toggle');
+
+        Route::get('student-360', [DeanStudent360Controller::class, 'index'])->name('dean.student360.index');
+
+        Route::get('reports', [DeanReportsController::class, 'index'])->name('dean.reports.index');
     });
 
     // ========================================================

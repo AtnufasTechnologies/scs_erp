@@ -121,6 +121,15 @@
               <a href="{{ route('principal.admissions.index') }}" class="btn btn-outline-warning">
                 <i class="fas fa-file-alt me-1"></i> Admissions
               </a>
+              <a href="{{ route('principal.monitoring.mentoring') }}" class="btn btn-outline-dark">
+                <i class="fas fa-hand-holding-heart me-1"></i> Mentoring Monitor
+              </a>
+              <a href="{{ route('principal.monitoring.student360') }}" class="btn btn-outline-secondary">
+                <i class="fas fa-user-shield me-1"></i> Student 360 Monitor
+              </a>
+              <a href="{{ route('principal.monitoring.clubs') }}" class="btn btn-outline-primary">
+                <i class="fas fa-layer-group me-1"></i> Clubs and Cells Monitor
+              </a>
             </div>
           </div>
         </div>

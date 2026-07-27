@@ -130,6 +130,32 @@ $pendingLeaveCount = $pendingLeaveQuery->count();
     <li>
       <a href="javascript:;" class="has-arrow">
         <div class="parent-icon">
+          <i class="fas fa-binoculars"></i>
+        </div>
+        <div class="menu-title">Student Affairs Monitor</div>
+      </a>
+      <ul>
+        <li>
+          <a href="{{ route('principal.monitoring.mentoring') }}">
+            <i class="bx bx-radio-circle"></i>Mentoring Dashboard
+          </a>
+        </li>
+        <li>
+          <a href="{{ route('principal.monitoring.student360') }}">
+            <i class="bx bx-radio-circle"></i>Student 360
+          </a>
+        </li>
+        <li>
+          <a href="{{ route('principal.monitoring.clubs') }}">
+            <i class="bx bx-radio-circle"></i>Clubs and Cells
+          </a>
+        </li>
+      </ul>
+    </li>
+
+    <li>
+      <a href="javascript:;" class="has-arrow">
+        <div class="parent-icon">
           <i class="fas fa-rupee-sign"></i>
         </div>
         <div class="menu-title">Fees</div>

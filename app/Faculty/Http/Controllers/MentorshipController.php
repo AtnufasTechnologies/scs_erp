@@ -263,8 +263,22 @@ class MentorshipController extends Controller
       'title'        => 'required|string|max:255',
       'agenda'       => 'nullable|string|max:2000',
       'session_date' => 'required|date',
-      'start_time'   => 'nullable|date_format:H:i',
-      'end_time'     => 'nullable|date_format:H:i|after:start_time',
+      'start_time'   => 'nullable|date_format:H:i|required_with:end_time',
+      'end_time'     => [
+        'nullable',
+        'date_format:H:i',
+        'required_with:start_time',
+        function ($attribute, $value, $fail) use ($request) {
+          $startTime = $request->input('start_time');
+          if (!$startTime || !$value) {
+            return;
+          }
+
+          if (strtotime($value) <= strtotime($startTime)) {
+            $fail('The end time must be later than the start time.');
+          }
+        },
+      ],
       'mode'         => 'required|in:in-person,online,hybrid',
     ]);
 
