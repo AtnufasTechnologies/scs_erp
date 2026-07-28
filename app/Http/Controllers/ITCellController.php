@@ -9,6 +9,10 @@ use App\Models\AdmissionApplication;
 use App\Models\AnnualPromotionLog;
 use App\Models\BatchMaster;
 use App\Models\DegreeTrackMaster;
+use App\Models\DepartmentMaster;
+use App\Models\LateralEntryAuditLog;
+use App\Models\ProgramMaster;
+use App\Models\Semester;
 use App\Models\StudentSemesterConfig;
 use App\Models\StudentMaster;
 use App\Models\StudentProgram;
@@ -471,6 +475,149 @@ class ITCellController extends Controller
         return redirect()
             ->route('itcell.pathway.mapper', array_filter($query, fn($value) => $value !== null && $value !== ''))
             ->with('success', $updatedCount . ' student(s) updated successfully.');
+    }
+
+    public function lateralEntryIndex()
+    {
+        $programstype = ProgramMaster::all();
+        $batches = BatchMaster::orderByDesc('id')->get();
+        $campuses = \App\Models\Campus::orderBy('name')->get();
+        $departments = Subject::latest()->get();
+        $programs = StudentProgram::orderBy('name')->get();
+        $semesters = Semester::all();
+        $auditLogs = LateralEntryAuditLog::with(['student', 'user'])->latest('id')->take(20)->get();
+
+        return view('admin.itcell.lateral-entry', compact('batches', 'campuses', 'departments', 'programs', 'auditLogs', 'semesters', 'programstype'));
+    }
+
+    public function storeLateralEntry(Request $request)
+    {
+        $validated = $request->validate([
+            'first_name' => 'required|string|max:100',
+            'last_name' => 'nullable|string|max:100',
+            'gender' => 'required|in:1,2',
+            'mobile_no' => 'nullable|string|max:15',
+            'mail_id' => 'nullable|email|max:150',
+            'campus_id' => 'required|integer|exists:campuses,id',
+            'department' => 'nullable|integer|exists:department_masters,id',
+            'new_program_id' => 'required|integer|exists:student_program,id',
+            'batch' => 'required|integer|exists:batch_masters,id',
+            'admission_date' => 'nullable|date',
+            'current_year' => 'nullable|integer|min:1|max:6',
+            'remarks' => 'nullable|string|max:500',
+            'semester' => 'required'
+        ]);
+
+        $batch = BatchMaster::findOrFail($request->batch);
+        $program = StudentProgram::findOrFail($request->new_program_id);
+        $campusId = (int) $request->campus_id;
+
+        $rollNo = $this->generateLateralEntryRollNo($batch->batch_name, $program->code, $campusId, (int) $validated['department']);
+
+        $student = StudentMaster::create([
+            'first_name' => $validated['first_name'],
+            'last_name' => $validated['last_name'] ?? null,
+            'gender' => $validated['gender'],
+            'mobile_no' => $validated['mobile_no'] ?? null,
+            'mail_id' => $validated['mail_id'] ?? null,
+            'campus_id' => $campusId,
+            'department' => $validated['department'] ?? null,
+            'academic_dept_id' => $validated['department'] ?? null,
+            'new_program_id' => $request->new_program_id,
+            'batch' => $batch->id,
+            'admission_date' => $validated['admission_date'] ?? now()->toDateString(),
+            'current_year' => $validated['current_year'] ?? 1,
+            'graduation_year' => (int) $batch->batch_name + 4,
+            'roll_no' => $rollNo,
+            'remarks' => $validated['remarks'] ?? null,
+            'status' => 'active',
+            'user_type' => 'student',
+        ]);
+
+        LateralEntryAuditLog::create([
+            'student_id' => $student->id,
+            'user_id' => Auth::id(),
+            'entry_type' => 'lateral-entry',
+            'remarks' => $validated['remarks'] ?? 'Lateral entry student created',
+            'source' => 'itcell',
+            'created_at' => now(),
+        ]);
+
+        return redirect()->route('itcell.lateral-entry.index')->with('success', 'Lateral entry student created successfully.');
+    }
+
+    public function getProgramsForLateralEntry(Request $request)
+    {
+        $validated = $request->validate([
+            'campus_id' => 'required|integer|exists:campuses,id',
+            'batch_id' => 'required|integer|exists:batch_masters,id',
+            'program_type' => 'required|integer|exists:program_masters,id',
+        ]);
+
+        $programIds = StudentMaster::query()
+            ->where('campus_id', $validated['campus_id'])
+            ->where('batch', $validated['batch_id'])
+            ->whereNotNull('new_program_id')
+            ->where('new_program_id', '!=', '')
+            ->pluck('new_program_id')
+            ->filter()
+            ->unique()
+            ->values();
+
+        $programs = StudentProgram::query()
+            ->whereIn('id', $programIds)
+            ->where('program_type', $validated['program_type'])
+            ->orderBy('name')
+            ->get(['id', 'name', 'code', 'campus_id']);
+
+        return response()->json([
+            'success' => true,
+            'programs' => $programs->map(function ($program) {
+                return [
+                    'id' => $program->id,
+                    'name' => $program->name,
+                    'code' => $program->code,
+                    'campus_id' => $program->campus_id,
+                ];
+            }),
+        ]);
+    }
+
+    public function lateralEntryAudit()
+    {
+        $logs = LateralEntryAuditLog::with(['student', 'user'])->latest('id')->paginate(20);
+
+        return view('admin.itcell.lateral-entry-audit', compact('logs'));
+    }
+
+    private function generateLateralEntryRollNo(string $batchName, ?string $programCode, int $campusId, int $departmentId): string
+    {
+        $prefix = $campusId === 1 ? 'SO' : 'SL';
+        $programCode = strtoupper((string) $programCode);
+        $batch = (string) $batchName;
+        $base = 'LE' . $prefix . $batch . $programCode;
+
+        $existingRollNos = StudentMaster::where('department', $departmentId)
+            ->where('new_program_id', '!=', null)
+            ->where('roll_no', 'like', $base . '%')
+            ->pluck('roll_no');
+
+        $usedNumbers = [];
+        foreach ($existingRollNos as $rollNo) {
+            if (str_starts_with((string) $rollNo, $base) && strlen((string) $rollNo) > strlen($base)) {
+                $suffix = substr((string) $rollNo, strlen($base));
+                if (ctype_digit($suffix)) {
+                    $usedNumbers[(int) $suffix] = true;
+                }
+            }
+        }
+
+        $nextNumber = 1;
+        while (isset($usedNumbers[$nextNumber])) {
+            $nextNumber++;
+        }
+
+        return $base . str_pad((string) $nextNumber, 3, '0', STR_PAD_LEFT);
     }
 
     function generateLibraryCode(Request $request)
