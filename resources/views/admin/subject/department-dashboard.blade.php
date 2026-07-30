@@ -11,6 +11,7 @@ use App\Models\SubjectHasDeptAdmin;
 use App\Models\SubjectHasRoutine;
 use App\Models\SpecializationMaster;
 use App\Models\ShiftMaster;
+use App\Models\Campus;
 
 
 $batches = BatchMaster::latest()->get();
@@ -20,7 +21,7 @@ $faculties = Faculty::all();
 $mainStreams = ProgramMaster::all();
 $subjectShiftIds = collect($data->shift_ids ?? [])->map(fn($id) => (int) $id)->filter()->unique()->values();
 $subjectHasShiftDelivery = (int) ($data->has_shift_delivery ?? 0) === 1;
-
+$campuses = Campus::all();
 $shiftQuery = ShiftMaster::where('is_active', 1)->orderBy('sort_order');
 if ($subjectHasShiftDelivery) {
   if ($subjectShiftIds->isNotEmpty()) {
@@ -586,53 +587,70 @@ if (!empty($deptFacultyIds)) {
   <!-- Modals -->
   <!-- Add Program Modal -->
   <div class="modal fade" id="programConnect" tabindex="-1" aria-labelledby="exampleModalLabel" aria-hidden="true">
-    <div class="modal-dialog modal-lg">
-      <div class="modal-content" style="border-radius: 20px; border: none;">
-        <div class="modal-header" style="border-bottom: 1px solid #f0f0f0; padding: 24px;">
-          <h5 class="modal-title" style="color: #1a1a1a; font-weight: 700;" id="exampleModalLabel">Connect Programs for {{$data->title}}</h5>
+    <div class="modal-dialog modal-dialog-centered modal-lg">
+      <div class="modal-content" style="border-radius: 16px; border: 1px solid #e5e7eb; box-shadow: 0 16px 40px rgba(15, 23, 42, 0.12);">
+        <div class="modal-header" style="padding: 18px 20px; border-bottom: 1px solid #eef2f7;">
+          <h5 class="modal-title" style="color: #111827; font-weight: 700;" id="exampleModalLabel">Connect Programs</h5>
           <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
         </div>
-        <form action="{{route('add.programs.to.subject')}}" method="post" enctype="multipart/form-data">
+        <form action="{{route('add.programs.to.subject')}}" method="post">
           @csrf
-          <div class="modal-body" style="padding: 24px;">
-            <div class="row g-3 mb-3">
-              <div class="col-5">
-                <label for="" style="color: #1a1a1a; font-weight: 600; margin-bottom: 8px;">Select Academic Batch</label>
-                <select name="batch_id" class="form-select" style="border-radius: 12px; border: 1px solid #e5e7eb; padding: 12px;">
+          <div class="modal-body" style="padding: 20px;">
+            <div class="row g-3">
+              <div class="col-md-4">
+                <label for="programConnectBatch" class="form-label" style="color: #111827; font-weight: 600;">Batch</label>
+                <select name="batch_id" id="programConnectBatch" class="form-select" style="border-radius: 10px; border: 1px solid #dbe3ee;">
+                  <option value="">--Select--</option>
                   @foreach ($batches as $batch)
                   <option value="{{$batch->id}}">{{$batch->batch_name}}</option>
                   @endforeach
                 </select>
               </div>
-              <div class="col-5">
-                <label for="" style="color: #1a1a1a; font-weight: 600; margin-bottom: 8px;">Select Program Type</label>
-                <select name="program_type" class="form-select" style="border-radius: 12px; border: 1px solid #e5e7eb; padding: 12px;" required>
-                  <option value="">-- Select Program Type --</option>
+              <div class="col-md-4">
+                <label for="programConnectCampus" class="form-label" style="color: #111827; font-weight: 600;">Campus</label>
+                <select name="campus_id" id="programConnectCampus" class="form-select" style="border-radius: 10px; border: 1px solid #dbe3ee;" required>
+                  <option value="">-- Select Campus --</option>
+                  @foreach ($campuses as $campus)
+                  <option value="{{ $campus->id }}" {{ (int) ($data->campus_id ?? 0) === (int) $campus->id ? 'selected' : '' }}>{{ $campus->name }}</option>
+                  @endforeach
+                </select>
+              </div>
+              <div class="col-md-2">
+                <label for="program" class="form-label" style="color: #111827; font-weight: 600;">Program Type</label>
+                <select name="program_type" id="programConnectProgramType" class="form-select" style="border-radius: 10px; border: 1px solid #dbe3ee;" required>
+                  <option value="">-- Select --</option>
                   @foreach ($mainStreams as $ms)
                   <option value="{{ $ms->title }}">{{ $ms->title }}</option>
                   @endforeach
                 </select>
               </div>
-              <div class="col-2">
-                <label for="" style="color: #1a1a1a; font-weight: 600; margin-bottom: 8px;">Total Seats</label>
-                <input type=" number" name="total_seats" class="form-control mb-3" style="border-radius: 12px; border: 1px solid #e5e7eb; padding: 12px;" required>
-
+              <div class="col-md-2">
+                <label for="programConnectTotalSeats" class="form-label" style="color: #111827; font-weight: 600;">Total Seats</label>
+                <input type="number" id="programConnectTotalSeats" name="total_seats" class="form-control" style="border-radius: 10px; border: 1px solid #dbe3ee;" min="0" required>
               </div>
             </div>
 
-            <label for="" style="color: #1a1a1a; font-weight: 600; margin-bottom: 8px;">Select Program</label>
-            <select name="programs[]" class="form-select mb-3 select-multiple" style="border-radius: 12px; border: 1px solid #e5e7eb; padding: 12px;" multiple>
-              @foreach ($programs as $prg)
-              <option value="{{$prg->id}}">{{$prg->code}} - {{$prg->name}}</option>
-              @endforeach
-            </select>
+            <div id="programConnectProgramsBlock" class="mt-3 d-none">
+              <label for="programConnectPrograms" class="form-label" style="color: #111827; font-weight: 600;">Programs</label>
+              <select
+                name="programs[]"
+                id="programConnectPrograms"
+                class="form-select select-multiple"
+                style="border-radius: 10px; border: 1px solid #dbe3ee;"
+                data-programs-url="{{ route('department.batch.enrolled-programs') }}"
+                data-subject-id="{{ $data->id }}"
+                multiple>
+              </select>
+            </div>
+
+            <div id="programConnectProgramsHint" class="small mt-3" style="color: #64748b;"></div>
 
 
             <input type="hidden" name="subject_id" value="{{$data->id}}">
           </div>
-          <div class="modal-footer" style="border-top: 1px solid #f0f0f0; padding: 24px;">
-            <button type="button" class="btn btn-modern" style="background: #f5f7fa; color: #6b7280;" data-bs-dismiss="modal">Cancel</button>
-            <button type="submit" class="btn btn-modern" style="background: #43cea2; color: white;">Submit</button>
+          <div class="modal-footer" style="padding: 14px 20px; border-top: 1px solid #eef2f7;">
+            <button type="button" class="btn btn-light" data-bs-dismiss="modal">Close</button>
+            <button type="submit" class="btn btn-success">Connect</button>
           </div>
         </form>
       </div>
@@ -640,5 +658,143 @@ if (!empty($deptFacultyIds)) {
   </div>
 
 </div>
+
+<script>
+  document.addEventListener('DOMContentLoaded', function() {
+    const programModal = document.getElementById('programConnect');
+    const batchSelect = document.getElementById('programConnectBatch');
+    const campusSelect = document.getElementById('programConnectCampus');
+    const programBlock = document.getElementById('programConnectProgramsBlock');
+    const programSelect = document.getElementById('programConnectPrograms');
+    const hint = document.getElementById('programConnectProgramsHint');
+
+    if (!batchSelect || !campusSelect || !programSelect) {
+      return;
+    }
+
+    const endpoint = programSelect.getAttribute('data-programs-url');
+    const subjectId = programSelect.getAttribute('data-subject-id');
+
+    const setHint = function(text) {
+      if (hint) {
+        hint.textContent = text;
+      }
+    };
+
+    const toggleProgramBlock = function(show) {
+      if (!programBlock) {
+        return;
+      }
+      programBlock.classList.toggle('d-none', !show);
+    };
+
+    const initProgramSelectUi = function() {
+      if (!window.jQuery) {
+        return;
+      }
+
+      const $select = window.jQuery(programSelect);
+      if (typeof window.jQuery.fn.bsMultiSelect === 'function') {
+        try {
+          $select.bsMultiSelect('Dispose');
+        } catch (e) {
+          // Ignore if not initialized yet.
+        }
+        $select.bsMultiSelect();
+        return;
+      }
+
+      // Fallback for pages using dselect on this control.
+      if (typeof window.dselect === 'function' && programSelect.classList.contains('dselect-example')) {
+        window.dselect(programSelect, {
+          search: true,
+          clearable: true,
+          maxHeight: '300px',
+          size: 'sm',
+        });
+      }
+    };
+
+    const rebuildOptions = function(programs) {
+      programSelect.innerHTML = '';
+      programs.forEach(function(program) {
+        const option = document.createElement('option');
+        option.value = program.id;
+        option.textContent = [program.code, program.name].filter(Boolean).join(' - ');
+        programSelect.appendChild(option);
+      });
+
+      initProgramSelectUi();
+    };
+
+    const clearPrograms = function(message) {
+      rebuildOptions([]);
+      toggleProgramBlock(false);
+      setHint(message || 'Select batch and campus to load enrolled programs.');
+    };
+
+    const loadBatchCampusPrograms = function(batchId, campusId) {
+      if (!batchId || !campusId || !endpoint || !subjectId) {
+        clearPrograms('Select batch and campus to load enrolled programs.');
+        return;
+      }
+
+      setHint('Loading enrolled programs...');
+      fetch(endpoint + '?batch_id=' + encodeURIComponent(batchId) + '&campus_id=' + encodeURIComponent(campusId) + '&subject_id=' + encodeURIComponent(subjectId), {
+          headers: {
+            'X-Requested-With': 'XMLHttpRequest',
+            'Accept': 'application/json'
+          }
+        })
+        .then(function(response) {
+          if (!response.ok) {
+            throw new Error('Failed to fetch programs');
+          }
+          return response.json();
+        })
+        .then(function(payload) {
+          const programs = Array.isArray(payload.programs) ? payload.programs : [];
+          rebuildOptions(programs);
+          if (programs.length === 0) {
+            clearPrograms('No enrolled programs found for this batch in this subject campus.');
+          } else {
+            toggleProgramBlock(true);
+            setHint(programs.length + ' enrolled program(s) available.');
+          }
+        })
+        .catch(function() {
+          rebuildOptions([]);
+          toggleProgramBlock(false);
+          setHint('Could not load programs. Please refresh and try again.');
+        });
+    };
+
+    const refreshPrograms = function() {
+      loadBatchCampusPrograms(batchSelect.value, campusSelect.value);
+    };
+
+    batchSelect.addEventListener('change', function() {
+      refreshPrograms();
+    });
+
+    campusSelect.addEventListener('change', function() {
+      refreshPrograms();
+    });
+
+    if (batchSelect.value && campusSelect.value) {
+      refreshPrograms();
+    } else {
+      clearPrograms('Select batch and campus to load enrolled programs.');
+    }
+
+    if (programModal) {
+      programModal.addEventListener('shown.bs.modal', function() {
+        if (!programBlock.classList.contains('d-none')) {
+          initProgramSelectUi();
+        }
+      });
+    }
+  });
+</script>
 
 @include('includes.footer')

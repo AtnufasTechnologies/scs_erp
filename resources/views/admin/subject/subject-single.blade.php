@@ -1,10 +1,12 @@
 <?php
 
 use App\Models\BatchMaster;
+use App\Models\ProgramMaster;
 use App\Models\Semester;
 use App\Models\StudentProgram;
 
 $batches = BatchMaster::get();
+$mainStreams = ProgramMaster::all();
 $semesters = Semester::get();
 
 ?>
@@ -110,20 +112,36 @@ $semesters = Semester::get();
                   <label for="" class="text-dark">Select Academic Batch</label>
                   <div class="input-group">
 
-                    <select name="batch_id" class="form-select">
+                    <select name="batch_id" id="subjectSingleProgramConnectBatch" class="form-select">
+                      <option value="">--Select--</option>
                       @foreach ($batches as $batch)
-                      <option value="{{$batch->id}}">{{$batch->batch_name}}</option>
+                      <option value="{{$batch->id}}" {{ (int) ($batchmaster->id ?? 0) === (int) $batch->id ? 'selected' : '' }}>{{$batch->batch_name}}</option>
                       @endforeach
                     </select>
 
                   </div>
+                  <label for="" class="text-dark mt-2">Select Program Type</label>
+                  <select name="program_type" id="subjectSingleProgramConnectProgramType" class="form-select mb-2" required>
+                    <option value="">-- Select Program Type --</option>
+                    @foreach ($mainStreams as $ms)
+                    <option value="{{ $ms->title }}" {{ strcasecmp(trim((string) $ms->title), trim((string) ($data->main_program_type ?? ''))) === 0 ? 'selected' : '' }}>{{ $ms->title }}</option>
+                    @endforeach
+                  </select>
                   <label for="" class="text-dark">Select Program</label>
 
-                  <select name="programs[]" class="form-select mb-3 select-multiple" multiple>
+                  <select
+                    name="programs[]"
+                    id="subjectSingleProgramConnectPrograms"
+                    class="form-select mb-3 select-multiple"
+                    data-programs-url="{{ route('department.batch.enrolled-programs') }}"
+                    data-subject-id="{{ $data->id }}"
+                    data-campus-id="{{ (int) ($data->campus_id ?? 0) }}"
+                    multiple>
                     @foreach ($programs as $prg)
                     <option value="{{$prg->id}}">{{$prg->code}} - {{$prg->name}}</option>
                     @endforeach
                   </select>
+                  <div id="subjectSingleProgramConnectProgramsHint" class="small text-muted mb-2"></div>
                   <input type="hidden" name="subject_id" value="{{$data->id}}">
 
                 </div>
@@ -253,7 +271,144 @@ $semesters = Semester::get();
     </div>
   </div>
 </div>
+<script>
+  document.addEventListener('DOMContentLoaded', function() {
+    const batchSelect = document.getElementById('subjectSingleProgramConnectBatch');
+    const programTypeSelect = document.getElementById('subjectSingleProgramConnectProgramType');
+    const programSelect = document.getElementById('subjectSingleProgramConnectPrograms');
+    const hint = document.getElementById('subjectSingleProgramConnectProgramsHint');
+    let batchPrograms = [];
 
+    if (!batchSelect || !programTypeSelect || !programSelect) {
+      return;
+    }
 
+    const endpoint = programSelect.getAttribute('data-programs-url');
+    const subjectId = programSelect.getAttribute('data-subject-id');
+    const campusId = programSelect.getAttribute('data-campus-id');
+
+    const setHint = function(text) {
+      if (hint) {
+        hint.textContent = text;
+      }
+    };
+
+    const rebuildOptions = function(programs) {
+      programSelect.innerHTML = '';
+      programs.forEach(function(program) {
+        const option = document.createElement('option');
+        option.value = program.id;
+        option.textContent = [program.code, program.name].filter(Boolean).join(' - ');
+        programSelect.appendChild(option);
+      });
+
+      if (typeof window.jQuery !== 'undefined' && window.jQuery(programSelect).hasClass('select2-hidden-accessible')) {
+        window.jQuery(programSelect).trigger('change.select2');
+      }
+    };
+
+    const normalizeProgramType = function(value) {
+      return String(value || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
+    };
+
+    const filterByProgramType = function(programs, selectedType) {
+      const normalizedSelectedType = normalizeProgramType(selectedType);
+      if (!normalizedSelectedType) {
+        return [];
+      }
+
+      return programs.filter(function(program) {
+        const directType = normalizeProgramType(program.program_type);
+        const namedType = normalizeProgramType(program.program_type_name);
+
+        if (!directType && !namedType) {
+          return true;
+        }
+
+        return directType === normalizedSelectedType || namedType === normalizedSelectedType;
+      });
+    };
+
+    const clearPrograms = function(message) {
+      rebuildOptions([]);
+      setHint(message || 'Select batch and program type to load enrolled programs.');
+    };
+
+    const applyBatchAndTypeFilter = function() {
+      const programType = programTypeSelect.value;
+      if (!programType) {
+        clearPrograms('Select program type to filter available programs.');
+        return;
+      }
+
+      const filteredPrograms = filterByProgramType(batchPrograms, programType);
+      rebuildOptions(filteredPrograms);
+
+      if (filteredPrograms.length === 0) {
+        setHint('No enrolled programs found for selected batch and program type.');
+      } else {
+        setHint(filteredPrograms.length + ' enrolled program(s) available.');
+      }
+    };
+
+    const loadBatchPrograms = function(batchId) {
+      if (!batchId || !endpoint || !subjectId || !campusId) {
+        batchPrograms = [];
+        clearPrograms('Select batch and program type to load enrolled programs.');
+        return;
+      }
+
+      setHint('Loading enrolled programs...');
+      fetch(endpoint + '?batch_id=' + encodeURIComponent(batchId) + '&campus_id=' + encodeURIComponent(campusId) + '&subject_id=' + encodeURIComponent(subjectId), {
+          headers: {
+            'X-Requested-With': 'XMLHttpRequest',
+            'Accept': 'application/json'
+          }
+        })
+        .then(function(response) {
+          if (!response.ok) {
+            throw new Error('Failed to fetch programs');
+          }
+          return response.json();
+        })
+        .then(function(payload) {
+          batchPrograms = Array.isArray(payload.programs) ? payload.programs : [];
+          if (batchPrograms.length === 0) {
+            clearPrograms('No enrolled programs found for this batch in this subject campus.');
+          } else {
+            applyBatchAndTypeFilter();
+          }
+        })
+        .catch(function() {
+          batchPrograms = [];
+          rebuildOptions([]);
+          setHint('Could not load programs. Please refresh and try again.');
+        });
+    };
+
+    const refreshPrograms = function(trigger) {
+      if (trigger === 'batch') {
+        loadBatchPrograms(batchSelect.value);
+        return;
+      }
+
+      applyBatchAndTypeFilter();
+    };
+
+    batchSelect.addEventListener('change', function() {
+      refreshPrograms('batch');
+    });
+
+    programTypeSelect.addEventListener('change', function() {
+      refreshPrograms('program-type');
+    });
+
+    if (batchSelect.value) {
+      refreshPrograms('batch');
+    } else {
+      clearPrograms('Select batch and program type to load enrolled programs.');
+    }
+  });
+</script>
 
 @include('includes.footer')

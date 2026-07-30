@@ -788,6 +788,7 @@ Route::group(['prefix' => '/erp'], function () {
 
     Route::group(['prefix' => '/deptartment',], function () {
         Route::get('dashboard', [SubjectController::class, 'departmentDashboard'])->name('department.dashboard');
+        Route::get('enrolled-programs/by-batch', [SubjectController::class, 'fetchEnrolledProgramsByBatch'])->name('department.batch.enrolled-programs');
         Route::get('combo-master', [SubjectController::class, 'comboMaster'])->name('department.combo.master');
         Route::delete('combination/{id}/delete', [SubjectController::class, 'deleteCombination'])->name('department.combination.delete');
         Route::get('course-master/{id}/{slug}', [SubjectController::class, 'courseMaster'])->name('department.course.master');

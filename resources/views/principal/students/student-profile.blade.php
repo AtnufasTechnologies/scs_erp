@@ -17,7 +17,7 @@ $userRole = StaticController::fetchUserRole($userId);
 @elseif($userRole == 'principal')
 @include('principal.sidebar')
 @else
-// No sidebar for other roles
+<!-- // No sidebar for other roles -->
 @endif
 
 <style>
@@ -733,6 +733,9 @@ $userRole = StaticController::fetchUserRole($userId);
     <!-- <button class="sp-tab" onclick="spTab(event,'tab-results')"><i class="fas fa-trophy"></i> Exam Results</button> -->
     <button class="sp-tab" id="btn-tab-courses" onclick="spTab(event,'tab-courses')"><i class="fas fa-book"></i> Courses</button>
     <button class="sp-tab" onclick="spTab(event,'tab-fee')"><i class="fas fa-rupee-sign"></i> Fee</button>
+    @if(!empty($student360Profile))
+    <button class="sp-tab" id="btn-tab-360" onclick="spTab(event,'tab-360')"><i class="fas fa-chart-line"></i> Student 360</button>
+    @endif
     @if(in_array($userRole, ['super-admin','itcell']))
     <button class="sp-tab" id="btn-tab-edit" onclick="spTab(event,'tab-edit')"><i class="fas fa-edit"></i> Edit Details</button>
     @endif
@@ -1342,6 +1345,145 @@ $userRole = StaticController::fetchUserRole($userId);
       @endif
     </div>
   </div>
+
+  @if(!empty($student360Profile))
+  <div class="sp-panel" id="tab-360">
+    <div class="sp-card">
+      <div class="sp-card-header">
+        <div class="sp-icon" style="background:#e8eaf6;color:#1a237e;"><i class="fas fa-chart-line"></i></div>
+        <h4>Student 360 Snapshot</h4>
+      </div>
+      <div class="row g-3 mb-3">
+        <div class="col-6 col-md-2">
+          <div style="border-radius:8px;padding:.85rem;text-align:center;background:#f8f9ff;border:1px solid #e8eaf6;">
+            <div style="font-size:1.2rem;font-weight:800;color:#1a237e;">{{ $student360Profile['attendance_pct'] ?? 0 }}%</div>
+            <div style="font-size:.72rem;color:#6c757d;">Attendance</div>
+          </div>
+        </div>
+        <div class="col-6 col-md-2">
+          <div style="border-radius:8px;padding:.85rem;text-align:center;background:#f8f9ff;border:1px solid #e8eaf6;">
+            <div style="font-size:1.2rem;font-weight:800;color:#1a237e;">{{ $student360Profile['mentorship_attendance_pct'] ?? 0 }}%</div>
+            <div style="font-size:.72rem;color:#6c757d;">Mentorship Att.</div>
+          </div>
+        </div>
+        <div class="col-6 col-md-2">
+          <div style="border-radius:8px;padding:.85rem;text-align:center;background:#f8f9ff;border:1px solid #e8eaf6;">
+            <div style="font-size:1.2rem;font-weight:800;color:#1a237e;">{{ ($student360Profile['mentoring_notes'] ?? collect())->count() }}</div>
+            <div style="font-size:.72rem;color:#6c757d;">Mentoring Notes</div>
+          </div>
+        </div>
+        <div class="col-6 col-md-2">
+          <div style="border-radius:8px;padding:.85rem;text-align:center;background:#f8f9ff;border:1px solid #e8eaf6;">
+            <div style="font-size:1.2rem;font-weight:800;color:#1a237e;">{{ ($student360Profile['discipline_cases'] ?? collect())->count() }}</div>
+            <div style="font-size:.72rem;color:#6c757d;">Discipline Cases</div>
+          </div>
+        </div>
+        <div class="col-6 col-md-2">
+          <div style="border-radius:8px;padding:.85rem;text-align:center;background:#f8f9ff;border:1px solid #e8eaf6;">
+            <div style="font-size:1.2rem;font-weight:800;color:#1a237e;">{{ ($student360Profile['counselling_cases'] ?? collect())->count() }}</div>
+            <div style="font-size:.72rem;color:#6c757d;">Counselling Cases</div>
+          </div>
+        </div>
+        <div class="col-6 col-md-2">
+          <div style="border-radius:8px;padding:.85rem;text-align:center;background:#f8f9ff;border:1px solid #e8eaf6;">
+            <div style="font-size:1.2rem;font-weight:800;color:#1a237e;">{{ $student360Profile['assignment_submission_count'] ?? 0 }}</div>
+            <div style="font-size:.72rem;color:#6c757d;">Assignments</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="row g-3">
+        <div class="col-lg-6">
+          <div class="sp-grid-wrap">
+            <table class="sp-table">
+              <thead>
+                <tr>
+                  <th colspan="4">Club Memberships</th>
+                </tr>
+                <tr>
+                  <th>Club</th>
+                  <th>Role</th>
+                  <th>Status</th>
+                  <th>Joined</th>
+                </tr>
+              </thead>
+              <tbody>
+                @forelse(($student360Profile['club_memberships'] ?? collect()) as $clubMember)
+                <tr>
+                  <td>{{ $clubMember->club->name ?? '-' }}</td>
+                  <td>{{ $clubMember->role_title ?? '-' }}</td>
+                  <td>{{ $clubMember->status ?? '-' }}</td>
+                  <td>{{ optional($clubMember->joined_on)->format('d-M-Y') ?: '-' }}</td>
+                </tr>
+                @empty
+                <tr>
+                  <td colspan="4" class="text-center text-muted">No club memberships</td>
+                </tr>
+                @endforelse
+              </tbody>
+            </table>
+          </div>
+        </div>
+        <div class="col-lg-6">
+          <div class="sp-grid-wrap">
+            <table class="sp-table">
+              <thead>
+                <tr>
+                  <th colspan="4">Council Roles</th>
+                </tr>
+                <tr>
+                  <th>Council</th>
+                  <th>Role</th>
+                  <th>Executive</th>
+                  <th>Status</th>
+                </tr>
+              </thead>
+              <tbody>
+                @forelse(($student360Profile['council_roles'] ?? collect()) as $role)
+                <tr>
+                  <td>{{ $role->council->title ?? '-' }}</td>
+                  <td>{{ $role->role_title ?? '-' }}</td>
+                  <td>{{ $role->is_executive ? 'Yes' : 'No' }}</td>
+                  <td>{{ $role->status ?? '-' }}</td>
+                </tr>
+                @empty
+                <tr>
+                  <td colspan="4" class="text-center text-muted">No council roles</td>
+                </tr>
+                @endforelse
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <div class="sp-grid-wrap mt-3">
+        <table class="sp-table">
+          <thead>
+            <tr>
+              <th>Date</th>
+              <th>Category</th>
+              <th>Note</th>
+            </tr>
+          </thead>
+          <tbody>
+            @forelse(($student360Profile['mentoring_notes'] ?? collect()) as $note)
+            <tr>
+              <td>{{ optional($note->created_at)->format('d-M-Y') }}</td>
+              <td>{{ $note->category ?? '-' }}</td>
+              <td>{{ \Illuminate\Support\Str::limit($note->note, 120) }}</td>
+            </tr>
+            @empty
+            <tr>
+              <td colspan="3" class="text-center text-muted">No mentoring notes</td>
+            </tr>
+            @endforelse
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+  @endif
 
   {{-- ── EDIT DETAILS ── --}}
   <div class="sp-panel" id="tab-edit">

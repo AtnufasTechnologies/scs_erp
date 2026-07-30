@@ -731,7 +731,7 @@ $userRole = StaticController::fetchUserRole($userId);
     <button class="sp-tab" onclick="spTab(event,'tab-attendance')"><i class="fas fa-check-circle"></i> Attendance</button>
     <button class="sp-tab" onclick="spTab(event,'tab-fa')"><i class="fas fa-pen"></i> FA Marks</button>
     <!-- <button class="sp-tab" onclick="spTab(event,'tab-results')"><i class="fas fa-trophy"></i> Exam Results</button> -->
-    <button class="sp-tab" id="btn-tab-courses" onclick="spTab(event,'tab-courses')"><i class="fas fa-book"></i> Courses</button>
+    <!-- <button class="sp-tab" id="btn-tab-courses" onclick="spTab(event,'tab-courses')"><i class="fas fa-book"></i> Courses</button> -->
     <button class="sp-tab" onclick="spTab(event,'tab-fee')"><i class="fas fa-rupee-sign"></i> Fee</button>
     @if(in_array($userRole, ['super-admin','itcell']))
     <button class="sp-tab" id="btn-tab-edit" onclick="spTab(event,'tab-edit')"><i class="fas fa-edit"></i> Edit Details</button>

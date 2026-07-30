@@ -11,6 +11,7 @@ use App\Models\CoHasCso;
 use App\Models\CourseObjective;
 use App\Models\CsoSubunit;
 use App\Models\Department;
+use App\Models\DepartmentMaster;
 use App\Models\DepartmentActivity;
 use App\Models\Faculty;
 use App\Models\LectureHallMaster;
@@ -41,6 +42,9 @@ use App\Models\SubjectHasStudentProgam;
 use App\Models\SubjectHasSyllabus;
 use App\Models\SubjectTypeMaster;
 use App\Models\TeachingAssignment;
+use App\Models\ReligionMaster;
+use App\Models\NationalityMaster;
+use App\Models\BloodGroupMaster;
 use App\Models\SyllabusHasFaculty;
 use App\Models\CourseSeatAllocation;
 use App\Models\ProgramWiseSemesterCourse;
@@ -52,6 +56,8 @@ use App\Models\SyllabusManager;
 use App\Models\SyllabusSubunit;
 use App\Models\User;
 use App\Models\UserHasRole;
+use App\Repositories\Dean\Student360Repository;
+use App\Services\StudentTimetableService;
 use Illuminate\Support\Str;
 use Illuminate\Http\Request;
 use Carbon\Carbon;
@@ -61,6 +67,7 @@ use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Validation\Rule;
 use Barryvdh\DomPDF\Facade\Pdf;
+use Throwable;
 
 class SubjectController extends Controller
 {
@@ -325,8 +332,9 @@ class SubjectController extends Controller
     function linkStdPrograms(Request $request)
     {
         $validator  =  $request->validate([
-            'subject_id' => 'required',
-            'batch_id' => 'required',
+            'subject_id' => 'required|integer|exists:subjects,id',
+            'batch_id' => 'required|integer|exists:batch_masters,id',
+            'campus_id' => 'nullable|integer|exists:campuses,id',
             'programs' => 'required|array|min:1',
             'program_type' => 'required',
             'total_seats' => 'required|integer|min:0',
@@ -341,13 +349,43 @@ class SubjectController extends Controller
         $subject_id = $request->subject_id;
         $data = Subject::find($subject_id);
 
+        if (!$data) {
+            return redirect()->back()->with('info', 'Subject not found');
+        }
 
+        $selectedCampusId = (int) ($request->campus_id ?: $data->campus_id);
+        if ($selectedCampusId <= 0) {
+            return redirect()->back()->with('info', 'Invalid campus selected');
+        }
+
+        $allowedProgramIds = StudentMaster::where('batch', $request->batch_id)
+            ->where('campus_id', $selectedCampusId)
+            ->whereNotNull('new_program_id')
+            ->distinct()
+            ->pluck('new_program_id')
+            ->map(fn($id) => (int) $id)
+            ->all();
+
+        if (!empty($allowedProgramIds)) {
+            $allowedProgramIds = StudentProgram::where('campus_id', $selectedCampusId)
+                ->whereIn('id', $allowedProgramIds)
+                ->pluck('id')
+                ->map(fn($id) => (int) $id)
+                ->all();
+        }
+
+        $requestedProgramIds = collect($programs)->map(fn($id) => (int) $id)->all();
+        $invalidProgramIds = array_values(array_diff($requestedProgramIds, $allowedProgramIds));
+
+        if (!empty($invalidProgramIds)) {
+            return redirect()->back()->with('info', 'One or more selected programs are not enrolled in the selected batch/campus. Please refresh and try again.');
+        }
         for ($i = 0; $i < count($programs); $i++) {
 
             $recordCheck = SubjectHasStudentProgam::where('subject_id', $subject_id)
                 ->where('batch_id', $request->batch_id)
                 ->where('student_program_id', $programs[$i])
-                ->where('campus_id', $data->campus_id)
+                ->where('campus_id', $selectedCampusId)
                 ->where('program_type', $request->program_type)
                 ->first();
 
@@ -360,7 +398,7 @@ class SubjectController extends Controller
                 $subject->subject_id = $subject_id;
                 $subject->batch_id = $request->batch_id;
                 $subject->student_program_id = $programs[$i];
-                $subject->campus_id = $data->campus_id;
+                $subject->campus_id = $selectedCampusId;
                 $subject->program_type = $request->program_type;
                 $subject->total_seats = $request->total_seats;
                 $subject->total_available_seats = $request->total_seats;
@@ -413,9 +451,13 @@ class SubjectController extends Controller
 
         // For combinations modal
         if (!empty($request->batch)) {
-            $activeBatch = $request->batch;
+            $activeBatch = (int) $request->batch;
         } else {
-            $activeBatch = BatchMaster::where('admission_active_batch', 1)->value('id');
+            $activeBatch = (int) BatchMaster::where('admission_active_batch', 1)->value('id');
+        }
+
+        if ($activeBatch <= 0) {
+            $activeBatch = (int) BatchMaster::orderBy('id')->value('id');
         }
 
         $combinations = SubjectHasStudentProgam::where('subject_id', $subjectId)
@@ -427,7 +469,17 @@ class SubjectController extends Controller
             ->get();
 
 
-        $programs = StudentProgram::where('campus_id', $subject->campus_id)->get();
+        $programIds = StudentMaster::where('batch', $activeBatch)
+            ->where('campus_id', $subject->campus_id)
+            ->whereNotNull('new_program_id')
+            ->distinct()
+            ->pluck('new_program_id')
+            ->toArray();
+
+        $programs = StudentProgram::where('campus_id', $subject->campus_id)
+            ->whereIn('id', $programIds)
+            ->orderBy('name')
+            ->get();
         $faculties = SubjectFacultyMaster::with('faculty')->where('subject_id', $subjectId)->get();
         $syllabusCount = SyllabusManager::where('subject_id', $subjectId)->distinct('batch_id')->count();
 
@@ -466,6 +518,7 @@ class SubjectController extends Controller
             'batchWiseStudents' => $batchWiseStudents,
             'combinations' => $combinations,
             'programs' => $programs,
+            'activeBatch' => $activeBatch,
             'deptfaculties' => $faculties,
             'syllabusCount' => $syllabusCount,
             'upcomingActivities' => $upcomingActivities,
@@ -474,6 +527,74 @@ class SubjectController extends Controller
             'allSubjects' => $allSubjects,
             'allCampuses' => $allCampuses,
             'allBatches' => $batches,
+        ]);
+    }
+
+    function fetchEnrolledProgramsByBatch(Request $request)
+    {
+        $request->validate([
+            'batch_id' => 'required|integer|exists:batch_masters,id',
+            'campus_id' => 'required|integer|exists:campuses,id',
+            'subject_id' => 'required|integer|exists:subjects,id',
+        ]);
+
+        $subject = Subject::find($request->subject_id);
+        if (!$subject) {
+            return response()->json([
+                'success' => false,
+                'programs' => [],
+                'message' => 'Subject not found',
+            ], 404);
+        }
+
+        $campusId = (int) $request->campus_id;
+        if ($campusId !== (int) $subject->campus_id) {
+            return response()->json([
+                'success' => true,
+                'programs' => [],
+                'message' => 'Campus does not match subject campus',
+            ]);
+        }
+
+        // Step 1: source enrolled program ids directly from student_masters
+        // for selected batch + campus where new_program_id is present.
+        $enrolledProgramIds = StudentMaster::where('batch', (int) $request->batch_id)
+            ->where('campus_id', $campusId)
+            ->whereNotNull('new_program_id')
+            ->distinct()
+            ->pluck('new_program_id')
+            ->map(fn($id) => (int) $id)
+            ->toArray();
+
+        if (empty($enrolledProgramIds)) {
+            return response()->json([
+                'success' => true,
+                'programs' => [],
+            ]);
+        }
+
+        // Step 2: return only matching student_program rows for the same campus.
+        $programsQuery = StudentProgram::where('campus_id', $campusId)
+            ->whereIn('id', $enrolledProgramIds);
+
+        $programs = $programsQuery
+            ->with('programtypemaster:id,name')
+            ->orderBy('name')
+            ->get(['id', 'code', 'name', 'program_type'])
+            ->map(function ($program) {
+                return [
+                    'id' => (int) $program->id,
+                    'code' => (string) ($program->code ?? ''),
+                    'name' => (string) ($program->name ?? ''),
+                    'program_type' => (string) ($program->program_type ?? ''),
+                    'program_type_name' => (string) ($program->programtypemaster->name ?? ''),
+                ];
+            })
+            ->values();
+
+        return response()->json([
+            'success' => true,
+            'programs' => $programs,
         ]);
     }
 
@@ -1723,39 +1844,61 @@ class SubjectController extends Controller
             'usertype:id,name',
             'bloodgroup',
             'batchmaster:id,batch_name',
-            'programgroup.programInfo',
+            'stdprogramenrolled',
             'feepayment.feepaymentinfo:id,quarter_title',
             'feepayment.gatewaytype',
+            'academicpathway',
+            'degreetrack',
+            'singleselection',
+            'subjectmaster',
         ])->firstOrFail();
 
         $studentId = $data->id;
 
-        // Courses with semester and type
         $studentCourses = StudentCourseInfo::with([
             'coursemaster.semestermaster:id,title',
             'coursemaster.coursetypemaster:id,title,description',
-        ])->where('student_id', $studentId)->get();
+        ])
+            ->where('student_id', $studentId)
+            ->orderByDesc('id')
+            ->get()
+            ->unique(fn($c) => ($c->semester ?? $c->coursemaster?->semester_id ?? 'na') . '_' . $c->course_id)
+            ->values();
+
+        $semesterMap = Semester::pluck('title', 'id')->toArray();
 
         $coursesBySemester = $studentCourses
-            ->sortBy(fn($c) => $c->coursemaster?->semester_id ?? 999)
-            ->groupBy(fn($c) => $c->coursemaster?->semestermaster?->title ?? ('Sem ' . ($c->semester ?? '?')));
+            ->sortBy(fn($c) => $c->semester ?? $c->coursemaster?->semester_id ?? 999)
+            ->groupBy(function ($c) use ($semesterMap) {
+                $semId = $c->semester ?? $c->coursemaster?->semester_id;
+                return $semesterMap[$semId] ?? ('Semester ' . ($semId ?? '?'));
+            });
 
-        // Timetable
-        $timetable = SubjectHasRoutine::where('batch_id', $data->batch)
-            ->with([
-                'weekdaymaster:id,title',
-                'hourmaster:id,name',
-                'lecturehallmaster:id,title',
-                'faculty:id,FIRST_NAME,LAST_NAME',
-                'coursemaster:id,course_title,course_code',
-            ])
-            ->orderBy('weekday_id')
-            ->orderBy('hour_id')
-            ->get();
+        $faSegregatedMarks = CiaMark::where('STUDENT_ID', $studentId)->with([
+            'studentcourseinfo.coursemaster:id,course_title,course_code,semester_id',
+            'groupinfo.grouptype:id,name',
+        ])->get()->groupBy(fn($c) => $c->SEMESTER_ID);
 
-        $timetableByDay = $timetable->groupBy(fn($r) => $r->weekdaymaster->title ?? 'Unknown');
+        $interMarkedCourseIds = InterMark::where('student_id', $studentId)->pluck('course_id')->unique()->toArray();
+        $ciaMarkedCourseIds   = CiaMark::where('STUDENT_ID', $studentId)->pluck('COURSE_ID')->unique()->toArray();
+        $saMarkedCourseIds    = DB::table('exam_marks_entries')->where('erp_student_id', $studentId)->pluck('erp_subject_id')->unique()->toArray();
+        $lockedCourseIds      = array_unique(array_merge($interMarkedCourseIds, $ciaMarkedCourseIds, $saMarkedCourseIds));
 
-        // Attendance per course
+        $enrolledCourseIds = $studentCourses->pluck('course_id')->toArray();
+        $availableCourses = ProgramCourseMaster::where('is_deleted', 0)
+            ->whereNotIn('id', $enrolledCourseIds)
+            ->with('semestermaster:id,title', 'coursetypemaster:id,title')
+            ->orderBy('semester_id')
+            ->orderBy('course_title')
+            ->get()
+            ->groupBy(fn($c) => $c->semester_id);
+
+        $availableSemesters = Semester::orderBy('id')->get();
+
+        $deliveryContext = $this->resolveStudentDeliveryContext($data, $studentCourses);
+        $timetable       = StudentTimetableService::generate($studentId);
+        $timetableByDay  = $timetable->groupBy(fn($r) => $r['weekday'] ?? 'Unknown');
+
         $attendanceRaw = StudentAttendance::where('student_id', $studentId)
             ->with('courseinfo:id,course_title,course_code')
             ->get()
@@ -1773,53 +1916,218 @@ class SubjectController extends Controller
             ];
         })->values();
 
-        // Internal marks
         $internalMarks = InterMark::where('student_id', $studentId)
             ->with(['course:id,course_title,course_code', 'semester:id,title'])
+            ->where('is_deleted', 0)
             ->orderBy('semester')
             ->get();
 
-        // Exam results
-        $examStudent       = ExamStudent::where('erp_student_id', $studentId)->first();
-        $examResults       = collect();
-        $resultsBySemester = collect();
+        $faMarksByCourseSemester = $internalMarks
+            ->sortByDesc('id')
+            ->groupBy(fn($m) => (string) $m->semester . '_' . (string) $m->course_id)
+            ->map(fn($rows) => $rows->first());
+
+        $saMarksByCourseSemester = DB::table('exam_marks_entries as eme')
+            ->join('exam_sessions as es', 'es.id', '=', 'eme.exam_session_id')
+            ->where('eme.erp_student_id', $studentId)
+            ->select('eme.erp_subject_id as course_id', 'es.semester as semester', DB::raw('MAX(eme.marks) as sa_marks'))
+            ->groupBy('eme.erp_subject_id', 'es.semester')
+            ->get()
+            ->keyBy(fn($m) => (string) $m->semester . '_' . (string) $m->course_id);
+
+        $ciaMarksBySemester = $studentCourses
+            ->groupBy(fn($c) => (string) ($c->semester ?? $c->coursemaster?->semester_id ?? 'Unknown'))
+            ->map(function ($courses, $semester) use ($faMarksByCourseSemester, $saMarksByCourseSemester, $semesterMap) {
+                $rows = $courses
+                    ->sortBy(fn($c) => $c->coursemaster?->course_code ?? 'ZZZ')
+                    ->map(function ($course) use ($semester, $faMarksByCourseSemester, $saMarksByCourseSemester) {
+                        $key = (string) $semester . '_' . (string) $course->course_id;
+                        $fa  = $faMarksByCourseSemester->get($key);
+                        $sa  = $saMarksByCourseSemester->get($key);
+                        return [
+                            'course'   => $course->coursemaster,
+                            'fa_marks' => $fa?->internal_mark,
+                            'sa_marks' => $sa?->sa_marks,
+                            'semester' => $semester,
+                        ];
+                    })
+                    ->values();
+                return [
+                    'label' => $semesterMap[(int) $semester] ?? ('Semester ' . $semester),
+                    'rows'  => $rows,
+                ];
+            })
+            ->values();
+
+        $examStudent = ExamStudent::where('erp_student_id', $studentId)->first();
+        $examResults = collect();
         if ($examStudent) {
             $examResults = Result::where('exam_student_id', $examStudent->id)
                 ->where('is_published', true)
                 ->with(['examSession', 'resultSubjects'])
-                ->orderBy('exam_session_id')
+                ->orderByDesc('created_at')
                 ->get();
+        }
 
-            foreach ($examResults as $result) {
-                $semKey = 'Semester ' . ($result->examSession?->semester ?? '?') . ' — ' . ($result->examSession?->academic_year ?? '');
-                $resultsBySemester[$semKey] = [
-                    'result'    => $result,
-                    'qualified' => $result->resultSubjects->where('result_status', 'pass')->values(),
-                    'backlog'   => $result->resultSubjects->where('result_status', '!=', 'pass')->values(),
-                ];
+        $student360Profile = null;
+        try {
+            $student360Profile = app(Student360Repository::class)->profile((int) $studentId);
+        } catch (Throwable $e) {
+            $student360Profile = null;
+        }
+
+        return view('principal.students.student-profile', [
+            'data'                           => $data,
+            'studentCourses'                 => $studentCourses,
+            'coursesBySemester'              => $coursesBySemester,
+            'lockedCourseIds'                => $lockedCourseIds,
+            'availableCourses'               => $availableCourses,
+            'availableSemesters'             => $availableSemesters,
+            'timetableByDay'                 => $timetableByDay,
+            'attendanceSummary'              => $attendanceSummary,
+            'internalMarks'                  => $internalMarks,
+            'ciaMarksBySemester'             => $ciaMarksBySemester,
+            'faSegregatedMarks'              => $faSegregatedMarks,
+            'examResults'                    => $examResults,
+            'examStudent'                    => $examStudent,
+            'batches'                        => BatchMaster::orderBy('batch_name')->get(),
+            'departments'                    => DepartmentMaster::orderBy('name')->get(),
+            'campuses'                       => Campus::orderBy('name')->get(),
+            'religions'                      => ReligionMaster::orderBy('name')->get(),
+            'nationalities'                  => NationalityMaster::orderBy('name')->get(),
+            'bloodGroups'                    => BloodGroupMaster::orderBy('name')->get(),
+            'studentMajorDeliveryType'       => $deliveryContext['studentMajorDeliveryType'],
+            'studentApplicableDeliveryTypes' => $deliveryContext['studentApplicableDeliveryTypes'],
+            'combo1Title'                    => $deliveryContext['combo1Title'],
+            'combo2Title'                    => $deliveryContext['combo2Title'],
+            'courseDeliveryMap'              => $deliveryContext['courseDeliveryMap'],
+            'courseOfferingSubjectMap'       => $deliveryContext['courseOfferingSubjectMap'],
+            'programOfferingSubjectTitle'    => $deliveryContext['programOfferingSubjectTitle'],
+            'student360Profile'              => $student360Profile,
+            'dept_view'                      => true,
+        ]);
+    }
+
+    private function resolveStudentDeliveryContext(?StudentMaster $student, $studentCourses): array
+    {
+        $programCombination = null;
+        if ($student && !empty($student->new_program_id) && !empty($student->batch)) {
+            $programCombination = SubjectHasStudentProgam::with([
+                'subjectmaster:id,title,code',
+                'combomap.combo1:id,title,code',
+                'combomap.combo2:id,title,code',
+            ])
+                ->where('student_program_id', (int) $student->new_program_id)
+                ->where('batch_id', (int) $student->batch)
+                ->orderBy('id')
+                ->first();
+        }
+
+        $combo1Id = (int) ($programCombination?->combomap?->combo_id_1 ?? 0);
+        if ($combo1Id <= 0) {
+            $combo1Id = (int) ($programCombination?->subject_id ?? 0);
+        }
+        $combo2Id        = (int) ($programCombination?->combomap?->combo_id_2 ?? 0);
+        $selectedComboId = (int) ($student->selected_combo_id ?? 0);
+
+        $studentMajorDeliveryType = null;
+        if ($selectedComboId > 0) {
+            if ($selectedComboId === $combo1Id) {
+                $studentMajorDeliveryType = ProgramWiseSemesterCourse::DELIVERY_MAJOR_COMBO1;
+            } elseif ($combo2Id > 0 && $selectedComboId === $combo2Id) {
+                $studentMajorDeliveryType = ProgramWiseSemesterCourse::DELIVERY_MAJOR_COMBO2;
+            }
+        } elseif ($combo1Id > 0 && $combo2Id <= 0) {
+            $studentMajorDeliveryType = ProgramWiseSemesterCourse::DELIVERY_MAJOR_COMBO1;
+        }
+
+        $studentApplicableDeliveryTypes = collect([
+            $studentMajorDeliveryType,
+            ProgramWiseSemesterCourse::DELIVERY_PROGRAMME_COMMON,
+            ProgramWiseSemesterCourse::DELIVERY_OPEN_CHOICE,
+        ])->filter()->unique()->values();
+
+        $courseDeliveryMap        = [];
+        $courseOfferingSubjectMap = [];
+        $programType = strtoupper(trim((string) ($programCombination?->program_type ?? '')));
+
+        if ($programCombination && $studentCourses) {
+            $courseIds = collect($studentCourses)
+                ->pluck('course_id')
+                ->map(fn($id) => (int) $id)
+                ->filter()->unique()->values()->all();
+
+            $semesterIds = collect($studentCourses)
+                ->map(fn($course) => (int) ($course->semester ?? $course->coursemaster?->semester_id ?? 0))
+                ->filter(fn($id) => $id > 0)->unique()->values()->all();
+
+            if (!empty($courseIds)) {
+                $deliveryRowsQuery = ProgramWiseSemesterCourse::where('program_combo_refid', (int) $programCombination->id)
+                    ->where('batch', (int) $student->batch)
+                    ->whereIn('course_id', $courseIds);
+
+                $pathwayId     = (int) ($student->academic_pathway_id ?? 0);
+                $degreeTrackId = (int) ($student->degree_track_id ?? 0);
+
+                if (Schema::hasColumn((new ProgramWiseSemesterCourse())->getTable(), 'academic_pathway_id')) {
+                    $pathwayId > 0
+                        ? $deliveryRowsQuery->where('academic_pathway_id', $pathwayId)
+                        : $deliveryRowsQuery->whereNull('academic_pathway_id');
+                }
+
+                if (Schema::hasColumn((new ProgramWiseSemesterCourse())->getTable(), 'degree_track_id')) {
+                    $degreeTrackId > 0
+                        ? $deliveryRowsQuery->where('degree_track_id', $degreeTrackId)
+                        : $deliveryRowsQuery->whereNull('degree_track_id');
+                }
+
+                foreach ($deliveryRowsQuery->get(['semester', 'course_id', 'delivery_category']) as $row) {
+                    $key = (string) ((int) $row->semester) . '_' . (string) ((int) $row->course_id);
+                    if (!empty($row->delivery_category)) {
+                        $courseDeliveryMap[$key] = (string) $row->delivery_category;
+                    }
+                }
+            }
+
+            if (!empty($courseIds) && !empty($semesterIds)) {
+                $syllabusQuery = SyllabusManager::with('subject:id,title,code')
+                    ->where('batch_id', (int) $student->batch)
+                    ->whereIn('co_id', $courseIds)
+                    ->whereIn('semester_id', $semesterIds);
+
+                if (Schema::hasColumn('syllabus_managers', 'status')) {
+                    $syllabusQuery->where('status', 'published');
+                }
+                if ($programType !== '' && Schema::hasColumn('syllabus_managers', 'program_type')) {
+                    $syllabusQuery->whereRaw("UPPER(TRIM(COALESCE(program_type, ''))) = ?", [$programType]);
+                }
+
+                foreach ($syllabusQuery->get(['semester_id', 'co_id', 'subject_id']) as $row) {
+                    $key          = (string) ((int) $row->semester_id) . '_' . (string) ((int) $row->co_id);
+                    $subjectTitle = trim((string) ($row->subject?->title ?? ''));
+                    if ($subjectTitle === '') {
+                        continue;
+                    }
+                    $courseOfferingSubjectMap[$key]   = $courseOfferingSubjectMap[$key] ?? [];
+                    if (!in_array($subjectTitle, $courseOfferingSubjectMap[$key], true)) {
+                        $courseOfferingSubjectMap[$key][] = $subjectTitle;
+                    }
+                }
+                foreach ($courseOfferingSubjectMap as $key => $subjects) {
+                    $courseOfferingSubjectMap[$key] = implode(' / ', $subjects);
+                }
             }
         }
 
-        // Exam registrations
-        $examRegistrations = Registration::where('erp_student_id', $studentId)
-            ->with(['examSession', 'registrationSubjects.examSubject.master'])
-            ->orderByDesc('registered_at')
-            ->get();
-
-        return view('student.profile', [
-            'data'               => $data,
-            'studentCourses'     => $studentCourses,
-            'coursesBySemester'  => $coursesBySemester,
-            'timetableByDay'     => $timetableByDay,
-            'attendanceSummary'  => $attendanceSummary,
-            'internalMarks'      => $internalMarks,
-            'examResults'        => $examResults,
-            'resultsBySemester'  => $resultsBySemester,
-            'examStudent'        => $examStudent,
-            'examRegistrations'  => $examRegistrations,
-            'latestRegistration' => $examRegistrations->first(),
-            'dept_view'          => true,
-        ]);
+        return [
+            'studentMajorDeliveryType'       => $studentMajorDeliveryType,
+            'studentApplicableDeliveryTypes' => $studentApplicableDeliveryTypes,
+            'combo1Title'                    => (string) ($programCombination?->combomap?->combo1?->title ?? ''),
+            'combo2Title'                    => (string) ($programCombination?->combomap?->combo2?->title ?? ''),
+            'courseDeliveryMap'              => $courseDeliveryMap,
+            'courseOfferingSubjectMap'       => $courseOfferingSubjectMap,
+            'programOfferingSubjectTitle'    => (string) ($programCombination?->subjectmaster?->title ?? ''),
+        ];
     }
 
     function deptFacultyList(Request $request, $subjectId, $slug)
