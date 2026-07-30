@@ -323,6 +323,15 @@ $roleType = UserHasRole::where('user_id', $userId)->value('role_name');
     </li>
 
     <li>
+      <a href="{{ route('itcell.lateral-entry.index') }}">
+        <div class="parent-icon">
+          <i class="fas fa-user-plus"></i>
+        </div>
+        <div class="menu-title">Lateral Entry</div>
+      </a>
+    </li>
+
+    <li>
       <a class="has-arrow" href="javascript:;">
         <div class="parent-icon">
           <i class="fas fa-bring-forward"></i>

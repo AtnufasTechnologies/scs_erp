@@ -8,7 +8,14 @@ use App\Models\AcademicPathwayMaster;
 use App\Models\AdmissionApplication;
 use App\Models\AnnualPromotionLog;
 use App\Models\BatchMaster;
+use App\Models\BloodGroupMaster;
 use App\Models\DegreeTrackMaster;
+use App\Models\DepartmentMaster;
+use App\Models\LateralEntryAuditLog;
+use App\Models\NationalityMaster;
+use App\Models\ProgramMaster;
+use App\Models\ReligionMaster;
+use App\Models\Semester;
 use App\Models\StudentSemesterConfig;
 use App\Models\StudentMaster;
 use App\Models\StudentProgram;
@@ -471,6 +478,419 @@ class ITCellController extends Controller
         return redirect()
             ->route('itcell.pathway.mapper', array_filter($query, fn($value) => $value !== null && $value !== ''))
             ->with('success', $updatedCount . ' student(s) updated successfully.');
+    }
+
+    public function lateralEntryIndex()
+    {
+        $programstype = ProgramMaster::all();
+        $batches = BatchMaster::orderByDesc('id')->get();
+        $campuses = \App\Models\Campus::orderBy('name')->get();
+        $departments = Subject::all();
+        $programs = StudentProgram::orderBy('name')->get();
+        $semesters = Semester::all();
+        $bloodGroups = BloodGroupMaster::orderBy('name')->get();
+        $religions = ReligionMaster::orderBy('name')->get();
+        $nationalities = NationalityMaster::orderBy('name')->get();
+        $auditLogs = LateralEntryAuditLog::with(['student', 'user'])->latest('id')->take(20)->get();
+
+        return view('admin.itcell.lateral-entry', compact('batches', 'campuses', 'departments', 'programs', 'auditLogs', 'semesters', 'programstype', 'bloodGroups', 'religions', 'nationalities'));
+    }
+
+    public function storeLateralEntry(Request $request)
+    {
+
+        $validated = $request->validate([
+            'application_code' => 'nullable|string|max:30',
+            'first_name' => 'required|string|max:100',
+            'last_name' => 'nullable|string|max:100',
+            'gender' => 'required|in:1,2',
+            'mobile_no' => 'nullable|string|max:15',
+            'mail_id' => 'nullable|email|max:150',
+            'campus_id' => 'required|integer|exists:campuses,id',
+            'department' => 'nullable|integer|exists:subjects,id',
+            'new_program_id' => 'required|integer|exists:student_program,id',
+            'batch' => 'required|integer|exists:batch_masters,id',
+            'admission_date' => 'nullable|date',
+            'current_year' => 'nullable|integer|min:1|max:6',
+            'remarks' => 'nullable|string|max:500',
+            'semester' => 'required|integer|exists:semesters,id',
+            'dob' => 'nullable|date',
+            'blood_group_id' => 'nullable|integer|exists:blood_group_masters,id',
+            'religion' => 'nullable|integer|exists:religion_masters,id',
+            'nationality' => 'nullable|integer|exists:nationality_masters,id',
+            'mother_tongue' => 'nullable|string|max:120',
+            'caste' => 'nullable|string|max:120',
+            'aadhar_no' => 'nullable|string|max:30',
+            'father_name' => 'nullable|string|max:255',
+            'mother_name' => 'nullable|string|max:255',
+            'guardian_name' => 'nullable|string|max:255',
+            'fr_mobile_no' => 'nullable|string|max:20',
+            'mr_mobile_no' => 'nullable|string|max:20',
+            'guardian_mobile_no' => 'nullable|string|max:20',
+            'fr_occupation' => 'nullable|string|max:255',
+            'mr_occupation' => 'nullable|string|max:255',
+            'annual_income' => 'nullable|numeric|min:0|max:999999999',
+            'address' => 'nullable|string|max:1200',
+            'city' => 'nullable|string|max:150',
+            'district' => 'nullable|string|max:150',
+            'state' => 'nullable|string|max:150',
+            'pincode' => 'nullable|string|max:20',
+            'x_percentage' => 'nullable|numeric|min:0|max:100',
+            'xii_percentage' => 'nullable|numeric|min:0|max:100',
+            'ug_percentage' => 'nullable|numeric|min:0|max:100',
+            'sgpa1' => 'nullable|numeric|min:0|max:10',
+            'sgpa2' => 'nullable|numeric|min:0|max:10',
+            'sgpa3' => 'nullable|numeric|min:0|max:10',
+            'sgpa4' => 'nullable|numeric|min:0|max:10',
+            'sgpa5' => 'nullable|numeric|min:0|max:10',
+            'sgpa6' => 'nullable|numeric|min:0|max:10',
+            'application_form_file' => 'nullable|file|mimes:pdf,jpg,jpeg,png|max:5120',
+        ]);
+
+        DB::transaction(function () use ($request, $validated) {
+            $batch = BatchMaster::findOrFail($request->batch);
+            $program = StudentProgram::findOrFail($request->new_program_id);
+            $campusId = (int) $request->campus_id;
+            $departmentId = (int) ($validated['department'] ?? 0);
+
+            $rollNo = $this->generateLateralEntryRollNo($request->program_type, $batch->batch_name, $program->code, $campusId, $departmentId);
+
+            $applicationFormPath = null;
+            if ($request->hasFile('application_form_file')) {
+                $applicationFormPath = $request->file('application_form_file')->store('lateral-entry/application-forms', 'public');
+            }
+
+            $fullAddress = $this->buildAddressString(
+                $validated['address'] ?? null,
+                $validated['city'] ?? null,
+                $validated['district'] ?? null,
+                $validated['state'] ?? null,
+                $validated['pincode'] ?? null,
+            );
+
+            $snapshot = [
+                'personal' => [
+                    'dob' => $validated['dob'] ?? null,
+                    'gender' => $validated['gender'] ?? null,
+                    'blood_group_id' => $validated['blood_group_id'] ?? null,
+                    'religion' => $validated['religion'] ?? null,
+                    'nationality' => $validated['nationality'] ?? null,
+                    'mother_tongue' => $validated['mother_tongue'] ?? null,
+                    'caste' => $validated['caste'] ?? null,
+                    'aadhar_no' => $validated['aadhar_no'] ?? null,
+                ],
+                'address' => [
+                    'line' => $validated['address'] ?? null,
+                    'city' => $validated['city'] ?? null,
+                    'district' => $validated['district'] ?? null,
+                    'state' => $validated['state'] ?? null,
+                    'pincode' => $validated['pincode'] ?? null,
+                ],
+                'academic' => [
+                    'x_percentage' => $validated['x_percentage'] ?? null,
+                    'xii_percentage' => $validated['xii_percentage'] ?? null,
+                    'ug_percentage' => $validated['ug_percentage'] ?? null,
+                    'sgpa1' => $validated['sgpa1'] ?? null,
+                    'sgpa2' => $validated['sgpa2'] ?? null,
+                    'sgpa3' => $validated['sgpa3'] ?? null,
+                    'sgpa4' => $validated['sgpa4'] ?? null,
+                    'sgpa5' => $validated['sgpa5'] ?? null,
+                    'sgpa6' => $validated['sgpa6'] ?? null,
+                ],
+            ];
+
+            $student = StudentMaster::create([
+                'user_code' => $validated['application_code'] ?? null,
+                'first_name' => $validated['first_name'],
+                'last_name' => $validated['last_name'] ?? null,
+                'gender' => $validated['gender'],
+                'dob' => $validated['dob'] ?? null,
+                'mobile_no' => $validated['mobile_no'] ?? null,
+                'mail_id' => $validated['mail_id'] ?? null,
+                'campus_id' => $campusId,
+                'department' => $validated['department'] ?? null,
+                'academic_dept_id' => $validated['department'] ?? null,
+                'new_program_id' => $request->new_program_id,
+                'batch' => $batch->id,
+                'admission_date' => $validated['admission_date'] ?? now()->toDateString(),
+                'current_year' => $validated['current_year'] ?? 1,
+                'graduation_year' => (int) $batch->batch_name + 4,
+                'roll_no' => $rollNo,
+                'blood_group_id' => $validated['blood_group_id'] ?? null,
+                'religion' => $validated['religion'] ?? null,
+                'nationality' => $validated['nationality'] ?? null,
+                'mother_tongue' => $validated['mother_tongue'] ?? null,
+                'caste' => $validated['caste'] ?? null,
+                'aadhar_no' => $validated['aadhar_no'] ?? null,
+                'father_name' => $validated['father_name'] ?? null,
+                'mother_name' => $validated['mother_name'] ?? null,
+                'guardian_name' => $validated['guardian_name'] ?? null,
+                'fr_mobile_no' => $validated['fr_mobile_no'] ?? null,
+                'mr_mobile_no' => $validated['mr_mobile_no'] ?? null,
+                'guardian_mobile_no' => $validated['guardian_mobile_no'] ?? null,
+                'fr_occupation' => $validated['fr_occupation'] ?? null,
+                'mr_occupation' => $validated['mr_occupation'] ?? null,
+                'annual_income' => $validated['annual_income'] ?? null,
+                'address' => $fullAddress,
+                'hsc_percentage' => $validated['xii_percentage'] ?? null,
+                'photo_path' => $applicationFormPath,
+                'remarks' => $validated['remarks'] ?? null,
+                'status' => 'active',
+                'user_type' => 'student',
+            ]);
+
+            // Mark selected semester as active for the newly created student.
+            StudentSemesterConfig::where('student_id', $student->id)->update([
+                'current_semester' => 0,
+            ]);
+
+            StudentSemesterConfig::updateOrCreate(
+                [
+                    'student_id' => $student->id,
+                    'semester_id' => (string) $validated['semester'],
+                ],
+                [
+                    'current_semester' => 1,
+                ]
+            );
+
+            $auditPayload = [
+                'student_id' => $student->id,
+                'user_id' => Auth::id(),
+                'entry_type' => 'lateral-entry',
+                'remarks' => $validated['remarks'] ?? 'Lateral entry student created',
+                'source' => 'itcell',
+                'created_at' => now(),
+            ];
+
+            // Keep insert compatible when optional migration columns are not yet present.
+            if (Schema::hasColumn('lateral_entry_audit_logs', 'application_form_path')) {
+                $auditPayload['application_form_path'] = $applicationFormPath;
+            }
+            if (Schema::hasColumn('lateral_entry_audit_logs', 'sourced_application_code')) {
+                $auditPayload['sourced_application_code'] = $validated['application_code'] ?? null;
+            }
+            if (Schema::hasColumn('lateral_entry_audit_logs', 'application_snapshot')) {
+                $auditPayload['application_snapshot'] = $snapshot;
+            }
+
+            LateralEntryAuditLog::create($auditPayload);
+        });
+
+        return redirect()->route('itcell.lateral-entry.index')->with('success', 'Lateral entry student created successfully.');
+    }
+
+    public function getProgramsForLateralEntry(Request $request)
+    {
+        $validated = $request->validate([
+            'batch_id' => 'required|integer|exists:batch_masters,id',
+            'campus_id' => 'required|integer|exists:campuses,id',
+        ]);
+
+        $programIds = StudentMaster::query()
+            ->where('batch', (int) $validated['batch_id'])
+            ->where('campus_id', (int) $validated['campus_id'])
+            ->whereNotNull('new_program_id')
+            ->where('new_program_id', '!=', '')
+            ->pluck('new_program_id')
+            ->filter()
+            ->unique()
+            ->values()
+            ->all();
+
+        $programs = StudentProgram::query()
+            ->whereIn('id', $programIds)
+            ->where('campus_id', (int) $validated['campus_id'])
+            ->orderBy('name')
+            ->get(['id', 'name', 'code', 'campus_id']);
+
+        return response()->json([
+            'success' => true,
+            'programs' => $programs->map(function ($program) {
+                return [
+                    'id' => $program->id,
+                    'name' => $program->name,
+                    'code' => $program->code,
+                    'campus_id' => $program->campus_id,
+                ];
+            }),
+        ]);
+    }
+
+    public function getLateralEntryApplicationData(Request $request)
+    {
+        $validated = $request->validate([
+            'application_code' => 'required|string|max:30',
+        ]);
+
+        $application = AdmissionApplication::with('registrationmaster.countrymaster')
+            ->where('application_code', $validated['application_code'])
+            ->first();
+
+        if (!$application || !$application->registrationmaster) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Application not found for the provided code.',
+            ], 404);
+        }
+
+        $registration = $application->registrationmaster;
+        $countryName = (string) ($registration->countrymaster->name ?? '');
+        $nationalityId = $this->resolveNationalityIdFromCountry($countryName);
+        $program = null;
+        if (!empty($application->course)) {
+            $program = StudentProgram::find((int) $application->course);
+        }
+
+        return response()->json([
+            'success' => true,
+            'application' => [
+                'application_code' => (string) $application->application_code,
+                'first_name' => (string) ($registration->first_name ?? ''),
+                'last_name' => (string) ($registration->last_name ?? ''),
+                'gender' => $this->mapAdmissionGenderToStudentGender($application->gender ?? null),
+                'mobile_no' => (string) ($registration->mobile_no ?? ''),
+                'mail_id' => (string) ($registration->mail_id ?? ''),
+                'campus_id' => (int) ($registration->campus_id ?? 0),
+                'batch' => (int) ($registration->batch ?? 0),
+                'department' => is_numeric($application->department) ? (int) $application->department : null,
+                'new_program_id' => is_numeric($application->course) ? (int) $application->course : null,
+                'program_type' => $program ? (int) $program->program_type : null,
+                'dob' => $application->dob,
+                'blood_group_id' => is_numeric($application->bloodgroup) ? (int) $application->bloodgroup : null,
+                'religion' => is_numeric($application->religion) ? (int) $application->religion : null,
+                'nationality' => $nationalityId,
+                'mother_tongue' => (string) ($application->mothertongue ?? ''),
+                'caste' => (string) ($application->caste ?? ''),
+                'aadhar_no' => (string) ($application->adhaar ?? ''),
+                'father_name' => (string) ($application->father_name ?? ''),
+                'mother_name' => (string) ($application->mother_name ?? ''),
+                'guardian_name' => (string) ($application->guardian_name ?? ''),
+                'fr_mobile_no' => (string) ($application->father_contact ?? ''),
+                'mr_mobile_no' => (string) ($application->mother_contact ?? ''),
+                'guardian_mobile_no' => (string) ($application->guardian_contact ?? ''),
+                'fr_occupation' => (string) ($application->father_occupation ?? ''),
+                'mr_occupation' => (string) ($application->mother_occupation ?? ''),
+                'annual_income' => $application->income,
+                'address' => (string) ($application->permanent_address ?? ''),
+                'city' => (string) ($application->city ?? ''),
+                'district' => (string) ($application->district ?? ''),
+                'state' => (string) ($application->state ?? ''),
+                'pincode' => (string) ($application->pincode ?? ''),
+                'x_percentage' => $this->computePercentage([
+                    $application->score10_1,
+                    $application->score10_2,
+                    $application->score10_3,
+                    $application->score10_4,
+                    $application->score10_5,
+                ]),
+                'xii_percentage' => $this->computePercentage([
+                    $application->score12_1,
+                    $application->score12_2,
+                    $application->score12_3,
+                    $application->score12_4,
+                ]),
+                'ug_percentage' => null,
+                'sgpa1' => $application->sgpa1,
+                'sgpa2' => $application->sgpa2,
+                'sgpa3' => $application->sgpa3,
+                'sgpa4' => $application->sgpa4,
+                'sgpa5' => $application->sgpa5,
+                'sgpa6' => $application->sgpa6,
+            ],
+        ]);
+    }
+
+    public function lateralEntryAudit()
+    {
+        $logs = LateralEntryAuditLog::with(['student', 'user'])->latest('id')->paginate(20);
+
+        return view('admin.itcell.lateral-entry-audit', compact('logs'));
+    }
+
+    private function generateLateralEntryRollNo(int $program_type, $batchName, ?string $programCode, int $campusId, int $departmentId): string
+    {
+        $prefix = $campusId === 1 ? 'SO' : 'SL';
+        $programCode = strtoupper((string) $programCode);
+        $batch = (string) $batchName;
+        $prog = $program_type == 1 ? 'U' : 'P';
+        $base = $prog . $prefix . $batch . $programCode;
+
+        $existingRollNos = StudentMaster::query()
+            ->where('roll_no', 'like', $base . '%')
+            ->pluck('roll_no');
+
+        $usedNumbers = [];
+        foreach ($existingRollNos as $rollNo) {
+            if (str_starts_with((string) $rollNo, $base) && strlen((string) $rollNo) > strlen($base)) {
+                $suffix = substr((string) $rollNo, strlen($base));
+                if (ctype_digit($suffix)) {
+                    $usedNumbers[(int) $suffix] = true;
+                }
+            }
+        }
+
+        $nextNumber = 1;
+        while (isset($usedNumbers[$nextNumber])) {
+            $nextNumber++;
+        }
+
+        return $base . str_pad((string) $nextNumber, 3, '0', STR_PAD_LEFT);
+    }
+
+    private function mapAdmissionGenderToStudentGender(?string $gender): ?string
+    {
+        $value = strtolower(trim((string) $gender));
+        if ($value === 'male') {
+            return '1';
+        }
+        if ($value === 'female') {
+            return '2';
+        }
+        return null;
+    }
+
+    private function resolveNationalityIdFromCountry(string $countryName): ?int
+    {
+        $countryName = trim($countryName);
+        if ($countryName === '') {
+            return null;
+        }
+
+        return NationalityMaster::query()
+            ->whereRaw('LOWER(name) = ?', [strtolower($countryName)])
+            ->value('id');
+    }
+
+    private function buildAddressString(?string $line, ?string $city, ?string $district, ?string $state, ?string $pincode): ?string
+    {
+        $parts = array_filter([
+            trim((string) $line),
+            trim((string) $city),
+            trim((string) $district),
+            trim((string) $state),
+            trim((string) $pincode),
+        ], fn($value) => $value !== '');
+
+        if (empty($parts)) {
+            return null;
+        }
+
+        return implode(', ', $parts);
+    }
+
+    private function computePercentage(array $scores): ?float
+    {
+        $valid = collect($scores)
+            ->filter(fn($value) => $value !== null && $value !== '' && is_numeric($value))
+            ->map(fn($value) => (float) $value)
+            ->values();
+
+        if ($valid->isEmpty()) {
+            return null;
+        }
+
+        return round($valid->avg(), 2);
     }
 
     function generateLibraryCode(Request $request)
