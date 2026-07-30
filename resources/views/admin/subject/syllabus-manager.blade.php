@@ -40,8 +40,8 @@ $selectedProgramType = $selectedProgramType === 'PG' ? 'PG' : 'UG';
   @endif
 
   <div class="alert alert-warning">
-    <p>Note: We dont not need to define any Core A or Core B logic in here. Simply select the courses you will be offering from your department for the batch and semester and design its contents.
-      You dont need to <b>duplicate</b> the same Course as Core A or Core B. how ever it can be done if the syllabus is different.
+    <p>Note: We dont not need to define any COMBO1 or COMBO2 logic in here. Simply select the courses you will be offering from your department for the batch and semester and design its contents.
+      You dont need to <b>duplicate</b> the same Course as COMBO1 or COMBO2. how ever it can be done if the syllabus is different.
     </p>
 
   </div>

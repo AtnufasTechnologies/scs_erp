@@ -680,8 +680,8 @@ $days = Weekday::all();
     function normalizeDeliveryType(rawValue) {
       const value = String(rawValue || '').trim().toUpperCase().replace(/[_-]+/g, ' ');
       if (!value) return '';
-      if (value === 'CORE A' || value === 'MAJOR COMBO1') return 'CORE A';
-      if (value === 'CORE B' || value === 'MAJOR COMBO2') return 'CORE B';
+      if (value === 'COMBO1' || value === 'COMBO 1' || value === 'CORE A' || value === 'MAJOR COMBO1' || value === 'COREA') return 'COMBO1';
+      if (value === 'COMBO2' || value === 'COMBO 2' || value === 'CORE B' || value === 'MAJOR COMBO2' || value === 'COREB') return 'COMBO2';
       if (value === 'COMMON' || value === 'PROGRAMME COMMON' || value === 'PROGRAM COMMON') return 'COMMON';
       if (value === 'MDC' || value === 'OPEN CHOICE') return 'MDC';
       return value;

@@ -416,19 +416,19 @@ $typeLabelMap = [
                   $derivedCourseType = strtoupper(trim((string) ($course['course_type'] ?? '')));
                   $sourceSubjectId = (int) ($course['source_subject_id'] ?? 0);
                   $previewDelivery = $derivedCourseType !== '' ? $derivedCourseType : 'COMMON';
-                  if ($previewDelivery === 'COREA') {
-                  $previewDelivery = 'CORE A';
-                  } elseif ($previewDelivery === 'COREB') {
-                  $previewDelivery = 'CORE B';
+                  if (in_array($previewDelivery, ['COREA', 'CORE-A', 'CORE A', 'MAJOR_COMBO1'], true)) {
+                  $previewDelivery = 'COMBO1';
+                  } elseif (in_array($previewDelivery, ['COREB', 'CORE-B', 'CORE B', 'MAJOR_COMBO2'], true)) {
+                  $previewDelivery = 'COMBO2';
                   }
-                  if (!in_array($previewDelivery, ['CORE A', 'CORE B', 'MDC', 'COMMON'], true)) {
+                  if (!in_array($previewDelivery, ['COMBO1', 'COMBO2', 'MDC', 'COMMON'], true)) {
                   if ($courseTypeTitle === 'MDC') {
                   $previewDelivery = 'MDC';
                   } elseif ($courseTypeTitle === 'MAJ') {
                   if ($combo1DepartmentId > 0 && $sourceSubjectId === $combo1DepartmentId) {
-                  $previewDelivery = 'CORE A';
+                  $previewDelivery = 'COMBO1';
                   } elseif ($combo2DepartmentId > 0 && $sourceSubjectId === $combo2DepartmentId) {
-                  $previewDelivery = 'CORE B';
+                  $previewDelivery = 'COMBO2';
                   } else {
                   $previewDelivery = 'COMMON';
                   }
@@ -436,7 +436,7 @@ $typeLabelMap = [
                   $previewDelivery = 'COMMON';
                   }
                   }
-                  $previewClass = $previewDelivery === 'CORE A' ? 'bg-primary' : ($previewDelivery === 'CORE B' ? 'bg-info text-dark' : ($previewDelivery === 'MDC' ? 'bg-warning text-dark' : 'bg-success'));
+                  $previewClass = $previewDelivery === 'COMBO1' ? 'bg-primary' : ($previewDelivery === 'COMBO2' ? 'bg-info text-dark' : ($previewDelivery === 'MDC' ? 'bg-warning text-dark' : 'bg-success'));
                   @endphp
                   <tr class="generated-course-row" data-course-type-title="{{ $courseTypeTitle }}" data-course-type="{{ $derivedCourseType }}" data-source-subject-id="{{ $sourceSubjectId }}">
                     <td>
@@ -536,7 +536,7 @@ $typeLabelMap = [
               $typeLabel = $typeLabelMap[$type] ?? $type;
               $deliveryCategory = (string) ($mappedCourse->delivery_category ?? '');
               $deliveryLabel = $deliveryCategory !== '' ? strtoupper(str_replace('_', ' ', $deliveryCategory)) : 'NOT DERIVED';
-              $deliveryBadgeClass = in_array($deliveryCategory, ['CORE-A', 'major_combo1'], true) ? 'bg-primary' : (in_array($deliveryCategory, ['CORE-B', 'major_combo2'], true) ? 'bg-info text-dark' : (in_array($deliveryCategory, ['COMMON', 'programme_common'], true) ? 'bg-success' : (in_array($deliveryCategory, ['MDC', 'open_choice'], true) ? 'bg-warning text-dark' : 'bg-secondary')));
+              $deliveryBadgeClass = in_array(strtoupper((string) $deliveryCategory), ['COMBO1', 'CORE-A', 'MAJOR_COMBO1'], true) ? 'bg-primary' : (in_array(strtoupper((string) $deliveryCategory), ['COMBO2', 'CORE-B', 'MAJOR_COMBO2'], true) ? 'bg-info text-dark' : (in_array(strtoupper((string) $deliveryCategory), ['COMMON', 'PROGRAMME_COMMON'], true) ? 'bg-success' : (in_array(strtoupper((string) $deliveryCategory), ['MDC', 'OPEN_CHOICE'], true) ? 'bg-warning text-dark' : 'bg-secondary')));
               $specializationMode = strtoupper((string) ($mappedCourse->specialization_mode ?? 'COMMON'));
               $specializationLabelClass = $specializationMode === 'SPECIALIZATION' ? 'bg-warning text-dark' : 'bg-secondary';
               $selectedSpecializationIds = collect((array) ($mappedCourse->specialization_master_ids ?? []))
@@ -797,15 +797,15 @@ $typeLabelMap = [
     }
 
     function normalizeCourseTypeLabel(value) {
-      const normalized = String(value || '').trim().toUpperCase();
-      if (normalized === 'COREA') return 'CORE A';
-      if (normalized === 'COREB') return 'CORE B';
+      const normalized = String(value || '').trim().toUpperCase().replace(/[_-]+/g, ' ');
+      if (['COMBO1', 'COMBO 1', 'CORE A', 'COREA', 'MAJOR COMBO1'].includes(normalized)) return 'COMBO1';
+      if (['COMBO2', 'COMBO 2', 'CORE B', 'COREB', 'MAJOR COMBO2'].includes(normalized)) return 'COMBO2';
       return normalized;
     }
 
     function deriveDeliveryPreview(courseTypeTitle, sourceSubjectId, providedCourseType) {
       const normalizedProvided = normalizeCourseTypeLabel(providedCourseType);
-      if (['CORE A', 'CORE B', 'MDC', 'COMMON'].includes(normalizedProvided)) {
+      if (['COMBO1', 'COMBO2', 'MDC', 'COMMON'].includes(normalizedProvided)) {
         return normalizedProvided;
       }
 
@@ -818,11 +818,11 @@ $typeLabelMap = [
 
       if (normalizedType === 'MAJ') {
         if (combo1DepartmentId > 0 && deptId === combo1DepartmentId) {
-          return 'CORE A';
+          return 'COMBO1';
         }
 
         if (combo2DepartmentId > 0 && deptId === combo2DepartmentId) {
-          return 'CORE B';
+          return 'COMBO2';
         }
 
         return 'COMMON';
@@ -832,8 +832,8 @@ $typeLabelMap = [
     }
 
     function previewBadgeClass(delivery) {
-      if (delivery === 'CORE A') return 'bg-primary';
-      if (delivery === 'CORE B') return 'bg-info text-dark';
+      if (delivery === 'COMBO1') return 'bg-primary';
+      if (delivery === 'COMBO2') return 'bg-info text-dark';
       if (delivery === 'MDC') return 'bg-warning text-dark';
       return 'bg-success';
     }

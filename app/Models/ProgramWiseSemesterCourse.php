@@ -24,8 +24,8 @@ class ProgramWiseSemesterCourse extends Model
     public const TYPE_STUDENT_CHOICE = 'STUDENT_CHOICE';
     public const TYPE_DEPARTMENT_CHOICE = 'DEPARTMENT_CHOICE';
 
-    public const DELIVERY_MAJOR_COMBO1 = 'CORE-A';
-    public const DELIVERY_MAJOR_COMBO2 = 'CORE-B';
+    public const DELIVERY_MAJOR_COMBO1 = 'COMBO1';
+    public const DELIVERY_MAJOR_COMBO2 = 'COMBO2';
     public const DELIVERY_PROGRAMME_COMMON = 'COMMON';
     public const DELIVERY_OPEN_CHOICE = 'MDC';
 

@@ -29,6 +29,7 @@ use App\Models\ProgramCourseMasterNew;
 use App\Models\StudentCourseInfo;
 use App\Models\StudentSemesterConfig;
 use App\Models\SubjectCourseMaster;
+use App\Models\SubjectHasSyllabus;
 use App\Models\SyllabusManager;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -449,5 +450,10 @@ class TestController extends Controller
             ]);
         }
         dd('updated');
+    }
+
+    function fix_dept_syllabus($id)
+    {
+        SubjectHasSyllabus::where('subject_id', $id)->get();
     }
 }

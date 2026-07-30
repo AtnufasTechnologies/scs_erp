@@ -959,21 +959,42 @@ class SubjectController extends Controller
             ->where('co_id', $courseId);
 
         if ($subjectUsesShifts && !empty($allowedShiftSlugs)) {
-            $query->where(function ($q) use ($selectedShift) {
-                $q->where('shift', $selectedShift)
-                    ->orWhereNull('shift');
+            $candidateShifts = collect($allowedShiftSlugs)
+                ->prepend($defaultShift)
+                ->prepend($selectedShift)
+                ->filter()
+                ->map(fn($shift) => (string) $shift)
+                ->unique()
+                ->values()
+                ->all();
+
+            $query->where(function ($q) use ($candidateShifts) {
+                $q->whereIn('shift', $candidateShifts)
+                    ->orWhereNull('shift')
+                    ->orWhere('shift', '');
             });
         } else {
             $query->where(function ($q) use ($defaultShift) {
                 $q->where('shift', $defaultShift)
-                    ->orWhereNull('shift');
+                    ->orWhereNull('shift')
+                    ->orWhere('shift', '');
             });
         }
 
         $csos = $this->dedupeCsosByTitle($query->orderBy('id')->get());
 
+        // Backward compatibility: legacy CSOs may exist with shift values outside current filters.
         if ($csos->isEmpty()) {
-            return response()->json(['error' => 'Course not found'], 404);
+            $csos = $this->dedupeCsosByTitle(
+                CoHasCso::with(['csosubunits.taxomonylevel'])
+                    ->where('co_id', $courseId)
+                    ->orderBy('id')
+                    ->get()
+            );
+        }
+
+        if ($csos->isEmpty()) {
+            return response()->json([]);
         }
 
         return response()->json($csos);
@@ -2581,9 +2602,9 @@ class SubjectController extends Controller
                     $courseTypeTitle = strtoupper(trim((string) optional($course->coursetypemaster)->title));
                     $courseType = $courseTypeTitle !== '' ? $courseTypeTitle : 'NA';
 
-                    // MAJ from combo1 should be CORE A.
+                    // MAJ from combo1 should be COMBO1.
                     if ($courseTypeTitle === 'MAJ') {
-                        $courseType = $source === 'combo1' ? 'CORE A' : 'CORE B';
+                        $courseType = $source === 'combo1' ? ProgramWiseSemesterCourse::DELIVERY_MAJOR_COMBO1 : ProgramWiseSemesterCourse::DELIVERY_MAJOR_COMBO2;
                     }
 
                     $sourceSubjectId = (int) ($syllabus->subject_id ?? 0);
@@ -3026,11 +3047,11 @@ class SubjectController extends Controller
             return null;
         }
 
-        if (in_array($normalized, ['CORE A', 'CORE-A', 'COREA', 'MAJOR_COMBO1'], true)) {
+        if (in_array($normalized, ['COMBO1', 'COMBO 1', 'CORE A', 'CORE-A', 'COREA', 'MAJOR_COMBO1'], true)) {
             return ProgramWiseSemesterCourse::DELIVERY_MAJOR_COMBO1;
         }
 
-        if (in_array($normalized, ['CORE B', 'CORE-B', 'COREB', 'MAJOR_COMBO2'], true)) {
+        if (in_array($normalized, ['COMBO2', 'COMBO 2', 'CORE B', 'CORE-B', 'COREB', 'MAJOR_COMBO2'], true)) {
             return ProgramWiseSemesterCourse::DELIVERY_MAJOR_COMBO2;
         }
 
@@ -3405,12 +3426,12 @@ class SubjectController extends Controller
         $deliveryCategory = strtoupper(trim((string) ($course['delivery_category'] ?? '')));
 
         if ($courseTypeTitle === 'MAJ') {
-            if (in_array($deliveryCategory, ['CORE-A', 'COREA', 'MAJOR_COMBO1'], true)) {
-                return 'COREA';
+            if (in_array($deliveryCategory, ['COMBO1', 'CORE-A', 'COREA', 'MAJOR_COMBO1'], true)) {
+                return 'COMBO1';
             }
 
-            if (in_array($deliveryCategory, ['CORE-B', 'COREB', 'MAJOR_COMBO2'], true)) {
-                return 'COREB';
+            if (in_array($deliveryCategory, ['COMBO2', 'CORE-B', 'COREB', 'MAJOR_COMBO2'], true)) {
+                return 'COMBO2';
             }
         }
 

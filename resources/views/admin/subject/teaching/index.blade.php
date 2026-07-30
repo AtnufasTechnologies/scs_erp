@@ -209,9 +209,9 @@
     const deliveryTypeHelpText = document.getElementById('deliveryTypeHelpText');
 
     function deliveryTypeLabel(type) {
-      const normalized = (type || '').toUpperCase();
-      if (normalized === 'CORE-A') return 'CORE A';
-      if (normalized === 'CORE-B') return 'CORE B';
+      const normalized = String(type || '').trim().toUpperCase().replace(/[_-]+/g, ' ');
+      if (['COMBO1', 'COMBO 1', 'CORE A', 'COREA', 'MAJOR COMBO1'].includes(normalized)) return 'COMBO1';
+      if (['COMBO2', 'COMBO 2', 'CORE B', 'COREB', 'MAJOR COMBO2'].includes(normalized)) return 'COMBO2';
       if (normalized === 'COMMON') return 'COMMON';
       if (normalized === 'MDC') return 'MDC';
       return normalized;
