@@ -17,11 +17,15 @@ class LateralEntryAuditLog extends Model
     'entry_type',
     'remarks',
     'source',
+    'application_form_path',
+    'sourced_application_code',
+    'application_snapshot',
     'created_at',
   ];
 
   protected $casts = [
     'created_at' => 'datetime',
+    'application_snapshot' => 'array',
   ];
 
   public function student()

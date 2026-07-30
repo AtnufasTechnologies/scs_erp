@@ -131,6 +131,7 @@ Route::group(['prefix' => '/erp'], function () {
         Route::post('itcell/pathway-mapper/bulk-update', [ITCellController::class, 'studentPathwayMapperBulkUpdate'])->name('itcell.pathway.mapper.bulk-update');
         Route::get('itcell/lateral-entry', [ITCellController::class, 'lateralEntryIndex'])->name('itcell.lateral-entry.index');
         Route::get('itcell/lateral-entry/programs', [ITCellController::class, 'getProgramsForLateralEntry'])->name('itcell.lateral-entry.programs');
+        Route::get('itcell/lateral-entry/application-data', [ITCellController::class, 'getLateralEntryApplicationData'])->name('itcell.lateral-entry.application-data');
         Route::post('itcell/lateral-entry', [ITCellController::class, 'storeLateralEntry'])->name('itcell.lateral-entry.store');
         Route::get('itcell/lateral-entry/audit', [ITCellController::class, 'lateralEntryAudit'])->name('itcell.lateral-entry.audit');
         Route::post('itcell-generate-librarycode', [ITCellController::class, 'generateLibraryCode'])->name('itcell.generate.librarycode');
