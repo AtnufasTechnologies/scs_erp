@@ -40,6 +40,7 @@ class TimetableController extends Controller
         $teachingAssignments = TeachingAssignment::with([
             'course.coursetypemaster:id,title',
             'faculty:id,USER_CODE,FIRST_NAME,LAST_NAME',
+            'coFacultyMembers:id,USER_CODE,FIRST_NAME,LAST_NAME',
         ])
             ->where('subject_id', $id)
             ->where('is_active', 1)
@@ -50,6 +51,7 @@ class TimetableController extends Controller
         $allTeachingAssignments = TeachingAssignment::with([
             'course:id,course_code,course_title',
             'faculty:id,USER_CODE,FIRST_NAME,LAST_NAME',
+            'coFacultyMembers:id,USER_CODE,FIRST_NAME,LAST_NAME',
         ])
             ->where('subject_id', $id)
             ->orderByDesc('id')
@@ -174,6 +176,16 @@ class TimetableController extends Controller
                     'id' => $assignment->id,
                     'course_id' => $assignment->course_id,
                     'faculty_id' => $assignment->faculty_id,
+                    'co_faculty_ids' => $assignment->coFacultyMembers
+                        ->pluck('id')
+                        ->map(fn($id) => (int) $id)
+                        ->values()
+                        ->all(),
+                    'co_faculty_label' => $assignment->coFacultyMembers
+                        ->map(fn($faculty) => trim((string) ($faculty->USER_CODE ?? '-') . ' - ' . (string) ($faculty->FIRST_NAME ?? '-') . ' ' . (string) ($faculty->LAST_NAME ?? '')))
+                        ->filter()
+                        ->values()
+                        ->all(),
                     'delivery_type' => $assignment->delivery_type,
                     'allocation_group' => $assignment->allocation_group,
                     'allocation_group_label' => $assignment->allocation_group_label,
@@ -196,6 +208,16 @@ class TimetableController extends Controller
                     'subject_id' => $assignment->subject_id,
                     'course_id' => $assignment->course_id,
                     'faculty_id' => $assignment->faculty_id,
+                    'co_faculty_ids' => $assignment->coFacultyMembers
+                        ->pluck('id')
+                        ->map(fn($id) => (int) $id)
+                        ->values()
+                        ->all(),
+                    'co_faculty_text' => $assignment->coFacultyMembers
+                        ->map(fn($faculty) => trim((string) ($faculty->USER_CODE ?? '-') . ' - ' . (string) ($faculty->FIRST_NAME ?? '-') . ' ' . (string) ($faculty->LAST_NAME ?? '')))
+                        ->filter()
+                        ->values()
+                        ->all(),
                     'course_text' => trim(($assignment->course->course_code ?? '-') . ' - ' . ($assignment->course->course_title ?? '-')),
                     'faculty_text' => trim(($assignment->faculty->USER_CODE ?? '-') . ' - ' . ($assignment->faculty->FIRST_NAME ?? '-') . ' ' . ($assignment->faculty->LAST_NAME ?? '')),
                     'delivery_type' => $assignment->delivery_type,
@@ -453,6 +475,7 @@ class TimetableController extends Controller
             $teachingAssignments = TeachingAssignment::with([
                 'course.coursetypemaster:id,title',
                 'faculty:id,USER_CODE,FIRST_NAME,LAST_NAME',
+                'coFacultyMembers:id,USER_CODE,FIRST_NAME,LAST_NAME',
             ])
                 ->where('subject_id', $subjectId)
                 ->where('is_active', 1)
@@ -546,6 +569,12 @@ class TimetableController extends Controller
                         }
                     }
 
+                    $coFacultyNames = collect($assignment?->coFacultyMembers ?? [])
+                        ->map(fn($faculty) => trim((string) ($faculty->FIRST_NAME ?? '') . ' ' . (string) ($faculty->LAST_NAME ?? '')))
+                        ->filter()
+                        ->values()
+                        ->all();
+
                     // Get faculty name from the faculty_id (try direct lookup first, then relation)
                     $facultyName = '';
                     if ($facultyId) {
@@ -569,6 +598,7 @@ class TimetableController extends Controller
                         'teaching_assignment_id' => $routineAssignmentId ?: null,
                         'subject_name' => $courseName ?: ($syllabus->subject->subject_title ?? $syllabus->subject->title ?? 'Subject'),
                         'teacher_name' => $facultyName ?: 'Teacher',
+                        'co_faculty_names' => $coFacultyNames,
                         'lecturehall_id' => (int) ($routine->lecturehall_id ?? 0),
                         'lecturehall_name' => (string) (optional($routine->lecturehallmaster)->title ?? ''),
                         'delivery_type' => $assignment ? ($assignment->delivery_type ?? null) : null,
@@ -635,6 +665,7 @@ class TimetableController extends Controller
             ->with([
                 'course:id,course_code,course_title',
                 'faculty:id,USER_CODE,FIRST_NAME,LAST_NAME',
+                'coFacultyMembers:id,USER_CODE,FIRST_NAME,LAST_NAME',
             ])
             ->where('subject_id', $subjectId)
             ->where('is_active', 1)
@@ -682,6 +713,21 @@ class TimetableController extends Controller
                     'faculty_code' => (string) ($faculty->USER_CODE ?? ''),
                     'faculty_name' => (string) $facultyName,
                     'faculty_label' => trim(((string) ($faculty->USER_CODE ?? '-')) . ' - ' . ($facultyName !== '' ? $facultyName : '-')),
+                    'co_faculty_ids' => $assignment->coFacultyMembers
+                        ->pluck('id')
+                        ->map(fn($id) => (int) $id)
+                        ->values()
+                        ->all(),
+                    'co_faculty_names' => $assignment->coFacultyMembers
+                        ->map(fn($coFaculty) => trim((string) ($coFaculty->FIRST_NAME ?? '') . ' ' . (string) ($coFaculty->LAST_NAME ?? '')))
+                        ->filter()
+                        ->values()
+                        ->all(),
+                    'co_faculty_label' => $assignment->coFacultyMembers
+                        ->map(fn($coFaculty) => trim((string) ($coFaculty->USER_CODE ?? '-') . ' - ' . (string) ($coFaculty->FIRST_NAME ?? '-') . ' ' . (string) ($coFaculty->LAST_NAME ?? '')))
+                        ->filter()
+                        ->values()
+                        ->all(),
                     'delivery_type' => (string) ($assignment->delivery_type ?? ''),
                     'allocation_group' => (int) ($assignment->allocation_group ?? 0),
                     'allocation_group_label' => (string) ($assignment->allocation_group_label ?? ''),
@@ -1855,6 +1901,7 @@ class TimetableController extends Controller
     public function facultyTimetable(Request $request, $facultyId)
     {
         $faculty = Faculty::findOrFail($facultyId);
+        $hasTeachingAllocationLink = Schema::hasColumn('subject_has_routines', 'teaching_allocation_id');
 
         $subjectId = (int) $request->query('subject_id', 0);
         $batchId = (int) $request->query('batch', 0);
@@ -1895,8 +1942,25 @@ class TimetableController extends Controller
             ->where(function ($query) use ($facultyId) {
                 $query->where('faculty_id', $facultyId)
                     ->orWhereHas('teachingAssignment', function ($assignmentQuery) use ($facultyId) {
-                        $assignmentQuery->where('faculty_id', $facultyId);
+                        $assignmentQuery->where('faculty_id', $facultyId)
+                            ->orWhereHas('facultyAssignments', function ($facultyAssignmentQuery) use ($facultyId) {
+                                $facultyAssignmentQuery->where('faculty_id', $facultyId);
+                            })
+                            ->orWhereHas('coFacultyMembers', function ($coFacultyQuery) use ($facultyId) {
+                                $coFacultyQuery->where('faculties.id', $facultyId);
+                            });
                     });
+            })
+            ->when($hasTeachingAllocationLink, function ($query) use ($facultyId) {
+                $query->orWhereHas('teachingAllocation', function ($assignmentQuery) use ($facultyId) {
+                    $assignmentQuery->where('faculty_id', $facultyId)
+                        ->orWhereHas('facultyAssignments', function ($facultyAssignmentQuery) use ($facultyId) {
+                            $facultyAssignmentQuery->where('faculty_id', $facultyId);
+                        })
+                        ->orWhereHas('coFacultyMembers', function ($coFacultyQuery) use ($facultyId) {
+                            $coFacultyQuery->where('faculties.id', $facultyId);
+                        });
+                });
             })
             ->with([
                 'weekdaymaster:id,title',
@@ -1906,12 +1970,23 @@ class TimetableController extends Controller
                 'teachingAssignment.course:id,course_code,course_title,course_type',
                 'teachingAssignment.course.coursetypemaster:id,title',
                 'teachingAssignment.faculty:id,USER_CODE,FIRST_NAME,LAST_NAME',
+                'teachingAssignment.coFacultyMembers:id,USER_CODE,FIRST_NAME,LAST_NAME',
                 'syllabus.subject:id,title',
                 'syllabus.batchmaster:id,batch_name',
                 'syllabus.semestermaster:id,title',
                 'subjectCourse.courseMaster:id,course_title,course_code,course_type',
                 'subjectCourse.courseMaster.coursetypemaster:id,title',
             ]);
+
+        if ($hasTeachingAllocationLink) {
+            $timetableQuery->with([
+                'teachingAllocation:id,course_id,faculty_id,delivery_type,allocation_group,room',
+                'teachingAllocation.course:id,course_code,course_title,course_type',
+                'teachingAllocation.course.coursetypemaster:id,title',
+                'teachingAllocation.faculty:id,USER_CODE,FIRST_NAME,LAST_NAME',
+                'teachingAllocation.coFacultyMembers:id,USER_CODE,FIRST_NAME,LAST_NAME',
+            ]);
+        }
 
         if ($subjectId > 0) {
             $timetableQuery->whereHas('syllabus', function ($query) use ($subjectId) {
@@ -1939,8 +2014,11 @@ class TimetableController extends Controller
             ->orderBy('weekday_id')
             ->orderBy('hour_id')
             ->get()
-            ->map(function ($routine) use ($programType) {
+            ->map(function ($routine) use ($programType, $hasTeachingAllocationLink) {
                 $assignment = $routine->teachingAssignment;
+                if (!$assignment && $hasTeachingAllocationLink) {
+                    $assignment = $routine->teachingAllocation;
+                }
                 $course = $routine->subjectCourse->courseMaster ?? optional($assignment)->course;
 
                 $hourNo = (int) ($routine->hourmaster->hour_no ?? $routine->hour_id ?? 0);
@@ -1966,6 +2044,12 @@ class TimetableController extends Controller
                     'room' => trim((string) ($assignment->room ?? '')) !== '' ? trim((string) ($assignment->room ?? '')) : '-',
                     'course' => trim($courseCode . ($courseCode !== '' ? ' - ' : '') . $courseTitle),
                     'course_type' => (string) ($course->coursetypemaster->title ?? '-'),
+                    'faculty' => trim((string) ($assignment?->faculty?->FIRST_NAME ?? '') . ' ' . (string) ($assignment?->faculty?->LAST_NAME ?? '')),
+                    'co_faculty' => collect($assignment?->coFacultyMembers ?? [])
+                        ->map(fn($faculty) => trim((string) ($faculty->FIRST_NAME ?? '') . ' ' . (string) ($faculty->LAST_NAME ?? '')))
+                        ->filter()
+                        ->values()
+                        ->all(),
                     'program_type' => strtoupper((string) ($routine->program_type ?? $programType)) === 'PG' ? 'PG' : 'UG',
                 ];
             })

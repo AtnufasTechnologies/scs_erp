@@ -1,5 +1,38 @@
 @include('includes.header')
 
+@php
+$taxonomyDomainLabel = function ($level) {
+if (!$level) {
+return 'Cognitive';
+}
+
+$domain = trim((string) ($level->learning_domain ?? ''));
+return $domain !== '' ? $domain : 'Cognitive';
+};
+
+$taxonomyFrameworkLabel = function ($level) use ($taxonomyDomainLabel) {
+if (!$level) {
+return 'RBT';
+}
+
+$framework = trim((string) ($level->taxonomy_framework ?? ''));
+if ($framework !== '') {
+return $framework;
+}
+
+$domain = $taxonomyDomainLabel($level);
+if (strcasecmp($domain, 'Psychomotor') === 0) {
+return 'Dave';
+}
+
+if (strcasecmp($domain, 'Affective') === 0) {
+return 'Krathwohl';
+}
+
+return 'RBT';
+};
+@endphp
+
 <div class="wrapper">
   @include('faculty.sidebar')
 
@@ -238,7 +271,12 @@
                                   $primaryTaxonomyLevel = $unitTaxonomyLevels->first();
                                   $additionalTaxonomyCodes = $unitTaxonomyLevels
                                   ->skip(1)
-                                  ->map(fn($level) => strtoupper((string) ($level->shortname ?? '')))
+                                  ->map(function ($level) use ($taxonomyDomainLabel, $taxonomyFrameworkLabel) {
+                                  $shortname = strtoupper((string) ($level->shortname ?? ''));
+                                  $domain = $taxonomyDomainLabel($level);
+                                  $framework = $taxonomyFrameworkLabel($level);
+                                  return trim($shortname . ($shortname !== '' ? ' ' : '') . '[' . $framework . '/' . $domain . ']');
+                                  })
                                   ->filter()
                                   ->values();
                                   @endphp
@@ -256,6 +294,7 @@
                                       @if($primaryTaxonomyLevel)
                                       <span class="scs-bloom-badge scs-bloom-{{ strtolower((string) $primaryTaxonomyLevel->shortname) }}">
                                         <strong>{{ $primaryTaxonomyLevel->shortname }}</strong>
+                                        <small class="ms-1">{{ $taxonomyFrameworkLabel($primaryTaxonomyLevel) }}/{{ $taxonomyDomainLabel($primaryTaxonomyLevel) }}</small>
 
                                       </span>
                                       @if($additionalTaxonomyCodes->isNotEmpty())
@@ -439,11 +478,11 @@
                                           </div>
                                           <div class="col-12">
                                             <div class="scs-form-group">
-                                              <label class="scs-form-label">Cognitive Level (Bloom's Taxonomy) <span class="text-danger">*</span></label>
+                                              <label class="scs-form-label">Taxonomy Level (From mapped subunit domains) <span class="text-danger">*</span></label>
                                               <select class="form-select form-select-sm scs-bloom-level-select" name="cognitive_level_master_id" id="bloomLevel{{ $unit->id }}" required>
                                                 <option value="">— Select a level —</option>
                                                 @foreach($applicableCognitiveLevels as $cl)
-                                                <option value="{{ $cl->id }}" data-shortname="{{ $cl->shortname }}" data-fullname="{{ $cl->fullname }}">{{ $cl->shortname }} – {{ $cl->fullname }}</option>
+                                                <option value="{{ $cl->id }}" data-shortname="{{ $cl->shortname }}" data-fullname="{{ $cl->fullname }}">{{ $cl->shortname }} – {{ $cl->fullname }} [{{ $taxonomyFrameworkLabel($cl) }}/{{ $taxonomyDomainLabel($cl) }}]</option>
                                                 @endforeach
                                               </select>
                                               @if($applicableCognitiveLevels->isEmpty())
@@ -485,7 +524,7 @@
                                               <span class="scs-qb-pill pill-marks">{{ $q->marks }} Mark{{ $q->marks > 1 ? 's' : '' }}</span>
                                               <span class="scs-qb-pill pill-diff-{{ strtolower($q->difficulty) }}">{{ $q->difficulty }}</span>
                                               @if($q->cognitiveLevel)
-                                              <span class="scs-qb-pill pill-bloom">{{ $q->cognitiveLevel->shortname }} – {{ $q->cognitiveLevel->fullname }}</span>
+                                              <span class="scs-qb-pill pill-bloom">{{ $q->cognitiveLevel->shortname }} – {{ $q->cognitiveLevel->fullname }} [{{ $taxonomyFrameworkLabel($q->cognitiveLevel) }}/{{ $taxonomyDomainLabel($q->cognitiveLevel) }}]</span>
                                               @endif
                                             </div>
                                           </div>

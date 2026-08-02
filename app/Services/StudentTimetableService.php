@@ -483,6 +483,7 @@ class StudentTimetableService
       ->with([
         'course:id,course_code,course_title',
         'faculty:id,FIRST_NAME,LAST_NAME',
+        'coFacultyMembers:id,FIRST_NAME,LAST_NAME',
       ])
       ->where('is_active', 1)
       ->whereIn('course_id', $effectiveCourseIds->all())
@@ -540,6 +541,7 @@ class StudentTimetableService
         'teachingAssignment:id,course_id,faculty_id,delivery_type,allocation_group,room',
         'teachingAssignment.course:id,course_code,course_title',
         'teachingAssignment.faculty:id,FIRST_NAME,LAST_NAME',
+        'teachingAssignment.coFacultyMembers:id,FIRST_NAME,LAST_NAME',
         'teachingAllocation:id,course_id,faculty_id,delivery_type,allocation_group,room',
         'teachingAllocation.course:id,course_code,course_title',
         'teachingAllocation.faculty:id,FIRST_NAME,LAST_NAME',
@@ -636,6 +638,14 @@ class StudentTimetableService
 
         $facultyModel = $assignment?->faculty ?? $routine->faculty ?? $routine->teachingAllocation?->faculty;
         $facultyName = trim((string) ($facultyModel?->FIRST_NAME ?? '') . ' ' . (string) ($facultyModel?->LAST_NAME ?? ''));
+        $coFacultyNames = collect($assignment?->coFacultyMembers ?? [])
+          ->map(fn($coFaculty) => trim((string) ($coFaculty->FIRST_NAME ?? '') . ' ' . (string) ($coFaculty->LAST_NAME ?? '')))
+          ->filter()
+          ->values();
+        $facultyLabel = $facultyName !== '' ? $facultyName : '-';
+        if ($coFacultyNames->isNotEmpty()) {
+          $facultyLabel .= ' (Co-Faculty: ' . $coFacultyNames->implode(', ') . ')';
+        }
 
         $room = trim((string) ($assignment?->room ?? $routine->teachingAllocation?->room ?? ''));
         if ($room === '') {
@@ -651,7 +661,7 @@ class StudentTimetableService
           'hour' => $hourLabel,
           'course_code' => $courseCode,
           'course_title' => $courseTitle,
-          'faculty' => $facultyName,
+          'faculty' => $facultyLabel,
           'room' => $room,
           'delivery_type' => (string) ($matchedCurriculum['delivery_type'] ?? ProgramWiseSemesterCourse::DELIVERY_PROGRAMME_COMMON),
           'group' => $matchedCurriculum['group'] ?? null,

@@ -47,8 +47,32 @@ class FacultyDashboardController extends Controller
       ->limit(10)
       ->get();
 
+    $hasTeachingAllocationLink = Schema::hasColumn('subject_has_routines', 'teaching_allocation_id');
+
     // Get assigned subject routines with progress context.
-    $allSubjectsRoutines = SubjectHasRoutine::where('faculty_id', $facultyId)
+    $allSubjectsRoutines = SubjectHasRoutine::where(function ($query) use ($facultyId) {
+      $query->where('faculty_id', $facultyId)
+        ->orWhereHas('teachingAssignment', function ($assignmentQuery) use ($facultyId) {
+          $assignmentQuery->where('faculty_id', $facultyId)
+            ->orWhereHas('facultyAssignments', function ($facultyAssignmentQuery) use ($facultyId) {
+              $facultyAssignmentQuery->where('faculty_id', $facultyId);
+            })
+            ->orWhereHas('coFacultyMembers', function ($coFacultyQuery) use ($facultyId) {
+              $coFacultyQuery->where('faculties.id', $facultyId);
+            });
+        });
+    })
+      ->when($hasTeachingAllocationLink, function ($query) use ($facultyId) {
+        $query->orWhereHas('teachingAllocation', function ($assignmentQuery) use ($facultyId) {
+          $assignmentQuery->where('faculty_id', $facultyId)
+            ->orWhereHas('facultyAssignments', function ($facultyAssignmentQuery) use ($facultyId) {
+              $facultyAssignmentQuery->where('faculty_id', $facultyId);
+            })
+            ->orWhereHas('coFacultyMembers', function ($coFacultyQuery) use ($facultyId) {
+              $coFacultyQuery->where('faculties.id', $facultyId);
+            });
+        });
+      })
       ->with([
         'syllabus.subject:id,title',
         'syllabus.batchmaster:id,batch_name',
@@ -344,12 +368,31 @@ class FacultyDashboardController extends Controller
       $activeShift = (string) ($shiftOptions->first()->slug ?? $defaultShift);
     }
 
+    $hasTeachingAllocationLink = Schema::hasColumn('subject_has_routines', 'teaching_allocation_id');
+
     $timetableQuery = SubjectHasRoutine::query()
       ->where(function ($query) use ($facultyId) {
         $query->where('faculty_id', $facultyId)
           ->orWhereHas('teachingAssignment', function ($assignmentQuery) use ($facultyId) {
-            $assignmentQuery->where('faculty_id', $facultyId);
+            $assignmentQuery->where('faculty_id', $facultyId)
+              ->orWhereHas('facultyAssignments', function ($facultyAssignmentQuery) use ($facultyId) {
+                $facultyAssignmentQuery->where('faculty_id', $facultyId);
+              })
+              ->orWhereHas('coFacultyMembers', function ($coFacultyQuery) use ($facultyId) {
+                $coFacultyQuery->where('faculties.id', $facultyId);
+              });
           });
+      })
+      ->when($hasTeachingAllocationLink, function ($query) use ($facultyId) {
+        $query->orWhereHas('teachingAllocation', function ($assignmentQuery) use ($facultyId) {
+          $assignmentQuery->where('faculty_id', $facultyId)
+            ->orWhereHas('facultyAssignments', function ($facultyAssignmentQuery) use ($facultyId) {
+              $facultyAssignmentQuery->where('faculty_id', $facultyId);
+            })
+            ->orWhereHas('coFacultyMembers', function ($coFacultyQuery) use ($facultyId) {
+              $coFacultyQuery->where('faculties.id', $facultyId);
+            });
+        });
       })
       ->with([
         'weekdaymaster:id,title',
@@ -357,12 +400,24 @@ class FacultyDashboardController extends Controller
         'teachingAssignment:id,course_id,faculty_id,delivery_type,allocation_group,room',
         'teachingAssignment.course:id,course_code,course_title,course_type',
         'teachingAssignment.course.coursetypemaster:id,title',
+        'teachingAssignment.faculty:id,FIRST_NAME,LAST_NAME,USER_CODE',
+        'teachingAssignment.coFacultyMembers:id,FIRST_NAME,LAST_NAME,USER_CODE',
         'syllabus.subject:id,title',
         'syllabus.batchmaster:id,batch_name',
         'syllabus.semestermaster:id,title',
         'subjectCourse.courseMaster:id,course_title,course_code,course_type',
         'subjectCourse.courseMaster.coursetypemaster:id,title',
       ]);
+
+    if ($hasTeachingAllocationLink) {
+      $timetableQuery->with([
+        'teachingAllocation:id,course_id,faculty_id,delivery_type,allocation_group,room',
+        'teachingAllocation.course:id,course_code,course_title,course_type',
+        'teachingAllocation.course.coursetypemaster:id,title',
+        'teachingAllocation.faculty:id,FIRST_NAME,LAST_NAME,USER_CODE',
+        'teachingAllocation.coFacultyMembers:id,FIRST_NAME,LAST_NAME,USER_CODE',
+      ]);
+    }
 
     if ($selectedSubjectId > 0) {
       $timetableQuery->whereHas('syllabus', function ($query) use ($selectedSubjectId) {
@@ -390,8 +445,11 @@ class FacultyDashboardController extends Controller
       ->orderBy('weekday_id')
       ->orderBy('hour_id')
       ->get()
-      ->map(function ($routine) use ($programType) {
+      ->map(function ($routine) use ($programType, $hasTeachingAllocationLink) {
         $assignment = $routine->teachingAssignment;
+        if (!$assignment && $hasTeachingAllocationLink) {
+          $assignment = $routine->teachingAllocation;
+        }
         $course = $routine->subjectCourse->courseMaster ?? optional($assignment)->course;
 
         $hourNo = (int) ($routine->hourmaster->hour_no ?? $routine->hour_id ?? 0);
@@ -416,6 +474,12 @@ class FacultyDashboardController extends Controller
           'room' => trim((string) ($assignment->room ?? '')) !== '' ? trim((string) ($assignment->room ?? '')) : '-',
           'course' => trim($courseCode . ($courseCode !== '' ? ' - ' : '') . $courseTitle),
           'course_type' => (string) ($course->coursetypemaster->title ?? '-'),
+          'faculty' => trim((string) ($assignment?->faculty?->FIRST_NAME ?? '') . ' ' . (string) ($assignment?->faculty?->LAST_NAME ?? '')),
+          'co_faculty' => collect($assignment?->coFacultyMembers ?? [])
+            ->map(fn($coFaculty) => trim((string) ($coFaculty->FIRST_NAME ?? '') . ' ' . (string) ($coFaculty->LAST_NAME ?? '')))
+            ->filter()
+            ->values()
+            ->all(),
           'shift' => ucfirst((string) ($routine->shift ?? 'common')),
           'program_type' => strtoupper((string) ($routine->program_type ?? $programType)) === 'PG' ? 'PG' : 'UG',
         ];
@@ -441,11 +505,34 @@ class FacultyDashboardController extends Controller
   {
     $userId = Auth::user()->id;
     $facultyId = SubjectFacultyMaster::where('access_id', $userId)->value('faculty_id');
+    $hasTeachingAllocationLink = Schema::hasColumn('subject_has_routines', 'teaching_allocation_id');
     $searchTerm = trim((string) $request->query('search', ''));
     $requestedProgramType = strtoupper(trim((string) $request->query('program_type', 'ALL')));
     $programType = in_array($requestedProgramType, ['UG', 'PG', 'ALL'], true) ? $requestedProgramType : 'ALL';
 
-    $assignedRoutines = SubjectHasRoutine::where('faculty_id', $facultyId)
+    $assignedRoutines = SubjectHasRoutine::where(function ($query) use ($facultyId) {
+      $query->where('faculty_id', $facultyId)
+        ->orWhereHas('teachingAssignment', function ($assignmentQuery) use ($facultyId) {
+          $assignmentQuery->where('faculty_id', $facultyId)
+            ->orWhereHas('facultyAssignments', function ($facultyAssignmentQuery) use ($facultyId) {
+              $facultyAssignmentQuery->where('faculty_id', $facultyId);
+            })
+            ->orWhereHas('coFacultyMembers', function ($coFacultyQuery) use ($facultyId) {
+              $coFacultyQuery->where('faculties.id', $facultyId);
+            });
+        });
+    })
+      ->when($hasTeachingAllocationLink, function ($query) use ($facultyId) {
+        $query->orWhereHas('teachingAllocation', function ($assignmentQuery) use ($facultyId) {
+          $assignmentQuery->where('faculty_id', $facultyId)
+            ->orWhereHas('facultyAssignments', function ($facultyAssignmentQuery) use ($facultyId) {
+              $facultyAssignmentQuery->where('faculty_id', $facultyId);
+            })
+            ->orWhereHas('coFacultyMembers', function ($coFacultyQuery) use ($facultyId) {
+              $coFacultyQuery->where('faculties.id', $facultyId);
+            });
+        });
+      })
       ->whereNotNull('syllabus_id')
       ->get(['syllabus_id', 'shift']);
 

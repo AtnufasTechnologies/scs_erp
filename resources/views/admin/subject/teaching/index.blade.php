@@ -57,7 +57,7 @@
           </div>
 
           <div class="col-lg-6">
-            <label class="form-label fw-semibold">Select Faculty <span class="text-danger">*</span></label>
+            <label class="form-label fw-semibold">Primary Faculty <span class="text-danger">*</span></label>
             <select name="faculty_id" class="dselect-example" required>
               <option value="">--Select--</option>
               @foreach($faculties as $faculty)
@@ -68,6 +68,20 @@
               @endif
               @endforeach
             </select>
+          </div>
+
+          <div class="col-lg-6">
+            <label class="form-label fw-semibold">Co-Faculty</label>
+            <select name="co_faculty_ids[]" class="dselect-example" multiple>
+              @foreach($faculties as $faculty)
+              @if($faculty->faculty)
+              <option value="{{ $faculty->faculty->id }}">
+                {{ $faculty->faculty->USER_CODE }} - {{ $faculty->faculty->FIRST_NAME }} {{ $faculty->faculty->LAST_NAME }}
+              </option>
+              @endif
+              @endforeach
+            </select>
+            <small class="text-muted d-block mt-1">Optional. Co-faculty share the same students, timetable slot and attendance access.</small>
           </div>
 
           <div class="col-lg-3">
@@ -127,6 +141,7 @@
               <th>#</th>
               <th>Course</th>
               <th>Faculty</th>
+              <th>Co-Faculty</th>
               <th>Delivery Type</th>
               <th>Shift</th>
               <th>Allocation Group</th>
@@ -142,6 +157,15 @@
               <td>{{ $loop->iteration }}</td>
               <td>{{ $assignment->course->course_code ?? '-' }} - {{ $assignment->course->course_title ?? '-' }}</td>
               <td>{{ $assignment->faculty->USER_CODE ?? '-' }} - {{ $assignment->faculty->FIRST_NAME ?? '-' }} {{ $assignment->faculty->LAST_NAME ?? '' }}</td>
+              <td>
+                @php
+                $coFacultyLabels = ($assignment->coFacultyMembers ?? collect())
+                ->map(fn($faculty) => trim(($faculty->USER_CODE ?? '-') . ' - ' . ($faculty->FIRST_NAME ?? '-') . ' ' . ($faculty->LAST_NAME ?? '')))
+                ->filter()
+                ->values();
+                @endphp
+                {{ $coFacultyLabels->isNotEmpty() ? $coFacultyLabels->implode(', ') : '-' }}
+              </td>
               <td>{{ $assignment->delivery_type }}</td>
               <td>{{ $assignment->shiftmaster->title ?? $assignment->shiftmaster->slug ?? '-' }}</td>
               <td>{{ $assignment->allocation_group_label }}</td>
@@ -161,6 +185,7 @@
                   data-id="{{ $assignment->id }}"
                   data-course_id="{{ $assignment->course_id }}"
                   data-faculty_id="{{ $assignment->faculty_id }}"
+                  data-co_faculty_ids='@json(($assignment->coFacultyMembers ?? collect())->pluck("id")->map(fn($id) => (int) $id)->values()->all())'
                   data-delivery_type="{{ $assignment->delivery_type }}"
                   data-shift_id="{{ (int) ($assignment->shift_id ?? 0) }}"
                   data-status="{{ $assignment->is_active }}"
@@ -175,7 +200,7 @@
             </tr>
             @empty
             <tr id="teachingAssignmentEmptyRow">
-              <td colspan="10" class="text-center">No teaching assignments found.</td>
+              <td colspan="11" class="text-center">No teaching assignments found.</td>
             </tr>
             @endforelse
           </tbody>
@@ -295,6 +320,8 @@
     function buildRowHtml(assignment) {
       const safeCourse = escapeHtml(assignment.course_text || '-');
       const safeFaculty = escapeHtml(assignment.faculty_text || '-');
+      const safeCoFaculty = Array.isArray(assignment.co_faculty_text) && assignment.co_faculty_text.length ?
+        assignment.co_faculty_text.map((label) => escapeHtml(label)).join(', ') : '-';
       const safeDelivery = escapeHtml(assignment.delivery_type || '-');
       const safeShift = escapeHtml(assignment.shift_text || '-');
       const safeGroup = escapeHtml(assignment.allocation_group_label || '-');
@@ -308,6 +335,7 @@
           <td>0</td>
           <td>${safeCourse}</td>
           <td>${safeFaculty}</td>
+          <td>${safeCoFaculty}</td>
           <td>${safeDelivery}</td>
           <td>${safeShift}</td>
           <td>${safeGroup}</td>
@@ -321,6 +349,7 @@
               data-id="${assignment.id}"
               data-course_id="${assignment.course_id}"
               data-faculty_id="${assignment.faculty_id}"
+              data-co_faculty_ids='${escapeHtml(JSON.stringify(Array.isArray(assignment.co_faculty_ids) ? assignment.co_faculty_ids : []))}'
               data-delivery_type="${escapeHtml(assignment.delivery_type || '')}"
               data-shift_id="${assignment.shift_id || ''}"
               data-status="${assignment.is_active}"
@@ -351,6 +380,12 @@
       cancelEditBtn.style.display = 'none';
       form.querySelector('[name="course_id"]').dispatchEvent(new Event('change'));
       form.querySelector('[name="faculty_id"]').dispatchEvent(new Event('change'));
+      const coFacultySelect = form.querySelector('[name="co_faculty_ids[]"]');
+      if (coFacultySelect) {
+        Array.from(coFacultySelect.options).forEach((option) => {
+          option.selected = false;
+        });
+      }
       setDeliveryOptionsForCourse(form.querySelector('[name="course_id"]').value);
     }
 
@@ -422,6 +457,23 @@
       assignmentIdInput.value = editButton.dataset.id || '';
       form.querySelector('[name="course_id"]').value = editButton.dataset.course_id || '';
       form.querySelector('[name="faculty_id"]').value = editButton.dataset.faculty_id || '';
+      const coFacultySelect = form.querySelector('[name="co_faculty_ids[]"]');
+      if (coFacultySelect) {
+        let selectedCoFacultyIds = [];
+        try {
+          selectedCoFacultyIds = JSON.parse(editButton.dataset.co_faculty_ids || '[]');
+          if (!Array.isArray(selectedCoFacultyIds)) {
+            selectedCoFacultyIds = [];
+          }
+        } catch (error) {
+          selectedCoFacultyIds = [];
+        }
+
+        const selectedSet = new Set(selectedCoFacultyIds.map((value) => String(value)));
+        Array.from(coFacultySelect.options).forEach((option) => {
+          option.selected = selectedSet.has(String(option.value));
+        });
+      }
       form.querySelector('[name="shift_id"]').value = editButton.dataset.shift_id || '';
       form.querySelector('[name="status"]').value = editButton.dataset.status || '1';
       form.querySelector('[name="room"]').value = editButton.dataset.room || '';

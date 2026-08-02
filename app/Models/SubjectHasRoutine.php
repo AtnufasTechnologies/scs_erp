@@ -79,4 +79,46 @@ class SubjectHasRoutine extends Model
     {
         return $this->hasOne(ProgramCourseMaster::class, 'id', 'subject_course_id');
     }
+
+    public function resolvedTeachingAssignment(): ?TeachingAssignment
+    {
+        if ($this->relationLoaded('teachingAssignment') && $this->teachingAssignment) {
+            return $this->teachingAssignment;
+        }
+
+        if ($this->relationLoaded('teachingAllocation') && $this->teachingAllocation) {
+            return $this->teachingAllocation;
+        }
+
+        if (!empty($this->teaching_assignment_id)) {
+            return TeachingAssignment::query()->find((int) $this->teaching_assignment_id);
+        }
+
+        if (!empty($this->teaching_allocation_id)) {
+            return TeachingAssignment::query()->find((int) $this->teaching_allocation_id);
+        }
+
+        return null;
+    }
+
+    public function assignedFacultyIds(): array
+    {
+        $directFacultyId = (int) ($this->faculty_id ?? 0);
+        $ids = [];
+
+        if ($directFacultyId > 0) {
+            $ids[] = $directFacultyId;
+        }
+
+        $assignment = $this->resolvedTeachingAssignment();
+        if ($assignment) {
+            if (!$assignment->relationLoaded('coFacultyMembers')) {
+                $assignment->load('coFacultyMembers:id,FIRST_NAME,LAST_NAME,USER_CODE');
+            }
+
+            $ids = array_merge($ids, $assignment->allAssignedFacultyIds());
+        }
+
+        return array_values(array_unique(array_filter(array_map('intval', $ids), fn($id) => $id > 0)));
+    }
 }

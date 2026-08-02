@@ -175,4 +175,16 @@ class Faculty extends Model
     {
         return $this->hasMany(HrFacultyStatusHistory::class, 'faculty_id');
     }
+
+    public function primaryTeachingAssignments()
+    {
+        return $this->hasMany(TeachingAssignment::class, 'faculty_id', 'id');
+    }
+
+    public function coTeachingAssignments()
+    {
+        return $this->belongsToMany(TeachingAssignment::class, 'teaching_assignment_faculties', 'faculty_id', 'teaching_assignment_id')
+            ->withPivot('teaching_role')
+            ->wherePivot('teaching_role', TeachingAssignment::ROLE_CO_FACULTY);
+    }
 }

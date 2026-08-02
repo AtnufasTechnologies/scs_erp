@@ -38,12 +38,12 @@ class QuestionBankController extends Controller
       ->values();
 
     if ($allowedTaxonomyIds->isEmpty()) {
-      return back()->with('error', 'No taxonomy is mapped for this subunit. Please update taxonomy in syllabus manager first.');
+      return back()->with('error', 'No taxonomy level is mapped for this subunit. Please update taxonomy in syllabus manager first.');
     }
 
     $selectedTaxonomyId = (int) $request->cognitive_level_master_id;
     if (!$allowedTaxonomyIds->contains($selectedTaxonomyId)) {
-      return back()->with('error', 'Selected taxonomy is not applicable for this subunit.');
+      return back()->with('error', 'Selected taxonomy level is not applicable for this subunit.');
     }
 
     QuestionBank::create([

@@ -3,6 +3,36 @@
 use App\Models\CognitiveLevelMaster;
 
 $taxonomylevels = CognitiveLevelMaster::all();
+
+$normalizeDomain = function ($level) {
+  $rawDomain = trim((string) ($level->learning_domain ?? ''));
+  if ($rawDomain !== '') {
+    return $rawDomain;
+  }
+
+  return 'Cognitive';
+};
+
+$normalizeFramework = function ($level) use ($normalizeDomain) {
+  $rawFramework = trim((string) ($level->taxonomy_framework ?? ''));
+  if ($rawFramework !== '') {
+    return $rawFramework;
+  }
+
+  $domain = $normalizeDomain($level);
+  if (strcasecmp($domain, 'Psychomotor') === 0) {
+    return 'Dave';
+  }
+
+  if (strcasecmp($domain, 'Affective') === 0) {
+    return 'Krathwohl';
+  }
+
+  return 'RBT';
+};
+
+$learningDomains = ['Cognitive', 'Psychomotor', 'Affective'];
+
 $selectedShift = request('shift', 'all');
 $subjectUsesShifts = $subjectUsesShifts ?? false;
 $shiftOptions = $shiftOptions ?? collect();
@@ -42,10 +72,15 @@ if (in_array($selectedShift, $shiftSlugs, true)) {
       </div>
     </nav>
 
-    <!-- Button to trigger modal for new objective -->
-    <button type="button" class="btn btn-success mb-3" data-bs-toggle="modal" data-bs-target="#addObjectiveModal">
-      <i class="fa fa-plus-circle"></i> New CSO
-    </button>
+    <div class="d-flex flex-wrap gap-2 mb-3">
+      <!-- Button to trigger modal for new objective -->
+      <button type="button" class="btn btn-success" data-bs-toggle="modal" data-bs-target="#addObjectiveModal">
+        <i class="fa fa-plus-circle"></i> New CSO
+      </button>
+      <a class="btn btn-danger" href="{{ route('department.course.objective.download.pdf', $course->courseMaster->id) }}?shift={{ $selectedShift }}">
+        <i class="fa fa-file-pdf"></i> Download PDF
+      </a>
+    </div>
 
     @if($subjectUsesShifts)
     <form action="{{ route('department.view.cso', $course->courseMaster->id) }}" method="get" class="row g-2 mb-3">
@@ -236,6 +271,9 @@ if (in_array($selectedShift, $shiftSlugs, true)) {
                       @foreach ($subunit->taxonomies as $taxonomy)
                       <button type="button" class="badge badge-success position-relative">
                         {{ $taxonomy->rbtmaster->shortname ?? 'N/A' }}
+                        @if(!empty($taxonomy->rbtmaster->learning_domain))
+                        <span class="ms-1">({{ $taxonomy->rbtmaster->learning_domain }})</span>
+                        @endif
                         <a href="{{route('department.delete.cso.subunit.taxonomy', $taxonomy->id)}}" id="citadel">
                           <i class="fa fa-times"></i>
                         </a>
@@ -261,7 +299,7 @@ if (in_array($selectedShift, $shiftSlugs, true)) {
                               <h5 class="modal-title">Edit Sub Unit</h5>
                               <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
                             </div>
-                            <form action="{{ route('department.update.cso.subunit', $subunit->id) ?? '#' }}" method="post" enctype="multipart/form-data">
+                            <form class="taxonomy-domain-form" action="{{ route('department.update.cso.subunit', $subunit->id) ?? '#' }}" method="post" enctype="multipart/form-data">
                               @csrf
                               @method('PUT')
                               <div class="modal-body">
@@ -276,12 +314,46 @@ if (in_array($selectedShift, $shiftSlugs, true)) {
                                 <div class="row">
                                   <div class="col-lg-12">
                                     <div class="mb-3">
-                                      <label for="" class="form-label">Bloom's Taxonomy *</label>
-                                      <select name="taxonomy[]" class="form-select select-multiple" multiple>
-                                        @foreach ($taxonomylevels as $level)
-                                        <option value="{{$level->id}}" {{ $subunit->taxonomies->contains('rbt_id', $level->id) ? 'selected' : '' }}>{{$level->shortname}} - {{$level->fullname}}</option>
+                                      <label class="form-label">Learning Domain *</label>
+                                      @php
+                                      $selectedDomainsForEdit = collect($subunit->taxonomies ?? [])
+                                      ->map(fn($taxonomyLink) => $normalizeDomain(optional($taxonomyLink)->rbtmaster))
+                                      ->filter()
+                                      ->unique()
+                                      ->values();
+
+                                      if ($selectedDomainsForEdit->isEmpty()) {
+                                      $selectedDomainsForEdit = collect(['Cognitive']);
+                                      }
+                                      @endphp
+                                      <div class="d-flex flex-wrap gap-3 mt-1">
+                                        @foreach($learningDomains as $domain)
+                                        <div class="form-check form-check-inline">
+                                          <input class="form-check-input domain-checkbox" type="checkbox" name="learning_domain[]" id="editDomain{{ $subunit->id }}{{ $loop->index }}" value="{{ $domain }}" {{ $selectedDomainsForEdit->contains($domain) ? 'checked' : '' }}>
+                                          <label class="form-check-label" for="editDomain{{ $subunit->id }}{{ $loop->index }}">{{ $domain }}</label>
+                                        </div>
                                         @endforeach
-                                      </select>
+                                      </div>
+                                      <div class="domain-validation-error small text-danger mt-1 d-none">Select at least one learning domain.</div>
+                                    </div>
+                                  </div>
+                                  <div class="col-lg-12">
+                                    <div class="mb-3">
+                                      <label class="form-label">Taxonomy (Multiple Allowed) *</label>
+                                      <div class="small text-muted mb-2">Framework(s): <span class="taxonomy-framework-label">-</span></div>
+                                      <div class="taxonomy-levels-grid border rounded p-2" style="max-height: 220px; overflow:auto;">
+                                        @foreach ($taxonomylevels as $level)
+                                        @php
+                                        $levelDomain = $normalizeDomain($level);
+                                        $levelFramework = $normalizeFramework($level);
+                                        @endphp
+                                        <div class="form-check taxonomy-level-item mb-1" data-domain="{{ $levelDomain }}" data-framework="{{ $levelFramework }}">
+                                          <input class="form-check-input taxonomy-checkbox" type="checkbox" name="taxonomy[]" id="editTaxonomy{{ $subunit->id }}{{ $level->id }}" value="{{$level->id}}" {{ $subunit->taxonomies->contains('rbt_id', $level->id) ? 'checked' : '' }}>
+                                          <label class="form-check-label" for="editTaxonomy{{ $subunit->id }}{{ $level->id }}">{{$level->shortname}} - {{$level->fullname}} ({{ $levelFramework }})</label>
+                                        </div>
+                                        @endforeach
+                                      </div>
+                                      <div class="taxonomy-validation-error small text-danger mt-1 d-none">Select at least one taxonomy level.</div>
                                       @error('taxonomy')
                                       <span class="text-danger">{{$message}}</span>
                                       @enderror
@@ -327,7 +399,7 @@ if (in_array($selectedShift, $shiftSlugs, true)) {
                         <h5 class="modal-title">Add Sub Unit to CSO</h5>
                         <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
                       </div>
-                      <form action="{{route('department.add.cso.subunit')}}" method="post" enctype="multipart/form-data">
+                      <form class="taxonomy-domain-form" action="{{route('department.add.cso.subunit')}}" method="post" enctype="multipart/form-data">
                         @csrf
                         <div class="modal-body">
 
@@ -342,12 +414,35 @@ if (in_array($selectedShift, $shiftSlugs, true)) {
                           <div class="row">
                             <div class="col-lg-12">
                               <div class="mb-3">
-                                <label for="" class="form-label">Bloom's Taxonomy *</label>
-                                <select name="taxonomy[]" class="form-select select-multiple" multiple>
-                                  @foreach ($taxonomylevels as $level)
-                                  <option value="{{$level->id}}">{{$level->shortname}} - {{$level->fullname}}</option>
+                                <label class="form-label">Learning Domain *</label>
+                                <div class="d-flex flex-wrap gap-3 mt-1">
+                                  @foreach($learningDomains as $domain)
+                                  <div class="form-check form-check-inline">
+                                    <input class="form-check-input domain-checkbox" type="checkbox" name="learning_domain[]" id="addDomain{{ $cso->id }}{{ $loop->index }}" value="{{ $domain }}" {{ $domain === 'Cognitive' ? 'checked' : '' }}>
+                                    <label class="form-check-label" for="addDomain{{ $cso->id }}{{ $loop->index }}">{{ $domain }}</label>
+                                  </div>
                                   @endforeach
-                                </select>
+                                </div>
+                                <div class="domain-validation-error small text-danger mt-1 d-none">Select at least one learning domain.</div>
+                              </div>
+                            </div>
+                            <div class="col-lg-12">
+                              <div class="mb-3">
+                                <label class="form-label">Taxonomy (Multiple Allowed) *</label>
+                                <div class="small text-muted mb-2">Framework(s): <span class="taxonomy-framework-label">RBT</span></div>
+                                <div class="taxonomy-levels-grid border rounded p-2" style="max-height: 220px; overflow:auto;">
+                                  @foreach ($taxonomylevels as $level)
+                                  @php
+                                  $levelDomain = $normalizeDomain($level);
+                                  $levelFramework = $normalizeFramework($level);
+                                  @endphp
+                                  <div class="form-check taxonomy-level-item mb-1" data-domain="{{ $levelDomain }}" data-framework="{{ $levelFramework }}">
+                                    <input class="form-check-input taxonomy-checkbox" type="checkbox" name="taxonomy[]" id="addTaxonomy{{ $cso->id }}{{ $level->id }}" value="{{$level->id}}">
+                                    <label class="form-check-label" for="addTaxonomy{{ $cso->id }}{{ $level->id }}">{{$level->shortname}} - {{$level->fullname}} ({{ $levelFramework }})</label>
+                                  </div>
+                                  @endforeach
+                                </div>
+                                <div class="taxonomy-validation-error small text-danger mt-1 d-none">Select at least one taxonomy level.</div>
                                 @error('taxonomy')
                                 <span class="text-danger">{{$message}}</span>
                                 @enderror
@@ -398,5 +493,96 @@ if (in_array($selectedShift, $shiftSlugs, true)) {
 
   </div>
 </div>
+
+<script>
+  (function() {
+    function applyDomainFilter(form) {
+      const selectedDomains = Array.from(form.querySelectorAll('.domain-checkbox:checked')).map((el) => el.value);
+      const taxonomyItems = Array.from(form.querySelectorAll('.taxonomy-level-item'));
+      const frameworkLabel = form.querySelector('.taxonomy-framework-label');
+
+      if (!taxonomyItems.length) {
+        return;
+      }
+
+      const activeFrameworks = [];
+
+      taxonomyItems.forEach((item) => {
+        const itemDomain = item.dataset.domain || 'Cognitive';
+        const itemFramework = item.dataset.framework || '';
+        const checkbox = item.querySelector('.taxonomy-checkbox');
+        const shouldShow = selectedDomains.includes(itemDomain);
+
+        item.style.display = shouldShow ? '' : 'none';
+
+        if (checkbox) {
+          checkbox.disabled = !shouldShow;
+          if (!shouldShow) {
+            checkbox.checked = false;
+          }
+        }
+
+        if (shouldShow && itemFramework !== '' && !activeFrameworks.includes(itemFramework)) {
+          activeFrameworks.push(itemFramework);
+        }
+      });
+
+      if (frameworkLabel) {
+        frameworkLabel.textContent = activeFrameworks.length ? activeFrameworks.join(', ') : '-';
+      }
+    }
+
+    function setupFormDomainBehavior(form) {
+      const domainError = form.querySelector('.domain-validation-error');
+      const taxonomyError = form.querySelector('.taxonomy-validation-error');
+
+      function validateFormState() {
+        const hasDomain = form.querySelectorAll('.domain-checkbox:checked').length > 0;
+        const hasTaxonomy = form.querySelectorAll('.taxonomy-checkbox:checked').length > 0;
+
+        if (domainError) {
+          domainError.classList.toggle('d-none', hasDomain);
+        }
+
+        if (taxonomyError) {
+          taxonomyError.classList.toggle('d-none', hasTaxonomy);
+        }
+
+        return hasDomain && hasTaxonomy;
+      }
+
+      applyDomainFilter(form);
+      validateFormState();
+
+      form.querySelectorAll('.domain-checkbox').forEach((checkbox) => {
+        checkbox.addEventListener('change', function() {
+          applyDomainFilter(form);
+          validateFormState();
+        });
+      });
+
+      form.querySelectorAll('.taxonomy-checkbox').forEach((checkbox) => {
+        checkbox.addEventListener('change', function() {
+          validateFormState();
+        });
+      });
+
+      form.addEventListener('submit', function(event) {
+        applyDomainFilter(form);
+        if (!validateFormState()) {
+          event.preventDefault();
+        }
+      });
+    }
+
+    document.querySelectorAll('.taxonomy-domain-form').forEach((form) => {
+      if (!form.querySelector('.taxonomy-level-item') || !form.querySelector('.domain-checkbox')) {
+        return;
+      }
+
+      setupFormDomainBehavior(form);
+    });
+  })();
+</script>
 
 @include('includes.footer')

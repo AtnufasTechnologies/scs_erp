@@ -73,6 +73,7 @@ class TimetableConflictService
       ->with([
         'course:id,course_code,course_title',
         'faculty:id,FIRST_NAME,LAST_NAME,USER_CODE',
+        'coFacultyMembers:id,FIRST_NAME,LAST_NAME,USER_CODE',
       ])
       ->where('id', $teachingAssignmentId)
       ->where('is_active', 1)
@@ -169,7 +170,9 @@ class TimetableConflictService
   public function checkFacultyConflict(TeachingAssignment $incomingAssignment, HourMaster $incomingHour, $existingRoutines, array $draftEntries, int $weekdayId, int $ignoreRoutineId, int $shiftId): array
   {
     $incomingFacultyId = (int) ($incomingAssignment->faculty_id ?? 0);
-    if ($incomingFacultyId <= 0) {
+    $incomingFacultyIds = $this->extractAssignmentFacultyIds($incomingAssignment);
+
+    if (empty($incomingFacultyIds)) {
       return [
         'success' => true,
         'message' => 'No faculty conflict check needed.',
@@ -181,16 +184,23 @@ class TimetableConflictService
         'hourmaster:id,hour_no,name,start_time,end_time',
         'faculty:id,FIRST_NAME,LAST_NAME,USER_CODE',
         'teachingAssignment:id,subject_id,course_id,faculty_id',
+        'teachingAssignment.coFacultyMembers:id,FIRST_NAME,LAST_NAME,USER_CODE',
+        'teachingAllocation:id,subject_id,course_id,faculty_id',
+        'teachingAllocation.coFacultyMembers:id,FIRST_NAME,LAST_NAME,USER_CODE',
         'teachingAssignment.course:id,course_code,course_title',
         'teachingAssignment.faculty:id,FIRST_NAME,LAST_NAME,USER_CODE',
         'syllabus.coursemaster:id,course_code,course_title',
       ])
       ->where('weekday_id', $weekdayId)
       ->when($ignoreRoutineId > 0, fn($q) => $q->where('id', '!=', $ignoreRoutineId))
-      ->where('faculty_id', $incomingFacultyId)
       ->get();
 
     foreach ($persistedFacultyRoutines as $routine) {
+      $routineFacultyIds = $this->extractRoutineFacultyIds($routine);
+      if (empty(array_intersect($incomingFacultyIds, $routineFacultyIds))) {
+        continue;
+      }
+
       $existingHour = $this->resolveRoutineHourSlot($routine, $shiftId);
       if (!$existingHour || !$this->isTimeOverlapping($incomingHour, $existingHour)) {
         continue;
@@ -210,14 +220,21 @@ class TimetableConflictService
         continue;
       }
 
+      $draftFacultyIds = [];
       $draftFacultyId = (int) ($entry['faculty_id'] ?? 0);
-      if ($draftFacultyId <= 0) {
-        $assignmentId = (int) ($entry['teaching_assignment_id'] ?? 0);
-        $assignment = $assignmentId > 0 ? TeachingAssignment::query()->find($assignmentId) : null;
-        $draftFacultyId = (int) ($assignment->faculty_id ?? 0);
+      if ($draftFacultyId > 0) {
+        $draftFacultyIds[] = $draftFacultyId;
       }
 
-      if ($draftFacultyId !== $incomingFacultyId) {
+      if (empty($draftFacultyIds)) {
+        $assignmentId = (int) ($entry['teaching_assignment_id'] ?? 0);
+        $assignment = $assignmentId > 0 ? TeachingAssignment::query()->find($assignmentId) : null;
+        if ($assignment) {
+          $draftFacultyIds = $this->extractAssignmentFacultyIds($assignment);
+        }
+      }
+
+      if (empty(array_intersect($incomingFacultyIds, $draftFacultyIds))) {
         continue;
       }
 
@@ -262,6 +279,9 @@ class TimetableConflictService
       ->with([
         'hourmaster:id,hour_no,name,start_time,end_time',
         'teachingAssignment:id,faculty_id',
+        'teachingAssignment.coFacultyMembers:id,FIRST_NAME,LAST_NAME,USER_CODE',
+        'teachingAllocation:id,faculty_id',
+        'teachingAllocation.coFacultyMembers:id,FIRST_NAME,LAST_NAME,USER_CODE',
       ])
       ->where('weekday_id', $weekdayId)
       ->when($ignoreRoutineId > 0, fn($q) => $q->where('id', '!=', $ignoreRoutineId))
@@ -274,9 +294,10 @@ class TimetableConflictService
         continue;
       }
 
-      $facultyId = $this->extractRoutineFacultyId($routine);
-      if ($facultyId > 0) {
-        $bookedFacultyIds[$facultyId] = $facultyId;
+      foreach ($this->extractRoutineFacultyIds($routine) as $facultyId) {
+        if ($facultyId > 0) {
+          $bookedFacultyIds[$facultyId] = $facultyId;
+        }
       }
     }
 
@@ -586,14 +607,51 @@ class TimetableConflictService
     return 'another class';
   }
 
-  private function extractRoutineFacultyId(SubjectHasRoutine $routine): int
+  private function extractRoutineFacultyIds(SubjectHasRoutine $routine): array
   {
+    $facultyIds = [];
+
     $directFacultyId = (int) ($routine->faculty_id ?? 0);
     if ($directFacultyId > 0) {
-      return $directFacultyId;
+      $facultyIds[] = $directFacultyId;
     }
 
-    return (int) ($routine->teachingAssignment?->faculty_id ?? 0);
+    $assignment = $routine->teachingAssignment;
+    if ($assignment) {
+      $facultyIds = array_merge($facultyIds, $this->extractAssignmentFacultyIds($assignment));
+    }
+
+    $legacyAssignment = $routine->teachingAllocation;
+    if ($legacyAssignment) {
+      $facultyIds = array_merge($facultyIds, $this->extractAssignmentFacultyIds($legacyAssignment));
+    }
+
+    return array_values(array_unique(array_filter(array_map('intval', $facultyIds), fn($id) => $id > 0)));
+  }
+
+  private function extractAssignmentFacultyIds(TeachingAssignment $assignment): array
+  {
+    $facultyIds = [];
+
+    $primaryFacultyId = (int) ($assignment->faculty_id ?? 0);
+    if ($primaryFacultyId > 0) {
+      $facultyIds[] = $primaryFacultyId;
+    }
+
+    if ($assignment->relationLoaded('coFacultyMembers') || method_exists($assignment, 'coFacultyMembers')) {
+      if (!$assignment->relationLoaded('coFacultyMembers')) {
+        $assignment->load('coFacultyMembers:id,FIRST_NAME,LAST_NAME,USER_CODE');
+      }
+
+      $coFacultyIds = $assignment->coFacultyMembers
+        ->pluck('id')
+        ->map(fn($id) => (int) $id)
+        ->all();
+
+      $facultyIds = array_merge($facultyIds, $coFacultyIds);
+    }
+
+    return array_values(array_unique(array_filter(array_map('intval', $facultyIds), fn($id) => $id > 0)));
   }
 
   private function isRelevantDraftEntry(array $entry, int $weekdayId, int $ignoreRoutineId, int $shiftId = 0): bool

@@ -805,10 +805,12 @@ Route::group(['prefix' => '/erp'], function () {
         Route::put('combination-specializations/{id}', [SubjectController::class, 'updateCombinationSpecializations'])->name('department.combination.specializations.update');
         // Course Objectives
         Route::get('course/{id}/cso', [SubjectController::class, 'viewCourseSpecificObjective'])->name('department.view.cso');
+        Route::get('course/{id}/cso-download-pdf', [SubjectController::class, 'downloadCourseSpecificObjectivePdf'])->name('department.course.objective.download.pdf');
         Route::get('course/{id}/cso-list', [SubjectController::class, 'getCsoListForCourse'])->name('department.get.cso.list');
         Route::post('course/objective/create', [SubjectController::class, 'createCourseSpecificObjective'])->name('department.create.course.specific.objective');
         Route::delete('delete-faculty-master/{id}', [SubjectController::class, 'deleteFacultyMasterFromSubject'])->name('department.faculty.delete');
         Route::post('add-new-course-master', [SubjectController::class, 'addNewCourseMaster'])->name('department.create.course.master');
+        Route::get('course-master/check-code', [SubjectController::class, 'checkCourseCodeAvailability'])->name('department.course-master.check-code');
         Route::put('/course-master/{id}', [SubjectController::class, 'updateCourseMaster'])->name('department.update.course.master');
 
         Route::put('/course-specific-objective/{id}', [SubjectController::class, 'updateCourseSpecificObjective'])->name('department.update.cso');

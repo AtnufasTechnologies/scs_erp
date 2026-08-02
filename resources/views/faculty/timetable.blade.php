@@ -245,6 +245,10 @@
                     <div class="calendar-block">
                       <div>{{ $entry['course_type'] ?? '-' }}</div>
                       <div class="course">{{ $entry['course'] ?? '-' }}</div>
+                      <div class="shift">Faculty: {{ $entry['faculty'] ?? '-' }}</div>
+                      @if(!empty($entry['co_faculty']) && count($entry['co_faculty']) > 0)
+                      <div class="shift">Co-Faculty: {{ implode(', ', $entry['co_faculty']) }}</div>
+                      @endif
                       <div class="semester">{{ $entry['batch'] ?? '-' }} - {{ $entry['semester'] ?? '-' }}</div>
                       <div class="shift">Shift: {{ $entry['shift'] ?? 'Common' }}</div>
                       <div class="shift">Program: {{ $entry['program_type'] ?? 'UG' }}</div>

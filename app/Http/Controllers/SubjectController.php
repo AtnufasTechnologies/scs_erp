@@ -42,6 +42,7 @@ use App\Models\SubjectHasStudentProgam;
 use App\Models\SubjectHasSyllabus;
 use App\Models\SubjectTypeMaster;
 use App\Models\TeachingAssignment;
+use App\Models\TeachingAssignmentFaculty;
 use App\Models\ReligionMaster;
 use App\Models\NationalityMaster;
 use App\Models\BloodGroupMaster;
@@ -1005,9 +1006,18 @@ class SubjectController extends Controller
             'credits' => 'required|numeric|min:0',
         ]);
 
+        $normalizedCourseCode = Str::upper(trim((string) $request->course_code));
+        $courseCodeExists = ProgramCourseMaster::query()
+            ->whereRaw('UPPER(TRIM(course_code)) = ?', [$normalizedCourseCode])
+            ->exists();
+
+        if ($courseCodeExists) {
+            return redirect()->back()->with('error', 'Course code already exists. Course codes must be unique.');
+        }
+
         $rec = new ProgramCourseMaster();
         $rec->academic_year = (string) Carbon::now()->year;
-        $rec->course_code = Str::upper($request->course_code);
+        $rec->course_code = $normalizedCourseCode;
         $rec->course_title = $request->course_title;
         $rec->course_type = $request->course_type;
         $rec->department = $request->subject_id;
@@ -1026,6 +1036,41 @@ class SubjectController extends Controller
         ]);
 
         return redirect()->back()->with('success', 'New Course Master Added and Can be Used in Departments Now');
+    }
+
+    function checkCourseCodeAvailability(Request $request)
+    {
+        $validated = $request->validate([
+            'course_code' => 'required|string|max:100',
+            'exclude_id' => 'nullable|integer|min:1',
+        ]);
+
+        $normalizedCourseCode = Str::upper(trim((string) $validated['course_code']));
+        $excludeId = (int) ($validated['exclude_id'] ?? 0);
+
+        if ($normalizedCourseCode === '') {
+            return response()->json([
+                'available' => false,
+                'message' => 'Course code is required.',
+            ], 422);
+        }
+
+        $existsQuery = ProgramCourseMaster::query()
+            ->whereRaw('UPPER(TRIM(course_code)) = ?', [$normalizedCourseCode]);
+
+        if ($excludeId > 0) {
+            $existsQuery->where('id', '!=', $excludeId);
+        }
+
+        $exists = $existsQuery->exists();
+
+        return response()->json([
+            'available' => !$exists,
+            'normalized_code' => $normalizedCourseCode,
+            'message' => $exists
+                ? 'Course code already exists. It cannot be created.'
+                : 'Course code is available.',
+        ]);
     }
 
     function viewCourseSpecificObjective($courseId)
@@ -1059,6 +1104,46 @@ class SubjectController extends Controller
             'shiftOptions' => $shiftOptions,
             'subjectUsesShifts' => false,
         ]);
+    }
+
+    function downloadCourseSpecificObjectivePdf(Request $request, $courseId)
+    {
+        $defaultShift = $this->getDefaultShiftSlug();
+        $selectedShift = (string) $request->query('shift', 'all');
+
+        $course = SubjectCourseMaster::with([
+            'courseMaster.coursetypemaster',
+            'courseMaster.csos.csosubunits.taxonomies.rbtmaster',
+        ])->where('course_master_id', $courseId)->first();
+
+        if (!$course || !$course->courseMaster) {
+            return redirect()->back()->with('error', 'Course not found.');
+        }
+
+        $allCsos = $course->courseMaster->csos ?? collect();
+        if ($selectedShift !== 'all') {
+            $allCsos = $allCsos->where('shift', $selectedShift)->values();
+        }
+
+        // Keep backward-compatible default filtering when shift is not explicitly selected.
+        if ($selectedShift === 'all') {
+            $allCsos = $allCsos->whereIn('shift', [$defaultShift, null, ''])->values();
+        }
+
+        $filteredCsos = $this->dedupeCsosByTitle($allCsos);
+
+        $pdf = Pdf::loadView('admin.subject.course-objective-pdf', [
+            'course' => $course,
+            'filteredCsos' => $filteredCsos,
+            'selectedShift' => $selectedShift,
+        ])->setPaper('a4', 'portrait');
+
+        $courseCode = trim((string) ($course->courseMaster->course_code ?? 'course'));
+        $safeCode = preg_replace('/[^A-Za-z0-9\-_]/', '_', $courseCode);
+        $suffix = $selectedShift !== 'all' ? ('-' . strtolower($selectedShift)) : '';
+        $filename = 'course-objectives-' . $safeCode . $suffix . '-' . date('Y-m-d') . '.pdf';
+
+        return $pdf->download($filename);
     }
 
     function getCsoListForCourse(Request $request, $courseId)
@@ -1166,8 +1251,18 @@ class SubjectController extends Controller
             'paper_type' => 'required',
         ]);
 
+        $normalizedCourseCode = Str::upper(trim((string) $request->course_code));
+        $courseCodeExists = ProgramCourseMaster::query()
+            ->whereRaw('UPPER(TRIM(course_code)) = ?', [$normalizedCourseCode])
+            ->where('id', '!=', (int) $id)
+            ->exists();
+
+        if ($courseCodeExists) {
+            return redirect()->back()->with('error', 'Course code already exists. Course codes must be unique.');
+        }
+
         ProgramCourseMaster::where('id', $id)->update([
-            'course_code' => Str::upper($request->course_code),
+            'course_code' => $normalizedCourseCode,
             'course_title' => $request->course_title,
             'course_type' => $request->course_type,
             'credits' => $request->credits,
@@ -2135,6 +2230,7 @@ class SubjectController extends Controller
         $faculties = SubjectFacultyMaster::with('faculty')->where('subject_id', $subjectId)->get();
         $subject = Subject::find($subjectId);
         $selectedBatch = (int) $request->query('batch', 0);
+        $hasTeachingAllocationLink = Schema::hasColumn('subject_has_routines', 'teaching_allocation_id');
 
         $facultyIds = $faculties
             ->pluck('faculty_id')
@@ -2149,11 +2245,29 @@ class SubjectController extends Controller
                 ->whereHas('syllabus', function ($query) use ($subjectId) {
                     $query->where('subject_id', $subjectId);
                 })
-                ->where(function ($query) use ($facultyIds) {
+                ->where(function ($query) use ($facultyIds, $hasTeachingAllocationLink) {
                     $query->whereIn('faculty_id', $facultyIds)
                         ->orWhereHas('teachingAssignment', function ($assignmentQuery) use ($facultyIds) {
-                            $assignmentQuery->whereIn('faculty_id', $facultyIds);
+                            $assignmentQuery->whereIn('faculty_id', $facultyIds)
+                                ->orWhereHas('facultyAssignments', function ($facultyAssignmentQuery) use ($facultyIds) {
+                                    $facultyAssignmentQuery->whereIn('faculty_id', $facultyIds);
+                                })
+                                ->orWhereHas('coFacultyMembers', function ($coFacultyQuery) use ($facultyIds) {
+                                    $coFacultyQuery->whereIn('faculties.id', $facultyIds);
+                                });
                         });
+
+                    if ($hasTeachingAllocationLink) {
+                        $query->orWhereHas('teachingAllocation', function ($assignmentQuery) use ($facultyIds) {
+                            $assignmentQuery->whereIn('faculty_id', $facultyIds)
+                                ->orWhereHas('facultyAssignments', function ($facultyAssignmentQuery) use ($facultyIds) {
+                                    $facultyAssignmentQuery->whereIn('faculty_id', $facultyIds);
+                                })
+                                ->orWhereHas('coFacultyMembers', function ($coFacultyQuery) use ($facultyIds) {
+                                    $coFacultyQuery->whereIn('faculties.id', $facultyIds);
+                                });
+                        });
+                    }
                 })
                 ->with([
                     'weekdaymaster:id,title',
@@ -2161,6 +2275,7 @@ class SubjectController extends Controller
                     'teachingAssignment:id,course_id,faculty_id,delivery_type,allocation_group',
                     'teachingAssignment.course:id,course_code,course_title,course_type',
                     'teachingAssignment.course.coursetypemaster:id,title',
+                    'teachingAssignment.coFacultyMembers:id,USER_CODE,FIRST_NAME,LAST_NAME',
                     'syllabus.subject:id,title',
                     'syllabus.batchmaster:id,batch_name',
                     'syllabus.semestermaster:id,title',
@@ -2168,6 +2283,15 @@ class SubjectController extends Controller
                     'subjectCourse.courseMaster:id,course_title,course_code,course_type',
                     'subjectCourse.courseMaster.coursetypemaster:id,title',
                 ]);
+
+            if ($hasTeachingAllocationLink) {
+                $routineQuery->with([
+                    'teachingAllocation:id,course_id,faculty_id,delivery_type,allocation_group',
+                    'teachingAllocation.course:id,course_code,course_title,course_type',
+                    'teachingAllocation.course.coursetypemaster:id,title',
+                    'teachingAllocation.coFacultyMembers:id,USER_CODE,FIRST_NAME,LAST_NAME',
+                ]);
+            }
 
             if ($selectedBatch > 0) {
                 $routineQuery->where('batch_id', $selectedBatch);
@@ -2178,9 +2302,29 @@ class SubjectController extends Controller
                 ->orderBy('weekday_id')
                 ->orderBy('hour_id')
                 ->get()
-                ->map(function ($routine) {
+                ->flatMap(function ($routine) use ($hasTeachingAllocationLink) {
                     $assignment = $routine->teachingAssignment;
+                    if (!$assignment && $hasTeachingAllocationLink) {
+                        $assignment = $routine->teachingAllocation;
+                    }
+
                     $course = $routine->subjectCourse->courseMaster ?? optional($assignment)->course;
+
+                    $assignedFacultyIds = [];
+                    if ($assignment) {
+                        $assignedFacultyIds = $assignment->allAssignedFacultyIds();
+                    }
+
+                    if (empty($assignedFacultyIds)) {
+                        $directFacultyId = (int) ($routine->faculty_id ?? 0);
+                        if ($directFacultyId > 0) {
+                            $assignedFacultyIds = [$directFacultyId];
+                        }
+                    }
+
+                    if (empty($assignedFacultyIds)) {
+                        return collect();
+                    }
 
                     $hourNo = (int) ($routine->hourmaster->hour_no ?? $routine->hour_id ?? 0);
                     $hourName = (string) ($routine->hourmaster->name ?? $routine->hourmaster->title ?? ('Hour ' . $hourNo));
@@ -2194,20 +2338,21 @@ class SubjectController extends Controller
                     $courseCode = (string) ($course->course_code ?? '');
                     $courseTitle = (string) ($course->course_title ?? '-');
 
-                    return [
-                        'faculty_id' => (int) ($assignment->faculty_id ?? $routine->faculty_id ?? 0),
-                        'weekday' => $routine->weekdaymaster->title ?? '-',
-                        'hour' => $hourLabel,
-                        'hour_sort' => $hourNo > 0 ? $hourNo : (int) ($routine->hour_id ?? 0),
-                        'subject' => $routine->syllabus->subject->title ?? '-',
-                        'batch' => $routine->syllabus->batchmaster->batch_name ?? '-',
-                        'semester' => $routine->syllabus->semestermaster->title ?? '-',
-                        'lecture_hall' => $routine->lecturehallmaster->title ?? '-',
-                        'course' => trim($courseCode . ($courseCode !== '' ? ' - ' : '') . $courseTitle),
-                        'course_type' => (string) ($course->coursetypemaster->title ?? '-'),
-                        'shift' => ucfirst((string) ($routine->shift ?? 'common')),
-                        'program_type' => strtoupper((string) ($routine->program_type ?? 'UG')) === 'PG' ? 'PG' : 'UG',
-                    ];
+                    return collect($assignedFacultyIds)
+                        ->map(fn($assignedFacultyId) => [
+                            'faculty_id' => (int) $assignedFacultyId,
+                            'weekday' => $routine->weekdaymaster->title ?? '-',
+                            'hour' => $hourLabel,
+                            'hour_sort' => $hourNo > 0 ? $hourNo : (int) ($routine->hour_id ?? 0),
+                            'subject' => $routine->syllabus->subject->title ?? '-',
+                            'batch' => $routine->syllabus->batchmaster->batch_name ?? '-',
+                            'semester' => $routine->syllabus->semestermaster->title ?? '-',
+                            'lecture_hall' => $routine->lecturehallmaster->title ?? '-',
+                            'course' => trim($courseCode . ($courseCode !== '' ? ' - ' : '') . $courseTitle),
+                            'course_type' => (string) ($course->coursetypemaster->title ?? '-'),
+                            'shift' => ucfirst((string) ($routine->shift ?? 'common')),
+                            'program_type' => strtoupper((string) ($routine->program_type ?? 'UG')) === 'PG' ? 'PG' : 'UG',
+                        ]);
                 })
                 ->groupBy('faculty_id')
                 ->map(fn($entries) => $entries->values());
@@ -4009,6 +4154,7 @@ class SubjectController extends Controller
             ->with([
                 'course:id,course_code,course_title',
                 'faculty:id,USER_CODE,FIRST_NAME,LAST_NAME',
+                'coFacultyMembers:id,USER_CODE,FIRST_NAME,LAST_NAME',
                 'shiftmaster:id,title,slug',
             ])
             ->latest()
@@ -4068,12 +4214,27 @@ class SubjectController extends Controller
         $validated = $request->validate([
             'course_id' => 'required|integer|exists:program_course_masters,id',
             'faculty_id' => 'required|integer|exists:faculties,id',
+            'co_faculty_ids' => 'nullable|array',
+            'co_faculty_ids.*' => 'integer|exists:faculties,id',
             'delivery_type' => 'nullable|string|max:100',
             'shift_id' => 'required|integer|exists:shift_masters,id',
             'status' => 'required|in:0,1',
             'room' => 'nullable|string|max:255',
             'remarks' => 'nullable|string',
         ]);
+
+        $coFacultyIds = collect($validated['co_faculty_ids'] ?? [])
+            ->map(fn($value) => (int) $value)
+            ->filter(fn($value) => $value > 0)
+            ->unique()
+            ->values();
+
+        if ($coFacultyIds->contains((int) $validated['faculty_id'])) {
+            if ($request->expectsJson()) {
+                return response()->json(['message' => 'Primary faculty cannot be selected as co-faculty.'], 422);
+            }
+            return redirect()->back()->with('error', 'Primary faculty cannot be selected as co-faculty.');
+        }
 
         $isCourseMapped = SubjectCourseMaster::where('subject_id', $subject->id)
             ->where('course_master_id', $validated['course_id'])
@@ -4095,6 +4256,22 @@ class SubjectController extends Controller
                 return response()->json(['message' => 'Selected faculty is not mapped to this department.'], 422);
             }
             return redirect()->back()->with('error', 'Selected faculty is not mapped to this department.');
+        }
+
+        if ($coFacultyIds->isNotEmpty()) {
+            $mappedCoFacultyIds = SubjectFacultyMaster::where('subject_id', $subject->id)
+                ->whereIn('faculty_id', $coFacultyIds->all())
+                ->pluck('faculty_id')
+                ->map(fn($value) => (int) $value)
+                ->unique()
+                ->values();
+
+            if ($mappedCoFacultyIds->count() !== $coFacultyIds->count()) {
+                if ($request->expectsJson()) {
+                    return response()->json(['message' => 'One or more co-faculty members are not mapped to this department.'], 422);
+                }
+                return redirect()->back()->with('error', 'One or more co-faculty members are not mapped to this department.');
+            }
         }
 
         $resolvedDeliveryType = $this->resolveTeachingAssignmentDeliveryType(
@@ -4138,23 +4315,29 @@ class SubjectController extends Controller
             (int) $validated['shift_id']
         );
 
-        $assignment = TeachingAssignment::create([
-            'subject_id' => $subject->id,
-            'course_id' => $validated['course_id'],
-            'delivery_type' => $resolvedDeliveryType,
-            'shift_id' => (int) $validated['shift_id'],
-            'faculty_id' => $validated['faculty_id'],
-            'allocation_group' => $nextAllocationGroup,
-            'is_active' => (int) $validated['status'],
-            'room' => $validated['room'] ?? '',
-            'remarks' => $validated['remarks'] ?? '',
-        ]);
+        $assignment = DB::transaction(function () use ($subject, $validated, $resolvedDeliveryType, $nextAllocationGroup, $coFacultyIds) {
+            $assignment = TeachingAssignment::create([
+                'subject_id' => $subject->id,
+                'course_id' => $validated['course_id'],
+                'delivery_type' => $resolvedDeliveryType,
+                'shift_id' => (int) $validated['shift_id'],
+                'faculty_id' => $validated['faculty_id'],
+                'allocation_group' => $nextAllocationGroup,
+                'is_active' => (int) $validated['status'],
+                'room' => $validated['room'] ?? '',
+                'remarks' => $validated['remarks'] ?? '',
+            ]);
 
-        $this->syncRoutinesWithTeachingAssignment($assignment);
+            $this->syncTeachingAssignmentFacultyRoles($assignment, (int) $validated['faculty_id'], $coFacultyIds->all());
+            $this->syncRoutinesWithTeachingAssignment($assignment);
+
+            return $assignment;
+        });
 
         $assignment->load([
             'course:id,course_code,course_title',
             'faculty:id,USER_CODE,FIRST_NAME,LAST_NAME',
+            'coFacultyMembers:id,USER_CODE,FIRST_NAME,LAST_NAME',
             'shiftmaster:id,title,slug',
         ]);
 
@@ -4181,12 +4364,27 @@ class SubjectController extends Controller
         $validated = $request->validate([
             'course_id' => 'required|integer|exists:program_course_masters,id',
             'faculty_id' => 'required|integer|exists:faculties,id',
+            'co_faculty_ids' => 'nullable|array',
+            'co_faculty_ids.*' => 'integer|exists:faculties,id',
             'delivery_type' => 'nullable|string|max:100',
             'shift_id' => 'required|integer|exists:shift_masters,id',
             'status' => 'required|in:0,1',
             'room' => 'nullable|string|max:255',
             'remarks' => 'nullable|string',
         ]);
+
+        $coFacultyIds = collect($validated['co_faculty_ids'] ?? [])
+            ->map(fn($value) => (int) $value)
+            ->filter(fn($value) => $value > 0)
+            ->unique()
+            ->values();
+
+        if ($coFacultyIds->contains((int) $validated['faculty_id'])) {
+            if ($request->expectsJson()) {
+                return response()->json(['message' => 'Primary faculty cannot be selected as co-faculty.'], 422);
+            }
+            return redirect()->back()->with('error', 'Primary faculty cannot be selected as co-faculty.');
+        }
 
         $isCourseMapped = SubjectCourseMaster::where('subject_id', $assignment->subject_id)
             ->where('course_master_id', $validated['course_id'])
@@ -4208,6 +4406,22 @@ class SubjectController extends Controller
                 return response()->json(['message' => 'Selected faculty is not mapped to this department.'], 422);
             }
             return redirect()->back()->with('error', 'Selected faculty is not mapped to this department.');
+        }
+
+        if ($coFacultyIds->isNotEmpty()) {
+            $mappedCoFacultyIds = SubjectFacultyMaster::where('subject_id', $assignment->subject_id)
+                ->whereIn('faculty_id', $coFacultyIds->all())
+                ->pluck('faculty_id')
+                ->map(fn($value) => (int) $value)
+                ->unique()
+                ->values();
+
+            if ($mappedCoFacultyIds->count() !== $coFacultyIds->count()) {
+                if ($request->expectsJson()) {
+                    return response()->json(['message' => 'One or more co-faculty members are not mapped to this department.'], 422);
+                }
+                return redirect()->back()->with('error', 'One or more co-faculty members are not mapped to this department.');
+            }
         }
 
         $resolvedDeliveryType = $this->resolveTeachingAssignmentDeliveryType(
@@ -4262,45 +4476,50 @@ class SubjectController extends Controller
             );
         }
 
-        $assignment->course_id = $validated['course_id'];
-        $assignment->faculty_id = $validated['faculty_id'];
-        $assignment->delivery_type = $resolvedDeliveryType;
-        $assignment->shift_id = (int) $validated['shift_id'];
-        $assignment->is_active = (int) $validated['status'];
-        $assignment->room = $validated['room'] ?? '';
-        $assignment->remarks = $validated['remarks'] ?? '';
-        $assignment->save();
+        DB::transaction(function () use ($assignment, $validated, $resolvedDeliveryType, $coFacultyIds) {
+            $assignment->course_id = $validated['course_id'];
+            $assignment->faculty_id = $validated['faculty_id'];
+            $assignment->delivery_type = $resolvedDeliveryType;
+            $assignment->shift_id = (int) $validated['shift_id'];
+            $assignment->is_active = (int) $validated['status'];
+            $assignment->room = $validated['room'] ?? '';
+            $assignment->remarks = $validated['remarks'] ?? '';
+            $assignment->save();
 
-        // Keep existing timetable rows in sync with assignment replacements/edits.
-        $subjectCourseId = SubjectCourseMaster::query()
-            ->where('subject_id', $assignment->subject_id)
-            ->where('course_master_id', $assignment->course_id)
-            ->value('id');
+            $this->syncTeachingAssignmentFacultyRoles($assignment, (int) $validated['faculty_id'], $coFacultyIds->all());
 
-        $routineUpdatePayload = [
-            'faculty_id' => (int) $assignment->faculty_id,
-        ];
+            // Keep existing timetable rows in sync with assignment replacements/edits.
+            $subjectCourseId = SubjectCourseMaster::query()
+                ->where('subject_id', $assignment->subject_id)
+                ->where('course_master_id', $assignment->course_id)
+                ->value('id');
 
-        if (!empty($subjectCourseId)) {
-            $routineUpdatePayload['subject_course_id'] = (int) $subjectCourseId;
-        }
+            $routineUpdatePayload = [
+                'faculty_id' => (int) $assignment->faculty_id,
+            ];
 
-        SubjectHasRoutine::query()
-            ->where(function ($query) use ($assignment) {
-                $query->where('teaching_assignment_id', $assignment->id);
+            if (!empty($subjectCourseId)) {
+                $routineUpdatePayload['subject_course_id'] = (int) $subjectCourseId;
+            }
 
-                if (Schema::hasColumn('subject_has_routines', 'teaching_allocation_id')) {
-                    $query->orWhere('teaching_allocation_id', $assignment->id);
-                }
-            })
-            ->update($routineUpdatePayload);
+            SubjectHasRoutine::query()
+                ->where(function ($query) use ($assignment) {
+                    $query->where('teaching_assignment_id', $assignment->id);
 
-        // Also backfill newly matching legacy rows created before this assignment existed.
-        $this->syncRoutinesWithTeachingAssignment($assignment);
+                    if (Schema::hasColumn('subject_has_routines', 'teaching_allocation_id')) {
+                        $query->orWhere('teaching_allocation_id', $assignment->id);
+                    }
+                })
+                ->update($routineUpdatePayload);
+
+            // Also backfill newly matching legacy rows created before this assignment existed.
+            $this->syncRoutinesWithTeachingAssignment($assignment);
+        });
 
         $assignment->load([
             'course:id,course_code,course_title',
             'faculty:id,USER_CODE,FIRST_NAME,LAST_NAME',
+            'coFacultyMembers:id,USER_CODE,FIRST_NAME,LAST_NAME',
             'shiftmaster:id,title,slug',
         ]);
 
@@ -4325,12 +4544,58 @@ class SubjectController extends Controller
         return redirect()->back()->with('success', 'Teaching assignment deleted successfully.');
     }
 
+    private function syncTeachingAssignmentFacultyRoles(TeachingAssignment $assignment, int $primaryFacultyId, array $coFacultyIds = []): void
+    {
+        TeachingAssignmentFaculty::query()
+            ->where('teaching_assignment_id', (int) $assignment->id)
+            ->delete();
+
+        $rows = [];
+        if ($primaryFacultyId > 0) {
+            $rows[] = [
+                'teaching_assignment_id' => (int) $assignment->id,
+                'faculty_id' => $primaryFacultyId,
+                'teaching_role' => TeachingAssignment::ROLE_PRIMARY,
+                'created_at' => now(),
+                'updated_at' => now(),
+            ];
+        }
+
+        foreach (collect($coFacultyIds)->map(fn($value) => (int) $value)->filter(fn($value) => $value > 0)->unique()->values() as $coFacultyId) {
+            if ($coFacultyId === $primaryFacultyId) {
+                continue;
+            }
+
+            $rows[] = [
+                'teaching_assignment_id' => (int) $assignment->id,
+                'faculty_id' => $coFacultyId,
+                'teaching_role' => TeachingAssignment::ROLE_CO_FACULTY,
+                'created_at' => now(),
+                'updated_at' => now(),
+            ];
+        }
+
+        if (!empty($rows)) {
+            TeachingAssignmentFaculty::query()->insert($rows);
+        }
+    }
+
     private function serializeTeachingAssignment(TeachingAssignment $assignment): array
     {
+        $coFacultyCollection = $assignment->coFacultyMembers ?? collect();
+        $coFacultyText = $coFacultyCollection
+            ->map(function ($faculty) {
+                return trim((string) ($faculty->USER_CODE ?? '-') . ' - ' . (string) ($faculty->FIRST_NAME ?? '-') . ' ' . (string) ($faculty->LAST_NAME ?? ''));
+            })
+            ->filter()
+            ->values()
+            ->all();
+
         return [
             'id' => $assignment->id,
             'course_text' => trim(($assignment->course->course_code ?? '-') . ' - ' . ($assignment->course->course_title ?? '-')),
             'faculty_text' => trim(($assignment->faculty->USER_CODE ?? '-') . ' - ' . ($assignment->faculty->FIRST_NAME ?? '-') . ' ' . ($assignment->faculty->LAST_NAME ?? '')),
+            'co_faculty_text' => $coFacultyText,
             'delivery_type' => $assignment->delivery_type,
             'shift_id' => (int) ($assignment->shift_id ?? 0),
             'shift_text' => trim((string) ($assignment->shiftmaster->title ?? $assignment->shiftmaster->slug ?? '-')),
@@ -4344,6 +4609,11 @@ class SubjectController extends Controller
             'remarks_raw' => $assignment->remarks ?? '',
             'course_id' => $assignment->course_id,
             'faculty_id' => $assignment->faculty_id,
+            'co_faculty_ids' => $coFacultyCollection
+                ->pluck('id')
+                ->map(fn($value) => (int) $value)
+                ->values()
+                ->all(),
         ];
     }
 

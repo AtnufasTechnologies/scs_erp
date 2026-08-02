@@ -39,6 +39,35 @@ class AttendanceController extends Controller
     return $code;
   }
 
+  private function getCurrentFacultyId(): int
+  {
+    $userId = Auth::user()->id;
+    return (int) SubjectFacultyMaster::where('access_id', $userId)->value('faculty_id');
+  }
+
+  private function applyFacultyRoutineAccess($query, int $facultyId)
+  {
+    return $query->where(function ($nested) use ($facultyId) {
+      $nested->where('faculty_id', $facultyId)
+        ->orWhereHas('teachingAssignment', function ($assignmentQuery) use ($facultyId) {
+          $assignmentQuery->where('faculty_id', $facultyId)
+            ->orWhereHas('coFacultyMembers', function ($coFacultyQuery) use ($facultyId) {
+              $coFacultyQuery->where('faculties.id', $facultyId);
+            });
+        });
+    });
+  }
+
+  private function getAccessibleRoutineIds(int $facultyId)
+  {
+    return $this->applyFacultyRoutineAccess(SubjectHasRoutine::query(), $facultyId)
+      ->pluck('id')
+      ->map(fn($id) => (int) $id)
+      ->filter(fn($id) => $id > 0)
+      ->unique()
+      ->values();
+  }
+
   private function getRoutineAllocationGroupId(?SubjectHasRoutine $routine): int
   {
     if (!$routine) {
@@ -182,8 +211,7 @@ class AttendanceController extends Controller
       ], 422);
     }
 
-    $userId = Auth::user()->id;
-    $facultyId = (int) SubjectFacultyMaster::where('access_id', $userId)->value('faculty_id');
+    $facultyId = $this->getCurrentFacultyId();
     if ($facultyId <= 0) {
       return response()->json([
         'success' => false,
@@ -191,14 +219,14 @@ class AttendanceController extends Controller
       ], 422);
     }
 
-    $routine = SubjectHasRoutine::with([
+    $routineQuery = SubjectHasRoutine::with([
       'syllabus:id,subject_id,course_id,batch_id,semester_id',
       'syllabus.batchmaster:id,batch_name',
       'syllabus.courseLink.courseMaster:id,course_title,course_code',
     ])
-      ->where('id', (int) $validated['routine_id'])
-      ->where('faculty_id', $facultyId)
-      ->first();
+      ->where('id', (int) $validated['routine_id']);
+
+    $routine = $this->applyFacultyRoutineAccess($routineQuery, $facultyId)->first();
 
     if (!$routine || !$routine->syllabus) {
       return response()->json([
@@ -243,7 +271,7 @@ class AttendanceController extends Controller
 
     if (Schema::hasTable('attendance_qr_masters')) {
       $existingCandidates = AttendanceQrMaster::query()
-        ->where('faculty_id', $facultyId)
+        ->where('routine_id', (int) $validated['routine_id'])
         ->where('course_id', (int) $validated['course_id'])
         ->where('semester_id', $effectiveSemesterId)
         ->where('batch_id', $effectiveBatchId)
@@ -560,8 +588,7 @@ class AttendanceController extends Controller
       'record_id' => 'required|integer|exists:attendance_qr_masters,id',
     ]);
 
-    $userId = Auth::user()->id;
-    $facultyId = (int) SubjectFacultyMaster::where('access_id', $userId)->value('faculty_id');
+    $facultyId = $this->getCurrentFacultyId();
     if ($facultyId <= 0) {
       return response()->json([
         'success' => false,
@@ -578,8 +605,11 @@ class AttendanceController extends Controller
       'routine.syllabus.batchmaster:id,batch_name',
     ])
       ->where('id', (int) $validated['record_id'])
-      ->where('faculty_id', $facultyId)
       ->first();
+
+    if ($qrRecord && !$this->getAccessibleRoutineIds($facultyId)->contains((int) ($qrRecord->routine_id ?? 0))) {
+      $qrRecord = null;
+    }
 
     if (!$qrRecord || !$qrRecord->routine || !$qrRecord->routine->syllabus) {
       return response()->json([
@@ -749,8 +779,7 @@ class AttendanceController extends Controller
       'record_id' => 'required|integer|exists:attendance_qr_masters,id',
     ]);
 
-    $userId = Auth::user()->id;
-    $facultyId = (int) SubjectFacultyMaster::where('access_id', $userId)->value('faculty_id');
+    $facultyId = $this->getCurrentFacultyId();
     if ($facultyId <= 0) {
       return response()->json([
         'success' => false,
@@ -760,8 +789,11 @@ class AttendanceController extends Controller
 
     $qrRecord = AttendanceQrMaster::query()
       ->where('id', (int) $validated['record_id'])
-      ->where('faculty_id', $facultyId)
       ->first();
+
+    if ($qrRecord && !$this->getAccessibleRoutineIds($facultyId)->contains((int) ($qrRecord->routine_id ?? 0))) {
+      $qrRecord = null;
+    }
 
     if (!$qrRecord) {
       return response()->json([
@@ -780,11 +812,12 @@ class AttendanceController extends Controller
 
   public function qrRecords(Request $request)
   {
-    $userId = Auth::user()->id;
-    $facultyId = (int) SubjectFacultyMaster::where('access_id', $userId)->value('faculty_id');
+    $facultyId = $this->getCurrentFacultyId();
+
+    $accessibleRoutineIds = $this->getAccessibleRoutineIds($facultyId);
 
     $query = AttendanceQrMaster::query()
-      ->where('faculty_id', $facultyId)
+      ->whereIn('routine_id', $accessibleRoutineIds->all())
       ->with([
         'routine:id,syllabus_id,shift',
         'routine.syllabus:id,course_id,batch_id,semester_id',
@@ -815,7 +848,6 @@ class AttendanceController extends Controller
           ->where('attendance_date', $record->attendance_date)
           ->where('hour_id', (int) $record->hour_id)
           ->where('course_id', (int) $record->course_id)
-          ->where('faculty_id', $facultyId)
           ->where('attendance_method', 'qr')
           ->with('student:id,roll_no,first_name,last_name')
           ->get()
@@ -829,7 +861,6 @@ class AttendanceController extends Controller
           ->where('attendance_date', $record->attendance_date)
           ->where('hour_id', (int) $record->hour_id)
           ->where('course_id', (int) $record->course_id)
-          ->where('faculty_id', $facultyId)
           ->where('attendance_method', 'qr')
           ->with('student:id,roll_no,first_name,last_name')
           ->get()
@@ -853,7 +884,7 @@ class AttendanceController extends Controller
     });
 
     $courseFilterIds = AttendanceQrMaster::query()
-      ->where('faculty_id', $facultyId)
+      ->whereIn('routine_id', $accessibleRoutineIds->all())
       ->distinct()
       ->pluck('course_id')
       ->filter(fn($id) => (int) $id > 0)
@@ -876,11 +907,10 @@ class AttendanceController extends Controller
    */
   public function index()
   {
-    $userId = Auth::user()->id;
-    $facultyId = SubjectFacultyMaster::where('access_id', $userId)->value('faculty_id');
+    $facultyId = $this->getCurrentFacultyId();
 
     // Get all subjects assigned to this faculty
-    $syllabusAssignments = SubjectHasRoutine::where('faculty_id', $facultyId)
+    $syllabusAssignments = $this->applyFacultyRoutineAccess(SubjectHasRoutine::query(), $facultyId)
       ->with([
         'syllabus.subject:id,title',
         'syllabus.batchmaster:id,batch_name',
@@ -922,8 +952,12 @@ class AttendanceController extends Controller
 
     DB::beginTransaction();
     try {
-      $userId = Auth::user()->id;
-      $facultyId = SubjectFacultyMaster::where('access_id', $userId)->value('faculty_id');
+      $facultyId = $this->getCurrentFacultyId();
+
+      if (!$this->getAccessibleRoutineIds($facultyId)->contains((int) $request->routine_id)) {
+        throw new \Exception('You are not authorized to mark attendance for this class.');
+      }
+
       foreach ($request->attendance as $studentId => $status) {
         StudentAttendance::updateOrCreate(
           [
@@ -932,13 +966,13 @@ class AttendanceController extends Controller
             'attendance_date' => $request->attendance_date,
             'course_id' => $request->course_id,
             'hour_id' => $request->hour_id,
-            'faculty_id' => $facultyId,
             'semester_id' => $request->semester_id,
             'batch' => $request->batch,
           ],
           [
             'status' => $status,
             'attendance_method' => 'manual',
+            'faculty_id' => $facultyId,
           ]
         );
       }
@@ -959,10 +993,9 @@ class AttendanceController extends Controller
   public function viewAttendance(Request $request)
   {
 
-    $userId = Auth::user()->id;
-    $facultyId = SubjectFacultyMaster::where('access_id', $userId)->value('faculty_id');
+    $facultyId = $this->getCurrentFacultyId();
     // Get all subjects assigned to this faculty
-    $syllabusAssignments = SubjectHasRoutine::where('faculty_id', $facultyId)
+    $syllabusAssignments = $this->applyFacultyRoutineAccess(SubjectHasRoutine::query(), $facultyId)
       ->with([
         'syllabus.subject:id,title',
         'syllabus.batchmaster:id,batch_name',
@@ -975,10 +1008,11 @@ class AttendanceController extends Controller
       ->unique(fn($routine) => (string) ($routine->syllabus_id ?? '0') . '_' . strtolower(trim((string) ($routine->shift ?? 'common'))))
       ->values();
 
+    $accessibleRoutineIds = $this->getAccessibleRoutineIds($facultyId);
 
     $query = StudentAttendance::orderBy('attendance_date', 'desc')
       ->latest()
-      ->where('faculty_id', $facultyId)
+      ->whereIn('routine_id', $accessibleRoutineIds->all())
       ->with('hourmaster');
 
 
@@ -1017,6 +1051,11 @@ class AttendanceController extends Controller
   {
     try {
       $attendance = StudentAttendance::findOrFail($id);
+      $facultyId = $this->getCurrentFacultyId();
+      if (!$this->getAccessibleRoutineIds($facultyId)->contains((int) ($attendance->routine_id ?? 0))) {
+        return back()->with('error', 'You are not authorized to delete this attendance record.');
+      }
+
       $attendance->delete();
 
       return back()->with('success', 'Attendance record deleted successfully!');
@@ -1045,6 +1084,11 @@ class AttendanceController extends Controller
     $routine = SubjectHasRoutine::with(['teachingAssignment:id,allocation_group', 'teachingAllocation:id,allocation_group'])->find($id);
     if (!$routine) {
       return back()->with('error', 'Invalid routine selected.');
+    }
+
+    $facultyId = $this->getCurrentFacultyId();
+    if (!$this->getAccessibleRoutineIds($facultyId)->contains((int) $id)) {
+      return back()->with('error', 'You are not authorized to access this class attendance.');
     }
 
     $routineShift = strtolower(trim((string) ($routine->shift ?? 'common')));
@@ -1322,6 +1366,7 @@ class AttendanceController extends Controller
         [
           'status' => $request->status,
           'attendance_method' => 'manual',
+          'faculty_id' => $this->getCurrentFacultyId(),
           'extra' => $extra,
         ]
       );
@@ -1340,11 +1385,10 @@ class AttendanceController extends Controller
 
   function extraClasses()
   {
-    $userId = Auth::user()->id;
-    $facultyId = SubjectFacultyMaster::where('access_id', $userId)->value('faculty_id');
+    $facultyId = $this->getCurrentFacultyId();
 
     // Get all subjects assigned to this faculty
-    $syllabusAssignments = SubjectHasRoutine::where('faculty_id', $facultyId)
+    $syllabusAssignments = $this->applyFacultyRoutineAccess(SubjectHasRoutine::query(), $facultyId)
       ->with([
         'syllabus.subject:id,title',
         'syllabus.batchmaster:id,batch_name',
@@ -1382,8 +1426,11 @@ class AttendanceController extends Controller
 
     DB::beginTransaction();
     try {
-      $userId = Auth::user()->id;
-      $facultyId = SubjectFacultyMaster::where('access_id', $userId)->value('faculty_id');
+      $facultyId = $this->getCurrentFacultyId();
+
+      if (!$this->getAccessibleRoutineIds($facultyId)->contains((int) $request->routine_id)) {
+        throw new \Exception('You are not authorized to mark remedial attendance for this class.');
+      }
 
       // Ensure all required fields are present and properly typed
       if (!$facultyId) {
@@ -1401,13 +1448,13 @@ class AttendanceController extends Controller
             'attendance_date' => $request->attendance_date,
             'course_id' => (int) $request->course_id,
             'hour_id' => $request->hour_id ? (int) $request->hour_id : null,
-            'faculty_id' => (int) $facultyId,
             'semester_id' => (int) $request->semester_id,
             'batch' => $request->batch,
           ],
           [
             'status' => $status,
             'attendance_method' => 'manual',
+            'faculty_id' => (int) $facultyId,
           ]
         );
       }
@@ -1430,10 +1477,9 @@ class AttendanceController extends Controller
   public function viewExtraClassAttendance(Request $request)
   {
 
-    $userId = Auth::user()->id;
-    $facultyId = SubjectFacultyMaster::where('access_id', $userId)->value('faculty_id');
+    $facultyId = $this->getCurrentFacultyId();
     // Get all subjects assigned to this faculty
-    $syllabusAssignments = SubjectHasRoutine::where('faculty_id', $facultyId)
+    $syllabusAssignments = $this->applyFacultyRoutineAccess(SubjectHasRoutine::query(), $facultyId)
       ->with([
         'syllabus.subject:id,title',
         'syllabus.batchmaster:id,batch_name',
@@ -1444,9 +1490,11 @@ class AttendanceController extends Controller
       ->unique('syllabus_id');
 
 
+    $accessibleRoutineIds = $this->getAccessibleRoutineIds($facultyId);
+
     $query = ExtraClassAttendance::orderBy('attendance_date', 'desc')
       ->orderBy('hour_id', 'asc')
-      ->where('faculty_id', $facultyId);
+      ->whereIn('routine_id', $accessibleRoutineIds->all());
 
     if (!empty($request->attendance_date)) {
       $query->where('attendance_date', $request->attendance_date);

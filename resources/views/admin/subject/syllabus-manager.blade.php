@@ -9,6 +9,37 @@ $shiftTitleMap = collect($shiftOptions ?? [])->pluck('title', 'slug')->toArray()
 $selectedProgramType = strtoupper((string) ($selectedProgramType ?? request('filter_program_type', 'UG')));
 $selectedProgramType = $selectedProgramType === 'PG' ? 'PG' : 'UG';
 
+$taxonomyDomainLabel = function ($level) {
+  if (!$level) {
+    return 'Cognitive';
+  }
+
+  $domain = trim((string) ($level->learning_domain ?? ''));
+  return $domain !== '' ? $domain : 'Cognitive';
+};
+
+$taxonomyFrameworkLabel = function ($level) use ($taxonomyDomainLabel) {
+  if (!$level) {
+    return 'RBT';
+  }
+
+  $framework = trim((string) ($level->taxonomy_framework ?? ''));
+  if ($framework !== '') {
+    return $framework;
+  }
+
+  $domain = $taxonomyDomainLabel($level);
+  if (strcasecmp($domain, 'Psychomotor') === 0) {
+    return 'Dave';
+  }
+
+  if (strcasecmp($domain, 'Affective') === 0) {
+    return 'Krathwohl';
+  }
+
+  return 'RBT';
+};
+
 ?>
 @include('includes.header')
 @include('includes.dept-sidebar')
@@ -517,7 +548,13 @@ $selectedProgramType = $selectedProgramType === 'PG' ? 'PG' : 'UG';
                                 <small class="text-muted">
                                   <span class="badge bg-primary">
                                     @foreach ($syllabusSubunit->csoSubunit->taxonomies ?? [] as $taxonomy)
-                                    {{ $taxonomy->rbtmaster->shortname ?? '-' }} - {{ $taxonomy->rbtmaster->fullname ?? '-' }}
+                                    @php
+                                    $taxonomyLevel = $taxonomy->rbtmaster ?? null;
+                                    @endphp
+                                    {{ $taxonomyLevel->shortname ?? '-' }} - {{ $taxonomyLevel->fullname ?? '-' }}
+                                    @if($taxonomyLevel)
+                                    [{{ $taxonomyFrameworkLabel($taxonomyLevel) }} / {{ $taxonomyDomainLabel($taxonomyLevel) }}]
+                                    @endif
                                     @endforeach
                                   </span>
                                 </small>
@@ -880,7 +917,16 @@ $selectedProgramType = $selectedProgramType === 'PG' ? 'PG' : 'UG';
           row.className = 'form-check mb-1';
 
           const inputId = `cso_${cso.id}_subunit_${subunit.id}`;
-          const taxonomyLabel = subunit.taxomonylevel?.rbtmaster?.fullname ?? 'N/A';
+          const taxonomyShort = subunit.taxomonylevel?.rbtmaster?.shortname ?? '';
+          const taxonomyName = subunit.taxomonylevel?.rbtmaster?.fullname ?? 'N/A';
+          const taxonomyDomain = subunit.taxomonylevel?.rbtmaster?.learning_domain || 'Cognitive';
+          let taxonomyFramework = subunit.taxomonylevel?.rbtmaster?.taxonomy_framework || '';
+
+          if (!taxonomyFramework) {
+            taxonomyFramework = taxonomyDomain === 'Psychomotor' ? 'Dave' : (taxonomyDomain === 'Affective' ? 'Krathwohl' : 'RBT');
+          }
+
+          const taxonomyLabel = `${taxonomyShort ? `${taxonomyShort} - ` : ''}${taxonomyName} [${taxonomyFramework}/${taxonomyDomain}]`;
 
           row.innerHTML = `
             <input class="form-check-input cso-subunit-checkbox cso-${cso.id}-subunit" type="checkbox" name="cso_subunit_map[${cso.id}][]" value="${subunit.id}" id="${inputId}">
