@@ -51,6 +51,18 @@
             value="{{ old('matrix_name') }}" maxlength="255" required>
           @error('matrix_name')<div class="invalid-feedback">{{ $message }}</div>@enderror
         </div>
+        <div class="col-md-3">
+          <label class="form-label">Pay Band</label>
+          <input type="text" name="pay_band" class="form-control @error('pay_band') is-invalid @enderror"
+            value="{{ old('pay_band') }}" maxlength="100" placeholder="e.g. 9300-34800">
+          @error('pay_band')<div class="invalid-feedback">{{ $message }}</div>@enderror
+        </div>
+        <div class="col-md-3">
+          <label class="form-label">Grade Pay</label>
+          <input type="number" name="grade_pay" class="form-control @error('grade_pay') is-invalid @enderror"
+            value="{{ old('grade_pay') }}" min="0">
+          @error('grade_pay')<div class="invalid-feedback">{{ $message }}</div>@enderror
+        </div>
 
       </div>
       <div class="row mb-3">
