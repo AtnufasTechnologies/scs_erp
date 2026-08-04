@@ -42,7 +42,7 @@
             @endforeach
           </select>
         </div>
-        <div class="col-md-5">
+        <div class="col-md-7">
           <label class="form-label">Search Student</label>
           <input type="text" name="search" class="form-control" value="{{ $search }}" placeholder="Roll no, register no, application code, or name">
         </div>
@@ -70,7 +70,7 @@
               <th>Student</th>
               <th>Current Campus</th>
               <th>Current Program</th>
-              <th>Transfer Action</th>
+              <th>Transfer Action (Campus + Batch + Subject)</th>
             </tr>
           </thead>
           <tbody>
@@ -93,10 +93,13 @@
                 @endif
               </td>
               <td>
+                @php
+                $defaultSubjectId = $student->academic_dept_id ?: $student->department;
+                @endphp
                 <form method="POST" action="{{ route('itcell.student-campus-transfer.store') }}" class="row g-2 transfer-form">
                   @csrf
                   <input type="hidden" name="student_id" value="{{ $student->id }}">
-                  <div class="col-12 col-lg-4">
+                  <div class="col-12 col-lg-3">
                     <select name="to_campus_id" class="form-select form-select-sm target-campus-select" required>
                       <option value="">Target Campus</option>
                       @foreach($campuses as $campus)
@@ -106,12 +109,25 @@
                       @endforeach
                     </select>
                   </div>
-                  <div class="col-12 col-lg-4">
+                  <div class="col-12 col-lg-2">
+                    <select name="target_batch_id" class="form-select form-select-sm target-batch-select" required>
+                      <option value="">Batch</option>
+                      @foreach($batches as $batch)
+                      <option value="{{ $batch->id }}" {{ (int)$student->batch === (int)$batch->id ? 'selected' : '' }}>{{ $batch->batch_name }}</option>
+                      @endforeach
+                    </select>
+                  </div>
+                  <div class="col-12 col-lg-2">
+                    <select name="target_subject_id" class="form-select form-select-sm target-subject-select " data-default-subject-id="{{ (int) $defaultSubjectId }}" required>
+                      <option value="">Subject (Department)</option>
+                    </select>
+                  </div>
+                  <div class="col-12 col-lg-2">
                     <select name="to_program_id" class="form-select form-select-sm target-program-select" required>
                       <option value="">Target Program</option>
                     </select>
                   </div>
-                  <div class="col-12 col-lg-3">
+                  <div class="col-12 col-lg-2">
                     <input type="text" name="reason" class="form-control form-control-sm" maxlength="500" placeholder="Reason (optional)">
                   </div>
                   <div class="col-12 col-lg-1 d-grid">
@@ -182,54 +198,161 @@
 </div>
 
 @php
-$programMap = $programsByCampus->map(function ($items) {
-return $items->map(function ($program) {
+$subjectsByCampus = $subjects->groupBy('campus_id')->map(function ($items) {
+return $items->map(function ($subject) {
 return [
-'id' => $program->id,
-'code' => $program->code,
-'name' => $program->name,
+'id' => (int) $subject->id,
+'name' => (string) ($subject->title ?? $subject->name ?? ''),
 ];
 })->values();
 });
 @endphp
 
-<script type="application/json" id="programMapData">
-  @json($programMap)
+<script type="application/json" id="subjectsByCampusData">
+  @json($subjectsByCampus)
 </script>
 <script>
   document.addEventListener('DOMContentLoaded', function() {
-    const rawMap = document.getElementById('programMapData')?.textContent || '{}';
-    let programMap = {};
+    const programUrl = "{{ route('itcell.student-campus-transfer.programs') }}";
+    const rawSubjectsMap = document.getElementById('subjectsByCampusData')?.textContent || '{}';
+    let subjectsByCampus = {};
 
     try {
-      programMap = JSON.parse(rawMap);
+      subjectsByCampus = JSON.parse(rawSubjectsMap);
     } catch (error) {
-      programMap = {};
+      subjectsByCampus = {};
     }
 
-    function renderProgramOptions(campusSelect, programSelect) {
-      const targetCampusId = String(campusSelect.value || '');
-      const programs = programMap[targetCampusId] || [];
+    function renderSubjectOptions(campusSelect, subjectSelect) {
+      const targetCampusId = String(campusSelect.value || '').trim();
+      const options = subjectsByCampus[targetCampusId] || [];
+      const defaultSubjectId = String(subjectSelect.dataset.defaultSubjectId || '').trim();
 
+      subjectSelect.innerHTML = '<option value="">Subject</option>';
+
+      options.forEach(function(subject) {
+        const option = document.createElement('option');
+        option.value = String(subject.id);
+        option.textContent = subject.name || 'Subject';
+        subjectSelect.appendChild(option);
+      });
+
+      if (defaultSubjectId) {
+        const hasDefault = options.some(function(subject) {
+          return String(subject.id) === defaultSubjectId;
+        });
+        if (hasDefault) {
+          subjectSelect.value = defaultSubjectId;
+          return;
+        }
+      }
+
+      if (options.length === 1) {
+        subjectSelect.value = String(options[0].id);
+      }
+    }
+
+    function renderProgramOptions(programSelect, programs) {
+      const list = Array.isArray(programs) ? programs : [];
       programSelect.innerHTML = '<option value="">Target Program</option>';
-      programs.forEach(function(program) {
+
+      list.forEach(function(program) {
         const option = document.createElement('option');
         option.value = String(program.id);
         option.textContent = ((program.code || '') + ' - ' + (program.name || '')).trim();
         programSelect.appendChild(option);
       });
+
+      if (list.length === 1) {
+        programSelect.value = String(list[0].id);
+      }
+    }
+
+    function setMoveButtonState(moveButton, shouldEnable) {
+      if (!moveButton) {
+        return;
+      }
+      moveButton.disabled = !shouldEnable;
+    }
+
+    async function syncPrograms(form, campusSelect, batchSelect, subjectSelect, programSelect, moveButton) {
+      const targetCampusId = String(campusSelect.value || '').trim();
+      const targetBatchId = String(batchSelect.value || '').trim();
+      const targetSubjectId = String(subjectSelect.value || '').trim();
+
+      renderProgramOptions(programSelect, []);
+
+      if (!targetCampusId || !targetBatchId || !targetSubjectId) {
+        setMoveButtonState(moveButton, false);
+        return;
+      }
+
+      setMoveButtonState(moveButton, false);
+      programSelect.innerHTML = '<option value="">Loading programs...</option>';
+
+      try {
+        const params = new URLSearchParams({
+          campus_id: targetCampusId,
+          batch_id: targetBatchId,
+          subject_id: targetSubjectId,
+        });
+
+        const response = await fetch(programUrl + '?' + params.toString(), {
+          headers: {
+            'X-Requested-With': 'XMLHttpRequest',
+          },
+        });
+
+        if (!response.ok) {
+          throw new Error('Program fetch failed');
+        }
+
+        const payload = await response.json();
+        const programs = Array.isArray(payload.programs) ? payload.programs : [];
+        renderProgramOptions(programSelect, programs);
+
+        if (programs.length === 0) {
+          programSelect.innerHTML = '<option value="">No programs available</option>';
+          setMoveButtonState(moveButton, false);
+          return;
+        }
+
+        setMoveButtonState(moveButton, true);
+      } catch (error) {
+        programSelect.innerHTML = '<option value="">Failed to load programs</option>';
+        setMoveButtonState(moveButton, false);
+      }
     }
 
     document.querySelectorAll('.transfer-form').forEach(function(form) {
       const campusSelect = form.querySelector('.target-campus-select');
+      const batchSelect = form.querySelector('.target-batch-select');
+      const subjectSelect = form.querySelector('.target-subject-select');
       const programSelect = form.querySelector('.target-program-select');
+      const moveButton = form.querySelector('button[type="submit"]');
 
-      if (!campusSelect || !programSelect) {
+      if (!campusSelect || !batchSelect || !subjectSelect || !programSelect) {
         return;
       }
 
+      const runSync = function() {
+        syncPrograms(form, campusSelect, batchSelect, subjectSelect, programSelect, moveButton);
+      };
+
+      setMoveButtonState(moveButton, false);
       campusSelect.addEventListener('change', function() {
-        renderProgramOptions(campusSelect, programSelect);
+        renderSubjectOptions(campusSelect, subjectSelect);
+        runSync();
+      });
+      batchSelect.addEventListener('change', runSync);
+      subjectSelect.addEventListener('change', runSync);
+
+      renderSubjectOptions(campusSelect, subjectSelect);
+
+      form.addEventListener('submit', function(event) {
+        if (!programSelect.value) {
+          event.preventDefault();
+        }
       });
     });
   });

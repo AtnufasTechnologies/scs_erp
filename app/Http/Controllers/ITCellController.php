@@ -22,6 +22,7 @@ use App\Models\StudentSemesterConfig;
 use App\Models\StudentMaster;
 use App\Models\StudentProgram;
 use App\Models\Subject;
+use App\Models\SubjectHasStudentProgam;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
@@ -31,6 +32,41 @@ use Maatwebsite\Excel\Facades\Excel;
 
 class ITCellController extends Controller
 {
+
+    private function resolveEligibleProgramIdsForTransfer(int $campusId, int $batchId, int $subjectId)
+    {
+        $mappedProgramIds = SubjectHasStudentProgam::query()
+            ->where('campus_id', $campusId)
+            ->where('batch_id', $batchId)
+            ->where('subject_id', $subjectId)
+            ->distinct()
+            ->pluck('student_program_id')
+            ->map(fn($id) => (int) $id)
+            ->filter(fn($id) => $id > 0)
+            ->unique()
+            ->values();
+
+        if ($mappedProgramIds->isEmpty()) {
+            return collect();
+        }
+
+        $enrolledProgramIds = StudentMaster::query()
+            ->where('campus_id', $campusId)
+            ->where('batch', $batchId)
+            ->whereNotNull('new_program_id')
+            ->distinct()
+            ->pluck('new_program_id')
+            ->map(fn($id) => (int) $id)
+            ->filter(fn($id) => $id > 0)
+            ->unique()
+            ->values();
+
+        if ($enrolledProgramIds->isEmpty()) {
+            return collect();
+        }
+
+        return $mappedProgramIds->intersect($enrolledProgramIds)->values();
+    }
 
     private function deriveCurrentYearFromSemester(int $semester): int
     {
@@ -825,6 +861,15 @@ class ITCellController extends Controller
             $selectedCampusId = 1;
         }
 
+        $batches = BatchMaster::query()
+            ->orderByDesc('batch_name')
+            ->get(['id', 'batch_name']);
+
+        $subjects = Subject::query()
+            ->whereIn('campus_id', $allowedCampusIds)
+            ->orderBy('title')
+            ->get(['id', 'title', 'campus_id']);
+
         $search = trim((string) $request->input('search', ''));
 
         $studentsQuery = StudentMaster::query()
@@ -854,12 +899,6 @@ class ITCellController extends Controller
                 'search' => $search,
             ]);
 
-        $programsByCampus = StudentProgram::query()
-            ->whereIn('campus_id', $allowedCampusIds)
-            ->orderBy('name')
-            ->get(['id', 'name', 'code', 'campus_id'])
-            ->groupBy('campus_id');
-
         $recentTransfers = StudentCampusTransferLog::query()
             ->with([
                 'student:id,first_name,last_name,roll_no',
@@ -875,11 +914,71 @@ class ITCellController extends Controller
 
         return view('admin.itcell.student-campus-transfer', [
             'campuses' => $campuses,
+            'batches' => $batches,
+            'subjects' => $subjects,
             'selectedCampusId' => $selectedCampusId,
             'search' => $search,
             'students' => $students,
-            'programsByCampus' => $programsByCampus,
             'recentTransfers' => $recentTransfers,
+        ]);
+    }
+
+    public function getStudentTransferPrograms(Request $request)
+    {
+        // Keep backward compatibility with earlier payload keys.
+        $request->merge([
+            'campus_id' => $request->input('campus_id', $request->input('to_campus_id')),
+            'batch_id' => $request->input('batch_id', $request->input('target_batch_id')),
+            'subject_id' => $request->input('subject_id', $request->input('target_subject_id')),
+        ]);
+
+        $validated = $request->validate([
+            'campus_id' => 'required|integer|in:1,2',
+            'batch_id' => 'required|integer|exists:batch_masters,id',
+            'subject_id' => 'required|integer|exists:subjects,id',
+        ], [], [
+            'campus_id' => 'campus',
+            'batch_id' => 'batch',
+            'subject_id' => 'subject',
+        ]);
+
+        $toCampusId = (int) $validated['campus_id'];
+        $targetBatchId = (int) $validated['batch_id'];
+        $targetSubjectId = (int) $validated['subject_id'];
+
+        $targetSubject = Subject::query()->findOrFail($targetSubjectId);
+        if ((int) $targetSubject->campus_id !== $toCampusId) {
+            return response()->json([
+                'programs' => [],
+            ]);
+        }
+
+        $eligibleProgramIds = $this->resolveEligibleProgramIdsForTransfer(
+            $toCampusId,
+            $targetBatchId,
+            $targetSubjectId
+        );
+
+        $programs = StudentProgram::query()
+            ->where('campus_id', $toCampusId)
+            ->when($eligibleProgramIds->isNotEmpty(), function ($query) use ($eligibleProgramIds) {
+                $query->whereIn('id', $eligibleProgramIds);
+            }, function ($query) {
+                $query->whereRaw('1 = 0');
+            })
+            ->orderBy('name')
+            ->get(['id', 'name', 'code'])
+            ->map(function ($program) {
+                return [
+                    'id' => (int) $program->id,
+                    'code' => (string) $program->code,
+                    'name' => (string) $program->name,
+                ];
+            })
+            ->values();
+
+        return response()->json([
+            'programs' => $programs,
         ]);
     }
 
@@ -889,7 +988,16 @@ class ITCellController extends Controller
             'student_id' => 'required|integer|exists:student_masters,id',
             'to_campus_id' => 'required|integer|in:1,2',
             'to_program_id' => 'required|integer|exists:student_program,id',
+            'target_batch_id' => 'required|integer|exists:batch_masters,id',
+            'target_subject_id' => 'required|integer|exists:subjects,id',
             'reason' => 'nullable|string|max:500',
+        ], [], [
+            'student_id' => 'student',
+            'to_campus_id' => 'target campus',
+            'to_program_id' => 'target program',
+            'target_batch_id' => 'batch',
+            'target_subject_id' => 'subject',
+            'reason' => 'reason',
         ]);
 
         try {
@@ -915,6 +1023,26 @@ class ITCellController extends Controller
                 if ((int) $toProgram->campus_id !== $toCampusId) {
                     throw ValidationException::withMessages([
                         'to_program_id' => 'Selected enrolled program does not belong to the target campus.',
+                    ]);
+                }
+
+                $targetSubjectId = (int) $validated['target_subject_id'];
+                $targetSubject = Subject::query()->findOrFail($targetSubjectId);
+                if ((int) $targetSubject->campus_id !== $toCampusId) {
+                    throw ValidationException::withMessages([
+                        'target_subject_id' => 'Selected subject does not belong to the target campus.',
+                    ]);
+                }
+
+                $eligibleProgramIds = $this->resolveEligibleProgramIdsForTransfer(
+                    $toCampusId,
+                    (int) $validated['target_batch_id'],
+                    $targetSubjectId
+                );
+
+                if (!$eligibleProgramIds->contains((int) $toProgram->id)) {
+                    throw ValidationException::withMessages([
+                        'to_program_id' => 'Selected program is not available for enrolled students in the chosen batch/subject scope.',
                     ]);
                 }
 
