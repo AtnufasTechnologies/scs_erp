@@ -1257,10 +1257,15 @@ $days = Weekday::all();
             const entryMeta = formatEntryMeta(entry);
             const routineId = entry.routine_id ? Number(entry.routine_id) : 'null';
             const roomLabel = (entry.room && String(entry.room).trim() !== '') ? String(entry.room).trim() : '-';
+            const coFacultyNames = Array.isArray(entry.co_faculty_names) ? entry.co_faculty_names.filter((name) => String(name || '').trim() !== '') : [];
+            const coFacultyLine = coFacultyNames.length ?
+              `<div><i class="fas fa-users"></i> Co-Faculty: ${escapeHtml(coFacultyNames.join(', '))}</div>` :
+              '';
             return `
               <div class="slot-entry p-2 mb-2 text-start" style="font-size:12px;">
                 <div class="fw-bold">${escapeHtml(entry.subject_name || 'Course')}</div>
                 <div><i class="fas fa-user"></i> ${escapeHtml(entry.teacher_name || 'Teacher')}</div>
+                ${coFacultyLine}
                 <div><i class="fas fa-door-open"></i> Room: ${escapeHtml(roomLabel)}</div>
                 <div>
                   ${entryMeta.map((meta, index) => `<span class="slot-chip ${index === 0 ? 'slot-chip-delivery' : 'slot-chip-group'}">${escapeHtml(meta)}</span>`).join('')}
