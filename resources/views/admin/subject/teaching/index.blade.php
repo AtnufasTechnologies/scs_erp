@@ -217,7 +217,19 @@
             <tr id="assignment-row-{{ $assignment->id }}">
               <td>{{ $loop->iteration }}</td>
               <td>{{ $assignment->course->course_code ?? '-' }} - {{ $assignment->course->course_title ?? '-' }}</td>
-              <td>{{ $assignment->faculty->USER_CODE ?? '-' }} - {{ $assignment->faculty->FIRST_NAME ?? '-' }} {{ $assignment->faculty->LAST_NAME ?? '' }}</td>
+              <td>
+                @php
+                $primaryFacultyLabels = ($assignment->primaryFacultyMembers ?? collect())
+                ->map(fn($faculty) => trim(($faculty->USER_CODE ?? '-') . ' - ' . ($faculty->FIRST_NAME ?? '-') . ' ' . ($faculty->LAST_NAME ?? '')))
+                ->filter()
+                ->values();
+                @endphp
+                @if($primaryFacultyLabels->isNotEmpty())
+                {{ $primaryFacultyLabels->implode(', ') }}
+                @else
+                {{ $assignment->faculty->USER_CODE ?? '-' }} - {{ $assignment->faculty->FIRST_NAME ?? '-' }} {{ $assignment->faculty->LAST_NAME ?? '' }}
+                @endif
+              </td>
               <td>
                 @php
                 $coFacultyLabels = ($assignment->coFacultyMembers ?? collect())
@@ -246,6 +258,7 @@
                   data-id="{{ $assignment->id }}"
                   data-course_id="{{ $assignment->course_id }}"
                   data-faculty_id="{{ $assignment->faculty_id }}"
+                  data-primary_faculty_ids='@json(($assignment->primaryFacultyMembers ?? collect())->pluck("id")->map(fn($id) => (int) $id)->values()->all())'
                   data-co_faculty_ids='@json(($assignment->coFacultyMembers ?? collect())->pluck("id")->map(fn($id) => (int) $id)->values()->all())'
                   data-delivery_type="{{ $assignment->delivery_type }}"
                   data-shift_id="{{ (int) ($assignment->shift_id ?? 0) }}"
@@ -383,7 +396,9 @@
 
     function buildRowHtml(assignment) {
       const safeCourse = escapeHtml(assignment.course_text || '-');
-      const safeFaculty = escapeHtml(assignment.faculty_text || '-');
+      const safeFaculty = Array.isArray(assignment.primary_faculty_text) && assignment.primary_faculty_text.length ?
+        assignment.primary_faculty_text.map((label) => escapeHtml(label)).join(', ') :
+        escapeHtml(assignment.faculty_text || '-');
       const safeCoFaculty = Array.isArray(assignment.co_faculty_text) && assignment.co_faculty_text.length ?
         assignment.co_faculty_text.map((label) => escapeHtml(label)).join(', ') : '-';
       const safeDelivery = escapeHtml(assignment.delivery_type || '-');
@@ -413,6 +428,7 @@
               data-id="${assignment.id}"
               data-course_id="${assignment.course_id}"
               data-faculty_id="${assignment.faculty_id}"
+              data-primary_faculty_ids='${escapeHtml(JSON.stringify(Array.isArray(assignment.primary_faculty_ids) ? assignment.primary_faculty_ids : []))}'
               data-co_faculty_ids='${escapeHtml(JSON.stringify(Array.isArray(assignment.co_faculty_ids) ? assignment.co_faculty_ids : []))}'
               data-delivery_type="${escapeHtml(assignment.delivery_type || '')}"
               data-shift_id="${assignment.shift_id || ''}"
@@ -502,17 +518,13 @@
             existingRow.outerHTML = buildRowHtml(assignment);
           }
         } else {
-          assignments.slice().reverse().forEach((item) => {
-            tableBody.insertAdjacentHTML('afterbegin', buildRowHtml(item));
-          });
+          tableBody.insertAdjacentHTML('afterbegin', buildRowHtml(assignment));
         }
 
-        assignments.forEach((item) => {
-          const affectedRow = document.getElementById('assignment-row-' + item.id);
-          if (affectedRow) {
-            updateDeleteFormAction(affectedRow, item.id);
-          }
-        });
+        const affectedRow = document.getElementById('assignment-row-' + assignment.id);
+        if (affectedRow) {
+          updateDeleteFormAction(affectedRow, assignment.id);
+        }
 
         renumberRows();
         showToast(payload.message || 'Saved successfully.', 'success');
@@ -536,9 +548,23 @@
         singlePrimarySelect.value = editButton.dataset.faculty_id || '';
       }
       if (multiPrimarySelect) {
-        const selectedPrimaryId = String(editButton.dataset.faculty_id || '');
+        let selectedPrimaryIds = [];
+        try {
+          selectedPrimaryIds = JSON.parse(editButton.dataset.primary_faculty_ids || '[]');
+          if (!Array.isArray(selectedPrimaryIds)) {
+            selectedPrimaryIds = [];
+          }
+        } catch (error) {
+          selectedPrimaryIds = [];
+        }
+
+        if (selectedPrimaryIds.length === 0 && editButton.dataset.faculty_id) {
+          selectedPrimaryIds = [Number(editButton.dataset.faculty_id)];
+        }
+
+        const selectedPrimarySet = new Set(selectedPrimaryIds.map((value) => String(value)));
         Array.from(multiPrimarySelect.options).forEach((option) => {
-          option.selected = selectedPrimaryId !== '' && String(option.value) === selectedPrimaryId;
+          option.selected = selectedPrimarySet.has(String(option.value));
         });
       }
       const coFacultySelect = form.querySelector('[name="co_faculty_ids[]"]');

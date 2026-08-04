@@ -57,20 +57,29 @@ class TeachingAssignment extends Model
             ->wherePivot('teaching_role', self::ROLE_CO_FACULTY);
     }
 
+    public function primaryFacultyMembers()
+    {
+        return $this->belongsToMany(Faculty::class, 'teaching_assignment_faculties', 'teaching_assignment_id', 'faculty_id')
+            ->withPivot('teaching_role')
+            ->wherePivot('teaching_role', self::ROLE_PRIMARY);
+    }
+
     public function allAssignedFacultyIds(): array
     {
-        $primaryId = (int) ($this->faculty_id ?? 0);
-        $ids = [];
+        $primaryIds = $this->primaryFacultyMembers
+            ? $this->primaryFacultyMembers->pluck('id')->map(fn($id) => (int) $id)->all()
+            : [];
 
+        $primaryId = (int) ($this->faculty_id ?? 0);
         if ($primaryId > 0) {
-            $ids[] = $primaryId;
+            $primaryIds[] = $primaryId;
         }
 
         $coFacultyIds = $this->coFacultyMembers
             ? $this->coFacultyMembers->pluck('id')->map(fn($id) => (int) $id)->all()
             : [];
 
-        return array_values(array_unique(array_merge($ids, $coFacultyIds)));
+        return array_values(array_unique(array_merge($primaryIds, $coFacultyIds)));
     }
 
     public function getAllocationGroupLabelAttribute(): string
