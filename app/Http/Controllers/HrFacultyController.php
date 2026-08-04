@@ -3,11 +3,17 @@
 namespace App\Http\Controllers;
 
 use App\Models\Faculty;
+use App\Models\FacultySalaryMaster;
 use App\Models\HrFacultyStatusHistory;
+use App\Models\HrGradeLevel;
+use App\Models\HrPayMatrix;
+use App\Models\HrDesignation;
 use App\Models\NationalityMaster;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\Log;
 use App\Models\User;
 use App\Models\SubjectFacultyMaster;
 
@@ -21,7 +27,10 @@ class HrFacultyController extends Controller
     $search = $request->get('search');
     $status = $request->get('status');
 
-    $query = Faculty::with(['nationality']);
+    $totalStaff = Faculty::count();
+    $totalPayMatrices = HrPayMatrix::count();
+
+    $query = Faculty::with(['nationality', 'salaryMaster.payMatrix']);
 
     if ($search) {
       $query->where(function ($q) use ($search) {
@@ -41,7 +50,7 @@ class HrFacultyController extends Controller
 
     $faculties = $query->latest()->paginate(20);
 
-    return view('hr.faculty.index', compact('faculties', 'search', 'status'));
+    return view('hr.faculty.index', compact('faculties', 'search', 'status', 'totalStaff', 'totalPayMatrices'));
   }
 
   /**
@@ -313,6 +322,241 @@ class HrFacultyController extends Controller
 
     return redirect()->route('hr.faculty.index')
       ->with('success', 'Staff deactivated successfully!');
+  }
+
+  /**
+   * Show dedicated per-faculty pay matrix page with prefilled values.
+   */
+  public function editIndividualPayMatrix($id)
+  {
+    $faculty = Faculty::with(['salaryMaster.payMatrix', 'hrDesignation', 'hrGradeLevel'])->findOrFail($id);
+
+    $designations = HrDesignation::active()->ordered()->get();
+    $gradeLevels = HrGradeLevel::active()->ordered()->get();
+
+    if ($designations->isEmpty() || $gradeLevels->isEmpty()) {
+      return redirect()
+        ->route('hr.faculty.index')
+        ->with('error', 'Please configure active Designation and Grade Level masters first.');
+    }
+
+    $salaryMaster = $faculty->salaryMaster;
+    $payMatrix = $salaryMaster?->payMatrix;
+
+    if (!$payMatrix) {
+      $allowedEmploymentTypes = ['permanent', 'contractual', 'adhoc', 'guest', 'visiting'];
+      $employmentType = in_array($faculty->employee_type, $allowedEmploymentTypes, true)
+        ? $faculty->employee_type
+        : 'contractual';
+
+      $designationId = $faculty->hr_designation_id ?: $designations->first()->id;
+      $gradeLevelId = $faculty->hr_grade_level_id ?: $gradeLevels->first()->id;
+
+      $defaultDesignation = optional($designations->firstWhere('id', $designationId))->name;
+      $defaultGradeLevel = optional($gradeLevels->firstWhere('id', $gradeLevelId))->name;
+
+      $payMatrix = new HrPayMatrix([
+        'matrix_name' => trim($faculty->full_name . ' Custom Matrix'),
+        'designation_id' => $designationId,
+        'grade_level_id' => $gradeLevelId,
+        'designation' => $faculty->designation ?: $defaultDesignation,
+        'grade_level' => $defaultGradeLevel,
+        'employment_type' => $employmentType,
+        'basic_salary' => (float) ($salaryMaster->basic_salary ?? 0),
+        'da_percentage' => 0,
+        'da_fixed' => (float) ($salaryMaster->da ?? 0),
+        'hra_percentage' => 0,
+        'hra_fixed' => (float) ($salaryMaster->hra ?? 0),
+        'ta' => (float) ($salaryMaster->ta ?? 0),
+        'medical_allowance' => (float) ($salaryMaster->medical_allowance ?? 0),
+        'special_allowance' => (float) ($salaryMaster->special_allowance ?? 0),
+        'research_allowance' => 0,
+        'other_allowances' => (float) ($salaryMaster->other_allowances ?? 0),
+        'annual_increment_percentage' => 0,
+        'increment_month' => 7,
+        'default_working_days' => (int) ($salaryMaster->working_days ?? 26),
+        'status' => 'active',
+        'effective_from' => $salaryMaster?->effective_from,
+        'effective_to' => $salaryMaster?->effective_to,
+        'remarks' => $salaryMaster?->remarks,
+      ]);
+    } else {
+      // Render the form with faculty-specific override values while keeping base matrix mapping unchanged.
+      $payMatrix = new HrPayMatrix([
+        'id' => $payMatrix->id,
+        'matrix_code' => $payMatrix->matrix_code,
+        'matrix_name' => $payMatrix->matrix_name,
+        'designation_id' => $payMatrix->designation_id,
+        'grade_level_id' => $payMatrix->grade_level_id,
+        'designation' => $payMatrix->designation,
+        'grade_level' => $payMatrix->grade_level,
+        'employment_type' => $payMatrix->employment_type,
+        'pay_band' => $payMatrix->pay_band,
+        'grade_pay' => $payMatrix->grade_pay,
+        'basic_salary' => (float) ($salaryMaster->basic_salary ?? $payMatrix->basic_salary),
+        // Salary master stores resolved DA/HRA amount; keep them editable as fixed values here.
+        'da_percentage' => 0,
+        'da_fixed' => (float) ($salaryMaster->da ?? $payMatrix->calculateDA()),
+        'hra_percentage' => 0,
+        'hra_fixed' => (float) ($salaryMaster->hra ?? $payMatrix->calculateHRA()),
+        'ta' => (float) ($salaryMaster->ta ?? $payMatrix->ta),
+        'medical_allowance' => (float) ($salaryMaster->medical_allowance ?? $payMatrix->medical_allowance),
+        'special_allowance' => (float) ($salaryMaster->special_allowance ?? $payMatrix->special_allowance),
+        'research_allowance' => 0,
+        'other_allowances' => (float) ($salaryMaster->other_allowances ?? $payMatrix->other_allowances),
+        'annual_increment_percentage' => $payMatrix->annual_increment_percentage,
+        'increment_month' => $payMatrix->increment_month,
+        'default_working_days' => (int) ($salaryMaster->working_days ?? $payMatrix->default_working_days),
+        'status' => $payMatrix->status,
+        'effective_from' => $salaryMaster?->effective_from ?? $payMatrix->effective_from,
+        'effective_to' => $salaryMaster?->effective_to ?? $payMatrix->effective_to,
+        'description' => $payMatrix->description,
+        'remarks' => $salaryMaster?->remarks ?? $payMatrix->remarks,
+      ]);
+    }
+
+    return view('hr.faculty.pay-matrix', compact('faculty', 'payMatrix', 'designations', 'gradeLevels'));
+  }
+
+  /**
+   * Update or create a per-faculty customizable pay matrix and sync salary master.
+   */
+  public function updateIndividualPayMatrix(Request $request, $id)
+  {
+    $faculty = Faculty::with(['salaryMaster.payMatrix'])->findOrFail($id);
+    $validated = $this->validatePayMatrixPayload($request);
+
+    try {
+      $validated = $this->normalizePayMatrixPayload($validated);
+
+      DB::beginTransaction();
+
+      $salaryMaster = $faculty->salaryMaster;
+      if (!$salaryMaster || !$salaryMaster->pay_matrix_id) {
+        DB::rollBack();
+        return back()->with('error', 'No active pay matrix assignment found for this faculty.');
+      }
+
+      // Resolve DA/HRA using the same pay-matrix logic but do not update pay matrix itself.
+      $resolvedDa = (float) (($validated['da_percentage'] ?? 0) > 0
+        ? (($validated['basic_salary'] ?? 0) * ($validated['da_percentage'] ?? 0)) / 100
+        : ($validated['da_fixed'] ?? 0));
+      $resolvedHra = (float) (($validated['hra_percentage'] ?? 0) > 0
+        ? (($validated['basic_salary'] ?? 0) * ($validated['hra_percentage'] ?? 0)) / 100
+        : ($validated['hra_fixed'] ?? 0));
+
+      $effectiveFrom = $validated['effective_from']
+        ?? ($salaryMaster?->effective_from ? $salaryMaster->effective_from->format('Y-m-d') : date('Y-m-d'));
+
+      $salaryPayload = [
+        // Keep currently assigned pay matrix unchanged.
+        'pay_matrix_id' => $salaryMaster->pay_matrix_id,
+        'basic_salary' => $validated['basic_salary'],
+        'da' => $resolvedDa,
+        'hra' => $resolvedHra,
+        'ta' => $validated['ta'] ?? 0,
+        'medical_allowance' => $validated['medical_allowance'] ?? 0,
+        'special_allowance' => $validated['special_allowance'] ?? 0,
+        // Keep research allowance included at faculty salary level via merged allowance bucket.
+        'other_allowances' => (float) ($validated['other_allowances'] ?? 0) + (float) ($validated['research_allowance'] ?? 0),
+        // Deductions are entered by Accounts during payroll processing.
+        'pf' => 0,
+        'esi' => 0,
+        'professional_tax' => 0,
+        'tds' => 0,
+        'other_deductions' => 0,
+        'working_days' => $validated['default_working_days'] ?? $salaryMaster->working_days,
+        'status' => 'active',
+        'effective_from' => $effectiveFrom,
+        'effective_to' => $validated['effective_to'] ?? null,
+        'remarks' => 'Faculty-level override on Pay Matrix: ' . optional($salaryMaster->payMatrix)->matrix_code,
+      ];
+
+      if ($salaryMaster) {
+        $salaryMaster->update($salaryPayload);
+      } else {
+        FacultySalaryMaster::create(array_merge($salaryPayload, [
+          'faculty_id' => $faculty->id,
+        ]));
+      }
+
+      DB::commit();
+
+      return redirect()
+        ->route('hr.faculty.pay-matrix.edit', $faculty->id)
+        ->with('success', 'Faculty salary master earnings/allowances updated successfully without changing the assigned pay matrix.');
+    } catch (\Exception $e) {
+      DB::rollBack();
+      Log::error('Faculty individual pay matrix update failed: ' . $e->getMessage());
+
+      return back()
+        ->withInput()
+        ->with('error', 'Failed to update salary master. Please try again.');
+    }
+  }
+
+  /**
+   * Shared validation rules for faculty-customizable pay matrix form.
+   */
+  private function validatePayMatrixPayload(Request $request): array
+  {
+    return $request->validate([
+      'matrix_name' => 'required|string|max:255',
+      'designation_id' => 'required|exists:hr_designations,id',
+      'grade_level_id' => 'required|exists:hr_grade_levels,id',
+      'designation' => 'nullable|string|max:255',
+      'grade_level' => 'nullable|string|max:255',
+      'pay_band' => 'nullable|string|max:100',
+      'grade_pay' => 'nullable|integer|min:0',
+      'employment_type' => 'required|in:permanent,contractual,adhoc,guest,visiting',
+      'basic_salary' => 'required|numeric|min:0',
+      'da_percentage' => 'nullable|numeric|min:0|max:100',
+      'da_fixed' => 'nullable|numeric|min:0',
+      'hra_percentage' => 'nullable|numeric|min:0|max:100',
+      'hra_fixed' => 'nullable|numeric|min:0',
+      'ta' => 'nullable|numeric|min:0',
+      'medical_allowance' => 'nullable|numeric|min:0',
+      'special_allowance' => 'nullable|numeric|min:0',
+      'research_allowance' => 'nullable|numeric|min:0',
+      'other_allowances' => 'nullable|numeric|min:0',
+      'annual_increment_percentage' => 'nullable|numeric|min:0|max:100',
+      'increment_month' => 'nullable|integer|min:1|max:12',
+      'default_working_days' => 'required|integer|min:1|max:31',
+      'status' => 'required|in:active,inactive,archived',
+      'effective_from' => 'nullable|date',
+      'effective_to' => 'nullable|date|after:effective_from',
+      'description' => 'nullable|string',
+      'remarks' => 'nullable|string',
+    ]);
+  }
+
+  /**
+   * Normalize optional values to match pay matrix master defaults.
+   */
+  private function normalizePayMatrixPayload(array $validated): array
+  {
+    $validated['increment_month'] = $validated['increment_month'] ?? 7;
+    $validated['annual_increment_percentage'] = $validated['annual_increment_percentage'] ?? 0;
+    $validated['da_percentage'] = $validated['da_percentage'] ?? 0;
+    $validated['da_fixed'] = $validated['da_fixed'] ?? 0;
+    $validated['hra_percentage'] = $validated['hra_percentage'] ?? 0;
+    $validated['hra_fixed'] = $validated['hra_fixed'] ?? 0;
+    $validated['ta'] = $validated['ta'] ?? 0;
+    $validated['medical_allowance'] = $validated['medical_allowance'] ?? 0;
+    $validated['special_allowance'] = $validated['special_allowance'] ?? 0;
+    $validated['research_allowance'] = $validated['research_allowance'] ?? 0;
+    $validated['other_allowances'] = $validated['other_allowances'] ?? 0;
+
+    // Deductions are managed by Accounts during payroll processing.
+    $validated['pf_percentage'] = 0;
+    $validated['pf_fixed'] = 0;
+    $validated['esi_percentage'] = 0;
+    $validated['esi_fixed'] = 0;
+    $validated['professional_tax'] = 0;
+    $validated['tds_percentage'] = 0;
+    $validated['other_deductions'] = 0;
+
+    return $validated;
   }
 
   /**

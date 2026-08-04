@@ -18,7 +18,20 @@ class HrPayMatrixController extends Controller
    */
   public function index(Request $request)
   {
-    $query = HrPayMatrix::query()->with(['creator', 'updater']);
+    $query = HrPayMatrix::query()
+      ->with([
+        'creator',
+        'updater',
+        'gradeLevelMaster:id,name,max_salary',
+        'facultySalaries' => function ($q) {
+          $q->where('status', 'active')->with('faculty:id,FIRST_NAME,MIDDLE_NAME,LAST_NAME,USER_CODE');
+        }
+      ])
+      ->withCount([
+        'facultySalaries as active_faculty_count' => function ($q) {
+          $q->where('status', 'active');
+        }
+      ]);
 
     // Search filter
     if ($request->filled('search')) {
@@ -87,6 +100,7 @@ class HrPayMatrixController extends Controller
       'ta' => 'nullable|numeric|min:0',
       'medical_allowance' => 'nullable|numeric|min:0',
       'special_allowance' => 'nullable|numeric|min:0',
+      'research_allowance' => 'nullable|numeric|min:0',
       'other_allowances' => 'nullable|numeric|min:0',
       'annual_increment_percentage' => 'nullable|numeric|min:0|max:100',
       'increment_month' => 'nullable|integer|min:1|max:12',
@@ -108,6 +122,7 @@ class HrPayMatrixController extends Controller
       $validated['ta'] = $validated['ta'] ?? 0;
       $validated['medical_allowance'] = $validated['medical_allowance'] ?? 0;
       $validated['special_allowance'] = $validated['special_allowance'] ?? 0;
+      $validated['research_allowance'] = $validated['research_allowance'] ?? 0;
       $validated['other_allowances'] = $validated['other_allowances'] ?? 0;
       // Deductions are managed by Accounts during payroll processing.
       $validated['pf_percentage'] = 0;
@@ -212,6 +227,7 @@ class HrPayMatrixController extends Controller
       'ta' => 'nullable|numeric|min:0',
       'medical_allowance' => 'nullable|numeric|min:0',
       'special_allowance' => 'nullable|numeric|min:0',
+      'research_allowance' => 'nullable|numeric|min:0',
       'other_allowances' => 'nullable|numeric|min:0',
       'annual_increment_percentage' => 'nullable|numeric|min:0|max:100',
       'increment_month' => 'nullable|integer|min:1|max:12',
@@ -233,6 +249,7 @@ class HrPayMatrixController extends Controller
       $validated['ta'] = $validated['ta'] ?? 0;
       $validated['medical_allowance'] = $validated['medical_allowance'] ?? 0;
       $validated['special_allowance'] = $validated['special_allowance'] ?? 0;
+      $validated['research_allowance'] = $validated['research_allowance'] ?? 0;
       $validated['other_allowances'] = $validated['other_allowances'] ?? 0;
       // Deductions are managed by Accounts during payroll processing.
       $validated['pf_percentage'] = 0;
@@ -278,7 +295,7 @@ class HrPayMatrixController extends Controller
       // Check if any faculty is using this pay matrix
       $facultyCount = $payMatrix->facultySalaries()->count();
       if ($facultyCount > 0) {
-        return back()->with('error', "Cannot delete pay matrix. {$facultyCount} faculty members are currently using this matrix.");
+        return back()->with('error', "Cannot delete pay matrix. {$facultyCount} faculty member(s) are mapped to this matrix.");
       }
 
       $payMatrix->delete();
@@ -369,7 +386,8 @@ class HrPayMatrixController extends Controller
           'ta' => $components['earnings']['ta'],
           'medical_allowance' => $components['earnings']['medical_allowance'],
           'special_allowance' => $components['earnings']['special_allowance'],
-          'other_allowances' => $components['earnings']['other_allowances'],
+          // Keep research allowance tracked in pay matrix and merged into salary master.
+          'other_allowances' => ($components['earnings']['other_allowances'] ?? 0) + ($components['earnings']['research_allowance'] ?? 0),
           // Deductions are entered by Accounts at payroll stage.
           'pf' => 0,
           'esi' => 0,

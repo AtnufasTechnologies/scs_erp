@@ -1288,6 +1288,8 @@ Route::group(['prefix' => '/erp'], function () {
         Route::get('faculty', [HrFacultyController::class, 'index'])->name('hr.faculty.index');
         Route::get('faculty/create', [HrFacultyController::class, 'create'])->name('hr.faculty.create');
         Route::post('faculty', [HrFacultyController::class, 'store'])->name('hr.faculty.store');
+        Route::get('faculty/{id}/pay-matrix', [HrFacultyController::class, 'editIndividualPayMatrix'])->name('hr.faculty.pay-matrix.edit');
+        Route::put('faculty/{id}/pay-matrix', [HrFacultyController::class, 'updateIndividualPayMatrix'])->name('hr.faculty.pay-matrix.update');
         Route::get('faculty/{id}', [HrFacultyController::class, 'show'])->name('hr.faculty.show');
         Route::get('faculty/{id}/edit', [HrFacultyController::class, 'edit'])->name('hr.faculty.edit');
         Route::put('faculty/{id}', [HrFacultyController::class, 'update'])->name('hr.faculty.update');

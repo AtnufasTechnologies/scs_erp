@@ -40,6 +40,31 @@
         </div>
       </div>
       <div class="card-body">
+        <div class="row row-cols-1 row-cols-md-2 g-3 mb-4">
+          <div class="col">
+            <div class="stat-card border-start border-primary border-3 h-100">
+              <div class="card-body d-flex justify-content-between align-items-center">
+                <div>
+                  <small class="text-muted d-block">Total Staff</small>
+                  <h4 class="mb-0">{{ $totalStaff }}</h4>
+                </div>
+                <i class="fas fa-users fa-2x text-primary"></i>
+              </div>
+            </div>
+          </div>
+          <div class="col">
+            <div class="stat-card border-start border-info border-3 h-100">
+              <div class="card-body d-flex justify-content-between align-items-center">
+                <div>
+                  <small class="text-muted d-block">Pay Matrix Created</small>
+                  <h4 class="mb-0">{{ $totalPayMatrices }}</h4>
+                </div>
+                <i class="fas fa-th fa-2x text-info"></i>
+              </div>
+            </div>
+          </div>
+        </div>
+
         <!-- Search and Filter -->
         <form method="GET" action="{{ route('hr.faculty.index') }}" class="mb-4">
           <div class="row g-3">
@@ -100,6 +125,15 @@
                     <a href="{{ route('hr.faculty.edit', $faculty->id) }}" class="btn btn-outline-secondary mx-2" title="Edit">
                       <i class="fas fa-edit"></i>
                     </a>
+                    @if(optional($faculty->salaryMaster)->pay_matrix_id)
+                    <a href="{{ route('hr.faculty.pay-matrix.edit', $faculty->id) }}" class="btn btn-outline-info mx-2" title="Salary Master">
+                      <i class="fas fa-th"></i>
+                    </a>
+                    @else
+                    <button type="button" class="btn btn-outline-warning text-warning mx-2" title="Salary Master Not Allotted" disabled>
+                      <i class="fas fa-th"></i>
+                    </button>
+                    @endif
                     @if($faculty->IS_LEFT == 1)
                     <button type="button" class="btn btn-success" data-bs-toggle="modal" data-bs-target="#reactivateModal"
                       data-id="{{ $faculty->id }}"

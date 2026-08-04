@@ -16,6 +16,20 @@
     <a href="{{ route('hr.pay-matrix.edit', $payMatrix->id) }}" class="btn btn-warning btn-sm">
       <i class="fas fa-edit me-1"></i>Update
     </a>
+    @if($facultyCount > 0)
+    <button type="button" class="btn btn-outline-danger btn-sm" disabled title="Cannot delete. {{ $facultyCount }} faculty mapped">
+      <i class="fas fa-trash me-1"></i>Delete
+    </button>
+    @else
+    <form action="{{ route('hr.pay-matrix.destroy', $payMatrix->id) }}" method="POST"
+      onsubmit="return confirm('Delete this pay matrix? This action cannot be undone.');">
+      @csrf
+      @method('DELETE')
+      <button type="submit" class="btn btn-danger btn-sm">
+        <i class="fas fa-trash me-1"></i>Delete
+      </button>
+    </form>
+    @endif
     <a href="{{ route('hr.pay-matrix.index') }}" class="btn btn-secondary btn-sm">
       <i class="fas fa-arrow-left me-1"></i>Back
     </a>
@@ -33,6 +47,12 @@
 <div class="alert alert-danger alert-dismissible fade show" role="alert">
   {{ session('error') }}
   <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+</div>
+@endif
+
+@if($facultyCount > 0)
+<div class="alert alert-info" role="alert">
+  Delete is disabled because this pay matrix is mapped to {{ $facultyCount }} faculty member(s). Unassign them first.
 </div>
 @endif
 
@@ -167,6 +187,7 @@
         <div class="d-flex justify-content-between"><span>TA</span><strong>Rs {{ number_format($components['earnings']['ta'], 2) }}</strong></div>
         <div class="d-flex justify-content-between"><span>Medical</span><strong>Rs {{ number_format($components['earnings']['medical_allowance'], 2) }}</strong></div>
         <div class="d-flex justify-content-between"><span>Special</span><strong>Rs {{ number_format($components['earnings']['special_allowance'], 2) }}</strong></div>
+        <div class="d-flex justify-content-between"><span>Research</span><strong>Rs {{ number_format($components['earnings']['research_allowance'] ?? 0, 2) }}</strong></div>
         <div class="d-flex justify-content-between"><span>Other</span><strong>Rs {{ number_format($components['earnings']['other_allowances'], 2) }}</strong></div>
       </div>
     </div>

@@ -215,6 +215,12 @@
           @error('special_allowance')<div class="invalid-feedback">{{ $message }}</div>@enderror
         </div>
         <div class="col-md-3">
+          <label class="form-label">Research Allowance (₹)</label>
+          <input type="number" name="research_allowance" class="form-control @error('research_allowance') is-invalid @enderror"
+            value="{{ old('research_allowance', 0) }}" min="0" step="0.01">
+          @error('research_allowance')<div class="invalid-feedback">{{ $message }}</div>@enderror
+        </div>
+        <div class="col-md-3">
           <label class="form-label">Other Allowances (₹)</label>
           <input type="number" name="other_allowances" class="form-control @error('other_allowances') is-invalid @enderror"
             value="{{ old('other_allowances', 0) }}" min="0" step="0.01">
