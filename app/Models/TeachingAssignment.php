@@ -66,21 +66,20 @@ class TeachingAssignment extends Model
 
     public function allAssignedFacultyIds(): array
     {
-        $ids = $this->primaryFacultyMembers
+        $primaryIds = $this->primaryFacultyMembers
             ? $this->primaryFacultyMembers->pluck('id')->map(fn($id) => (int) $id)->all()
             : [];
 
         $primaryId = (int) ($this->faculty_id ?? 0);
-
         if ($primaryId > 0) {
-            $ids[] = $primaryId;
+            $primaryIds[] = $primaryId;
         }
 
         $coFacultyIds = $this->coFacultyMembers
             ? $this->coFacultyMembers->pluck('id')->map(fn($id) => (int) $id)->all()
             : [];
 
-        return array_values(array_unique(array_merge($ids, $coFacultyIds)));
+        return array_values(array_unique(array_merge($primaryIds, $coFacultyIds)));
     }
 
     public function getAllocationGroupLabelAttribute(): string

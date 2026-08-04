@@ -147,6 +147,7 @@ Route::group(['prefix' => '/erp'], function () {
         Route::post('itcell/lateral-entry', [ITCellController::class, 'storeLateralEntry'])->name('itcell.lateral-entry.store');
         Route::get('itcell/lateral-entry/audit', [ITCellController::class, 'lateralEntryAudit'])->name('itcell.lateral-entry.audit');
         Route::get('itcell/student-campus-transfer', [ITCellController::class, 'studentCampusTransferIndex'])->name('itcell.student-campus-transfer.index');
+        Route::get('itcell/student-campus-transfer/programs', [ITCellController::class, 'getStudentTransferPrograms'])->name('itcell.student-campus-transfer.programs');
         Route::post('itcell/student-campus-transfer', [ITCellController::class, 'storeStudentCampusTransfer'])->name('itcell.student-campus-transfer.store');
         Route::post('itcell-generate-librarycode', [ITCellController::class, 'generateLibraryCode'])->name('itcell.generate.librarycode');
         Route::post('itcell-generate-excel-studentdata', [ITCellController::class, 'generateExcelStudentData'])->name('itcell.generate.excel.studentdata');
@@ -925,6 +926,9 @@ Route::group(['prefix' => '/erp'], function () {
         Route::post('teaching-assignment/{subjectId}', [SubjectController::class, 'storeTeachingAssignment'])->name('department.teaching.assignment.store');
         Route::put('teaching-assignment/{id}', [SubjectController::class, 'updateTeachingAssignment'])->name('department.teaching.assignment.update');
         Route::delete('teaching-assignment/{id}', [SubjectController::class, 'deleteTeachingAssignment'])->name('department.teaching.assignment.delete');
+        Route::post('teaching-allocation-settings/{subjectId}', [SubjectController::class, 'storeTeachingAllocationSetting'])->name('department.teaching.allocation.settings.store');
+        Route::put('teaching-allocation-settings/{id}', [SubjectController::class, 'updateTeachingAllocationSetting'])->name('department.teaching.allocation.settings.update');
+        Route::delete('teaching-allocation-settings/{id}', [SubjectController::class, 'deleteTeachingAllocationSetting'])->name('department.teaching.allocation.settings.delete');
 
         //Specialization
         Route::get('my-specializations/{id}/{slug}', [SubjectController::class, 'mySpecializations'])->name('department.specialization.master');

@@ -32,6 +32,54 @@
 
   <div class="card mt-3 mb-4 border-0 shadow-sm">
     <div class="card-header bg-white d-flex justify-content-between align-items-center py-3">
+      <h5 class="mb-0">Teaching Allocation Settings</h5>
+      <span class="badge bg-light text-dark border">Department Level</span>
+    </div>
+    <div class="card-body">
+      <p class="text-muted mb-3">Enable this only for departments that need multiple primary faculty selection in teaching assignment.</p>
+
+      @if($teachingAllocationSetting)
+      <form action="{{ route('department.teaching.allocation.settings.update', $teachingAllocationSetting->id) }}" method="post" class="row g-3 align-items-end">
+        @csrf
+        @method('PUT')
+        <div class="col-lg-6">
+          <label class="form-label fw-semibold">Multiple Primary Faculty</label>
+          <select name="allow_multiple_primary_faculty" class="form-control">
+            <option value="0" {{ !$allowMultiplePrimaryFaculty ? 'selected' : '' }}>Disabled</option>
+            <option value="1" {{ $allowMultiplePrimaryFaculty ? 'selected' : '' }}>Enabled</option>
+          </select>
+        </div>
+        <div class="col-lg-6 d-flex justify-content-lg-end gap-2">
+          <button type="submit" class="btn btn-primary">Update Setting</button>
+        </div>
+      </form>
+      <div class="mt-2 d-flex justify-content-lg-end">
+        <form action="{{ route('department.teaching.allocation.settings.delete', $teachingAllocationSetting->id) }}" method="post" onsubmit="return confirm('Delete this setting?');" class="d-inline-block">
+          @csrf
+          @method('DELETE')
+          <button type="submit" class="btn btn-outline-danger">Delete Setting</button>
+        </form>
+      </div>
+      @else
+      <form action="{{ route('department.teaching.allocation.settings.store', $subject->id) }}" method="post" class="row g-3 align-items-end">
+        @csrf
+        <div class="col-lg-6">
+          <label class="form-label fw-semibold">Multiple Primary Faculty</label>
+          <select name="allow_multiple_primary_faculty" class="form-control">
+            <option value="0">Disabled</option>
+            <option value="1" selected>Enabled</option>
+          </select>
+        </div>
+        <div class="col-lg-6 d-flex justify-content-lg-end">
+          <button type="submit" class="btn btn-primary">Create Setting</button>
+        </div>
+      </form>
+      @endif
+    </div>
+  </div>
+
+  <div class="card mt-3 mb-4 border-0 shadow-sm">
+    <div class="card-header bg-white d-flex justify-content-between align-items-center py-3">
       <h5 class="mb-0" id="teachingAssignmentFormTitle">New Teaching Assignment</h5>
       <span class="badge bg-light text-dark border">Dynamic Group Allocation</span>
     </div>
@@ -58,6 +106,18 @@
 
           <div class="col-lg-6">
             <label class="form-label fw-semibold">Primary Faculty <span class="text-danger">*</span></label>
+            @if($allowMultiplePrimaryFaculty)
+            <select name="primary_faculty_ids[]" class="dselect-example" multiple required>
+              @foreach($faculties as $faculty)
+              @if($faculty->faculty)
+              <option value="{{ $faculty->faculty->id }}">
+                {{ $faculty->faculty->USER_CODE }} - {{ $faculty->faculty->FIRST_NAME }} {{ $faculty->faculty->LAST_NAME }}
+              </option>
+              @endif
+              @endforeach
+            </select>
+            <small class="text-muted d-block mt-1">Multiple primary faculty is enabled for this department.</small>
+            @else
             <select name="faculty_id" class="dselect-example" required>
               <option value="">--Select--</option>
               @foreach($faculties as $faculty)
@@ -68,6 +128,7 @@
               @endif
               @endforeach
             </select>
+            @endif
           </div>
 
           <div class="col-lg-6">
@@ -156,7 +217,19 @@
             <tr id="assignment-row-{{ $assignment->id }}">
               <td>{{ $loop->iteration }}</td>
               <td>{{ $assignment->course->course_code ?? '-' }} - {{ $assignment->course->course_title ?? '-' }}</td>
-              <td>{{ $assignment->faculty->USER_CODE ?? '-' }} - {{ $assignment->faculty->FIRST_NAME ?? '-' }} {{ $assignment->faculty->LAST_NAME ?? '' }}</td>
+              <td>
+                @php
+                $primaryFacultyLabels = ($assignment->primaryFacultyMembers ?? collect())
+                ->map(fn($faculty) => trim(($faculty->USER_CODE ?? '-') . ' - ' . ($faculty->FIRST_NAME ?? '-') . ' ' . ($faculty->LAST_NAME ?? '')))
+                ->filter()
+                ->values();
+                @endphp
+                @if($primaryFacultyLabels->isNotEmpty())
+                {{ $primaryFacultyLabels->implode(', ') }}
+                @else
+                {{ $assignment->faculty->USER_CODE ?? '-' }} - {{ $assignment->faculty->FIRST_NAME ?? '-' }} {{ $assignment->faculty->LAST_NAME ?? '' }}
+                @endif
+              </td>
               <td>
                 @php
                 $coFacultyLabels = ($assignment->coFacultyMembers ?? collect())
@@ -185,6 +258,7 @@
                   data-id="{{ $assignment->id }}"
                   data-course_id="{{ $assignment->course_id }}"
                   data-faculty_id="{{ $assignment->faculty_id }}"
+                  data-primary_faculty_ids='@json(($assignment->primaryFacultyMembers ?? collect())->pluck("id")->map(fn($id) => (int) $id)->values()->all())'
                   data-co_faculty_ids='@json(($assignment->coFacultyMembers ?? collect())->pluck("id")->map(fn($id) => (int) $id)->values()->all())'
                   data-delivery_type="{{ $assignment->delivery_type }}"
                   data-shift_id="{{ (int) ($assignment->shift_id ?? 0) }}"
@@ -232,6 +306,9 @@
     const deliveryTypeSelect = form.querySelector('[name="delivery_type"]');
     const courseSelect = form.querySelector('[name="course_id"]');
     const deliveryTypeHelpText = document.getElementById('deliveryTypeHelpText');
+    const singlePrimarySelect = form.querySelector('[name="faculty_id"]');
+    const multiPrimarySelect = form.querySelector('[name="primary_faculty_ids[]"]');
+    const multiPrimaryEnabled = !!multiPrimarySelect;
 
     function deliveryTypeLabel(type) {
       const normalized = String(type || '').trim().toUpperCase().replace(/[_-]+/g, ' ');
@@ -319,7 +396,9 @@
 
     function buildRowHtml(assignment) {
       const safeCourse = escapeHtml(assignment.course_text || '-');
-      const safeFaculty = escapeHtml(assignment.faculty_text || '-');
+      const safeFaculty = Array.isArray(assignment.primary_faculty_text) && assignment.primary_faculty_text.length ?
+        assignment.primary_faculty_text.map((label) => escapeHtml(label)).join(', ') :
+        escapeHtml(assignment.faculty_text || '-');
       const safeCoFaculty = Array.isArray(assignment.co_faculty_text) && assignment.co_faculty_text.length ?
         assignment.co_faculty_text.map((label) => escapeHtml(label)).join(', ') : '-';
       const safeDelivery = escapeHtml(assignment.delivery_type || '-');
@@ -349,6 +428,7 @@
               data-id="${assignment.id}"
               data-course_id="${assignment.course_id}"
               data-faculty_id="${assignment.faculty_id}"
+              data-primary_faculty_ids='${escapeHtml(JSON.stringify(Array.isArray(assignment.primary_faculty_ids) ? assignment.primary_faculty_ids : []))}'
               data-co_faculty_ids='${escapeHtml(JSON.stringify(Array.isArray(assignment.co_faculty_ids) ? assignment.co_faculty_ids : []))}'
               data-delivery_type="${escapeHtml(assignment.delivery_type || '')}"
               data-shift_id="${assignment.shift_id || ''}"
@@ -379,7 +459,14 @@
       formTitle.textContent = 'New Teaching Assignment';
       cancelEditBtn.style.display = 'none';
       form.querySelector('[name="course_id"]').dispatchEvent(new Event('change'));
-      form.querySelector('[name="faculty_id"]').dispatchEvent(new Event('change'));
+      if (singlePrimarySelect) {
+        singlePrimarySelect.dispatchEvent(new Event('change'));
+      }
+      if (multiPrimarySelect) {
+        Array.from(multiPrimarySelect.options).forEach((option) => {
+          option.selected = false;
+        });
+      }
       const coFacultySelect = form.querySelector('[name="co_faculty_ids[]"]');
       if (coFacultySelect) {
         Array.from(coFacultySelect.options).forEach((option) => {
@@ -419,6 +506,7 @@
         }
 
         const assignment = payload.assignment;
+        const assignments = Array.isArray(payload.assignments) && payload.assignments.length > 0 ? payload.assignments : [assignment];
         const emptyRow = document.getElementById('teachingAssignmentEmptyRow');
         if (emptyRow) {
           emptyRow.remove();
@@ -456,7 +544,29 @@
 
       assignmentIdInput.value = editButton.dataset.id || '';
       form.querySelector('[name="course_id"]').value = editButton.dataset.course_id || '';
-      form.querySelector('[name="faculty_id"]').value = editButton.dataset.faculty_id || '';
+      if (singlePrimarySelect) {
+        singlePrimarySelect.value = editButton.dataset.faculty_id || '';
+      }
+      if (multiPrimarySelect) {
+        let selectedPrimaryIds = [];
+        try {
+          selectedPrimaryIds = JSON.parse(editButton.dataset.primary_faculty_ids || '[]');
+          if (!Array.isArray(selectedPrimaryIds)) {
+            selectedPrimaryIds = [];
+          }
+        } catch (error) {
+          selectedPrimaryIds = [];
+        }
+
+        if (selectedPrimaryIds.length === 0 && editButton.dataset.faculty_id) {
+          selectedPrimaryIds = [Number(editButton.dataset.faculty_id)];
+        }
+
+        const selectedPrimarySet = new Set(selectedPrimaryIds.map((value) => String(value)));
+        Array.from(multiPrimarySelect.options).forEach((option) => {
+          option.selected = selectedPrimarySet.has(String(option.value));
+        });
+      }
       const coFacultySelect = form.querySelector('[name="co_faculty_ids[]"]');
       if (coFacultySelect) {
         let selectedCoFacultyIds = [];
@@ -481,7 +591,9 @@
 
       form.querySelector('[name="course_id"]').dispatchEvent(new Event('change'));
       setDeliveryOptionsForCourse(editButton.dataset.course_id || '', editButton.dataset.delivery_type || '');
-      form.querySelector('[name="faculty_id"]').dispatchEvent(new Event('change'));
+      if (singlePrimarySelect) {
+        singlePrimarySelect.dispatchEvent(new Event('change'));
+      }
 
       submitBtn.textContent = 'Update Assignment';
       formTitle.textContent = 'Edit Teaching Assignment';
