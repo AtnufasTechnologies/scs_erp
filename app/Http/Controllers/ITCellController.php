@@ -9,6 +9,7 @@ use App\Models\AdmissionApplication;
 use App\Models\AnnualPromotionLog;
 use App\Models\BatchMaster;
 use App\Models\BloodGroupMaster;
+use App\Models\Campus;
 use App\Models\DegreeTrackMaster;
 use App\Models\DepartmentMaster;
 use App\Models\LateralEntryAuditLog;
@@ -16,6 +17,7 @@ use App\Models\NationalityMaster;
 use App\Models\ProgramMaster;
 use App\Models\ReligionMaster;
 use App\Models\Semester;
+use App\Models\StudentCampusTransferLog;
 use App\Models\StudentSemesterConfig;
 use App\Models\StudentMaster;
 use App\Models\StudentProgram;
@@ -24,6 +26,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
+use Illuminate\Validation\ValidationException;
 use Maatwebsite\Excel\Facades\Excel;
 
 class ITCellController extends Controller
@@ -806,6 +809,171 @@ class ITCellController extends Controller
         $logs = LateralEntryAuditLog::with(['student', 'user'])->latest('id')->paginate(20);
 
         return view('admin.itcell.lateral-entry-audit', compact('logs'));
+    }
+
+    public function studentCampusTransferIndex(Request $request)
+    {
+        $allowedCampusIds = [1, 2];
+
+        $campuses = Campus::query()
+            ->whereIn('id', $allowedCampusIds)
+            ->orderBy('id')
+            ->get(['id', 'name', 'slug']);
+
+        $selectedCampusId = (int) $request->input('campus_id', 1);
+        if (!in_array($selectedCampusId, $allowedCampusIds, true)) {
+            $selectedCampusId = 1;
+        }
+
+        $search = trim((string) $request->input('search', ''));
+
+        $studentsQuery = StudentMaster::query()
+            ->with([
+                'campusmaster:id,name',
+                'stdprogramenrolled:id,name,code,campus_id',
+            ])
+            ->whereIn('campus_id', $allowedCampusIds)
+            ->where('campus_id', $selectedCampusId);
+
+        if ($search !== '') {
+            $studentsQuery->where(function ($query) use ($search) {
+                $query->where('roll_no', 'like', '%' . $search . '%')
+                    ->orWhere('register_no', 'like', '%' . $search . '%')
+                    ->orWhere('user_code', 'like', '%' . $search . '%')
+                    ->orWhere('first_name', 'like', '%' . $search . '%')
+                    ->orWhere('last_name', 'like', '%' . $search . '%');
+            });
+        }
+
+        $students = $studentsQuery
+            ->orderBy('first_name')
+            ->orderBy('last_name')
+            ->paginate(30)
+            ->appends([
+                'campus_id' => $selectedCampusId,
+                'search' => $search,
+            ]);
+
+        $programsByCampus = StudentProgram::query()
+            ->whereIn('campus_id', $allowedCampusIds)
+            ->orderBy('name')
+            ->get(['id', 'name', 'code', 'campus_id'])
+            ->groupBy('campus_id');
+
+        $recentTransfers = StudentCampusTransferLog::query()
+            ->with([
+                'student:id,first_name,last_name,roll_no',
+                'fromCampus:id,name',
+                'toCampus:id,name',
+                'fromProgram:id,name,code',
+                'toProgram:id,name,code',
+                'changedByUser:id,name',
+            ])
+            ->latest('id')
+            ->limit(20)
+            ->get();
+
+        return view('admin.itcell.student-campus-transfer', [
+            'campuses' => $campuses,
+            'selectedCampusId' => $selectedCampusId,
+            'search' => $search,
+            'students' => $students,
+            'programsByCampus' => $programsByCampus,
+            'recentTransfers' => $recentTransfers,
+        ]);
+    }
+
+    public function storeStudentCampusTransfer(Request $request)
+    {
+        $validated = $request->validate([
+            'student_id' => 'required|integer|exists:student_masters,id',
+            'to_campus_id' => 'required|integer|in:1,2',
+            'to_program_id' => 'required|integer|exists:student_program,id',
+            'reason' => 'nullable|string|max:500',
+        ]);
+
+        try {
+            DB::transaction(function () use ($validated) {
+                $student = StudentMaster::query()
+                    ->lockForUpdate()
+                    ->findOrFail((int) $validated['student_id']);
+
+                if (!in_array((int) $student->campus_id, [1, 2], true)) {
+                    throw ValidationException::withMessages([
+                        'student_id' => 'Only Sonada/Siliguri students can be transferred with this module.',
+                    ]);
+                }
+
+                $toCampusId = (int) $validated['to_campus_id'];
+                if ((int) $student->campus_id === $toCampusId) {
+                    throw ValidationException::withMessages([
+                        'to_campus_id' => 'Target campus must be different from current campus.',
+                    ]);
+                }
+
+                $toProgram = StudentProgram::query()->findOrFail((int) $validated['to_program_id']);
+                if ((int) $toProgram->campus_id !== $toCampusId) {
+                    throw ValidationException::withMessages([
+                        'to_program_id' => 'Selected enrolled program does not belong to the target campus.',
+                    ]);
+                }
+
+                $oldSnapshot = [
+                    'student_id' => $student->id,
+                    'roll_no' => $student->roll_no,
+                    'campus_id' => $student->campus_id,
+                    'new_program_id' => $student->new_program_id,
+                    'department' => $student->department,
+                    'academic_dept_id' => $student->academic_dept_id,
+                    'status' => $student->status,
+                ];
+
+                $oldProgramId = $student->new_program_id;
+                $oldCampusId = $student->campus_id;
+                $oldDepartmentId = $student->department;
+                $newDepartmentId = $toProgram->department ?: $student->department;
+
+                // Keep roll_no unchanged; transfer only campus/program and linked department fields.
+                $student->update([
+                    'campus_id' => $toCampusId,
+                    'new_program_id' => $toProgram->id,
+                    'department' => $newDepartmentId,
+                    'academic_dept_id' => $newDepartmentId,
+                ]);
+
+                $newSnapshot = [
+                    'student_id' => $student->id,
+                    'roll_no' => $student->roll_no,
+                    'campus_id' => $student->campus_id,
+                    'new_program_id' => $student->new_program_id,
+                    'department' => $student->department,
+                    'academic_dept_id' => $student->academic_dept_id,
+                    'status' => $student->status,
+                ];
+
+                StudentCampusTransferLog::create([
+                    'student_id' => $student->id,
+                    'roll_no' => $student->roll_no,
+                    'from_campus_id' => (int) $oldCampusId,
+                    'to_campus_id' => $toCampusId,
+                    'from_program_id' => $oldProgramId,
+                    'to_program_id' => $toProgram->id,
+                    'from_department_id' => $oldDepartmentId,
+                    'to_department_id' => $newDepartmentId,
+                    'changed_by' => Auth::id(),
+                    'reason' => $validated['reason'] ?? null,
+                    'old_snapshot' => $oldSnapshot,
+                    'new_snapshot' => $newSnapshot,
+                    'created_at' => now(),
+                ]);
+            });
+
+            return back()->with('success', 'Student transferred successfully. Roll number remains unchanged and transfer history is recorded.');
+        } catch (ValidationException $e) {
+            throw $e;
+        } catch (\Exception $e) {
+            return back()->with('error', 'Transfer failed. Please try again.');
+        }
     }
 
     private function generateLateralEntryRollNo(int $program_type, $batchName, ?string $programCode, int $campusId, int $departmentId): string

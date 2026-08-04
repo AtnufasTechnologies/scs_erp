@@ -76,8 +76,6 @@ class HrPayMatrixController extends Controller
       'grade_level_id' => 'required|exists:hr_grade_levels,id',
       'designation' => 'nullable|string|max:255',
       'grade_level' => 'nullable|string|max:255',
-      'pay_band' => 'nullable|integer',
-      'grade_pay' => 'nullable|integer',
       'employment_type' => 'required|in:permanent,contractual,adhoc,guest,visiting',
       'basic_salary' => 'required|numeric|min:0',
       'da_percentage' => 'nullable|numeric|min:0|max:100',
@@ -109,6 +107,9 @@ class HrPayMatrixController extends Controller
       $validated['medical_allowance'] = $validated['medical_allowance'] ?? 0;
       $validated['special_allowance'] = $validated['special_allowance'] ?? 0;
       $validated['other_allowances'] = $validated['other_allowances'] ?? 0;
+      // Grade level is the source of truth; legacy pay band fields are no longer used.
+      $validated['pay_band'] = null;
+      $validated['grade_pay'] = null;
       // Deductions are managed by Accounts during payroll processing.
       $validated['pf_percentage'] = 0;
       $validated['pf_fixed'] = 0;
@@ -201,8 +202,6 @@ class HrPayMatrixController extends Controller
       'grade_level_id' => 'required|exists:hr_grade_levels,id',
       'designation' => 'nullable|string|max:255',
       'grade_level' => 'nullable|string|max:255',
-      'pay_band' => 'nullable|integer',
-      'grade_pay' => 'nullable|integer',
       'employment_type' => 'required|in:permanent,contractual,adhoc,guest,visiting',
       'basic_salary' => 'required|numeric|min:0',
       'da_percentage' => 'nullable|numeric|min:0|max:100',
@@ -234,6 +233,9 @@ class HrPayMatrixController extends Controller
       $validated['medical_allowance'] = $validated['medical_allowance'] ?? 0;
       $validated['special_allowance'] = $validated['special_allowance'] ?? 0;
       $validated['other_allowances'] = $validated['other_allowances'] ?? 0;
+      // Grade level is the source of truth; legacy pay band fields are no longer used.
+      $validated['pay_band'] = null;
+      $validated['grade_pay'] = null;
       // Deductions are managed by Accounts during payroll processing.
       $validated['pf_percentage'] = 0;
       $validated['pf_fixed'] = 0;

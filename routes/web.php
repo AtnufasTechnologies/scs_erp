@@ -146,6 +146,8 @@ Route::group(['prefix' => '/erp'], function () {
         Route::get('itcell/lateral-entry/application-data', [ITCellController::class, 'getLateralEntryApplicationData'])->name('itcell.lateral-entry.application-data');
         Route::post('itcell/lateral-entry', [ITCellController::class, 'storeLateralEntry'])->name('itcell.lateral-entry.store');
         Route::get('itcell/lateral-entry/audit', [ITCellController::class, 'lateralEntryAudit'])->name('itcell.lateral-entry.audit');
+        Route::get('itcell/student-campus-transfer', [ITCellController::class, 'studentCampusTransferIndex'])->name('itcell.student-campus-transfer.index');
+        Route::post('itcell/student-campus-transfer', [ITCellController::class, 'storeStudentCampusTransfer'])->name('itcell.student-campus-transfer.store');
         Route::post('itcell-generate-librarycode', [ITCellController::class, 'generateLibraryCode'])->name('itcell.generate.librarycode');
         Route::post('itcell-generate-excel-studentdata', [ITCellController::class, 'generateExcelStudentData'])->name('itcell.generate.excel.studentdata');
 

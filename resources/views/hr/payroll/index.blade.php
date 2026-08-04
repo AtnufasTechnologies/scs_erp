@@ -37,14 +37,14 @@
 <!-- Statistics Cards -->
 <div class="row row-cols-1 row-cols-md-2 row-cols-xl-4 g-3 mb-4">
   <div class="col">
-    <div class="card radius-10">
+    <div class="  stat-card">
       <div class="card-body">
         <div class="d-flex align-items-start gap-2">
           <div>
             <p class="mb-0 fs-6">Total Faculty</p>
           </div>
-          <div class="ms-auto widget-icon-small text-white bg-gradient-purple">
-            <i class="fas fa-users"></i>
+          <div class="ms-auto widget-icon-small">
+            <i class="fas fa-users fa-3x"></i>
           </div>
         </div>
         <div class="d-flex align-items-center mt-3">
@@ -56,14 +56,14 @@
     </div>
   </div>
   <div class="col">
-    <div class="card radius-10">
+    <div class="  stat-card">
       <div class="card-body">
         <div class="d-flex align-items-start gap-2">
           <div>
             <p class="mb-0 fs-6">Slips Generated</p>
           </div>
-          <div class="ms-auto widget-icon-small text-white bg-gradient-info">
-            <i class="fas fa-file-alt"></i>
+          <div class="ms-auto widget-icon-small ">
+            <i class="fas fa-file-alt fa-3x"></i>
           </div>
         </div>
         <div class="d-flex align-items-center mt-3">
@@ -75,14 +75,14 @@
     </div>
   </div>
   <div class="col">
-    <div class="card radius-10">
+    <div class="stat-card">
       <div class="card-body">
         <div class="d-flex align-items-start gap-2">
           <div>
             <p class="mb-0 fs-6">Approved</p>
           </div>
-          <div class="ms-auto widget-icon-small text-white bg-gradient-success">
-            <i class="fas fa-check-circle"></i>
+          <div class="ms-auto widget-icon-small  ">
+            <i class="fas fa-check-circle fa-3x"></i>
           </div>
         </div>
         <div class="d-flex align-items-center mt-3">
@@ -94,14 +94,14 @@
     </div>
   </div>
   <div class="col">
-    <div class="card radius-10">
+    <div class=" stat-card">
       <div class="card-body">
         <div class="d-flex align-items-start gap-2">
           <div>
             <p class="mb-0 fs-6">Total Amount</p>
           </div>
-          <div class="ms-auto widget-icon-small text-white bg-gradient-danger">
-            <i class="fas fa-money-bill-wave"></i>
+          <div class="ms-auto widget-icon-small ">
+            <i class="fas fa-money-bill-wave fa-3x"></i>
           </div>
         </div>
         <div class="d-flex align-items-center mt-3">

@@ -332,6 +332,15 @@ $roleType = UserHasRole::where('user_id', $userId)->value('role_name');
     </li>
 
     <li>
+      <a href="{{ route('itcell.student-campus-transfer.index') }}">
+        <div class="parent-icon">
+          <i class="fas fa-exchange-alt"></i>
+        </div>
+        <div class="menu-title">Student Campus Transfer</div>
+      </a>
+    </li>
+
+    <li>
       <a class="has-arrow" href="javascript:;">
         <div class="parent-icon">
           <i class="fas fa-bring-forward"></i>

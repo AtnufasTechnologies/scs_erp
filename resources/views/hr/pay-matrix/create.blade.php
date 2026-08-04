@@ -51,18 +51,7 @@
             value="{{ old('matrix_name') }}" maxlength="255" required>
           @error('matrix_name')<div class="invalid-feedback">{{ $message }}</div>@enderror
         </div>
-        <div class="col-md-3">
-          <label class="form-label">Pay Band</label>
-          <input type="number" name="pay_band" class="form-control @error('pay_band') is-invalid @enderror"
-            value="{{ old('pay_band') }}" min="0">
-          @error('pay_band')<div class="invalid-feedback">{{ $message }}</div>@enderror
-        </div>
-        <div class="col-md-3">
-          <label class="form-label">Grade Pay</label>
-          <input type="number" name="grade_pay" class="form-control @error('grade_pay') is-invalid @enderror"
-            value="{{ old('grade_pay') }}" min="0">
-          @error('grade_pay')<div class="invalid-feedback">{{ $message }}</div>@enderror
-        </div>
+
       </div>
       <div class="row mb-3">
         <div class="col-md-4">
@@ -100,6 +89,7 @@
             <option value="adhoc" {{ old('employment_type') == 'adhoc'        ? 'selected' : '' }}>Ad-hoc</option>
             <option value="guest" {{ old('employment_type') == 'guest'        ? 'selected' : '' }}>Guest</option>
             <option value="visiting" {{ old('employment_type') == 'visiting'     ? 'selected' : '' }}>Visiting</option>
+            <option value="visiting" {{ old('employment_type') == 'adjunct'     ? 'selected' : '' }}>Adjunct</option>
           </select>
           @error('employment_type')<div class="invalid-feedback">{{ $message }}</div>@enderror
         </div>
