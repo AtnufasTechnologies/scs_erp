@@ -73,6 +73,7 @@ class TimetableConflictService
       ->with([
         'course:id,course_code,course_title',
         'faculty:id,FIRST_NAME,LAST_NAME,USER_CODE',
+        'primaryFacultyMembers:id,FIRST_NAME,LAST_NAME,USER_CODE',
         'coFacultyMembers:id,FIRST_NAME,LAST_NAME,USER_CODE',
       ])
       ->where('id', $teachingAssignmentId)
@@ -90,6 +91,11 @@ class TimetableConflictService
       ->with([
         'hourmaster:id,hour_no,name,start_time,end_time',
         'teachingAssignment:id,subject_id,course_id,faculty_id,allocation_group,delivery_type,room',
+        'teachingAssignment.primaryFacultyMembers:id,FIRST_NAME,LAST_NAME,USER_CODE',
+        'teachingAssignment.coFacultyMembers:id,FIRST_NAME,LAST_NAME,USER_CODE',
+        'teachingAllocation:id,subject_id,course_id,faculty_id,allocation_group,delivery_type,room',
+        'teachingAllocation.primaryFacultyMembers:id,FIRST_NAME,LAST_NAME,USER_CODE',
+        'teachingAllocation.coFacultyMembers:id,FIRST_NAME,LAST_NAME,USER_CODE',
         'teachingAssignment.course:id,course_code,course_title',
         'teachingAssignment.faculty:id,FIRST_NAME,LAST_NAME,USER_CODE',
         'syllabus.coursemaster:id,course_code,course_title',
@@ -184,8 +190,10 @@ class TimetableConflictService
         'hourmaster:id,hour_no,name,start_time,end_time',
         'faculty:id,FIRST_NAME,LAST_NAME,USER_CODE',
         'teachingAssignment:id,subject_id,course_id,faculty_id',
+        'teachingAssignment.primaryFacultyMembers:id,FIRST_NAME,LAST_NAME,USER_CODE',
         'teachingAssignment.coFacultyMembers:id,FIRST_NAME,LAST_NAME,USER_CODE',
         'teachingAllocation:id,subject_id,course_id,faculty_id',
+        'teachingAllocation.primaryFacultyMembers:id,FIRST_NAME,LAST_NAME,USER_CODE',
         'teachingAllocation.coFacultyMembers:id,FIRST_NAME,LAST_NAME,USER_CODE',
         'teachingAssignment.course:id,course_code,course_title',
         'teachingAssignment.faculty:id,FIRST_NAME,LAST_NAME,USER_CODE',
@@ -279,8 +287,10 @@ class TimetableConflictService
       ->with([
         'hourmaster:id,hour_no,name,start_time,end_time',
         'teachingAssignment:id,faculty_id',
+        'teachingAssignment.primaryFacultyMembers:id,FIRST_NAME,LAST_NAME,USER_CODE',
         'teachingAssignment.coFacultyMembers:id,FIRST_NAME,LAST_NAME,USER_CODE',
         'teachingAllocation:id,faculty_id',
+        'teachingAllocation.primaryFacultyMembers:id,FIRST_NAME,LAST_NAME,USER_CODE',
         'teachingAllocation.coFacultyMembers:id,FIRST_NAME,LAST_NAME,USER_CODE',
       ])
       ->where('weekday_id', $weekdayId)
@@ -632,6 +642,19 @@ class TimetableConflictService
   private function extractAssignmentFacultyIds(TeachingAssignment $assignment): array
   {
     $facultyIds = [];
+
+    if ($assignment->relationLoaded('primaryFacultyMembers') || method_exists($assignment, 'primaryFacultyMembers')) {
+      if (!$assignment->relationLoaded('primaryFacultyMembers')) {
+        $assignment->load('primaryFacultyMembers:id,FIRST_NAME,LAST_NAME,USER_CODE');
+      }
+
+      $primaryFacultyIds = $assignment->primaryFacultyMembers
+        ->pluck('id')
+        ->map(fn($id) => (int) $id)
+        ->all();
+
+      $facultyIds = array_merge($facultyIds, $primaryFacultyIds);
+    }
 
     $primaryFacultyId = (int) ($assignment->faculty_id ?? 0);
     if ($primaryFacultyId > 0) {

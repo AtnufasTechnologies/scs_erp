@@ -57,10 +57,20 @@ class TeachingAssignment extends Model
             ->wherePivot('teaching_role', self::ROLE_CO_FACULTY);
     }
 
+    public function primaryFacultyMembers()
+    {
+        return $this->belongsToMany(Faculty::class, 'teaching_assignment_faculties', 'teaching_assignment_id', 'faculty_id')
+            ->withPivot('teaching_role')
+            ->wherePivot('teaching_role', self::ROLE_PRIMARY);
+    }
+
     public function allAssignedFacultyIds(): array
     {
+        $ids = $this->primaryFacultyMembers
+            ? $this->primaryFacultyMembers->pluck('id')->map(fn($id) => (int) $id)->all()
+            : [];
+
         $primaryId = (int) ($this->faculty_id ?? 0);
-        $ids = [];
 
         if ($primaryId > 0) {
             $ids[] = $primaryId;

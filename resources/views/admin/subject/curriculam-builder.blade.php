@@ -1,15 +1,8 @@
 <?php
 
-use App\Models\AcademicPathwayMaster;
-use App\Models\DegreeTrackMaster;
-use App\Models\ProgramCourseMaster;
-use App\Models\Semester;
-use App\Models\SpecializationMaster;
-
-$semesters = Semester::all();
-$papers = ProgramCourseMaster::all();
-$pathways = AcademicPathwayMaster::orderBy('name')->get();
-$degreeTracks = DegreeTrackMaster::orderBy('name')->get();
+$semesters = collect($semesters ?? []);
+$pathways = collect($pathways ?? []);
+$degreeTracks = collect($degreeTracks ?? []);
 $pathwayNameMap = $pathways->pluck('name', 'id');
 $trackNameMap = $degreeTracks->pluck('name', 'id');
 $publishedCoursesBySemester = collect($publishedCoursesBySemester ?? []);
@@ -24,16 +17,7 @@ $pageData = $data ?? null;
 $combo1DepartmentId = (int) (($comboBoundary['combo1'] ?? null) ?? optional(optional($pageData)->combomap)->combo_id_1 ?? optional($pageData)->subject_id ?? 0);
 $combo2DepartmentId = (int) (($comboBoundary['combo2'] ?? null) ?? optional(optional($pageData)->combomap)->combo_id_2 ?? 0);
 $isSingleMajorCourse = $combo1DepartmentId > 0 && $combo1DepartmentId === $combo2DepartmentId;
-$combinationSpecializationIds = collect(optional($pageData)->specialization_ids ?? [])->map(fn($id) => (int) $id)->filter()->unique()->values();
-$availableSpecializations = collect();
-if ($isSingleMajorCourse) {
-  $availableSpecializations = SpecializationMaster::query()
-    ->where('subject_id', (int) (optional($pageData)->subject_id ?? 0))
-    ->where('is_active', 1)
-    ->when($combinationSpecializationIds->isNotEmpty(), fn($query) => $query->whereIn('id', $combinationSpecializationIds->all()))
-    ->orderBy('name')
-    ->get(['id', 'name']);
-}
+$availableSpecializations = collect($availableSpecializations ?? []);
 $availableSpecializationsPayload = $availableSpecializations->map(function ($specialization) {
   return [
     'id' => (int) $specialization->id,

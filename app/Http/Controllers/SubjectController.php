@@ -4,11 +4,13 @@ namespace App\Http\Controllers;
 
 use App\Helpers\Qs;
 use App\Models\AdmissionApplication;
+use App\Models\AcademicPathwayMaster;
 use App\Models\BatchMaster;
 use App\Models\Campus;
 use App\Models\CognitiveLevelMaster;
 use App\Models\CoHasCso;
 use App\Models\CourseObjective;
+use App\Models\DegreeTrackMaster;
 use App\Models\CsoSubunit;
 use App\Models\Department;
 use App\Models\DepartmentMaster;
@@ -63,6 +65,7 @@ use Illuminate\Support\Str;
 use Illuminate\Http\Request;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Facades\Validator;
@@ -2971,6 +2974,30 @@ class SubjectController extends Controller
             ->values()
             : collect();
 
+        $semesters = Semester::query()->orderBy('id')->get(['id', 'title']);
+        $pathways = AcademicPathwayMaster::query()->orderBy('name')->get(['id', 'name']);
+        $degreeTracks = DegreeTrackMaster::query()->orderBy('name')->get(['id', 'name']);
+
+        $combo1DepartmentId = (int) ($comboBoundary['combo1'] ?? 0);
+        $combo2DepartmentId = (int) ($comboBoundary['combo2'] ?? 0);
+        $isSingleMajorCourse = $combo1DepartmentId > 0 && $combo1DepartmentId === $combo2DepartmentId;
+
+        $combinationSpecializationIds = collect((array) ($data->specialization_ids ?? []))
+            ->map(fn($value) => (int) $value)
+            ->filter()
+            ->unique()
+            ->values();
+
+        $availableSpecializations = collect();
+        if ($isSingleMajorCourse) {
+            $availableSpecializations = SpecializationMaster::query()
+                ->where('subject_id', (int) ($data->subject_id ?? 0))
+                ->where('is_active', 1)
+                ->when($combinationSpecializationIds->isNotEmpty(), fn($query) => $query->whereIn('id', $combinationSpecializationIds->all()))
+                ->orderBy('name')
+                ->get(['id', 'name']);
+        }
+
 
         return view('admin.subject.curriculam-builder', [
             'data' => $data,
@@ -2979,6 +3006,10 @@ class SubjectController extends Controller
             'publishedCoursesBySemester' => $publishedCoursesBySemester,
             'selectedSemester' => $selectedSemester,
             'generatedCourses' => $generatedCourses,
+            'semesters' => $semesters,
+            'pathways' => $pathways,
+            'degreeTracks' => $degreeTracks,
+            'availableSpecializations' => $availableSpecializations,
 
         ]);
     }
@@ -3689,9 +3720,7 @@ class SubjectController extends Controller
         $boundary = $boundary ?: $this->getProgrammeBoundarySubjectIds($combination);
         $combo1SubjectId = (int) ($boundary['combo1'] ?? 0);
         $combo2SubjectId = (int) ($boundary['combo2'] ?? 0);
-        $combo1DepartmentId = $this->resolveSubjectToDepartmentId($combo1SubjectId);
-        $combo2DepartmentId = $this->resolveSubjectToDepartmentId($combo2SubjectId);
-        $courseDepartmentId = (int) ($courseInfo->department ?? 0);
+        $courseSubjectId = (int) ($courseInfo->department ?? 0);
         $courseTypeTitle = strtoupper(trim((string) optional($courseInfo->coursetypemaster)->title));
 
         if ($courseTypeTitle === 'MDC') {
@@ -3699,11 +3728,11 @@ class SubjectController extends Controller
         }
 
         if ($courseTypeTitle === 'MAJ') {
-            if ($combo1DepartmentId > 0 && $courseDepartmentId === $combo1DepartmentId) {
+            if ($combo1SubjectId > 0 && $courseSubjectId === $combo1SubjectId) {
                 return ProgramWiseSemesterCourse::DELIVERY_MAJOR_COMBO1;
             }
 
-            if ($combo2DepartmentId > 0 && $courseDepartmentId === $combo2DepartmentId) {
+            if ($combo2SubjectId > 0 && $courseSubjectId === $combo2SubjectId) {
                 return ProgramWiseSemesterCourse::DELIVERY_MAJOR_COMBO2;
             }
 
@@ -3715,12 +3744,59 @@ class SubjectController extends Controller
 
     private function resolveSubjectToDepartmentId(int $subjectId): int
     {
+        static $resolvedDepartmentBySubjectId = [];
+        static $subjectHasMainDeptColumn = null;
+        static $subjectsAndDepartmentTablesChecked = null;
+        static $departmentHasCampusColumn = null;
+        static $subjectsHasCampusColumn = null;
+        static $departmentHasDepartmentCodeColumn = null;
+        static $departmentHasCodeColumn = null;
+        static $departmentHasNameColumn = null;
+        static $departmentHasTitleColumn = null;
+
         if ($subjectId <= 0) {
             return 0;
         }
 
-        if (!Schema::hasTable('subjects') || !Schema::hasTable('department_masters')) {
-            return $subjectId;
+        if (isset($resolvedDepartmentBySubjectId[$subjectId])) {
+            return $resolvedDepartmentBySubjectId[$subjectId];
+        }
+
+        if ($subjectsAndDepartmentTablesChecked === null) {
+            $subjectsAndDepartmentTablesChecked = Schema::hasTable('subjects') && Schema::hasTable('department_masters');
+        }
+
+        if ($subjectHasMainDeptColumn === null) {
+            $subjectHasMainDeptColumn = Schema::hasColumn('subjects', 'main_dept_id');
+        }
+
+        if ($departmentHasCampusColumn === null) {
+            $departmentHasCampusColumn = Schema::hasColumn('department_masters', 'campus_id');
+        }
+
+        if ($subjectsHasCampusColumn === null) {
+            $subjectsHasCampusColumn = Schema::hasColumn('subjects', 'campus_id');
+        }
+
+        if ($departmentHasDepartmentCodeColumn === null) {
+            $departmentHasDepartmentCodeColumn = Schema::hasColumn('department_masters', 'department_code');
+        }
+
+        if ($departmentHasCodeColumn === null) {
+            $departmentHasCodeColumn = Schema::hasColumn('department_masters', 'code');
+        }
+
+        if ($departmentHasNameColumn === null) {
+            $departmentHasNameColumn = Schema::hasColumn('department_masters', 'name');
+        }
+
+        if ($departmentHasTitleColumn === null) {
+            $departmentHasTitleColumn = Schema::hasColumn('department_masters', 'title');
+        }
+
+        if (!$subjectsAndDepartmentTablesChecked) {
+            $resolvedDepartmentBySubjectId[$subjectId] = $subjectId;
+            return $resolvedDepartmentBySubjectId[$subjectId];
         }
 
         $subject = Subject::query()
@@ -3728,70 +3804,77 @@ class SubjectController extends Controller
             ->find($subjectId);
 
         if (!$subject) {
-            return $subjectId;
+            $resolvedDepartmentBySubjectId[$subjectId] = $subjectId;
+            return $resolvedDepartmentBySubjectId[$subjectId];
         }
 
-        if (Schema::hasColumn('subjects', 'main_dept_id')) {
+        if ($subjectHasMainDeptColumn) {
             $directDepartmentId = (int) ($subject->main_dept_id ?? 0);
             if ($directDepartmentId > 0) {
-                return $directDepartmentId;
+                $resolvedDepartmentBySubjectId[$subjectId] = $directDepartmentId;
+                return $resolvedDepartmentBySubjectId[$subjectId];
             }
         }
 
         $departmentQuery = DB::table('department_masters');
 
-        if (Schema::hasColumn('department_masters', 'campus_id') && Schema::hasColumn('subjects', 'campus_id')) {
+        if ($departmentHasCampusColumn && $subjectsHasCampusColumn) {
             $departmentQuery->where('campus_id', (int) ($subject->campus_id ?? 0));
         }
 
         $subjectCode = strtoupper(trim((string) ($subject->code ?? '')));
         if ($subjectCode !== '') {
-            if (Schema::hasColumn('department_masters', 'department_code')) {
+            if ($departmentHasDepartmentCodeColumn) {
                 $matchedByDeptCode = (int) (clone $departmentQuery)
                     ->whereRaw('UPPER(TRIM(department_code)) = ?', [$subjectCode])
                     ->value('id');
 
                 if ($matchedByDeptCode > 0) {
-                    return $matchedByDeptCode;
+                    $resolvedDepartmentBySubjectId[$subjectId] = $matchedByDeptCode;
+                    return $resolvedDepartmentBySubjectId[$subjectId];
                 }
             }
 
-            if (Schema::hasColumn('department_masters', 'code')) {
+            if ($departmentHasCodeColumn) {
                 $matchedByCode = (int) (clone $departmentQuery)
                     ->whereRaw('UPPER(TRIM(code)) = ?', [$subjectCode])
                     ->value('id');
 
                 if ($matchedByCode > 0) {
-                    return $matchedByCode;
+                    $resolvedDepartmentBySubjectId[$subjectId] = $matchedByCode;
+                    return $resolvedDepartmentBySubjectId[$subjectId];
                 }
             }
         }
 
         $subjectTitle = strtoupper(trim((string) ($subject->title ?? '')));
         if ($subjectTitle !== '') {
-            if (Schema::hasColumn('department_masters', 'name')) {
+            if ($departmentHasNameColumn) {
                 $matchedByName = (int) (clone $departmentQuery)
                     ->whereRaw('UPPER(TRIM(name)) = ?', [$subjectTitle])
                     ->value('id');
 
                 if ($matchedByName > 0) {
-                    return $matchedByName;
+                    $resolvedDepartmentBySubjectId[$subjectId] = $matchedByName;
+                    return $resolvedDepartmentBySubjectId[$subjectId];
                 }
             }
 
-            if (Schema::hasColumn('department_masters', 'title')) {
+            if ($departmentHasTitleColumn) {
                 $matchedByTitle = (int) (clone $departmentQuery)
                     ->whereRaw('UPPER(TRIM(title)) = ?', [$subjectTitle])
                     ->value('id');
 
                 if ($matchedByTitle > 0) {
-                    return $matchedByTitle;
+                    $resolvedDepartmentBySubjectId[$subjectId] = $matchedByTitle;
+                    return $resolvedDepartmentBySubjectId[$subjectId];
                 }
             }
         }
 
         // Last fallback for legacy data where ids happened to align.
-        return $subjectId;
+        $resolvedDepartmentBySubjectId[$subjectId] = $subjectId;
+        return $resolvedDepartmentBySubjectId[$subjectId];
     }
 
     private function getEligiblePublishedCourseIdsForSemester(SubjectHasStudentProgam $combination, int $semesterId): array
@@ -3809,62 +3892,97 @@ class SubjectController extends Controller
         $boundary = $boundary ?: $this->getProgrammeBoundarySubjectIds($combination);
         $programType = $this->resolveCombinationProgramType($combination);
 
-        $query = SyllabusManager::with([
-            'courseobjective:id,course_code,course_title,course_type,department',
-            'courseobjective.coursetypemaster:id,title',
-            'courseobjective.departmentmaster:id,name,department_code',
-        ])
-            ->where('batch_id', $combination->batch_id);
+        $cacheKey = 'curriculum:published-by-semester:'
+            . (int) ($combination->id ?? 0)
+            . ':' . (int) ($combination->batch_id ?? 0)
+            . ':' . $programType
+            . ':' . md5(json_encode($boundary));
 
-        if (Schema::hasColumn('syllabus_managers', 'program_type')) {
-            $query->whereRaw("UPPER(TRIM(COALESCE(program_type, ''))) = ?", [$programType]);
-        }
+        return Cache::remember($cacheKey, now()->addMinutes(3), function () use ($combination, $boundary, $programType) {
+            $query = SyllabusManager::with([
+                'courseobjective:id,course_code,course_title,course_type,department',
+                'courseobjective.coursetypemaster:id,title',
+            ])
+                ->where('batch_id', $combination->batch_id);
 
-        if (Schema::hasColumn('syllabus_managers', 'status')) {
-            $query->where('status', 'published');
-        }
-
-        $publishedSyllabus = $query->get();
-
-        $bySemester = [];
-
-        foreach ($publishedSyllabus as $syllabus) {
-            $course = $syllabus->courseobjective;
-            if (!$course) {
-                continue;
+            if (Schema::hasColumn('syllabus_managers', 'program_type')) {
+                $query->whereRaw("UPPER(TRIM(COALESCE(program_type, ''))) = ?", [$programType]);
             }
 
-            $courseTypeTitle = strtoupper(trim((string) optional($course->coursetypemaster)->title));
-
-            $deliveryCategory = $this->deriveDeliveryCategory($combination, $course, $boundary);
-            $semesterKey = (string) ((int) $syllabus->semester_id);
-            $courseKey = (string) ((int) $course->id);
-
-            if (!isset($bySemester[$semesterKey])) {
-                $bySemester[$semesterKey] = [];
+            if (Schema::hasColumn('syllabus_managers', 'status')) {
+                $query->where('status', 'published');
             }
 
-            $bySemester[$semesterKey][$courseKey] = [
-                'id' => (int) $course->id,
-                'course_code' => (string) ($course->course_code ?? ''),
-                'course_title' => (string) ($course->course_title ?? ''),
-                'course_type_title' => (string) ($courseTypeTitle !== '' ? $courseTypeTitle : 'NA'),
-                'source_subject_id' => (int) ($course->department ?? 0),
-                'source_subject' => (string) (optional($course->departmentmaster)->title ?? optional($course->departmentmaster)->name ?? 'NA'),
-                'source_subject_code' => (string) (optional($course->departmentmaster)->code ?? ''),
-                'delivery_category' => $deliveryCategory,
-                'delivery_label' => $deliveryCategory ? strtoupper(str_replace('_', ' ', $deliveryCategory)) : 'NOT DERIVED',
-            ];
-        }
+            $publishedSyllabus = $query->get();
+            $combo1SubjectId = (int) ($boundary['combo1'] ?? 0);
+            $combo2SubjectId = (int) ($boundary['combo2'] ?? 0);
 
-        foreach ($bySemester as $semesterKey => $courses) {
-            $bySemester[$semesterKey] = collect($courses)
-                ->sortBy(fn($course) => ($course['course_code'] ?? '') . ' ' . ($course['course_title'] ?? ''))
-                ->values()
-                ->all();
-        }
+            $courseSubjectIds = $publishedSyllabus
+                ->pluck('courseobjective.department')
+                ->map(fn($value) => (int) $value)
+                ->filter(fn($value) => $value > 0)
+                ->unique()
+                ->values();
 
-        return $bySemester;
+            $subjectMap = $courseSubjectIds->isNotEmpty()
+                ? Subject::query()
+                ->whereIn('id', $courseSubjectIds->all())
+                ->get(['id', 'title', 'code'])
+                ->keyBy('id')
+                : collect();
+
+            $bySemester = [];
+
+            foreach ($publishedSyllabus as $syllabus) {
+                $course = $syllabus->courseobjective;
+                if (!$course) {
+                    continue;
+                }
+
+                $courseTypeTitle = strtoupper(trim((string) optional($course->coursetypemaster)->title));
+                $courseSubjectId = (int) ($course->department ?? 0);
+                $courseSubject = $subjectMap->get($courseSubjectId);
+
+                $deliveryCategory = ProgramWiseSemesterCourse::DELIVERY_PROGRAMME_COMMON;
+                if ($courseTypeTitle === 'MDC') {
+                    $deliveryCategory = ProgramWiseSemesterCourse::DELIVERY_OPEN_CHOICE;
+                } elseif ($courseTypeTitle === 'MAJ') {
+                    if ($combo1SubjectId > 0 && $courseSubjectId === $combo1SubjectId) {
+                        $deliveryCategory = ProgramWiseSemesterCourse::DELIVERY_MAJOR_COMBO1;
+                    } elseif ($combo2SubjectId > 0 && $courseSubjectId === $combo2SubjectId) {
+                        $deliveryCategory = ProgramWiseSemesterCourse::DELIVERY_MAJOR_COMBO2;
+                    }
+                }
+
+                $semesterKey = (string) ((int) $syllabus->semester_id);
+                $courseKey = (string) ((int) $course->id);
+
+                if (!isset($bySemester[$semesterKey])) {
+                    $bySemester[$semesterKey] = [];
+                }
+
+                $bySemester[$semesterKey][$courseKey] = [
+                    'id' => (int) $course->id,
+                    'course_code' => (string) ($course->course_code ?? ''),
+                    'course_title' => (string) ($course->course_title ?? ''),
+                    'course_type_title' => (string) ($courseTypeTitle !== '' ? $courseTypeTitle : 'NA'),
+                    'source_subject_id' => $courseSubjectId,
+                    'source_subject' => (string) ($courseSubject->title ?? 'NA'),
+                    'source_subject_code' => (string) ($courseSubject->code ?? ''),
+                    'delivery_category' => $deliveryCategory,
+                    'delivery_label' => $deliveryCategory ? strtoupper(str_replace('_', ' ', $deliveryCategory)) : 'NOT DERIVED',
+                ];
+            }
+
+            foreach ($bySemester as $semesterKey => $courses) {
+                $bySemester[$semesterKey] = collect($courses)
+                    ->sortBy(fn($course) => ($course['course_code'] ?? '') . ' ' . ($course['course_title'] ?? ''))
+                    ->values()
+                    ->all();
+            }
+
+            return $bySemester;
+        });
     }
 
     private function resolveCombinationProgramType(?SubjectHasStudentProgam $combination): string

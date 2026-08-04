@@ -40,6 +40,7 @@ class TimetableController extends Controller
         $teachingAssignments = TeachingAssignment::with([
             'course.coursetypemaster:id,title',
             'faculty:id,USER_CODE,FIRST_NAME,LAST_NAME',
+            'primaryFacultyMembers:id,USER_CODE,FIRST_NAME,LAST_NAME',
             'coFacultyMembers:id,USER_CODE,FIRST_NAME,LAST_NAME',
         ])
             ->where('subject_id', $id)
@@ -51,6 +52,7 @@ class TimetableController extends Controller
         $allTeachingAssignments = TeachingAssignment::with([
             'course:id,course_code,course_title',
             'faculty:id,USER_CODE,FIRST_NAME,LAST_NAME',
+            'primaryFacultyMembers:id,USER_CODE,FIRST_NAME,LAST_NAME',
             'coFacultyMembers:id,USER_CODE,FIRST_NAME,LAST_NAME',
         ])
             ->where('subject_id', $id)
@@ -132,8 +134,15 @@ class TimetableController extends Controller
             ->values();
 
         $faculties = $teachingAssignments
-            ->filter(fn($assignment) => $assignment->faculty)
-            ->unique('faculty_id')
+            ->flatMap(function ($assignment) {
+                $primaryFaculty = $assignment->primaryFacultyMembers ?? collect();
+                if ($primaryFaculty->isNotEmpty()) {
+                    return $primaryFaculty;
+                }
+
+                return $assignment->faculty ? collect([$assignment->faculty]) : collect();
+            })
+            ->unique('id')
             ->values();
 
         $facultyDeliveryTypes = [];
@@ -168,14 +177,38 @@ class TimetableController extends Controller
         }
 
         $teachingAssignmentOptions = $teachingAssignments
-            ->filter(fn($assignment) => $assignment->course && $assignment->faculty)
+            ->filter(fn($assignment) => $assignment->course)
             ->map(function ($assignment) {
+                $primaryFacultyCollection = $assignment->primaryFacultyMembers ?? collect();
+                if ($primaryFacultyCollection->isEmpty() && $assignment->faculty) {
+                    $primaryFacultyCollection = collect([$assignment->faculty]);
+                }
+
+                $primaryFacultyLabels = $primaryFacultyCollection
+                    ->map(fn($faculty) => trim((string) ($faculty->USER_CODE ?? '-') . ' - ' . (string) ($faculty->FIRST_NAME ?? '-') . ' ' . (string) ($faculty->LAST_NAME ?? '')))
+                    ->filter()
+                    ->values()
+                    ->all();
+
+                $primaryFacultyIds = $primaryFacultyCollection
+                    ->pluck('id')
+                    ->map(fn($id) => (int) $id)
+                    ->filter(fn($id) => $id > 0)
+                    ->unique()
+                    ->values()
+                    ->all();
+
                 $facultyName = trim(($assignment->faculty->FIRST_NAME ?? '') . ' ' . ($assignment->faculty->LAST_NAME ?? ''));
+                $facultyLabel = !empty($primaryFacultyLabels)
+                    ? implode(', ', $primaryFacultyLabels)
+                    : trim(($assignment->faculty->USER_CODE ?? '') . ' - ' . $facultyName);
 
                 return [
                     'id' => $assignment->id,
                     'course_id' => $assignment->course_id,
                     'faculty_id' => $assignment->faculty_id,
+                    'primary_faculty_ids' => $primaryFacultyIds,
+                    'primary_faculty_text' => $primaryFacultyLabels,
                     'co_faculty_ids' => $assignment->coFacultyMembers
                         ->pluck('id')
                         ->map(fn($id) => (int) $id)
@@ -196,18 +229,37 @@ class TimetableController extends Controller
                             ' - ' .
                             ($assignment->course->course_title ?? 'N/A')
                     ),
-                    'faculty_label' => trim(($assignment->faculty->USER_CODE ?? '') . ' - ' . $facultyName),
+                    'faculty_label' => $facultyLabel,
                 ];
             })
             ->values();
 
         $teachingAssignmentList = $allTeachingAssignments
             ->map(function ($assignment) {
+                $primaryFacultyCollection = $assignment->primaryFacultyMembers ?? collect();
+                if ($primaryFacultyCollection->isEmpty() && $assignment->faculty) {
+                    $primaryFacultyCollection = collect([$assignment->faculty]);
+                }
+
+                $primaryFacultyText = $primaryFacultyCollection
+                    ->map(fn($faculty) => trim((string) ($faculty->USER_CODE ?? '-') . ' - ' . (string) ($faculty->FIRST_NAME ?? '-') . ' ' . (string) ($faculty->LAST_NAME ?? '')))
+                    ->filter()
+                    ->values()
+                    ->all();
+
                 return [
                     'id' => $assignment->id,
                     'subject_id' => $assignment->subject_id,
                     'course_id' => $assignment->course_id,
                     'faculty_id' => $assignment->faculty_id,
+                    'primary_faculty_ids' => $primaryFacultyCollection
+                        ->pluck('id')
+                        ->map(fn($id) => (int) $id)
+                        ->filter(fn($id) => $id > 0)
+                        ->unique()
+                        ->values()
+                        ->all(),
+                    'primary_faculty_text' => $primaryFacultyText,
                     'co_faculty_ids' => $assignment->coFacultyMembers
                         ->pluck('id')
                         ->map(fn($id) => (int) $id)
@@ -219,7 +271,9 @@ class TimetableController extends Controller
                         ->values()
                         ->all(),
                     'course_text' => trim(($assignment->course->course_code ?? '-') . ' - ' . ($assignment->course->course_title ?? '-')),
-                    'faculty_text' => trim(($assignment->faculty->USER_CODE ?? '-') . ' - ' . ($assignment->faculty->FIRST_NAME ?? '-') . ' ' . ($assignment->faculty->LAST_NAME ?? '')),
+                    'faculty_text' => !empty($primaryFacultyText)
+                        ? implode(', ', $primaryFacultyText)
+                        : trim(($assignment->faculty->USER_CODE ?? '-') . ' - ' . ($assignment->faculty->FIRST_NAME ?? '-') . ' ' . ($assignment->faculty->LAST_NAME ?? '')),
                     'delivery_type' => $assignment->delivery_type,
                     'allocation_group' => $assignment->allocation_group,
                     'allocation_group_label' => $assignment->allocation_group_label,
@@ -465,6 +519,11 @@ class TimetableController extends Controller
             $routines = $routinesQuery
                 ->with([
                     'teachingAssignment:id,course_id,faculty_id,delivery_type,allocation_group',
+                    'teachingAssignment.primaryFacultyMembers:id,USER_CODE,FIRST_NAME,LAST_NAME',
+                    'teachingAssignment.coFacultyMembers:id,USER_CODE,FIRST_NAME,LAST_NAME',
+                    'teachingAllocation:id,course_id,faculty_id,delivery_type,allocation_group',
+                    'teachingAllocation.primaryFacultyMembers:id,USER_CODE,FIRST_NAME,LAST_NAME',
+                    'teachingAllocation.coFacultyMembers:id,USER_CODE,FIRST_NAME,LAST_NAME',
                     'lecturehallmaster:id,title',
                 ])
                 ->get();
@@ -475,10 +534,10 @@ class TimetableController extends Controller
             $teachingAssignments = TeachingAssignment::with([
                 'course.coursetypemaster:id,title',
                 'faculty:id,USER_CODE,FIRST_NAME,LAST_NAME',
+                'primaryFacultyMembers:id,USER_CODE,FIRST_NAME,LAST_NAME',
                 'coFacultyMembers:id,USER_CODE,FIRST_NAME,LAST_NAME',
             ])
                 ->where('subject_id', $subjectId)
-                ->where('is_active', 1)
                 ->get();
 
             $assignmentById = $teachingAssignments->keyBy('id');
@@ -554,6 +613,14 @@ class TimetableController extends Controller
                         $assignment = $assignmentById[$routineAssignmentId] ?? null;
                     }
 
+                    if (!$assignment && !empty($routine->teachingAssignment)) {
+                        $assignment = $routine->teachingAssignment;
+                    }
+
+                    if (!$assignment && !empty($routine->teachingAllocation)) {
+                        $assignment = $routine->teachingAllocation;
+                    }
+
                     if ($assignment) {
                         if (!empty($assignment->faculty_id)) {
                             $facultyId = (int) $assignment->faculty_id;
@@ -571,6 +638,12 @@ class TimetableController extends Controller
 
                     $coFacultyNames = collect($assignment?->coFacultyMembers ?? [])
                         ->map(fn($faculty) => trim((string) ($faculty->FIRST_NAME ?? '') . ' ' . (string) ($faculty->LAST_NAME ?? '')))
+                        ->filter()
+                        ->values()
+                        ->all();
+
+                    $primaryFacultyNames = collect($assignment?->primaryFacultyMembers ?? [])
+                        ->map(fn($faculty) => trim((string) ($faculty->USER_CODE ?? '-') . ' - ' . (string) ($faculty->FIRST_NAME ?? '-') . ' ' . (string) ($faculty->LAST_NAME ?? '')))
                         ->filter()
                         ->values()
                         ->all();
@@ -597,7 +670,8 @@ class TimetableController extends Controller
                         'teacher_id' => $facultyId,
                         'teaching_assignment_id' => $routineAssignmentId ?: null,
                         'subject_name' => $courseName ?: ($syllabus->subject->subject_title ?? $syllabus->subject->title ?? 'Subject'),
-                        'teacher_name' => $facultyName ?: 'Teacher',
+                        'teacher_name' => !empty($primaryFacultyNames) ? implode(', ', $primaryFacultyNames) : ($facultyName ?: 'Teacher'),
+                        'primary_faculty_names' => $primaryFacultyNames,
                         'co_faculty_names' => $coFacultyNames,
                         'lecturehall_id' => (int) ($routine->lecturehall_id ?? 0),
                         'lecturehall_name' => (string) (optional($routine->lecturehallmaster)->title ?? ''),
@@ -665,6 +739,7 @@ class TimetableController extends Controller
             ->with([
                 'course:id,course_code,course_title',
                 'faculty:id,USER_CODE,FIRST_NAME,LAST_NAME',
+                'primaryFacultyMembers:id,USER_CODE,FIRST_NAME,LAST_NAME',
                 'coFacultyMembers:id,USER_CODE,FIRST_NAME,LAST_NAME',
             ])
             ->where('subject_id', $subjectId)
@@ -693,6 +768,11 @@ class TimetableController extends Controller
                 $course = $assignment->course;
                 $faculty = $assignment->faculty;
 
+                $primaryFacultyCollection = $assignment->primaryFacultyMembers ?? collect();
+                if ($primaryFacultyCollection->isEmpty() && $faculty) {
+                    $primaryFacultyCollection = collect([$faculty]);
+                }
+
                 $specializationIds = collect((array) ($curriculum->specialization_master_ids ?? []))
                     ->map(fn($id) => (int) $id)
                     ->filter()
@@ -702,6 +782,18 @@ class TimetableController extends Controller
 
                 $facultyName = trim(($faculty->FIRST_NAME ?? '') . ' ' . ($faculty->LAST_NAME ?? ''));
 
+                $primaryFacultyNames = $primaryFacultyCollection
+                    ->map(fn($primaryFaculty) => trim((string) ($primaryFaculty->FIRST_NAME ?? '') . ' ' . (string) ($primaryFaculty->LAST_NAME ?? '')))
+                    ->filter()
+                    ->values()
+                    ->all();
+
+                $primaryFacultyLabels = $primaryFacultyCollection
+                    ->map(fn($primaryFaculty) => trim((string) ($primaryFaculty->USER_CODE ?? '-') . ' - ' . (string) ($primaryFaculty->FIRST_NAME ?? '-') . ' ' . (string) ($primaryFaculty->LAST_NAME ?? '')))
+                    ->filter()
+                    ->values()
+                    ->all();
+
                 return [
                     'assignment_id' => (int) $assignment->id,
                     'subject_id' => (int) $assignment->subject_id,
@@ -710,9 +802,18 @@ class TimetableController extends Controller
                     'course_name' => (string) ($course->course_title ?? ''),
                     'course_label' => trim(((string) ($course->course_code ?? '-')) . ' - ' . ((string) ($course->course_title ?? '-'))),
                     'faculty_id' => (int) ($assignment->faculty_id ?? 0),
+                    'primary_faculty_ids' => $primaryFacultyCollection
+                        ->pluck('id')
+                        ->map(fn($id) => (int) $id)
+                        ->filter(fn($id) => $id > 0)
+                        ->unique()
+                        ->values()
+                        ->all(),
                     'faculty_code' => (string) ($faculty->USER_CODE ?? ''),
-                    'faculty_name' => (string) $facultyName,
-                    'faculty_label' => trim(((string) ($faculty->USER_CODE ?? '-')) . ' - ' . ($facultyName !== '' ? $facultyName : '-')),
+                    'faculty_name' => !empty($primaryFacultyNames) ? implode(', ', $primaryFacultyNames) : (string) $facultyName,
+                    'faculty_label' => !empty($primaryFacultyLabels)
+                        ? implode(', ', $primaryFacultyLabels)
+                        : trim(((string) ($faculty->USER_CODE ?? '-')) . ' - ' . ($facultyName !== '' ? $facultyName : '-')),
                     'co_faculty_ids' => $assignment->coFacultyMembers
                         ->pluck('id')
                         ->map(fn($id) => (int) $id)

@@ -458,6 +458,7 @@ $days = Weekday::all();
           subject_id: item.subject_id,
           course_id: item.course_id,
           faculty_id: item.faculty_id,
+          primary_faculty_ids: Array.isArray(item.primary_faculty_ids) ? item.primary_faculty_ids : [],
           co_faculty_ids: Array.isArray(item.co_faculty_ids) ? item.co_faculty_ids : [],
           co_faculty_text: Array.isArray(item.co_faculty_text) ? item.co_faculty_text : [],
           delivery_type: item.delivery_type,
@@ -903,6 +904,7 @@ $days = Weekday::all();
               subject_id: Number(row.subject_id || 0),
               course_id: Number(row.course_id || 0),
               faculty_id: Number(row.faculty_id || 0),
+              primary_faculty_ids: Array.isArray(row.primary_faculty_ids) ? row.primary_faculty_ids.map((id) => Number(id || 0)).filter((id) => id > 0) : [],
               co_faculty_ids: Array.isArray(row.co_faculty_ids) ? row.co_faculty_ids.map((id) => Number(id || 0)).filter((id) => id > 0) : [],
               co_faculty_names: Array.isArray(row.co_faculty_names) ? row.co_faculty_names : [],
               co_faculty_label: Array.isArray(row.co_faculty_label) ? row.co_faculty_label : [],
@@ -1061,6 +1063,7 @@ $days = Weekday::all();
           }
 
           const assignmentFacultyIds = [Number(assignment.faculty_id || 0)]
+            .concat(Array.isArray(assignment.primary_faculty_ids) ? assignment.primary_faculty_ids.map((id) => Number(id || 0)) : [])
             .concat(Array.isArray(assignment.co_faculty_ids) ? assignment.co_faculty_ids.map((id) => Number(id || 0)) : [])
             .filter((id) => id > 0);
 
@@ -1130,6 +1133,7 @@ $days = Weekday::all();
               subject_id: Number(row.subject_id || 0),
               course_id: Number(row.course_id || 0),
               faculty_id: Number(row.faculty_id || 0),
+              primary_faculty_ids: Array.isArray(row.primary_faculty_ids) ? row.primary_faculty_ids.map((id) => Number(id || 0)).filter((id) => id > 0) : [],
               co_faculty_ids: Array.isArray(row.co_faculty_ids) ? row.co_faculty_ids.map((id) => Number(id || 0)).filter((id) => id > 0) : [],
               co_faculty_names: Array.isArray(row.co_faculty_names) ? row.co_faculty_names : [],
               co_faculty_label: Array.isArray(row.co_faculty_label) ? row.co_faculty_label : [],
