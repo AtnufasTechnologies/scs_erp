@@ -60,6 +60,7 @@ use App\Http\Controllers\HrPayMatrixController;
 use App\Http\Controllers\HrPayrollController;
 use App\Http\Controllers\HrDesignationController;
 use App\Http\Controllers\HrGradeLevelController;
+use App\Http\Controllers\HrApiMetrixController;
 use App\Http\Controllers\Hr\ApiScoreController;
 use App\Http\Controllers\SyllabusPdfController;
 use App\Http\Controllers\SubjectController;
@@ -1393,6 +1394,15 @@ Route::group(['prefix' => '/erp'], function () {
 
         // API Score Reports
         Route::get('api-scores/reports/analytics', [ApiScoreController::class, 'reports'])->name('hr.api-scores.reports');
+
+        // API Metrix Category Master
+        Route::get('api-metrix', [HrApiMetrixController::class, 'index'])->name('hr.api-metrix.index');
+        Route::get('api-metrix/create', [HrApiMetrixController::class, 'create'])->name('hr.api-metrix.create');
+        Route::post('api-metrix', [HrApiMetrixController::class, 'store'])->name('hr.api-metrix.store');
+        Route::get('api-metrix/{id}', [HrApiMetrixController::class, 'show'])->name('hr.api-metrix.show');
+        Route::get('api-metrix/{id}/edit', [HrApiMetrixController::class, 'edit'])->name('hr.api-metrix.edit');
+        Route::put('api-metrix/{id}', [HrApiMetrixController::class, 'update'])->name('hr.api-metrix.update');
+        Route::delete('api-metrix/{id}', [HrApiMetrixController::class, 'destroy'])->name('hr.api-metrix.destroy');
     });
 
     // Public Vacancy Routes (for website)
