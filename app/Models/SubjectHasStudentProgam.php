@@ -12,11 +12,17 @@ class SubjectHasStudentProgam extends Model
     protected $fillable = [
         'subject_id',
         'batch_id',
+        'shift_id',
         'student_program_id',
         'campus_id',
         'program_type',
         'total_seats',
         'total_available_seats',
+        'specialization_ids',
+    ];
+
+    protected $casts = [
+        'specialization_ids' => 'array',
     ];
 
     function studentprograminfo()
@@ -39,8 +45,18 @@ class SubjectHasStudentProgam extends Model
         return $this->hasOne(Campus::class, 'id', 'campus_id');
     }
 
+    function shiftmaster()
+    {
+        return $this->hasOne(ShiftMaster::class, 'id', 'shift_id');
+    }
+
     function studentmaster()
     {
         return $this->hasMany(StudentMaster::class, 'new_program_id', 'student_program_id');
+    }
+
+    function combomap()
+    {
+        return $this->hasOne(StdProgComboMap::class, 'student_program_id', 'student_program_id');
     }
 }

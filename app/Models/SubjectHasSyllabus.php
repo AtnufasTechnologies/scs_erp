@@ -13,6 +13,7 @@ class SubjectHasSyllabus extends Model
         'subject_id',
         'batch_id',
         'semester_id',
+        'program_type',
         'course_id'
     ];
 
@@ -53,9 +54,15 @@ class SubjectHasSyllabus extends Model
 
     function syllabusManagers()
     {
-        return $this->hasMany(SyllabusManager::class, 'subject_id', 'subject_id')
+        $query = $this->hasMany(SyllabusManager::class, 'subject_id', 'subject_id')
             ->where('batch_id', $this->batch_id)
             ->where('semester_id', $this->semester_id);
+
+        if (!empty($this->program_type)) {
+            $query->where('program_type', $this->program_type);
+        }
+
+        return $query;
     }
 
     function syllabusunits()
@@ -71,6 +78,10 @@ class SubjectHasSyllabus extends Model
             ->whereHas('syllabusManager', function ($query) {
                 $query->where('batch_id', $this->batch_id)
                     ->where('semester_id', $this->semester_id);
+
+                if (!empty($this->program_type)) {
+                    $query->where('program_type', $this->program_type);
+                }
             });
     }
 

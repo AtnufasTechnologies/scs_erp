@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\StaticController;
+use App\Models\StudentSpecialization;
 use Illuminate\Support\Facades\Auth;
 
 $userId = Auth::user()->id;
@@ -21,7 +22,7 @@ $userRole = StaticController::fetchUserRole($userId);
 
 <style>
   .sp-hero {
-    background: linear-gradient(135deg, #653dca 0%, #28937d 40%, #0dc0c9 100%);
+    background: linear-gradient(135deg, #653dca 0%, #aee8f7 100%);
     padding: 2.5rem 2rem 4rem;
     color: #fff;
     position: relative
@@ -312,6 +313,96 @@ $userRole = StaticController::fetchUserRole($userId);
     flex-shrink: 0
   }
 
+  .sp-grid-wrap {
+    overflow-x: auto;
+    border: 1px solid #e8eaf6;
+    border-radius: 10px;
+    background: #fff
+  }
+
+  .sp-grid-table {
+    width: 100%;
+    min-width: 840px;
+    border-collapse: collapse
+  }
+
+  .sp-grid-table th,
+  .sp-grid-table td {
+    border: 1px solid #eef1ff;
+    vertical-align: top;
+    padding: .5rem
+  }
+
+  .sp-grid-table thead th {
+    background: #f6f8ff;
+    color: #27317a;
+    font-size: .74rem;
+    text-transform: uppercase;
+    letter-spacing: .04em;
+    white-space: nowrap
+  }
+
+  .sp-grid-table .day-col {
+    min-width: 105px;
+    font-weight: 700;
+    color: #27317a;
+    background: #f9faff
+  }
+
+  .sp-cell-empty {
+    color: #b0b7c3;
+    font-size: .78rem;
+    text-align: center;
+    padding: .6rem 0
+  }
+
+  .sp-slot-card {
+    border: 1px solid #dfe6ff;
+    border-radius: 8px;
+    padding: .45rem .5rem;
+    background: #fafbff;
+    margin-bottom: .4rem
+  }
+
+  .sp-slot-card:last-child {
+    margin-bottom: 0
+  }
+
+  .sp-slot-code {
+    font-size: .75rem;
+    font-weight: 700;
+    color: #1a237e;
+    line-height: 1.2
+  }
+
+  .sp-slot-title {
+    font-size: .72rem;
+    color: #4b5563;
+    line-height: 1.25;
+    margin-top: .15rem
+  }
+
+  .sp-slot-meta {
+    font-size: .69rem;
+    color: #5f6b86;
+    margin-top: .25rem
+  }
+
+  .sp-faculty-block {
+    border: 1px solid #eceff9;
+    border-radius: 10px;
+    padding: .75rem;
+    margin-top: 1rem;
+    background: #fcfcff
+  }
+
+  .sp-faculty-title {
+    font-size: .86rem;
+    font-weight: 700;
+    color: #1a237e;
+    margin-bottom: .6rem
+  }
+
   .sp-att-bar {
     height: 7px;
     border-radius: 4px;
@@ -524,12 +615,23 @@ $userRole = StaticController::fetchUserRole($userId);
       </p>
       <h1 class="text-capitalize mb-0 text-light">{{ $data->first_name }} {{ $data->last_name }}</h1>
       <p class="sp-sub mt-1 mb-2 text-capitalize">
-        {{ $data->deptmaster->name ?? '' }}
-        @if($data->programgroup && $data->programgroup->programInfo)
-        &nbsp;·&nbsp; {{ $data->programgroup->programInfo->name }}
+        @if(!empty($programOfferingSubjectTitle))
+        Offered By: {{ $programOfferingSubjectTitle }}
+        @endif
+
+        @if($data->stdprogramenrolled != null)
+        &nbsp;·&nbsp;
+        {{$data->stdprogramenrolled->code }} - {{ $data->stdprogramenrolled->name }}
         @endif
         @if($data->batchmaster)
         &nbsp;·&nbsp; Batch {{ $data->batchmaster->batch_name }}
+        @endif
+
+        @php
+        $specializationInfo = StudentSpecialization::with('studentspecialization')->where('student_id', $data->id)->first();
+        @endphp
+        @if ($specializationInfo != null)
+        &nbsp;·&nbsp; Specialization - {{ $specializationInfo->studentspecialization != null ? $specializationInfo->studentspecialization->name: ''}}
         @endif
       </p>
       <div>
@@ -542,6 +644,15 @@ $userRole = StaticController::fetchUserRole($userId);
         @if($data->bloodgroup)
         <span class="sp-badge"><i class="fas fa-tint"></i> {{ $data->bloodgroup->title ?? '' }}</span>
         @endif
+        @if($data->stdprogramenrolled->program_type == 2)
+        @if(!empty($studentMajorDeliveryType))
+        <span class="sp-badge"><i class="fas fa-route"></i> Delivery {{ $studentMajorDeliveryType }}</span>
+
+        @endif
+        @if(!empty($combo1Title) || !empty($combo2Title))
+        <span class="sp-badge"><i class="fas fa-code-branch"></i> Combo A: {{ $combo1Title ?: '—' }} | Combo B: {{ $combo2Title ?: '—' }}</span>
+        @endif
+        @endif
         <span class="sp-badge"><i class="fas fa-layer-group"></i> Year {{ $data->current_year ?? '—' }}</span>
       </div>
     </div>
@@ -550,7 +661,7 @@ $userRole = StaticController::fetchUserRole($userId);
       <form method="POST" action="{{ route('admin.student.create-access', $data->id) }}" class="d-inline ms-1"
         onsubmit="return confirm('Create/reset student login? Default password will be their roll number.')">
         @csrf
-        <button type="submit" class="btn btn-sm" style="background:rgba(255,255,255,.2);color:#fff;border:1px solid rgba(255,255,255,.3);">
+        <button type="submit" class="btn-sm btn-success">
           <i class="fas fa-key me-1"></i> Create Login
         </button>
       </form>
@@ -620,7 +731,7 @@ $userRole = StaticController::fetchUserRole($userId);
     <button class="sp-tab" onclick="spTab(event,'tab-attendance')"><i class="fas fa-check-circle"></i> Attendance</button>
     <button class="sp-tab" onclick="spTab(event,'tab-fa')"><i class="fas fa-pen"></i> FA Marks</button>
     <!-- <button class="sp-tab" onclick="spTab(event,'tab-results')"><i class="fas fa-trophy"></i> Exam Results</button> -->
-    <button class="sp-tab" id="btn-tab-courses" onclick="spTab(event,'tab-courses')"><i class="fas fa-book"></i> Courses</button>
+    <!-- <button class="sp-tab" id="btn-tab-courses" onclick="spTab(event,'tab-courses')"><i class="fas fa-book"></i> Courses</button> -->
     <button class="sp-tab" onclick="spTab(event,'tab-fee')"><i class="fas fa-rupee-sign"></i> Fee</button>
     @if(in_array($userRole, ['super-admin','itcell']))
     <button class="sp-tab" id="btn-tab-edit" onclick="spTab(event,'tab-edit')"><i class="fas fa-edit"></i> Edit Details</button>
@@ -735,33 +846,93 @@ $userRole = StaticController::fetchUserRole($userId);
       <div class="sp-card-header">
         <div class="sp-icon" style="background:#fce4ec;color:#c62828;"><i class="fas fa-calendar-alt"></i></div>
         <h4>Weekly Timetable</h4>
-        <span class="sp-count">{{ $timetableByDay->sum(fn($s) => $s->count()) }} slots</span>
+        @php
+        $dayOrder = ['Monday'=>1,'Tuesday'=>2,'Wednesday'=>3,'Thursday'=>4,'Friday'=>5,'Saturday'=>6,'Sunday'=>7];
+        $allSlots = collect($timetableByDay ?? collect())->flatten(1)->values();
+        $orderedDays = collect($timetableByDay ?? collect())->keys()->sortBy(fn($d) => $dayOrder[$d] ?? 99)->values();
+        $hours = $allSlots->pluck('hour')->filter()->unique()->sortBy(function($hour) {
+        $hourText = (string) $hour;
+        if (preg_match('/\d+/', $hourText, $m)) {
+        return (int) $m[0];
+        }
+        return 999;
+        })->values();
+
+        $gridMap = [];
+        foreach ($allSlots as $slot) {
+        $day = (string) ($slot['weekday'] ?? 'Unknown');
+        $hour = (string) ($slot['hour'] ?? '');
+        if ($hour === '') {
+        continue;
+        }
+        if (!isset($gridMap[$day])) {
+        $gridMap[$day] = [];
+        }
+        if (!isset($gridMap[$day][$hour])) {
+        $gridMap[$day][$hour] = [];
+        }
+        $gridMap[$day][$hour][] = $slot;
+        }
+        @endphp
+        <span class="sp-count">{{ $allSlots->count() }} slots</span>
       </div>
-      @if($timetableByDay->isEmpty())
-      <div class="sp-empty"><i class="fas fa-calendar-times"></i>No timetable found for this batch.</div>
+
+      @if($allSlots->isEmpty())
+      <div class="sp-empty"><i class="fas fa-calendar-times"></i>No timetable found for this student.</div>
       @else
-      @php $dayOrder=['Monday'=>1,'Tuesday'=>2,'Wednesday'=>3,'Thursday'=>4,'Friday'=>5,'Saturday'=>6,'Sunday'=>7]; $sorted=$timetableByDay->sortBy(fn($s,$d)=>$dayOrder[$d]??99); @endphp
-      @foreach($sorted as $day => $slots)
-      <div class="sp-day-label"><i class="fas fa-sun" style="font-size:.75rem;"></i> {{ $day }}</div>
-      <div style="display:flex;flex-wrap:wrap;margin-bottom:.5rem;">
-        @foreach($slots->sortBy('hour_id') as $slot)
-        <div class="sp-slot-badge">
-          <span class="hour-num">{{ $slot->hourmaster->title ?? '?' }}</span>
-          <div>
-            <div style="font-weight:600;line-height:1.2;">{{ $slot->coursemaster->course_code ?? '—' }}</div>
-            <div style="font-size:.72rem;color:#6c757d;line-height:1.2;">{{ Str::limit($slot->coursemaster->course_title ?? '—', 28) }}</div>
-            <div style="font-size:.7rem;color:#3949ab;">
-              <i class="fas fa-user-tie" style="font-size:.65rem;"></i>
-              {{ $slot->faculty ? $slot->faculty->FIRST_NAME.' '.$slot->faculty->LAST_NAME : '—' }}
-              @if($slot->lecturehallmaster) &nbsp;·&nbsp;<i class="fas fa-door-open" style="font-size:.65rem;"></i> {{ $slot->lecturehallmaster->title }} @endif
-            </div>
-          </div>
-        </div>
-        @endforeach
+      <div class="sp-grid-wrap">
+        <table class="sp-grid-table">
+          <thead>
+            <tr>
+              <th class="day-col">Day / Hour</th>
+              @foreach($hours as $hour)
+              <th>{{ $hour }}</th>
+              @endforeach
+            </tr>
+          </thead>
+          <tbody>
+            @foreach($orderedDays as $day)
+            <tr>
+              <td class="day-col">{{ $day }}</td>
+              @foreach($hours as $hour)
+              @php $cellSlots = $gridMap[$day][$hour] ?? []; @endphp
+              <td>
+                @if(empty($cellSlots))
+                <div class="sp-cell-empty">—</div>
+                @else
+                @foreach($cellSlots as $slot)
+                <div class="sp-slot-card">
+                  <div class="sp-slot-code">{{ $slot['course_code'] ?? '—' }}</div>
+                  <div class="sp-slot-title">{{ $slot['course_title'] ?? 'Untitled Course' }}</div>
+                  <div class="sp-slot-meta">
+                    <i class="fas fa-user-tie"></i>
+                    {{ $slot['faculty'] ?? 'TBA' }}
+                  </div>
+                  <div class="sp-slot-meta">
+                    <i class="fas fa-sitemap"></i>
+                    {{ $slot['delivery_type'] ?? 'COMMON' }}
+                    &nbsp;|&nbsp;
+                    Group {{ !is_null($slot['group'] ?? null) ? $slot['group'] : '—' }}
+                  </div>
+                  <div class="sp-slot-meta">
+                    <i class="fas fa-door-open"></i>
+                    {{ $slot['room'] ?? 'TBA' }}
+                    &nbsp;|&nbsp;
+                    Shift {{ $slot['shift'] ?? '—' }}
+                  </div>
+                </div>
+                @endforeach
+                @endif
+              </td>
+              @endforeach
+            </tr>
+            @endforeach
+          </tbody>
+        </table>
       </div>
-      @endforeach
       @endif
     </div>
+
   </div>
 
   {{-- ── ATTENDANCE ── --}}
@@ -896,6 +1067,8 @@ $userRole = StaticController::fetchUserRole($userId);
               <th>Code</th>
               <th>Course Title</th>
               <th>Type</th>
+              <th>Delivery</th>
+              <th>Offered By</th>
               <th>Cr.</th>
               <th>Cia Marks </th>
               <th style="text-align:center;">Total</th>
@@ -908,6 +1081,9 @@ $userRole = StaticController::fetchUserRole($userId);
             $typeTitle = $course->coursemaster?->coursetypemaster?->title ?? '';
             $ctKey = preg_replace('/\s.*/', '', $typeTitle);
             $ct = $ctColors[$ctKey] ?? $defaultCt;
+            $deliveryKey = (string) ($course->semester ?? $course->coursemaster?->semester_id ?? '') . '_' . (string) ($course->course_id ?? '');
+            $deliveryType = $courseDeliveryMap[$deliveryKey] ?? ($studentMajorDeliveryType ?? 'COMMON');
+            $offeredBySubject = $courseOfferingSubjectMap[$deliveryKey] ?? ($programOfferingSubjectTitle ?? '—');
             @endphp
             <?php
             $courseMarks = StaticController::getStudentCourseMarks($data->id, $course->course_id);
@@ -930,6 +1106,12 @@ $userRole = StaticController::fetchUserRole($userId);
                 @else —
                 @endif
               </td>
+              <td>
+                <span style="background:#e3f2fd;color:#1565c0;border-radius:4px;padding:.1rem .5rem;font-size:.74rem;font-weight:700;white-space:nowrap;">
+                  {{ $deliveryType }}
+                </span>
+              </td>
+              <td style="font-size:.78rem;color:#374151;font-weight:600;white-space:nowrap;">{{ $offeredBySubject }}</td>
               <td>{{ $course->coursemaster?->credits ?? '—' }}</td>
               <td style="font-size:.8rem;color:#6c757d;">
                 @php
@@ -1065,6 +1247,10 @@ $userRole = StaticController::fetchUserRole($userId);
       'studentCourses' => $studentCourses,
       'coursesBySemester' => $coursesBySemester,
       'lockedCourseIds' => $lockedCourseIds,
+      'courseDeliveryMap' => $courseDeliveryMap ?? [],
+      'courseOfferingSubjectMap' => $courseOfferingSubjectMap ?? [],
+      'studentMajorDeliveryType' => $studentMajorDeliveryType ?? null,
+      'programOfferingSubjectTitle' => $programOfferingSubjectTitle ?? '',
       ])
     </div>
   </div>

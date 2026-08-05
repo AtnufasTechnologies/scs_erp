@@ -13,7 +13,13 @@ return new class extends Migration
     {
         Schema::create('hour_masters', function (Blueprint $table) {
             $table->id();
-            $table->string('title');
+            $table->foreignId('shift_id');
+            $table->integer('hour_no');
+            $table->string('name');          // Hour 1
+            $table->time('start_time');
+            $table->time('end_time');
+            $table->boolean('is_teaching')->default(true);
+            $table->boolean('status')->default(true);
             $table->timestamps();
         });
     }

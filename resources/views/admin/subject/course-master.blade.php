@@ -1,12 +1,10 @@
 <?php
 
 use App\Http\Controllers\StaticController;
-use App\Models\BatchMaster;
 use App\Models\PaperTypeMaster;
 use App\Models\SubjectTypeMaster;
 
 $coursetypes = SubjectTypeMaster::all();
-$batches = BatchMaster::all();
 $papertypes = PaperTypeMaster::all();
 $userType = StaticController::fetchUserRole();
 ?>
@@ -16,7 +14,7 @@ $userType = StaticController::fetchUserRole();
 <div class="main-content">
 
   <div class="container-fluid py-4">
-    <nav class="navbar navbar-expand-lg navbar-dark mb-4" style="background: linear-gradient(135deg, #5740b4 0%, #8931f6 100%); border-radius: 0.75rem;">
+    <!-- <nav class="navbar navbar-expand-lg navbar-dark mb-4" style="background: linear-gradient(135deg, #5740b4 0%, #8931f6 100%); border-radius: 0.75rem;">
       <div class="container-fluid">
         <a class="navbar-brand d-flex align-items-center" href="#">
           <img src="{{ asset('admin/images/logo.png') }}" alt="Logo" style="max-height: 50px;" class="me-2">
@@ -28,23 +26,99 @@ $userType = StaticController::fetchUserRole();
           </a>
         </div>
       </div>
-    </nav>
+    </nav> -->
 
-    <div class="row">
-      <div class="col-lg-3">
-        <h3>MY CO List - {{ count($mycourses) }}</h3>
-      </div>
-      <div class="col-lg-2">
-        <!-- Button to trigger modal for new course -->
-        <button type="button" class="btn btn-success mb-3" data-bs-toggle="modal" data-bs-target="#addCourseModal">
-          <i class="fa fa-plus-circle"></i> Add New Course
-        </button>
-      </div>
-      <div class="col-lg-3">
-        <!-- Button to trigger modal -->
-        <button type="button" class="btn btn-warning mb-3" data-bs-toggle="modal" data-bs-target="#exampleModal">
-          <i class="fa fa-plus-circle"></i> From Existing Course Master
-        </button>
+    <style>
+      .co-toolbar {
+        background: linear-gradient(135deg, #fbf6ff 0%, #fdfdfd 100%);
+        border: 1px solid #e8defe;
+        border-radius: 14px;
+        padding: 18px 20px;
+        box-shadow: 0 6px 18px rgba(87, 64, 180, 0.08);
+      }
+
+      .co-toolbar__content {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 12px;
+        flex-wrap: wrap;
+      }
+
+      .co-toolbar__title {
+        margin: 0;
+        color: #2f2167;
+        font-weight: 800;
+        letter-spacing: 0.01em;
+      }
+
+      .co-toolbar__subtitle {
+        margin: 4px 0 0;
+        color: #5f5878;
+        font-size: 0.95rem;
+      }
+
+      .co-toolbar__count {
+        display: inline-block;
+        margin-left: 6px;
+        padding: 2px 10px;
+        border-radius: 999px;
+        background: #ece4ff;
+        color: #4a2fb0;
+        font-weight: 700;
+      }
+
+      .co-toolbar__actions {
+        display: flex;
+        gap: 10px;
+        flex-wrap: wrap;
+      }
+
+      .co-action-btn {
+        border: 0;
+        border-radius: 10px;
+        padding: 10px 16px;
+        font-weight: 700;
+        box-shadow: 0 3px 10px rgba(0, 0, 0, 0.12);
+      }
+
+      .co-action-btn i {
+        margin-right: 6px;
+      }
+
+      @media (max-width: 768px) {
+        .co-toolbar {
+          padding: 14px;
+        }
+
+        .co-toolbar__actions {
+          width: 100%;
+        }
+
+        .co-action-btn {
+          width: 100%;
+        }
+      }
+    </style>
+
+    <div class="co-toolbar mb-4">
+      <div class="co-toolbar__content">
+        <div>
+          <h3 class="co-toolbar__title">{{ $data->title ?? '-' }} / My CO List</h3>
+          <p class="co-toolbar__subtitle">Total mapped courses <span class="co-toolbar__count">{{ count($mycourses) }}</span></p>
+        </div>
+
+        <div class="co-toolbar__actions">
+          <!-- Button to trigger modal for new course -->
+          <button type="button" class="btn btn-success co-action-btn" data-bs-toggle="modal" data-bs-target="#addCourseModal">
+            <i class="fa fa-plus-circle"></i>Add New Course
+          </button>
+
+          <!-- Button to trigger modal -->
+          <button type="button" class="btn btn-warning co-action-btn" data-bs-toggle="modal" data-bs-target="#exampleModal">
+            <i class="fa fa-layer-group"></i>From Existing Course Master
+          </button>
+        </div>
       </div>
     </div>
 
@@ -57,20 +131,16 @@ $userType = StaticController::fetchUserRole();
             <h5 class="modal-title" id="addCourseModalLabel">Add New Course</h5>
             <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
           </div>
-          <form action="{{ route('department.create.course.master') }}" method="post">
+          <form id="addCourseForm" action="{{ route('department.create.course.master') }}" method="post">
             @csrf
             <div class="modal-body">
 
               <div class="row">
                 <div class="col-lg-6">
                   <div class="mb-3">
-                    <label for="batch" class="form-label">Batch *</label>
-                    <select class="form-select dselect-example" id="" name="batch" required>
-                      <option value="">Select Batch</option>
-                      @foreach($batches as $batch)
-                      <option value="{{ $batch->id }}">{{ $batch->batch_name }}</option>
-                      @endforeach
-                    </select>
+                    <label for="courseCode" class="form-label">Course Code *</label>
+                    <input type="text" class="form-control" id="courseCode" name="course_code" autocomplete="off" required>
+                    <small id="courseCodeFeedback" class="d-block mt-1 text-muted"><i class="fa fa-info-circle me-1"></i>Enter a course code to check availability.</small>
                   </div>
                 </div>
                 <div class="col-lg-6">
@@ -84,12 +154,7 @@ $userType = StaticController::fetchUserRole();
                     </select>
                   </div>
                 </div>
-                <div class="col-lg-4">
-                  <div class="mb-3">
-                    <label for="courseCode" class="form-label">Course Code *</label>
-                    <input type="text" class="form-control" id="courseCode" name="course_code" required>
-                  </div>
-                </div>
+
                 <div class="col-lg-4">
                   <div class="mb-3">
                     <label for="paperType" class="form-label">Paper Type *</label>
@@ -137,7 +202,7 @@ $userType = StaticController::fetchUserRole();
             </div>
             <div class="modal-footer">
               <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
-              <button type="submit" class="btn btn-success submit-btn">
+              <button type="submit" class="btn btn-success submit-btn" id="createCourseBtn" disabled>
                 <span class="submit-text">Create Course</span>
                 <span class="spinner-border spinner-border-sm d-none" role="status" aria-hidden="true"></span>
                 <span class="loading-text d-none">Processing...</span>
@@ -231,7 +296,7 @@ $userType = StaticController::fetchUserRole();
                         <h5 class="modal-title" id="editCourseModalLabel">Edit Course</h5>
                         <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
                       </div>
-                      <form action="{{ route('department.update.course.master',$course->courseMaster->id ?? '') }}" method="post">
+                      <form class="edit-course-form" action="{{ route('department.update.course.master',$course->courseMaster->id ?? '') }}" method="post" data-course-master-id="{{ (int) ($course->courseMaster->id ?? 0) }}">
                         @csrf
                         @method('PUT')
                         <div class="modal-body">
@@ -239,7 +304,8 @@ $userType = StaticController::fetchUserRole();
                             <div class="col-lg-4">
                               <div class="mb-3">
                                 <label class="form-label">Course Code *</label>
-                                <input type="text" class="form-control" name="course_code" value="{{ $course->courseMaster->course_code ?? '' }}" required>
+                                <input type="text" class="form-control edit-course-code" name="course_code" value="{{ $course->courseMaster->course_code ?? '' }}" data-initial-code="{{ strtoupper(trim((string) ($course->courseMaster->course_code ?? ''))) }}" autocomplete="off" required>
+                                <small class="edit-course-code-feedback d-block mt-1 text-muted">Update the course code to check availability.</small>
                               </div>
                             </div>
                             <div class="col-lg-4">
@@ -319,7 +385,7 @@ $userType = StaticController::fetchUserRole();
                         </div>
                         <div class="modal-footer">
                           <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
-                          <button type="submit" class="btn btn-success submit-btn">
+                          <button type="submit" class="btn btn-success submit-btn edit-course-submit-btn">
                             <span class="submit-text">Update Course</span>
                             <span class="spinner-border spinner-border-sm d-none" role="status" aria-hidden="true"></span>
                             <span class="loading-text d-none">Processing...</span>
@@ -357,6 +423,256 @@ $userType = StaticController::fetchUserRole();
 </div>
 
 <script>
+  (function() {
+    const courseCodeInput = document.getElementById('courseCode');
+    const courseCodeFeedback = document.getElementById('courseCodeFeedback');
+    const createCourseBtn = document.getElementById('createCourseBtn');
+    const addCourseForm = document.getElementById('addCourseForm');
+    const addCourseModal = document.getElementById('addCourseModal');
+    const checkCodeUrl = "{{ route('department.course-master.check-code') }}";
+
+    if (!courseCodeInput || !courseCodeFeedback || !createCourseBtn || !addCourseForm) {
+      return;
+    }
+
+    let debounceTimer = null;
+    let latestRequestToken = 0;
+    let isCodeAvailable = false;
+
+    function setFeedback(message, type) {
+      courseCodeFeedback.classList.remove('text-muted', 'text-danger', 'text-success');
+
+      if (type === 'error') {
+        courseCodeFeedback.classList.add('text-danger');
+      } else if (type === 'success') {
+        courseCodeFeedback.classList.add('text-success');
+      } else {
+        courseCodeFeedback.classList.add('text-muted');
+      }
+
+      const iconClass = type === 'success' ? 'fa-check-circle' : (type === 'error' ? 'fa-times-circle' : 'fa-info-circle');
+      courseCodeFeedback.innerHTML = `<i class="fa ${iconClass} me-1"></i>${message}`;
+    }
+
+    function setCreateButtonState(enabled) {
+      createCourseBtn.disabled = !enabled;
+      isCodeAvailable = enabled;
+    }
+
+    async function checkCourseCodeAvailability(courseCode) {
+      const requestToken = ++latestRequestToken;
+      setFeedback('Checking availability...', 'neutral');
+      setCreateButtonState(false);
+
+      try {
+        const response = await fetch(`${checkCodeUrl}?course_code=${encodeURIComponent(courseCode)}`, {
+          method: 'GET',
+          headers: {
+            'Accept': 'application/json',
+            'X-Requested-With': 'XMLHttpRequest',
+          },
+        });
+
+        const payload = await response.json();
+        if (requestToken !== latestRequestToken) {
+          return;
+        }
+
+        if (!response.ok) {
+          setFeedback(payload.message || 'Unable to validate course code right now.', 'error');
+          setCreateButtonState(false);
+          return;
+        }
+
+        if (payload.available) {
+          setFeedback('Available. You can create this course.', 'success');
+          setCreateButtonState(true);
+        } else {
+          setFeedback('Course code already exists. It cannot be created.', 'error');
+          setCreateButtonState(false);
+        }
+      } catch (error) {
+        if (requestToken !== latestRequestToken) {
+          return;
+        }
+
+        setFeedback('Error checking course code. Please try again.', 'error');
+        setCreateButtonState(false);
+      }
+    }
+
+    courseCodeInput.addEventListener('input', function() {
+      const normalizedCode = this.value.toUpperCase().trim();
+      this.value = normalizedCode;
+
+      if (debounceTimer) {
+        clearTimeout(debounceTimer);
+      }
+
+      if (normalizedCode.length === 0) {
+        setFeedback('Enter a course code to check availability.', 'neutral');
+        setCreateButtonState(false);
+        return;
+      }
+
+      debounceTimer = setTimeout(() => {
+        checkCourseCodeAvailability(normalizedCode);
+      }, 350);
+    });
+
+    addCourseForm.addEventListener('submit', function(event) {
+      if (!isCodeAvailable) {
+        event.preventDefault();
+        setFeedback('Please use an available course code before creating.', 'error');
+      }
+    });
+
+    if (addCourseModal) {
+      addCourseModal.addEventListener('hidden.bs.modal', function() {
+        courseCodeInput.value = '';
+        latestRequestToken++;
+        if (debounceTimer) {
+          clearTimeout(debounceTimer);
+        }
+        setFeedback('Enter a course code to check availability.', 'neutral');
+        setCreateButtonState(false);
+      });
+    }
+  })();
+
+  (function() {
+    const checkCodeUrl = "{{ route('department.course-master.check-code') }}";
+    const editCourseForms = document.querySelectorAll('.edit-course-form');
+
+    if (!editCourseForms.length) {
+      return;
+    }
+
+    editCourseForms.forEach((form) => {
+      const courseMasterId = Number(form.getAttribute('data-course-master-id') || 0);
+      const codeInput = form.querySelector('.edit-course-code');
+      const feedback = form.querySelector('.edit-course-code-feedback');
+      const submitBtn = form.querySelector('.edit-course-submit-btn');
+      const modal = form.closest('.modal');
+
+      if (!courseMasterId || !codeInput || !feedback || !submitBtn) {
+        return;
+      }
+
+      let debounceTimer = null;
+      let latestRequestToken = 0;
+      let isCodeAvailable = true;
+      const initialCode = (codeInput.getAttribute('data-initial-code') || '').toUpperCase().trim();
+
+      function setFeedback(message, type) {
+        feedback.classList.remove('text-muted', 'text-danger', 'text-success');
+
+        if (type === 'error') {
+          feedback.classList.add('text-danger');
+        } else if (type === 'success') {
+          feedback.classList.add('text-success');
+        } else {
+          feedback.classList.add('text-muted');
+        }
+
+        const iconClass = type === 'success' ? 'fa-check-circle' : (type === 'error' ? 'fa-times-circle' : 'fa-info-circle');
+        feedback.innerHTML = `<i class="fa ${iconClass} me-1"></i>${message}`;
+      }
+
+      function setSubmitState(enabled) {
+        submitBtn.disabled = !enabled;
+        isCodeAvailable = enabled;
+      }
+
+      async function checkCourseCodeAvailability(courseCode) {
+        const requestToken = ++latestRequestToken;
+        setFeedback('Checking availability...', 'neutral');
+        setSubmitState(false);
+
+        try {
+          const response = await fetch(`${checkCodeUrl}?course_code=${encodeURIComponent(courseCode)}&exclude_id=${courseMasterId}`, {
+            method: 'GET',
+            headers: {
+              'Accept': 'application/json',
+              'X-Requested-With': 'XMLHttpRequest',
+            },
+          });
+
+          const payload = await response.json();
+          if (requestToken !== latestRequestToken) {
+            return;
+          }
+
+          if (!response.ok) {
+            setFeedback(payload.message || 'Unable to validate course code right now.', 'error');
+            setSubmitState(false);
+            return;
+          }
+
+          if (payload.available) {
+            setFeedback('Course code is available.', 'success');
+            setSubmitState(true);
+          } else {
+            setFeedback('Course code already exists. It cannot be updated to this code.', 'error');
+            setSubmitState(false);
+          }
+        } catch (error) {
+          if (requestToken !== latestRequestToken) {
+            return;
+          }
+
+          setFeedback('Error checking course code. Please try again.', 'error');
+          setSubmitState(false);
+        }
+      }
+
+      function handleCodeInput() {
+        const normalizedCode = codeInput.value.toUpperCase().trim();
+        codeInput.value = normalizedCode;
+
+        if (debounceTimer) {
+          clearTimeout(debounceTimer);
+        }
+
+        if (normalizedCode.length === 0) {
+          setFeedback('Course code is required.', 'error');
+          setSubmitState(false);
+          return;
+        }
+
+        if (normalizedCode === initialCode) {
+          setFeedback('Current course code is valid.', 'success');
+          setSubmitState(true);
+          return;
+        }
+
+        debounceTimer = setTimeout(() => {
+          checkCourseCodeAvailability(normalizedCode);
+        }, 350);
+      }
+
+      codeInput.addEventListener('input', handleCodeInput);
+
+      form.addEventListener('submit', function(event) {
+        if (!isCodeAvailable) {
+          event.preventDefault();
+          setFeedback('Please use an available course code before updating.', 'error');
+        }
+      });
+
+      if (modal) {
+        modal.addEventListener('shown.bs.modal', function() {
+          latestRequestToken++;
+          if (debounceTimer) {
+            clearTimeout(debounceTimer);
+          }
+          setFeedback('Current course code is valid.', 'success');
+          setSubmitState(true);
+        });
+      }
+    });
+  })();
+
   // Prevent multiple form submissions
   document.querySelectorAll('form').forEach(form => {
     form.addEventListener('submit', function(e) {

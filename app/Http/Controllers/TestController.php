@@ -26,7 +26,10 @@ use App\Models\CiaMark;
 use App\Models\CoHasCso;
 use App\Models\ProgramCourseMaster;
 use App\Models\ProgramCourseMasterNew;
+use App\Models\StudentCourseInfo;
+use App\Models\StudentSemesterConfig;
 use App\Models\SubjectCourseMaster;
+use App\Models\SubjectHasSyllabus;
 use App\Models\SyllabusManager;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -395,5 +398,62 @@ class TestController extends Controller
         }
 
         dd('all corrections done');
+    }
+
+    function fixStudentSemester()
+    {
+        /*
+        $data = StudentMaster::all();
+        foreach ($data as $item) {
+            //find the Unique semesters for every student
+            $semesterdata =  StudentCourseInfo::where('student_id', $item->id)->distinct()->get('semester');
+            $current_semester_id = $semesterdata->last();
+
+            for ($i = 0; $i < count($semesterdata); $i++) {
+                StudentSemesterConfig::create([
+                    'student_id' => $item->id,
+                    'semester_id' => $semesterdata[$i]->semester,
+                    'current_semester' => $semesterdata[$i]->semester == $current_semester_id->semester ? 1 : 0,
+                ]);
+            }
+        }
+        */
+
+        $data = StudentMaster::where('batch', 11)->get();
+        foreach ($data as $item) {
+            //find the Unique semesters for every student
+            // $semesterdata =  StudentCourseInfo::where('student_id', $item->id)->distinct()->get('semester');
+            // $current_semester_id = $semesterdata->last();
+
+            // for ($i = 0; $i < count($semesterdata); $i++) {
+
+            // }
+            // dd('student Semester mapping done');
+
+            StudentSemesterConfig::create([
+                'student_id' => $item->id,
+                'semester_id' => 1,
+                'current_semester' => 1,
+            ]);
+        }
+        dd('1st Year Student Semester mapping done');
+    }
+
+
+    function fixLibraryCode(int $batchId)
+    {
+        $data = StudentMaster::where('batch', $batchId)->get();
+
+        foreach ($data as $item) {
+            StudentMaster::where('id', $item->id)->update([
+                'library_code' => $item->user_code
+            ]);
+        }
+        dd('updated');
+    }
+
+    function fix_dept_syllabus($id)
+    {
+        SubjectHasSyllabus::where('subject_id', $id)->get();
     }
 }

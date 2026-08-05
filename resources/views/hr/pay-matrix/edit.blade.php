@@ -57,8 +57,8 @@
         </div>
         <div class="col-md-3">
           <label class="form-label">Pay Band</label>
-          <input type="number" name="pay_band" class="form-control @error('pay_band') is-invalid @enderror"
-            value="{{ old('pay_band', $payMatrix->pay_band) }}" min="0">
+          <input type="text" name="pay_band" class="form-control @error('pay_band') is-invalid @enderror"
+            value="{{ old('pay_band', $payMatrix->pay_band) }}" maxlength="100" placeholder="e.g. 9300-34800">
           @error('pay_band')<div class="invalid-feedback">{{ $message }}</div>@enderror
         </div>
         <div class="col-md-3">
@@ -220,6 +220,12 @@
           <input type="number" name="other_allowances" class="form-control @error('other_allowances') is-invalid @enderror"
             value="{{ old('other_allowances', $payMatrix->other_allowances) }}" min="0" step="0.01">
           @error('other_allowances')<div class="invalid-feedback">{{ $message }}</div>@enderror
+        </div>
+        <div class="col-md-3">
+          <label class="form-label">Research Allowance (Rs)</label>
+          <input type="number" name="research_allowance" class="form-control @error('research_allowance') is-invalid @enderror"
+            value="{{ old('research_allowance', $payMatrix->research_allowance) }}" min="0" step="0.01">
+          @error('research_allowance')<div class="invalid-feedback">{{ $message }}</div>@enderror
         </div>
       </div>
     </div>

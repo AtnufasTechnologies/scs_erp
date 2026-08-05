@@ -97,7 +97,7 @@
             <th>Matrix Name</th>
             <th>Designation</th>
             <th>Grade Level</th>
-            <th>Basic Salary</th>
+            <th>Pay Band</th>
             <th>Employment Type</th>
             <th>Faculty Count</th>
             <th>Status</th>
@@ -108,15 +108,72 @@
           @forelse($payMatrices as $matrix)
           <tr>
             <td><strong>{{ $matrix->matrix_code }}</strong></td>
-            <td>{{ $matrix->matrix_name }}</td>
+            <td>
+              <div>{{ $matrix->matrix_name }}</div>
+              @php
+              $basicCustomizedFaculty = $matrix->facultySalaries
+              ->filter(function ($salaryMaster) use ($matrix) {
+              return (float) ($salaryMaster->basic_salary ?? 0) !== (float) ($matrix->basic_salary ?? 0)
+              && optional($salaryMaster->faculty)->id;
+              })
+              ->map(function ($salaryMaster) {
+              $faculty = $salaryMaster->faculty;
+              $name = trim(($faculty->FIRST_NAME ?? '') . ' ' . ($faculty->MIDDLE_NAME ?? '') . ' ' . ($faculty->LAST_NAME ?? ''));
+              return $name . (!empty($faculty->USER_CODE) ? ' (' . $faculty->USER_CODE . ')' : '');
+              })
+              ->values();
+              @endphp
+              @if($basicCustomizedFaculty->count() > 0)
+              <small class="text-warning fw-semibold">
+                <i class="fas fa-user-shield me-1"></i>Basic Customized ({{ $basicCustomizedFaculty->count() }}): {{ $basicCustomizedFaculty->implode(', ') }}
+              </small>
+              @endif
+              @php
+              $bandUpperLimit = null;
+              $payBandText = str_replace(',', '', (string) ($matrix->pay_band ?? ''));
+              if ($payBandText !== '') {
+              preg_match_all('/\d+(?:\.\d+)?/', $payBandText, $bandMatches);
+              $bandNumbers = collect($bandMatches[0] ?? [])->map(function ($num) {
+              return (float) $num;
+              });
+              $bandUpperLimit = $bandNumbers->isNotEmpty() ? $bandNumbers->max() : null;
+              }
+
+              $maxPayRange = !is_null($bandUpperLimit)
+              ? $bandUpperLimit
+              : optional($matrix->gradeLevelMaster)->max_salary;
+              $aboveRangeFaculty = collect();
+
+              if (!is_null($maxPayRange)) {
+              $aboveRangeFaculty = $matrix->facultySalaries
+              ->filter(function ($salaryMaster) use ($maxPayRange) {
+              return (float) ($salaryMaster->basic_salary ?? 0) > (float) $maxPayRange
+              && optional($salaryMaster->faculty)->id;
+              })
+              ->map(function ($salaryMaster) {
+              $faculty = $salaryMaster->faculty;
+              $name = trim(($faculty->FIRST_NAME ?? '') . ' ' . ($faculty->MIDDLE_NAME ?? '') . ' ' . ($faculty->LAST_NAME ?? ''));
+              return $name . (!empty($faculty->USER_CODE) ? ' (' . $faculty->USER_CODE . ')' : '');
+              })
+              ->values();
+              }
+              @endphp
+              @if($aboveRangeFaculty->count() > 0)
+              <div>
+                <small class="text-danger fw-semibold">
+                  <i class="fas fa-exclamation-triangle me-1"></i>Above Pay Range ({{ $aboveRangeFaculty->count() }}): {{ $aboveRangeFaculty->implode(', ') }}
+                </small>
+              </div>
+              @endif
+            </td>
             <td>{{ $matrix->designation }}</td>
             <td><span class="badge bg-info">{{ $matrix->grade_level }}</span></td>
-            <td>₹{{ number_format($matrix->basic_salary, 2) }}</td>
+            <td>₹{{ $matrix->pay_band }}</td>
             <td>
               <span class="badge bg-secondary">{{ ucfirst($matrix->employment_type) }}</span>
             </td>
             <td>
-              <span class="badge bg-primary">{{ $matrix->faculty_count }}</span>
+              <span class="badge bg-primary">{{ $matrix->active_faculty_count }}</span>
             </td>
             <td>
               <span class="badge bg-{{ $matrix->status_color }}">{{ ucfirst($matrix->status) }}</span>
@@ -138,6 +195,20 @@
                     <i class="fas fa-copy"></i>
                   </button>
                 </form>
+                @if($matrix->active_faculty_count > 0)
+                <button type="button" class="btn btn-sm btn-outline-danger" title="Cannot delete. {{ $matrix->active_faculty_count }} faculty mapped" disabled>
+                  <i class="fas fa-trash"></i>
+                </button>
+                @else
+                <form action="{{ route('hr.pay-matrix.destroy', $matrix->id) }}" method="POST" style="display: inline;"
+                  onsubmit="return confirm('Delete this pay matrix? This action cannot be undone.');">
+                  @csrf
+                  @method('DELETE')
+                  <button type="submit" class="btn btn-sm btn-danger" title="Delete">
+                    <i class="fas fa-trash"></i>
+                  </button>
+                </form>
+                @endif
               </div>
             </td>
           </tr>

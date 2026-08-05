@@ -1,11 +1,5 @@
-@extends('layouts.master')
-
-@section('title')
-Salary Slip Details
-@endsection
-
-@section('content')
-@include('includes.hr-sidebar')
+@include('includes.header')
+@include('hr.sidebar')
 
 <!--start main wrapper-->
 <main class="main-wrapper">
@@ -215,4 +209,3 @@ Salary Slip Details
 <!--end main wrapper-->
 
 @include('includes.footer')
-@endsection

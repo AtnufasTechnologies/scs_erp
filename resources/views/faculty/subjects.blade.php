@@ -1,5 +1,38 @@
 @include('includes.header')
 
+@php
+$taxonomyDomainLabel = function ($level) {
+if (!$level) {
+return 'Cognitive';
+}
+
+$domain = trim((string) ($level->learning_domain ?? ''));
+return $domain !== '' ? $domain : 'Cognitive';
+};
+
+$taxonomyFrameworkLabel = function ($level) use ($taxonomyDomainLabel) {
+if (!$level) {
+return 'RBT';
+}
+
+$framework = trim((string) ($level->taxonomy_framework ?? ''));
+if ($framework !== '') {
+return $framework;
+}
+
+$domain = $taxonomyDomainLabel($level);
+if (strcasecmp($domain, 'Psychomotor') === 0) {
+return 'Dave';
+}
+
+if (strcasecmp($domain, 'Affective') === 0) {
+return 'Krathwohl';
+}
+
+return 'RBT';
+};
+@endphp
+
 <div class="wrapper">
   @include('faculty.sidebar')
 
@@ -7,12 +40,12 @@
   <main class="page-content">
     <!--start breadcrumb-->
     <div class="page-breadcrumb d-none d-sm-flex align-items-center gap-2">
-      <div class="breadcrumb-title pe-3">Subjects</div>
+      <div class="breadcrumb-title pe-3">Alloted</div>
       <div class="ps-2">
         <nav aria-label="breadcrumb">
           <ol class="breadcrumb mb-0 p-0">
             <li class="breadcrumb-item"><a href="{{ route('faculty.dashboard') }}"><i class="bx bx-home-alt"></i></a></li>
-            <li class="breadcrumb-item active" aria-current="page">My Subjects</li>
+            <li class="breadcrumb-item active" aria-current="page">My Courses</li>
           </ol>
         </nav>
       </div>
@@ -27,12 +60,12 @@
             <div class="card-body py-4">
               <div class="d-flex align-items-center justify-content-between">
                 <div>
-                  <h4 class="mb-2 fw-bold text-white"><i class="fas fa-book-open me-2"></i>My Assigned Subjects</h4>
-                  <p class="mb-0 text-white-50">View and track your teaching assignments organized by batch and semester</p>
+                  <h4 class="mb-2 fw-bold text-white"><i class="fas fa-book-open me-2"></i>My Assigned Courses</h4>
+                  <p class="mb-0 text-white-50">View and track your teaching assignments organized by semester and batch</p>
                 </div>
                 <div class="text-end">
-                  <div class="display-6 text-white fw-bold">{{ count($batchWiseSubjects) }}</div>
-                  <small class="text-white-50">Batches</small>
+                  <div class="display-6 text-white fw-bold">{{ count($semesterWiseSubjects) }}</div>
+                  <small class="text-white-50">Semesters</small>
                 </div>
               </div>
             </div>
@@ -40,48 +73,71 @@
         </div>
       </div>
 
-      <!-- Subjects by Batch -->
-      @forelse($batchWiseSubjects as $batchName => $subjects)
+      <div class="row mb-4">
+        <div class="col-12">
+          <div class="card shadow-sm border-0">
+            <div class="card-body">
+              <form method="GET" action="" class="row g-3 align-items-end">
+                <div class="col-md-4">
+                  <label for="searchFilter" class="form-label small text-muted mb-1">Search</label>
+                  <input type="text" id="searchFilter" name="search" class="form-control" placeholder="Subject, course code, course title, batch..." value="{{ $searchTerm ?? '' }}">
+                </div>
+                <div class="col-md-3">
+                  <label for="programTypeFilter" class="form-label small text-muted mb-1">Program Type</label>
+                  <select id="programTypeFilter" name="program_type" class="form-select">
+                    <option value="ALL" {{ strtoupper((string) ($selectedProgramType ?? 'ALL')) === 'ALL' ? 'selected' : '' }}>All</option>
+                    <option value="UG" {{ strtoupper((string) ($selectedProgramType ?? 'ALL')) === 'UG' ? 'selected' : '' }}>UG</option>
+                    <option value="PG" {{ strtoupper((string) ($selectedProgramType ?? 'ALL')) === 'PG' ? 'selected' : '' }}>PG</option>
+                  </select>
+                </div>
+                <div class="col-md-2">
+                  <button type="submit" class="btn btn-primary w-100"><i class="fas fa-search me-1"></i>Filter</button>
+                </div>
+                <div class="col-md-2">
+                  <a href="{{ route('faculty.subjects') }}" class="btn btn-outline-secondary w-100">Reset</a>
+                </div>
+              </form>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Subjects by Semester -->
+      @forelse($semesterWiseSubjects as $semesterName => $batchGroups)
       <div class="row mb-4">
         <div class="col-12">
           <div class="card shadow-sm border-0">
             <div class="card-header bg-white border-bottom py-3">
               <div class="d-flex align-items-center justify-content-between">
                 <h5 class="mb-0 fw-bold">
-                  <i class="fas fa-users text-primary me-2"></i>
-                  Batch: {{ $batchName }}
+                  <i class="fas fa-calendar-alt text-primary me-2"></i>
+                  Semester: {{ $semesterName }}
                 </h5>
                 <div class="d-flex gap-2">
                   <span class="badge bg-light-info text-info px-3 py-2">
-                    <i class="fas fa-book me-1"></i>{{ count($subjects) }} Subject{{ count($subjects) > 1 ? 's' : '' }}
+                    <i class="fas fa-book me-1"></i>{{ $batchGroups->flatten(1)->count() }} Subject{{ $batchGroups->flatten(1)->count() > 1 ? 's' : '' }}
                   </span>
                 </div>
               </div>
             </div>
             <div class="card-body p-0">
+              @foreach($batchGroups as $batchName => $semesterSubjects)
               @php
-              // Group by semester
-              $semesterGroups = $subjects->groupBy(function($item) {
-              return $item->semestermaster->id ?? 0;
-              });
+              $semesterSlug = preg_replace('/[^A-Za-z0-9]/', '', (string) $semesterName);
+              $batchSlug = preg_replace('/[^A-Za-z0-9]/', '', (string) $batchName);
+              $accordionId = 'accordion' . $semesterSlug . $batchSlug;
               @endphp
 
-              @foreach($semesterGroups as $semesterId => $semesterSubjects)
-              @php
-              $firstSubject = $semesterSubjects->first();
-              $semesterName = $firstSubject->semestermaster->title ?? 'Unknown Semester';
-              @endphp
-
-              <!-- Semester Section -->
+              <!-- Batch Section -->
               <div class="semester-section border-bottom">
                 <div class="semester-header bg-light px-4 py-3">
                   <h6 class="mb-0 text-primary">
-                    <i class="fas fa-calendar-alt me-2"></i>{{ $semesterName }}
+                    <i class="fas fa-users me-2"></i>Batch: {{ $batchName }}
                   </h6>
                 </div>
 
-                <!-- Courses in this Semester -->
-                <div class="accordion accordion-flush" id="accordion{{ str_replace(' ', '', $batchName) }}{{ $semesterId }}">
+                <!-- Courses in this Batch -->
+                <div class="accordion accordion-flush" id="{{ $accordionId }}">
                   @foreach($semesterSubjects as $index => $subjectData)
                   @php
                   $syllabus = $subjectData;
@@ -96,9 +152,9 @@
                   @endphp
 
                   <div class="accordion-item border-0">
-                    <h2 class="accordion-header" id="heading{{ str_replace(' ', '', $batchName) }}{{ $semesterId }}{{ $index }}">
+                    <h2 class="accordion-header" id="heading{{ $semesterSlug }}{{ $batchSlug }}{{ $index }}">
                       <button class="accordion-button collapsed px-4 py-3" type="button" data-bs-toggle="collapse"
-                        data-bs-target="#collapse{{ str_replace(' ', '', $batchName) }}{{ $semesterId }}{{ $index }}"
+                        data-bs-target="#collapse{{ $semesterSlug }}{{ $batchSlug }}{{ $index }}"
                         aria-expanded="false">
                         <div class="d-flex align-items-center justify-content-between w-100 me-3">
                           <div class="flex-grow-1">
@@ -106,6 +162,7 @@
                               @if($courseType)
                               <span class="badge bg-primary">{{ $courseType->title }}</span>
                               @endif
+                              <span class="badge bg-light-info text-info">{{ strtoupper((string) ($syllabus->program_type ?? 'UG')) === 'PG' ? 'PG' : 'UG' }}</span>
                               <h6 class="mb-0 fw-bold">{{ $subject->title ?? 'N/A' }}</h6>
                             </div>
                             <div class="d-flex align-items-center gap-3 text-muted">
@@ -148,9 +205,9 @@
                         </div>
                       </button>
                     </h2>
-                    <div id="collapse{{ str_replace(' ', '', $batchName) }}{{ $semesterId }}{{ $index }}"
+                    <div id="collapse{{ $semesterSlug }}{{ $batchSlug }}{{ $index }}"
                       class="accordion-collapse collapse"
-                      data-bs-parent="#accordion{{ str_replace(' ', '', $batchName) }}{{ $semesterId }}">
+                      data-bs-parent="#{{ $accordionId }}">
                       <div class="accordion-body px-4 py-4 bg-light">
                         @if($syllabusUnits->count() > 0)
                         <!-- Instructional Units Table -->
@@ -172,7 +229,7 @@
                                   <tr>
                                     <th class="text-center" style="width:4%;">#</th>
                                     <th style="width:38%;">Instructional Objective</th>
-                                    <th class="text-center" style="width:16%;">Bloom's Level</th>
+                                    <th class="text-center" style="width:16%;">RBT</th>
                                     <th class="text-center" style="width:10%;">Status</th>
                                     <th class="text-center" style="width:20%;">Tools</th>
                                     <th class="text-center" style="width:12%;">Mark Done</th>
@@ -206,6 +263,22 @@
                                   @php
                                   $resourceCount = App\Models\LearningResource::where('syllabus_subunit_id', $unit->id)->count();
                                   $questionCount = App\Models\QuestionBank::where('syllabus_subunit_id', $unit->id)->count();
+                                  $unitTaxonomyLevels = collect(optional(optional($unit->csoSubunit)->taxonomies)->all())
+                                  ->map(fn($taxonomy) => optional($taxonomy)->rbtmaster)
+                                  ->filter()
+                                  ->unique('id')
+                                  ->values();
+                                  $primaryTaxonomyLevel = $unitTaxonomyLevels->first();
+                                  $additionalTaxonomyCodes = $unitTaxonomyLevels
+                                  ->skip(1)
+                                  ->map(function ($level) use ($taxonomyDomainLabel, $taxonomyFrameworkLabel) {
+                                  $shortname = strtoupper((string) ($level->shortname ?? ''));
+                                  $domain = $taxonomyDomainLabel($level);
+                                  $framework = $taxonomyFrameworkLabel($level);
+                                  return trim($shortname . ($shortname !== '' ? ' ' : '') . '[' . $framework . '/' . $domain . ']');
+                                  })
+                                  ->filter()
+                                  ->values();
                                   @endphp
                                   <tr class="scs-unit-row {{ $unit->is_completed ? 'scs-row-done' : '' }}">
                                     <td class="text-center">
@@ -218,11 +291,17 @@
                                       </div>
                                     </td>
                                     <td class="text-center">
-                                      @if($unit->csoSubunit && $unit->csoSubunit->taxomonylevel)
-                                      <span class="scs-bloom-badge scs-bloom-{{ strtolower($unit->csoSubunit->taxomonylevel->shortname) }}">
-                                        <strong>{{ $unit->csoSubunit->taxomonylevel->shortname }}</strong>
-                                        <span class="d-none d-xl-inline ms-1">{{ $unit->csoSubunit->taxomonylevel->fullname }}</span>
+                                      @if($primaryTaxonomyLevel)
+                                      <span class="scs-bloom-badge scs-bloom-{{ strtolower((string) $primaryTaxonomyLevel->shortname) }}">
+                                        <strong>{{ $primaryTaxonomyLevel->shortname }}</strong>
+                                        <small class="ms-1">{{ $taxonomyFrameworkLabel($primaryTaxonomyLevel) }}/{{ $taxonomyDomainLabel($primaryTaxonomyLevel) }}</small>
+
                                       </span>
+                                      @if($additionalTaxonomyCodes->isNotEmpty())
+                                      @foreach($additionalTaxonomyCodes as $taxonomyCode)
+                                      <span class="badge bg-light text-dark ms-1">{{ $taxonomyCode }}</span>
+                                      @endforeach
+                                      @endif
                                       @else
                                       <span class="text-muted small">—</span>
                                       @endif
@@ -276,7 +355,11 @@
                         @php
                         $resources = App\Models\LearningResource::where('syllabus_subunit_id', $unit->id)->with('uploader')->latest()->get();
                         $questions = App\Models\QuestionBank::where('syllabus_subunit_id', $unit->id)->with('cognitiveLevel')->latest()->get();
-                        $cognitiveLevels = App\Models\CognitiveLevelMaster::all();
+                        $applicableCognitiveLevels = collect(optional(optional($unit->csoSubunit)->taxonomies)->all())
+                        ->map(fn($taxonomy) => optional($taxonomy)->rbtmaster)
+                        ->filter()
+                        ->unique('id')
+                        ->values();
                         @endphp
 
                         <!-- Resources Modal -->
@@ -395,18 +478,21 @@
                                           </div>
                                           <div class="col-12">
                                             <div class="scs-form-group">
-                                              <label class="scs-form-label">Cognitive Level (Bloom's Taxonomy) <span class="text-danger">*</span></label>
+                                              <label class="scs-form-label">Taxonomy Level (From mapped subunit domains) <span class="text-danger">*</span></label>
                                               <select class="form-select form-select-sm scs-bloom-level-select" name="cognitive_level_master_id" id="bloomLevel{{ $unit->id }}" required>
                                                 <option value="">— Select a level —</option>
-                                                @foreach($cognitiveLevels as $cl)
-                                                <option value="{{ $cl->id }}" data-shortname="{{ $cl->shortname }}" data-fullname="{{ $cl->fullname }}">{{ $cl->shortname }} – {{ $cl->fullname }}</option>
+                                                @foreach($applicableCognitiveLevels as $cl)
+                                                <option value="{{ $cl->id }}" data-shortname="{{ $cl->shortname }}" data-fullname="{{ $cl->fullname }}">{{ $cl->shortname }} – {{ $cl->fullname }} [{{ $taxonomyFrameworkLabel($cl) }}/{{ $taxonomyDomainLabel($cl) }}]</option>
                                                 @endforeach
                                               </select>
+                                              @if($applicableCognitiveLevels->isEmpty())
+                                              <small class="text-danger">No taxonomy mapped for this subunit. Please update taxonomy in syllabus manager.</small>
+                                              @endif
                                             </div>
                                           </div>
                                         </div>
 
-                                        <button type="submit" class="btn scs-btn-purple btn-sm w-100 mt-2">
+                                        <button type="submit" class="btn scs-btn-purple btn-sm w-100 mt-2" {{ $applicableCognitiveLevels->isEmpty() ? 'disabled' : '' }}>
                                           <i class="fas fa-plus me-1"></i>Add to Question Bank
                                         </button>
                                       </form>
@@ -438,7 +524,7 @@
                                               <span class="scs-qb-pill pill-marks">{{ $q->marks }} Mark{{ $q->marks > 1 ? 's' : '' }}</span>
                                               <span class="scs-qb-pill pill-diff-{{ strtolower($q->difficulty) }}">{{ $q->difficulty }}</span>
                                               @if($q->cognitiveLevel)
-                                              <span class="scs-qb-pill pill-bloom">{{ $q->cognitiveLevel->shortname }} – {{ $q->cognitiveLevel->fullname }}</span>
+                                              <span class="scs-qb-pill pill-bloom">{{ $q->cognitiveLevel->shortname }} – {{ $q->cognitiveLevel->fullname }} [{{ $taxonomyFrameworkLabel($q->cognitiveLevel) }}/{{ $taxonomyDomainLabel($q->cognitiveLevel) }}]</span>
                                               @endif
                                             </div>
                                           </div>
@@ -492,6 +578,14 @@
         </div>
       </div>
       @endforelse
+
+      @if(isset($subjectsPaginator) && $subjectsPaginator->hasPages())
+      <div class="row mb-4">
+        <div class="col-12 d-flex justify-content-end">
+          {{ $subjectsPaginator->links() }}
+        </div>
+      </div>
+      @endif
     </div>
   </main>
   <!--end main wrapper-->

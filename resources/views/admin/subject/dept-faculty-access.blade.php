@@ -85,7 +85,7 @@
       <div class="card-body">
         <h5 class="card-title fw-bold mb-4">Faculty Access List</h5>
         <div class="table-responsive">
-          <table class="table table-bordered table-hover align-middle">
+          <table class="table table-bordered table-hover align-middle" id="myTable">
             <thead class="table-light">
               <tr>
                 <th scope="col">#</th>

@@ -47,6 +47,7 @@ use App\Http\Controllers\StudentQuizController;
 use App\Http\Controllers\ModerationDutyController;
 use App\Http\Controllers\PaymentBatchController;
 use App\Http\Controllers\PrincipalController;
+use App\Http\Controllers\PrincipalMonitoringController;
 use App\Http\Controllers\PromotionController;
 use App\Http\Controllers\SeatingAllocationController;
 use App\Http\Controllers\StudentCreditController;
@@ -65,9 +66,21 @@ use App\Http\Controllers\Hr\ApiScoreController;
 use App\Http\Controllers\SyllabusPdfController;
 use App\Http\Controllers\SubjectController;
 use App\Http\Controllers\ShiftMasterController;
+use App\Http\Controllers\StudentAttendanceScanController;
 use App\Http\Controllers\TestController;
 use App\Http\Controllers\TimetableController;
 use App\Http\Controllers\ITCellController;
+use App\Http\Controllers\Dean\AttendanceMonitoringController as DeanAttendanceMonitoringController;
+use App\Http\Controllers\Dean\AttendanceRegularizationController as DeanAttendanceRegularizationController;
+use App\Http\Controllers\Dean\ClubsController as DeanClubsController;
+use App\Http\Controllers\Dean\CounsellingController as DeanCounsellingController;
+use App\Http\Controllers\Dean\DashboardController as DeanDashboardController;
+use App\Http\Controllers\Dean\DisciplineController as DeanDisciplineController;
+use App\Http\Controllers\Dean\EventMonitoringController as DeanEventMonitoringController;
+use App\Http\Controllers\Dean\MentoringDashboardController as DeanMentoringDashboardController;
+use App\Http\Controllers\Dean\ReportsController as DeanReportsController;
+use App\Http\Controllers\Dean\Student360Controller as DeanStudent360Controller;
+use App\Http\Controllers\Dean\StudentCouncilController as DeanStudentCouncilController;
 use App\Models\Department;
 use App\Models\User;
 use App\Models\UserType;
@@ -124,7 +137,21 @@ Route::group(['prefix' => '/erp'], function () {
         Route::post('update-application-payment', [ITCellController::class, 'updateApplicationPayment'])->name('itcell.admission.update.payment');
         Route::get('promotion/prepare-list', [ITCellController::class, 'promotionPrepareList'])->name('promotion.prepare.list');
         Route::post('annual-promotion/submit', [ITCellController::class, 'annualStudentPromotion'])->name('annual.student.promotion');
+        Route::get('semester-promotion/prepare-list', [ITCellController::class, 'semesterPromotionPrepareList'])->name('semester.promotion.prepare.list');
+        Route::post('semester-promotion/submit', [ITCellController::class, 'bulkSemesterPromotion'])->name('bulk.semester.promotion');
+        Route::post('student/{studentId}/semester-demote', [ITCellController::class, 'demoteStudentSemester'])->name('student.semester.demote');
         Route::get('annual-promotion-logs/{id}', [ITCellController::class, 'annualStudentPromotionLogs'])->name('annual.student.promotionlogs');
+        Route::get('itcell/pathway-mapper', [ITCellController::class, 'studentPathwayMapper'])->name('itcell.pathway.mapper');
+        Route::post('itcell/pathway-mapper/bulk-update', [ITCellController::class, 'studentPathwayMapperBulkUpdate'])->name('itcell.pathway.mapper.bulk-update');
+        Route::get('itcell/lateral-entry', [ITCellController::class, 'lateralEntryIndex'])->name('itcell.lateral-entry.index');
+        Route::get('itcell/lateral-entry/programs', [ITCellController::class, 'getProgramsForLateralEntry'])->name('itcell.lateral-entry.programs');
+        Route::get('itcell/lateral-entry/application-data', [ITCellController::class, 'getLateralEntryApplicationData'])->name('itcell.lateral-entry.application-data');
+        Route::post('itcell/lateral-entry', [ITCellController::class, 'storeLateralEntry'])->name('itcell.lateral-entry.store');
+        Route::get('itcell/lateral-entry/audit', [ITCellController::class, 'lateralEntryAudit'])->name('itcell.lateral-entry.audit');
+        Route::get('itcell/student-campus-transfer', [ITCellController::class, 'studentCampusTransferIndex'])->name('itcell.student-campus-transfer.index');
+        Route::post('itcell/student-campus-transfer', [ITCellController::class, 'storeStudentCampusTransfer'])->name('itcell.student-campus-transfer.store');
+        Route::post('itcell-generate-librarycode', [ITCellController::class, 'generateLibraryCode'])->name('itcell.generate.librarycode');
+        Route::post('itcell-generate-excel-studentdata', [ITCellController::class, 'generateExcelStudentData'])->name('itcell.generate.excel.studentdata');
 
         //master
         Route::group(['prefix' => '/master'], function () {
@@ -143,6 +170,7 @@ Route::group(['prefix' => '/erp'], function () {
 
             Route::get('hour', [AdminController::class, 'hourMaster']);
             Route::post('hour', [AdminController::class, 'addHour']);
+            Route::put('hour/{id}', [AdminController::class, 'updateHour']);
             Route::get('delhour/{id}', [AdminController::class, 'delHour']);
 
             Route::get('blood-group', [AdminController::class, 'bloodGroupMaster']);
@@ -182,6 +210,7 @@ Route::group(['prefix' => '/erp'], function () {
             Route::post('update-academic-dept/{id}', [SubjectController::class, 'updateAcademicDept'])->name('admin.master.update.academic-dept');
             Route::get('toggle-subject-visibility/{id}', [SubjectController::class, 'toggleAdmissionFormVisibility'])->name('toggle.subject.visibility.admission');
             Route::get('toggle-subject-shift-mode/{id}', [SubjectController::class, 'toggleSubjectShiftMode'])->name('toggle.subject.shift.mode');
+            Route::post('update-subject-shifts/{id}', [SubjectController::class, 'updateSubjectShifts'])->name('update.subject.shift.mode');
             Route::get('unlink-subject-course/{id}', [AdminController::class, 'subjectCourseUnlinker'])->name('subject.course.unlinker');
             //lecture halls
 
@@ -210,6 +239,11 @@ Route::group(['prefix' => '/erp'], function () {
             Route::post('student-program-type/multi-update', [AdminController::class, 'studentProgramTypeMultiUpdate'])->name('itcell.student-program-type.multi.update');
             Route::get('bulk-student-course-enrollment', [AdminController::class, 'bulkStudentCourseEnrollment'])->name('bulk.student.course.enrollment');
             Route::post('bulk-student-course-enrollment', [AdminController::class, 'bulkStudentCourseEnrollmentStore'])->name('bulk.student.course.enrollment.store');
+
+            Route::get('semester-engine', [AdminController::class, 'semesterEngine'])->name('itcell.semester.engine');
+            Route::post('semester-engine', [AdminController::class, 'semesterEngineStore'])->name('itcell.semester.engine.store');
+            Route::post('semester-engine/{id}/update', [AdminController::class, 'semesterEngineUpdate'])->name('itcell.semester.engine.update');
+            Route::post('semester-engine/{id}/delete', [AdminController::class, 'semesterEngineDelete'])->name('itcell.semester.engine.delete');
         });
 
         //account
@@ -337,7 +371,7 @@ Route::group(['prefix' => '/erp'], function () {
             Route::put('update-combination/{id}', [SubjectController::class, 'updateCombination'])->name('admin.update.combination');
             Route::get('student-program-master', [SubjectController::class, 'studentProgramMaster'])->name('admin.student-program-master');
             Route::post('add/new/student-program', [SubjectController::class, 'addNewStudentProgram'])->name('admin.add.new.student-program');
-            Route::post('update/student-program/{id}', [SubjectController::class, 'updateStudentProgram'])->name('admin.update.student-program');
+            Route::post('update/student-program/{id}', [SubjectController::class, 'updateStudentProgram'])->name('admin.update.student.program.master');
             Route::get('admission-combinations', [SubjectController::class, 'getAdmissionCombination'])->name('itcell.admission.combination-master');
         });
 
@@ -714,6 +748,7 @@ Route::group(['prefix' => '/erp'], function () {
         //==Exclusive Console Access ONLY via Login ================= New Working Routes 04/05/2026
         Route::group(['prefix' => 'console'], function () {
             Route::get('dashboard', [StudentDashboardController::class, 'index'])->name('student.console.dashboard');
+            Route::post('electives/confirm', [StudentDashboardController::class, 'confirmElectives'])->name('student.console.electives.confirm');
         });
 
         Route::get('feedback', [StudentDashboardController::class, 'feedbackList'])->name('student.feedback.list');
@@ -763,11 +798,12 @@ Route::group(['prefix' => '/erp'], function () {
         Route::get('students/{id}/fee-structures', [FeePaymentController::class, 'getStudentFeeStructures']);
         Route::get('students/{rollno}/unpaid-fees', [FeePaymentController::class, 'getStudentUnpaidFees']);
     });
-    // ========================================================
-    // Department routes
+
+    // Departmental routes ========================================================
 
     Route::group(['prefix' => '/deptartment',], function () {
         Route::get('dashboard', [SubjectController::class, 'departmentDashboard'])->name('department.dashboard');
+        Route::get('enrolled-programs/by-batch', [SubjectController::class, 'fetchEnrolledProgramsByBatch'])->name('department.batch.enrolled-programs');
         Route::get('combo-master', [SubjectController::class, 'comboMaster'])->name('department.combo.master');
         Route::delete('combination/{id}/delete', [SubjectController::class, 'deleteCombination'])->name('department.combination.delete');
         Route::get('course-master/{id}/{slug}', [SubjectController::class, 'courseMaster'])->name('department.course.master');
@@ -776,12 +812,15 @@ Route::group(['prefix' => '/erp'], function () {
         Route::get('delete-semester/{id}', [SubjectController::class, 'deleteSemesterFromSubject'])->name('department.delete.subject.semester');
         Route::post('add-faculty-master', [SubjectController::class, 'addFacultyMasterToSubject'])->name('dept.add.faculty.master');
         Route::put('combination-update/{id}', [SubjectController::class, 'updateCombination'])->name('department.combination.update');
+        Route::put('combination-specializations/{id}', [SubjectController::class, 'updateCombinationSpecializations'])->name('department.combination.specializations.update');
         // Course Objectives
         Route::get('course/{id}/cso', [SubjectController::class, 'viewCourseSpecificObjective'])->name('department.view.cso');
+        Route::get('course/{id}/cso-download-pdf', [SubjectController::class, 'downloadCourseSpecificObjectivePdf'])->name('department.course.objective.download.pdf');
         Route::get('course/{id}/cso-list', [SubjectController::class, 'getCsoListForCourse'])->name('department.get.cso.list');
         Route::post('course/objective/create', [SubjectController::class, 'createCourseSpecificObjective'])->name('department.create.course.specific.objective');
         Route::delete('delete-faculty-master/{id}', [SubjectController::class, 'deleteFacultyMasterFromSubject'])->name('department.faculty.delete');
         Route::post('add-new-course-master', [SubjectController::class, 'addNewCourseMaster'])->name('department.create.course.master');
+        Route::get('course-master/check-code', [SubjectController::class, 'checkCourseCodeAvailability'])->name('department.course-master.check-code');
         Route::put('/course-master/{id}', [SubjectController::class, 'updateCourseMaster'])->name('department.update.course.master');
 
         Route::put('/course-specific-objective/{id}', [SubjectController::class, 'updateCourseSpecificObjective'])->name('department.update.cso');
@@ -795,6 +834,7 @@ Route::group(['prefix' => '/erp'], function () {
         Route::get('syllabus-manager', [SubjectController::class, 'syllabusManager'])->name('department.syllabus.manager');
         Route::get('course/{id}/cso-list', [SubjectController::class, 'getCsoListForCourse'])->name('department.get.cso.list');
         Route::post('create-syllabus', [SubjectController::class, 'createSyllabus'])->name('department.create.syllabus');
+        Route::post('syllabus-co/toggle-status/{subjectId}/{batchId}/{semesterId}/{coId}', [SubjectController::class, 'toggleSyllabusStatus'])->name('department.syllabus.co.toggle-status');
         Route::delete('syllabus-subunit/{id}', [SubjectController::class, 'deleteSyllabusSubunit'])->name('department.syllabus.subunit.delete');
         Route::delete('syllabus-co/{subjectId}/{batchId}/{semesterId}/{coId}', [SubjectController::class, 'deleteSyllabusCo'])->name('department.syllabus.co.delete');
         Route::get('syllabus-download-pdf', [SubjectController::class, 'downloadSyllabusPdf'])->name('department.syllabus.download.pdf');
@@ -822,8 +862,11 @@ Route::group(['prefix' => '/erp'], function () {
         // Faculty Timetable
 
         //timetable
-        Route::get('timetable/{id}', [TimetableController::class, 'index'])->name('department.timetable');
+        Route::get('timetable/{id}/{slug}', [TimetableController::class, 'index'])->name('department.timetable');
         Route::get('timetable/{subjectId}/{batchId}/{semesterId}', [TimetableController::class, 'editSemesterTimetable'])->name('department.timetable.edit');
+        Route::get('timetable-hours', [TimetableController::class, 'getTeachingHoursByShift'])->name('department.timetable.hours');
+        Route::get('timetable-quick-courses', [TimetableController::class, 'getQuickCourses'])->name('department.timetable.quick-courses');
+        Route::post('timetable-conflict-check', [TimetableController::class, 'validateTimetableConflict'])->name('department.timetable.conflict-check');
         Route::get('timetable-data/{subjectId}/{batchId}/{semesterId}', [TimetableController::class, 'getTimetableData'])->name('department.timetable.data');
         Route::get('timetable-conflicts/{hourNumber}/{day}', [TimetableController::class, 'getTeacherConflicts'])->name('department.timetable.conflicts');
         Route::delete('timetable-routine/{routineId}', [TimetableController::class, 'deleteRoutineSlot'])->name('department.timetable.delete');
@@ -852,7 +895,7 @@ Route::group(['prefix' => '/erp'], function () {
         Route::get('show-student-list', [SubjectController::class, 'showStudentList'])->name('department.show.student.list');
         Route::get('all-students', [SubjectController::class, 'allStudents'])->name('department.all.students');
         Route::get('student-profile', [SubjectController::class, 'studentProfile'])->name('department.student.profile');
-        Route::get('faculty-list/{subjectId}', [SubjectController::class, 'deptFacultyList'])->name('department.faculty.list');
+        Route::get('faculty-list/{subjectId}/{slug}', [SubjectController::class, 'deptFacultyList'])->name('department.faculty.list');
         // Department Activities
         Route::get('activities/{subjectId}', [DepartmentActivityController::class, 'index'])->name('department.activities.index');
         Route::post('activities', [DepartmentActivityController::class, 'store'])->name('department.activities.store');
@@ -876,9 +919,30 @@ Route::group(['prefix' => '/erp'], function () {
         Route::get('attendance-monitor', [SubjectController::class, 'attendanceMonitor'])->name('department.attendance.monitor');
 
         //program wise semester courses
-        Route::get('program-semester-course-design/{id}', [SubjectController::class, 'programSemesterCourseDesign'])->name('program.wise.semester.course.design');
-        Route::post('store.program.semster.courses.mapping', [SubjectController::class, 'storeProgramSemesterCoursesMapping'])->name('store.program.semster.courses.mapping');
+        Route::get('curriculam-builder-engine/{id}/{name}', [SubjectController::class, 'curriculamBuilder'])->name('curriculam.builder.engine');
+        Route::get('curriculam-course-fetcher', [SubjectController::class, 'fetchComboCourses'])->name('combo.course.fetching');
+
+        Route::get('curriculam-builder/{id}/published-courses', [SubjectController::class, 'publishedSyllabusCoursesForCurriculum'])->name('program.wise.semester.curriculam.builder.published-courses');
+        Route::post('store-curriculam-mapping', [SubjectController::class, 'storeProgramSemesterCoursesMapping'])->name('store.curriculam.mapping');
+        Route::post('update.program.semster.courses.mapping/{id}', [SubjectController::class, 'updateProgramSemesterCoursesMapping'])->name('update.program.semster.courses.mapping');
+        Route::post('update.program.semster.courses.order', [SubjectController::class, 'updateProgramSemesterCoursesOrder'])->name('update.program.semster.courses.order');
         Route::delete('program-semester-course-mapping/{id}', [SubjectController::class, 'deleteProgramSemesterCourseMapping'])->name('delete.program.semster.courses.mapping');
+
+        //Teaching Assignment
+        Route::get('teaching-assignment/{id}/{slug}', [SubjectController::class, 'teachingAssignment'])->name('department.teaching.assignment');
+        Route::post('teaching-assignment/{subjectId}', [SubjectController::class, 'storeTeachingAssignment'])->name('department.teaching.assignment.store');
+        Route::put('teaching-assignment/{id}', [SubjectController::class, 'updateTeachingAssignment'])->name('department.teaching.assignment.update');
+        Route::delete('teaching-assignment/{id}', [SubjectController::class, 'deleteTeachingAssignment'])->name('department.teaching.assignment.delete');
+
+        //Specialization
+        Route::get('my-specializations/{id}/{slug}', [SubjectController::class, 'mySpecializations'])->name('department.specialization.master');
+        Route::post('store-my-specialization', [SubjectController::class, 'storeMySpecialization'])->name('department.store.specialization');
+        Route::put('update-my-specialization/{id}', [SubjectController::class, 'updateMySpecialization'])->name('department.update.specialization');
+        Route::post('my-specializations/{id}/{slug}/assign-students', [SubjectController::class, 'storeStudentSpecializationAssignments'])->name('department.specialization.assign.students');
+
+        //Student Group Allotment
+        Route::get('student-group-allotment/{id}/{slug}', [SubjectController::class, 'studentGroupAllotment'])->name('department.student.group.allocation');
+        Route::post('student-group-allotment/{id}/{slug}/save', [SubjectController::class, 'saveStudentGroupAllocation'])->name('department.student.group.allocation.save');
     });
     // ========================================================
     // Faculty routes
@@ -894,6 +958,11 @@ Route::group(['prefix' => '/erp'], function () {
         Route::get('attendance/view', [FacultyAttendanceController::class, 'viewAttendance'])->name('faculty.attendance.view');
         Route::delete('attendance/{id}', [FacultyAttendanceController::class, 'deleteAttendance'])->name('faculty.attendance.delete');
         Route::get('attendance/create', [FacultyAttendanceController::class, 'getStudentList'])->name('faculty.attendance.create');
+        Route::get('attendance/hours', [FacultyAttendanceController::class, 'getHoursByShift'])->name('faculty.attendance.hours');
+        Route::post('attendance/qr/generate', [FacultyAttendanceController::class, 'generateStudentAttendanceQr'])->name('faculty.attendance.qr.generate');
+        Route::post('attendance/qr/finalize', [FacultyAttendanceController::class, 'finalizeQrAttendance'])->name('faculty.attendance.qr.finalize');
+        Route::post('attendance/qr/delete', [FacultyAttendanceController::class, 'deleteQrRecord'])->name('faculty.attendance.qr.delete');
+        Route::get('attendance/qr-records', [FacultyAttendanceController::class, 'qrRecords'])->name('faculty.attendance.qr.records');
         Route::put('attendance/{id}', [FacultyAttendanceController::class, 'updateAttendance'])->name('faculty.attendance.update');
         // Remedial classes
         Route::get('remedial-classes', [FacultyAttendanceController::class, 'extraClasses'])->name('faculty.remedial.classes');
@@ -1125,6 +1194,12 @@ Route::group(['prefix' => '/erp'], function () {
         Route::post('work-diary/{id}/approve', [PrincipalController::class, 'approveWorkDiary'])->name('principal.work-diary.approve');
         Route::post('work-diary/bulk-approve', [PrincipalController::class, 'bulkApproveWorkDiary'])->name('principal.work-diary.bulk-approve');
 
+        // Student Affairs Monitoring (view-only)
+        Route::get('monitoring/mentoring', [PrincipalMonitoringController::class, 'mentoring'])->name('principal.monitoring.mentoring');
+        Route::get('monitoring/student-360', [PrincipalMonitoringController::class, 'student360'])->name('principal.monitoring.student360');
+        Route::get('monitoring/clubs-cells', [PrincipalMonitoringController::class, 'clubs'])->name('principal.monitoring.clubs');
+        Route::get('monitoring/clubs-cells/{club}', [PrincipalMonitoringController::class, 'clubMembers'])->name('principal.monitoring.clubs.show');
+
         // Vice-Principal Management (Principal only)
         Route::get('vp-management', [PrincipalController::class, 'vpIndex'])->name('principal.vp.index');
         Route::post('vp-management', [PrincipalController::class, 'vpStore'])->name('principal.vp.store');
@@ -1172,6 +1247,51 @@ Route::group(['prefix' => '/erp'], function () {
     });
 
     // ========================================================
+    // Dean of Student Affairs Module
+    Route::group(['prefix' => '/dean', 'middleware' => ['check.dean.access']], function () {
+        Route::get('dashboard', [DeanDashboardController::class, 'index'])->name('dean.dashboard');
+
+        Route::get('student-council', [DeanStudentCouncilController::class, 'index'])->name('dean.student-council.index');
+        Route::post('student-council', [DeanStudentCouncilController::class, 'store'])->name('dean.student-council.store');
+        Route::get('student-council/{council}/members', [DeanStudentCouncilController::class, 'members'])->name('dean.student-council.members');
+        Route::post('student-council/{council}/members', [DeanStudentCouncilController::class, 'storeMember'])->name('dean.student-council.members.store');
+        Route::get('student-council/{council}/meetings', [DeanStudentCouncilController::class, 'meetings'])->name('dean.student-council.meetings');
+        Route::post('student-council/{council}/meetings', [DeanStudentCouncilController::class, 'storeMeeting'])->name('dean.student-council.meetings.store');
+
+        Route::get('clubs', [DeanClubsController::class, 'index'])->name('dean.clubs.index');
+        Route::post('clubs', [DeanClubsController::class, 'store'])->name('dean.clubs.store');
+        Route::get('clubs/{club}', [DeanClubsController::class, 'show'])->name('dean.clubs.show');
+        Route::post('clubs/{club}/members', [DeanClubsController::class, 'storeMember'])->name('dean.clubs.members.store');
+        Route::put('clubs/{club}/members/{membership}', [DeanClubsController::class, 'updateMember'])->name('dean.clubs.members.update');
+        Route::delete('clubs/{club}/members/{membership}', [DeanClubsController::class, 'destroyMember'])->name('dean.clubs.members.destroy');
+
+        Route::get('event-monitoring', [DeanEventMonitoringController::class, 'index'])->name('dean.events.index');
+        Route::get('mentoring-dashboard', [DeanMentoringDashboardController::class, 'index'])->name('dean.mentoring.index');
+
+        Route::get('attendance-monitoring', [DeanAttendanceMonitoringController::class, 'index'])->name('dean.attendance.monitoring');
+        Route::get('attendance-regularization', [DeanAttendanceRegularizationController::class, 'index'])->name('dean.attendance.regularization');
+        Route::post('attendance-regularization/preview', [DeanAttendanceRegularizationController::class, 'preview'])->name('dean.attendance.regularization.preview');
+        Route::post('attendance-regularization/approve', [DeanAttendanceRegularizationController::class, 'approve'])->name('dean.attendance.regularization.approve');
+        Route::get('attendance-regularization/{regularization}/history', [DeanAttendanceRegularizationController::class, 'history'])->name('dean.attendance.regularization.history');
+
+        Route::get('discipline', [DeanDisciplineController::class, 'index'])->name('dean.discipline.index');
+        Route::post('discipline', [DeanDisciplineController::class, 'store'])->name('dean.discipline.store');
+        Route::post('discipline/{case}/actions', [DeanDisciplineController::class, 'storeAction'])->name('dean.discipline.actions.store');
+        Route::put('discipline/{case}/status', [DeanDisciplineController::class, 'updateStatus'])->name('dean.discipline.status.update');
+
+        Route::get('counselling', [DeanCounsellingController::class, 'index'])->name('dean.counselling.index');
+        Route::post('counselling', [DeanCounsellingController::class, 'store'])->name('dean.counselling.store');
+        Route::get('concern-categories', [\App\Http\Controllers\Dean\ConcernCategoryController::class, 'index'])->name('dean.concern-categories.index');
+        Route::post('concern-categories', [\App\Http\Controllers\Dean\ConcernCategoryController::class, 'store'])->name('dean.concern-categories.store');
+        Route::put('concern-categories/{category}', [\App\Http\Controllers\Dean\ConcernCategoryController::class, 'update'])->name('dean.concern-categories.update');
+        Route::post('concern-categories/{category}/toggle', [\App\Http\Controllers\Dean\ConcernCategoryController::class, 'toggle'])->name('dean.concern-categories.toggle');
+
+        Route::get('student-360', [DeanStudent360Controller::class, 'index'])->name('dean.student360.index');
+
+        Route::get('reports', [DeanReportsController::class, 'index'])->name('dean.reports.index');
+    });
+
+    // ========================================================
     // HR Module
     Route::group(['prefix' => '/hr'], function () {
         Route::get('dashboard', function () {
@@ -1182,6 +1302,8 @@ Route::group(['prefix' => '/erp'], function () {
         Route::get('faculty', [HrFacultyController::class, 'index'])->name('hr.faculty.index');
         Route::get('faculty/create', [HrFacultyController::class, 'create'])->name('hr.faculty.create');
         Route::post('faculty', [HrFacultyController::class, 'store'])->name('hr.faculty.store');
+        Route::get('faculty/{id}/pay-matrix', [HrFacultyController::class, 'editIndividualPayMatrix'])->name('hr.faculty.pay-matrix.edit');
+        Route::put('faculty/{id}/pay-matrix', [HrFacultyController::class, 'updateIndividualPayMatrix'])->name('hr.faculty.pay-matrix.update');
         Route::get('faculty/{id}', [HrFacultyController::class, 'show'])->name('hr.faculty.show');
         Route::get('faculty/{id}/edit', [HrFacultyController::class, 'edit'])->name('hr.faculty.edit');
         Route::put('faculty/{id}', [HrFacultyController::class, 'update'])->name('hr.faculty.update');
@@ -1292,6 +1414,8 @@ Route::group(['prefix' => '/erp'], function () {
 
     //Testing route
     Route::group(['prefix' => '/test',], function () {
+        Route::get('fix-librarycode/{id}', [TestController::class, 'fixLibraryCode']);
+        Route::get('fix-student-semester', [TestController::class, 'fixStudentSemester']);
         Route::get('fix-syllabus', [TestController::class, 'fixSyllabusIssue']);
         // Route::get('fix-fee-structure', [TestController::class, 'fixFeeStructure']);
         Route::get('fix-courses', [TestController::class, 'courseFix']);

@@ -5,10 +5,11 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Casts\Attribute;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\SoftDeletes;
 
 class StudentMaster extends Model
 {
-    use HasFactory;
+    use HasFactory, SoftDeletes;
 
     protected $fillable = [
         'user_code',
@@ -131,5 +132,32 @@ class StudentMaster extends Model
     function studentcourses()
     {
         return $this->hasMany(StudentCourseInfo::class, 'student_id', 'id');
+    }
+
+    function academicpathway()
+    {
+        return $this->hasOne(AcademicPathwayMaster::class, 'id', 'academic_pathway_id');
+    }
+
+    function degreetrack()
+    {
+        return $this->hasOne(DegreeTrackMaster::class, 'id', 'degree_track_id');
+    }
+
+    function singleselection()
+    {
+        return $this->hasOne(Subject::class, 'id', 'selected_combo_id');
+    }
+
+    function activeSemesterConfig()
+    {
+        return $this->hasOne(StudentSemesterConfig::class, 'student_id', 'id')
+            ->where('current_semester', 1)
+            ->orderByDesc('semester_id');
+    }
+
+    function subjectmaster()
+    {
+        return $this->hasOne(Subject::class, 'id', 'academic_dept_id');
     }
 }

@@ -34,7 +34,7 @@ html.semi-dark .sidebar-wrapper .metismenu a:focus,
 html.semi-dark .sidebar-wrapper .metismenu a:hover {
     color: #272727;
     text-decoration: none;
-    background-color: rgba(255, 245, 108, 0.807);
+    background-color: rgb(255, 227, 87);
     border-radius: 15px;
 }
 

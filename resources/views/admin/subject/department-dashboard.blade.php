@@ -9,13 +9,36 @@ use App\Models\StudentProgram;
 use App\Models\SubjectCourseMaster;
 use App\Models\SubjectHasDeptAdmin;
 use App\Models\SubjectHasRoutine;
-use Illuminate\Support\Facades\Auth;
+use App\Models\SpecializationMaster;
+use App\Models\ShiftMaster;
+use App\Models\Campus;
+
 
 $batches = BatchMaster::latest()->get();
 $semesters = Semester::get();
 $course_master = SubjectCourseMaster::with('courseMaster')->where('subject_id', $data->id)->get();
 $faculties = Faculty::all();
 $mainStreams = ProgramMaster::all();
+$subjectShiftIds = collect($data->shift_ids ?? [])->map(fn($id) => (int) $id)->filter()->unique()->values();
+$subjectHasShiftDelivery = (int) ($data->has_shift_delivery ?? 0) === 1;
+$campuses = Campus::all();
+$shiftQuery = ShiftMaster::where('is_active', 1)->orderBy('sort_order');
+if ($subjectHasShiftDelivery) {
+  if ($subjectShiftIds->isNotEmpty()) {
+    $shiftQuery->whereIn('id', $subjectShiftIds->all());
+  } else {
+    $shiftQuery->whereRaw('1 = 0');
+  }
+} else {
+  $commonShiftId = ShiftMaster::where('slug', 'common')->value('id');
+  if (!empty($commonShiftId)) {
+    $shiftQuery->where('id', (int) $commonShiftId);
+  } else {
+    $shiftQuery->whereRaw('1 = 0');
+  }
+}
+
+$shiftMasters = $shiftQuery->get(['id', 'slug', 'title']);
 
 $deptFacultyIds = collect($deptfaculties ?? [])->pluck('faculty_id')->filter()->unique()->values()->all();
 $facultyIdsWithTimetable = [];
@@ -58,37 +81,104 @@ if (!empty($deptFacultyIds)) {
     scrollbar-width: thin;
     scrollbar-color: #667eea #f1f1f1;
   }
+
+  .quick-scroll-row {
+    display: flex;
+    gap: 16px;
+    overflow-x: auto;
+    overflow-y: hidden;
+    padding: 4px 4px 12px;
+    scroll-snap-type: x proximity;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .quick-scroll-row .quick-item {
+    flex: 0 0 clamp(220px, 24vw, 280px);
+    min-width: 220px;
+    scroll-snap-align: start;
+  }
+
+  .quick-scroll-row .stats-card,
+  .quick-scroll-row .action-card {
+    height: 100%;
+  }
+
+  .quick-scroll-row::-webkit-scrollbar {
+    height: 8px;
+  }
+
+  .quick-scroll-row::-webkit-scrollbar-thumb {
+    background: #cbd5e1;
+    border-radius: 999px;
+  }
+
+  @media (max-width: 768px) {
+    .quick-scroll-row .quick-item {
+      flex-basis: 78vw;
+      min-width: 78vw;
+    }
+  }
 </style>
 
 <!-- Main Content -->
 <div class="main-content">
-  <!-- Welcome Header -->
-  <div class="welcome-header d-flex justify-content-between align-items-center" style="background: linear-gradient(135deg, #e9e9e9 40%, #7c3aed 100%)">
-    <div>
-      <h2 class="mb-1" style="color: #1a1a1a; font-weight: 700;">Hello, {{ Auth::user()->name ?? 'User' }} 👋</h2>
-      <p class="mb-0" style="color: #6b7280;">Nice to have you back, what an exciting day!</p>
-      <p class="mb-0 mt-2" style="color: #6b7280;">Get ready and continue your work today.</p>
-    </div>
-    <div class="d-flex align-items-center gap-4">
-      <div class="xp-badge">
-        <div class="xp-coin">
-          <i class="fas fa-bell me-1" style="color: #322709; font-size: 18px;"></i>
+  @php
+  $notificationCount = count($upcomingActivities ?? []);
+  @endphp
 
-        </div>
-        <div>
-          <div style="font-size: 24px; font-weight: 700; color: #1a1a1a;">5 </div>
-          <div style="font-size: 12px; color: #6b7280;">Notifications</div>
-        </div>
+  <nav class="navbar navbar-expand-lg bg-white border rounded-3 shadow-sm px-3 py-2 mb-3">
+    <div class="container-fluid px-0">
+      <a class="navbar-brand fw-bold" href="#" style="color: #1f2937;">
+        {{ $data->title ?? 'Department Dashboard' }}
+      </a>
+
+      <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#deptNavbar" aria-controls="deptNavbar" aria-expanded="false" aria-label="Toggle navigation">
+        <span class="navbar-toggler-icon"></span>
+      </button>
+
+      <div class="collapse navbar-collapse" id="deptNavbar">
+        <ul class="navbar-nav ms-auto align-items-lg-center gap-lg-2 mt-2 mt-lg-0">
+
+          <li class="nav-item dropdown">
+            <a class="nav-link position-relative" href="#" role="button" data-bs-toggle="dropdown" aria-expanded="false">
+              <i class="fas fa-bell fs-5 text-dark"></i>
+              @if($notificationCount > 0)
+              <span class="position-absolute top-0 start-100 translate-middle badge rounded-pill bg-danger">
+                {{ $notificationCount }}
+              </span>
+              @endif
+            </a>
+            <ul class="dropdown-menu dropdown-menu-end shadow-sm" style="min-width: 300px;">
+              <li class="dropdown-header fw-bold d-flex justify-content-between align-items-center">
+                <span>Notifications</span>
+                @if($notificationCount > 0)
+                <span class="badge bg-primary">{{ $notificationCount }}</span>
+                @endif
+              </li>
+              @if($notificationCount > 0)
+              <li>
+                <a class="dropdown-item d-flex justify-content-between" href="{{ route('department.activities.index', [$data->id]) }}">
+                  Upcoming Activities
+                  <span class="badge bg-primary">{{ $notificationCount }}</span>
+                </a>
+              </li>
+              @else
+              <li><span class="dropdown-item-text text-muted">No new notifications</span></li>
+              @endif
+
+            </ul>
+          </li>
+        </ul>
       </div>
     </div>
-  </div>
+  </nav>
 
 
 
   <div class="row g-4">
-    <div class="row">
+    <div class="quick-scroll-row">
       <!-- Quick Stats -->
-      <div class="col-md-2">
+      <div class="quick-item">
         <div class="stats-card gradient-green">
           <div class="d-flex justify-content-between align-items-start">
             <div>
@@ -103,8 +193,8 @@ if (!empty($deptFacultyIds)) {
         </div>
       </div>
 
-      <div class="col-md-2">
-        <div class="stats-card gradient-red">
+      <div class="quick-item">
+        <div class="stats-card gradient-green">
           <div class="d-flex justify-content-between align-items-start">
             <div>
               <div style="font-size: 14px; opacity: 0.9; margin-bottom: 8px;">Syllabus </div>
@@ -120,30 +210,70 @@ if (!empty($deptFacultyIds)) {
         </div>
       </div>
 
-      <div class="col-md-2">
-        <div class="stats-card gradient-yellow">
+      <div class="quick-item">
+
+        <div class="stats-card gradient-green">
           <div class="d-flex justify-content-between align-items-start">
             <div>
-              <div style="font-size: 14px; opacity: 0.9; margin-bottom: 8px;">Faculty Members</div>
-              <div style="font-size: 36px; font-weight: 700;">{{ count($deptfaculties) ?? 0 }}</div>
-              <div style="opacity: 0.9; font-size: 13px;">Active</div>
+              <div style="font-size: 14px; opacity: 0.9; margin-bottom: 8px;">Faculty</div>
+              <div style="font-size: 36px; font-weight: 700;">{{count($deptfaculties)}} </div>
+
+
+              <div style="opacity: 0.9; font-size: 13px;">
+                <a href="{{ route('department.faculty.access', [$data->id,$data->slug]) }}" style="color: white; opacity: 0.9; font-size: 13px; text-decoration: none;">Manage →</a>
+              </div>
             </div>
+
             <div style="width: 56px; height: 56px; background: rgba(255, 255, 255, 0.2); border-radius: 14px; display: flex; align-items: center; justify-content: center;">
               <i class="fas fa-chalkboard-teacher" style="font-size: 28px;"></i>
             </div>
+
+          </div>
+        </div>
+
+      </div>
+
+      <div class="quick-item">
+        <div class="stats-card gradient-green">
+          <div class="d-flex justify-content-between align-items-start">
+            <div>
+              <div style="font-size: 14px; opacity: 0.9; margin-bottom: 8px;">Program</div>
+              <div style="font-size: 36px; font-weight: 700;">Specialization </div>
+
+              <div style="opacity: 0.9; font-size: 13px;">
+                <a href="{{route('department.specialization.master',[ $data->id, $data->title])}}" style="color: white; opacity: 0.9; font-size: 13px; text-decoration: none;">Manage →</a>
+              </div>
+            </div>
+
           </div>
         </div>
       </div>
 
-      <div class="col-md-2">
-        <div class="stats-card gradient-purple">
+      <div class="quick-item">
+        <div class="stats-card gradient-green">
+          <div class="d-flex justify-content-between align-items-start">
+            <div>
+              <div style="font-size: 14px; opacity: 0.9; margin-bottom: 8px;">Student Group </div>
+              <div style="font-size: 36px; font-weight: 700;">Allocation </div>
+
+              <div style="opacity: 0.9; font-size: 13px;">
+                <a href="{{route('department.student.group.allocation',[ $data->id, $data->title])}}" style="color: white; opacity: 0.9; font-size: 13px; text-decoration: none;">Manage →</a>
+              </div>
+            </div>
+
+          </div>
+        </div>
+      </div>
+
+      <div class="quick-item">
+        <div class="stats-card gradient-green">
           <div class="d-flex justify-content-between align-items-start">
             <div>
               <div style="font-size: 14px; opacity: 0.9; margin-bottom: 8px;">Time Table</div>
               <div style="font-size: 36px; font-weight: 700;">
-                <a href="{{ route('department.timetable', [$data->id]) }}" style="color: white; text-decoration: none;">Schedule</a>
+                <a href="{{ route('department.timetable', [$data->id,$data->title]) }}" style="color: white; text-decoration: none;">Scheduler</a>
               </div>
-              <div style="opacity: 0.9; font-size: 13px;">Manager</div>
+              <div style="opacity: 0.9; font-size: 13px;">Manager →</div>
             </div>
             <div style="width: 56px; height: 56px; background: rgba(255, 255, 255, 0.2); border-radius: 14px; display: flex; align-items: center; justify-content: center;">
               <i class="fas fa-calendar-alt" style="font-size: 28px;"></i>
@@ -151,34 +281,38 @@ if (!empty($deptFacultyIds)) {
           </div>
         </div>
       </div>
-      <div class="col-md-2">
-        <a href="{{ route('department.substitution', [$data->id]) }}" style="text-decoration: none;">
-          <div class="action-card gradient-orange">
-            <div class="action-card-icon">
-              <i class="fas fa-exchange-alt"></i>
-            </div>
-            <div>
-              <h6 class="mb-1" style="font-weight: 700;">Manage Substitution</h6>
-              <p class="mb-0" style="font-size: 13px; opacity: 0.9;">Get a reminder to help with your studying process.</p>
-            </div>
-            <div class="mt-2">
-              <a href="{{ route('department.substitution.history.page') }}" style="color: white; font-size: 13px; opacity: 0.9;">View History →</a>
-            </div>
+      <div class="quick-item">
+
+        <div class="action-card gradient-green">
+          <div class="action-card-icon">
+            <i class="fas fa-exchange-alt"></i>
           </div>
-        </a>
+          <div>
+            <a href="{{ route('department.substitution', [$data->id]) }}" style="color:yellow;">
+              <h6 class="mb-1" style="font-weight: 700;">Manage Substitution</h6>
+            </a>
+            <p class="mb-0" style="font-size: 13px; opacity: 0.9;">Get a reminder to help with your studying process.</p>
+          </div>
+
+          <div class="mt-2">
+            <a href="{{ route('department.substitution.history.page') }}" style="color:yellow; font-size: 13px; font-weight:bold">
+              View Substitution History →</a>
+          </div>
+        </div>
+
       </div>
 
-      <div class="col-md-2">
+      <div class="quick-item">
         <a href="{{route('department.admission.list')}}" style="text-decoration: none;">
-          <div class="action-card gradient-pink">
+          <div class="action-card gradient-green">
             <div class="action-card-icon">
               <i class="fas fa-certificate"></i>
             </div>
             <div>
               <h6 class="mb-1" style="font-weight: 700;">Admission Portal</h6>
-              <p class="mb-0" style="font-size: 13px; opacity: 0.9;">Set targets, see reminders, analyze your study habits.</p>
+              <p class="mb-0" style="font-size: 13px; opacity: 0.9;">Stay updated with registrations and applications</p>
             </div>
-            <div class="mt-2" style="font-size: 13px; opacity: 0.9;">View Applications →</div>
+            <div class="mt-2" style="font-size: 13px; opacity: 0.9;">View Now →</div>
           </div>
         </a>
       </div>
@@ -279,109 +413,167 @@ if (!empty($deptFacultyIds)) {
       </div>
 
       @if(count($combinations))
-      <div class="table-responsive">
-        <table class="table table-hover">
-          <thead>
-            <tr style="border-bottom: 2px solid #fac01f;">
-              <th style="color: #e9ebef; font-weight: 600; padding: 16px;">#</th>
-              <th style="color: #e9ebef; font-weight: 600;">Curriculam</th>
-              <th style="color: #e9ebef; font-weight: 600;">Tracking ID</th>
-              <th style="color: #e9ebef; font-weight: 600;">Batch</th>
-              <th style="color: #e9ebef; font-weight: 600;">Code</th>
-              <th style="color: #e9ebef; font-weight: 600;">Program</th>
-              <th style="color: #e9ebef; font-weight: 600;">Program Type</th>
-              <th style="color: #e9ebef; font-weight: 600;">Total Seats</th>
-              <th style="color: #e9ebef; font-weight: 600;">Available Seats</th>
-              <th style="color: #e9ebef; font-weight: 600;">Enrolled </th>
-              <th style="color: #e9ebef; font-weight: 600;">Edit</th>
-              <th style="color: #e9ebef; font-weight: 600;">Action</th>
-            </tr>
-          </thead>
-          <tbody>
-            @forelse($combinations as $combination)
-            <tr style="border-bottom: 1px solid #f5f5f5;">
-              <td style="padding: 16px; color: #1a1a1a; font-weight: 500;">{{ $loop->iteration }}</td>
-              <td>
-                <a href="{{route('program.wise.semester.course.design',[$combination->id])}}">
-                  <button class="btn-sm btn-dark"><i class="fa fa-palette"></i> Design</button>
-                </a>
-              </td>
-              <td>
-                <span class="badge" style="background: #43cea2; padding: 6px 12px; border-radius: 8px;">ID: {{ $combination->id ?? '-' }}</span>
-              </td>
+      @php
+      $specializations = SpecializationMaster::where('subject_id', $data->id)->where('is_active', 1)->orderBy('name')->get();
+      @endphp
+      <div class="row g-3">
+        @forelse($combinations as $combination)
+        @php
+        $selectedSpecializationIds = collect($combination->specialization_ids ?? [])->map(fn($id) => (int) $id)->all();
+        $connectedSpecializations = $specializations->whereIn('id', $selectedSpecializationIds);
+        @endphp
+        <div class="col-12 col-md-6 col-xl-4">
+          <div class="h-100" style="border: 1px solid #e5e7eb; border-radius: 16px; overflow: hidden; background: #fff; box-shadow: 0 10px 25px rgba(15, 23, 42, 0.06);">
+            <div class="d-flex justify-content-between align-items-start gradient-green p-2">
+              <div>
+                <div style="font-size: 12px; color: rgba(255, 255, 255, 0.8); font-weight: 600;">Combination #{{ $loop->iteration }}</div>
+                <div style="font-size: 14px; color: #fff; font-weight: 700; margin-top: 3px;">{{ $combination->studentprograminfo->code ?? '-' }}</div>
+              </div>
+              <span class="badge badge-light">ID: {{ $combination->id ?? '-' }}</span>
+            </div>
 
-              <td style="color: #1a1a1a;">{{$combination->batchmaster->batch_name ?? '-'}}</td>
-              <td style="color: #1a1a1a;">
-                <a href="{{ route('department.show.student.list', ['program_id' => $combination->studentprograminfo->id,
-                 'slug' => $combination->studentprograminfo->name, 'batch_id' => $combination->batchmaster->id]) }}">
-                  {{ $combination->studentprograminfo->code ?? '-' }}
-                </a>
-              </td>
-              <td style="color: #1a1a1a;">
-                <a href="{{ route('department.show.student.list', ['program_id' => $combination->studentprograminfo->id,
-                 'slug' => $combination->studentprograminfo->name, 'batch_id' => $combination->batchmaster->id]) }}">
-                  {{ $combination->studentprograminfo->name ?? '-' }}
-                </a>
-              </td>
-              <td><span class="badge" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); padding: 6px 12px; border-radius: 8px;">{{$combination->program_type}}</span></td>
-              <td>{{ $combination->total_seats ?? '-' }}</td>
-              <td>{{ $combination->total_available_seats ?? '-' }}</td>
-              <td>{{ $combination->studentmaster_count }}</td>
-              <td>
-                <!-- Button trigger modal -->
-                <button type="button" class="btn-sm btn-primary" data-bs-toggle="modal" data-bs-target="#edit{{ $combination->id }}">
-                  <i class="fa fa-edit"></i>
-                </button>
+            <div style="padding: 16px;">
+              <div class="d-flex justify-content-between align-items-start gap-2 mb-3">
+                <div>
+                  <a href="{{ route('department.show.student.list', ['program_id' => $combination->studentprograminfo->id, 'slug' => $combination->studentprograminfo->name, 'batch_id' => $combination->batchmaster->id]) }}" style="font-size: 16px; font-weight: 700; color: #111827; text-decoration: none;">
+                    {{ $combination->studentprograminfo->name ?? '-' }}
+                  </a>
+                  <div style="font-size: 12px; color: #6b7280; margin-top: 4px;">{{ $combination->batchmaster->batch_name ?? '-' }} | {{ $combination->shift ?? '-' }}</div>
+                </div>
+                <span class="badge" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); padding: 6px 10px; border-radius: 8px;">{{ $combination->program_type ?? '-' }}</span>
+              </div>
 
-                <!-- Modal -->
-                <div class="modal fade" id="edit{{ $combination->id }}" tabindex="-1" aria-labelledby="exampleModalLabel" aria-hidden="true">
-                  <div class="modal-dialog">
-                    <div class="modal-content">
-                      <div class="modal-header">
-                        <h5 class="modal-title" id="exampleModalLabel">Edit {{$combination->batchmaster->batch_name ?? '-'}} - {{ $combination->studentprograminfo->name ?? '' }}</h5>
-                        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-                      </div>
-                      <div class="modal-body">
-                        <form action="{{ route('department.combination.update', $combination->id) }}" method="POST">
-                          @csrf
-                          @method('PUT')
-                          <div class="mb-3">
-                            <label for="totalSeats{{ $combination->id }}" class="form-label">Total Seats</label>
-                            <input type="number" class="form-control" id="totalSeats{{ $combination->id }}" name="total_seats" value="{{ $combination->total_seats ?? '' }}" required>
-                          </div>
-
-                      </div>
-                      <div class="modal-footer">
-                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
-                        <button type="submit" class="btn btn-primary">Save changes</button>
-                      </div>
-                      </form>
-                    </div>
+              <div class="row g-2 mb-3">
+                <div class="col-4">
+                  <div style="background: #f8fafc; border-radius: 10px; padding: 10px;">
+                    <div style="font-size: 11px; color: #6b7280;">Seats</div>
+                    <div style="font-size: 16px; color: #0f172a; font-weight: 700;">{{ $combination->total_seats ?? '-' }}</div>
                   </div>
                 </div>
+                <div class="col-4">
+                  <div style="background: #f8fafc; border-radius: 10px; padding: 10px;">
+                    <div style="font-size: 11px; color: #6b7280;">Available</div>
+                    <div style="font-size: 16px; color: #0f172a; font-weight: 700;">{{ $combination->total_available_seats ?? '-' }}</div>
+                  </div>
+                </div>
+                <div class="col-4">
+                  <div style="background: #f8fafc; border-radius: 10px; padding: 10px;">
+                    <div style="font-size: 11px; color: #6b7280;">Enrolled</div>
+                    <div style="font-size: 16px; color: #0f172a; font-weight: 700;">{{ $combination->studentmaster_count }}</div>
+                  </div>
+                </div>
+              </div>
 
-              </td>
+              <div class="mb-3">
+                <div class="d-flex align-items-center justify-content-between mb-2">
+                  <div style="font-size: 12px; color: #6b7280; font-weight: 600;">Specializations</div>
+                  <button type="button" class="btn btn-success btn-sm" data-bs-toggle="modal" data-bs-target="#addSpecialization{{ $combination->id }}" title="Connect Specializations">
+                    <i class="fa fa-plus-circle"></i>
+                  </button>
+                </div>
+                <div class="d-flex align-items-center gap-2 flex-wrap">
+                  @forelse($connectedSpecializations as $specialization)
+                  <span class="badge badge-warning">{{ $specialization->name }}</span>
+                  @empty
+                  <span class="badge badge-dark">No specialization</span>
+                  @endforelse
+                </div>
+              </div>
 
-              <td>
+              <div class="d-flex align-items-center gap-2 flex-wrap">
+                <a href="{{ route('curriculam.builder.engine', [$combination->id, $combination->studentprograminfo->code]) }}" class="btn btn-sm btn-dark">
+                  <i class="fas fa-drafting-compass me-1"></i>Curriculam Engine
+                </a>
+
+                <button type="button" class="btn btn-sm btn-primary" data-bs-toggle="modal" data-bs-target="#edit{{ $combination->id }}">
+                  <i class="fa fa-edit me-1"></i>Edit
+                </button>
+
                 <form action="{{ route('department.combination.delete', $combination->id) }}" method="POST" onsubmit="return confirm('Are you sure you want to delete this combination?');" style="display:inline;">
                   @csrf
                   @method('DELETE')
                   <button type="submit" class="btn btn-sm" style="background: #fee; color: #dc2626; border: none; border-radius: 8px; padding: 6px 12px;">
-                    <i class="fas fa-trash"></i>
+                    <i class="fas fa-trash me-1"></i>Delete
                   </button>
                 </form>
-              </td>
-            </tr>
-            @empty
-            <tr>
-              <td colspan="6" class="text-center" style="padding: 40px; color: #6b7280;">
-                <i class="fas fa-inbox fa-3x mb-3" style="color: #e5e7eb;"></i>
-                <p>No combinations found.</p>
-              </td>
-            </tr>
-            @endforelse
-          </tbody>
-        </table>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="modal fade" id="addSpecialization{{ $combination->id }}" tabindex="-1" aria-labelledby="addSpecializationLabel{{ $combination->id }}" aria-hidden="true">
+          <div class="modal-dialog">
+            <div class="modal-content">
+              <form action="{{ route('department.combination.specializations.update', $combination->id) }}" method="POST">
+                @csrf
+                @method('PUT')
+                <div class="modal-header">
+                  <h5 class="modal-title" id="addSpecializationLabel{{ $combination->id }}">Connect Specializations - {{ $combination->studentprograminfo->code ?? '' }}</h5>
+                  <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                  <label class="form-label">Select Specializations</label>
+                  <select name="specialization_ids[]" class="select-multiple" multiple size="8">
+                    @foreach($specializations as $specialization)
+                    <option value="{{ $specialization->id }}" {{ in_array((int) $specialization->id, $selectedSpecializationIds, true) ? 'selected' : '' }}>
+                      {{ $specialization->name }}
+                    </option>
+                    @endforeach
+                  </select>
+                </div>
+                <div class="modal-footer">
+                  <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                  <button type="submit" class="btn btn-primary">Save specializations</button>
+                </div>
+              </form>
+            </div>
+          </div>
+        </div>
+
+        <div class="modal fade" id="edit{{ $combination->id }}" tabindex="-1" aria-labelledby="editModalLabel{{ $combination->id }}" aria-hidden="true">
+          <div class="modal-dialog">
+            <div class="modal-content">
+              <div class="modal-header">
+                <h5 class="modal-title" id="editModalLabel{{ $combination->id }}">Edit {{ $combination->batchmaster->batch_name ?? '-' }} - {{ $combination->studentprograminfo->name ?? '' }}</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+              </div>
+              <div class="modal-body">
+                <form action="{{ route('department.combination.update', $combination->id) }}" method="POST">
+                  @csrf
+                  @method('PUT')
+                  <div class="mb-3">
+                    <label for="totalSeats{{ $combination->id }}" class="form-label">Total Seats</label>
+                    <input type="number" class="form-control" id="totalSeats{{ $combination->id }}" name="total_seats" value="{{ $combination->total_seats ?? '' }}">
+                  </div>
+                  <div class="mb-3">
+                    <label for="shiftId{{ $combination->id }}" class="form-label">Shift</label>
+                    <select class="form-select" id="shiftId{{ $combination->id }}" name="shift_id">
+                      <option value="">-- Select Shift --</option>
+                      @foreach($shiftMasters as $shift)
+                      <option value="{{ $shift->slug }}" {{ $combination->shift  == $shift->slug ? 'selected' : '' }}>
+                        {{ $shift->title }}
+                      </option>
+                      @endforeach
+                    </select>
+                  </div>
+
+              </div>
+              <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                <button type="submit" class="btn btn-primary">Save changes</button>
+              </div>
+              </form>
+            </div>
+          </div>
+        </div>
+        @empty
+        <div class="col-12">
+          <div class="text-center" style="padding: 40px; color: #6b7280; border: 1px dashed #e5e7eb; border-radius: 16px;">
+            <i class="fas fa-inbox fa-3x mb-3" style="color: #e5e7eb;"></i>
+            <p>No combinations found.</p>
+          </div>
+        </div>
+        @endforelse
       </div>
       @else
       <div class="text-center py-5">
@@ -391,292 +583,74 @@ if (!empty($deptFacultyIds)) {
       @endif
     </div>
   </div>
-  <!-- Faculty Section -->
-  <div class="table-modern mt-4">
-    <div class="p-4">
-      <div class="d-flex justify-content-between align-items-center mb-4">
-        <h5 style="color: #1a1a1a; font-weight: 700; margin: 0;">Departmental Faculties</h5>
-        <button class="btn btn-modern" style="background: #5b4cdb; color: white;" data-bs-toggle="modal" data-bs-target="#addFaculty">
-          <i class="fas fa-plus-circle me-2"></i>Add Faculty
-        </button>
-      </div>
-
-      @if(count($deptfaculties))
-      <div class="table-responsive">
-        <table class="table table-hover">
-          <thead>
-            <tr style="border-bottom: 2px solid #fac01f;">
-              <th style="color: #fff; font-weight: 600; padding: 16px;">#</th>
-              <th style="color: #fff; font-weight: 600;">Faculty Code</th>
-              <th style="color: #fff; font-weight: 600;">Faculty</th>
-              <th style="color: #fff; font-weight: 600;">Joining Date</th>
-              <th style="color: #fff; font-weight: 600;">Mobile</th>
-              <th style="color: #fff; font-weight: 600;">Mail</th>
-              <th style="color: #fff; font-weight: 600;">Timetable</th>
-              <th style="color: #fff; font-weight: 600;">Action</th>
-            </tr>
-          </thead>
-          <tbody>
-            @foreach($deptfaculties as $faculty)
-            @php
-            $facultyUserId = (int) ($faculty->faculty->id ?? 0);
-            $hasTimetable = in_array($facultyUserId, $facultyIdsWithTimetable, true);
-            @endphp
-            <tr style="border-bottom: 1px solid #f5f5f5;">
-              <td style="padding: 16px; color: #1a1a1a; font-weight: 500;">{{ $loop->iteration }}</td>
-              <td style="color: #1a1a1a;">{{ $faculty->faculty->USER_CODE ?? '-' }}</td>
-              <td style="color: #1a1a1a;">{{ $faculty->faculty->FIRST_NAME ?? '-' }} {{ $faculty->faculty->LAST_NAME ?? '-' }}</td>
-              <td style="color: #6b7280;">{{ $faculty->faculty->DOJ ?? '-' }}</td>
-              <td style="color: #6b7280;">{{$faculty->faculty->MOBILE_NO ?? '-'}}</td>
-              <td style="color: #6b7280;">{{$faculty->faculty->MAIL_ID ?? '-'}}</td>
-              <td>
-                <a href="{{ route('department.faculty.timetable', $faculty->faculty->id) }}" class="btn btn-sm btn-modern" style="background: {{ $hasTimetable ? '#16a34a' : '#dc2626' }}; color: white;">
-                  <i class="fas {{ $hasTimetable ? 'fa-calendar-check' : 'fa-calendar-times' }} me-1"></i>
-                  {{ $hasTimetable ? 'Timetable' : 'No Timetable' }}
-                </a>
-              </td>
-              <td>
-                <form action="{{ route('department.faculty.delete', $faculty->id) }}" method="POST" onsubmit="return confirm('Are you sure you want to delete this faculty?');" style="display:inline;">
-                  @csrf
-                  @method('DELETE')
-                  <button type="submit" class="btn btn-sm" style="background: #fee; color: #dc2626; border: none; border-radius: 8px; padding: 6px 12px;">
-                    <i class="fas fa-trash"></i>
-                  </button>
-                </form>
-              </td>
-            </tr>
-            @endforeach
-          </tbody>
-        </table>
-      </div>
-      @else
-      <div class="text-center py-5">
-        <i class="fas fa-user-slash fa-3x mb-3" style="color: #e5e7eb;"></i>
-        <p style="color: #6b7280;">No faculties assigned yet.</p>
-      </div>
-      @endif
-    </div>
-  </div>
-
-  <!-- Subject Combinations Section -->
-  <!-- <div class="table-modern mt-4">
-    <div class="p-4">
-      <div class="d-flex justify-content-between align-items-center mb-4">
-        <h5 style="color: #1a1a1a; font-weight: 700; margin: 0;">
-          <i class="fas fa-layer-group me-2" style="color: #5b4cdb;"></i>Subject Combinations
-        </h5>
-        <button class="btn btn-modern" style="background: #5b4cdb; color: white;" data-bs-toggle="modal" data-bs-target="#addSubjectCombination">
-          <i class="fas fa-plus-circle me-2"></i>Add Combination
-        </button>
-      </div>
-
-      @if($subjectCombinationsGrouped->count() > 0)
-      <div class="row g-3">
-        @foreach($subjectCombinationsGrouped as $key => $rows)
-        @php $first = $rows->first(); @endphp
-        <div class="col-md-6 col-lg-4">
-          <div class="card h-100 shadow-sm" style="border-radius: 16px; border: 1px solid #e5e7eb; overflow: hidden;">
-            <div style="background: linear-gradient(135deg, #5b4cdb 0%, #7c3aed 100%); padding: 16px 20px;">
-              <div style="font-size: 12px; color: rgba(255,255,255,0.75); font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 4px;">
-                {{ $first->batch->batch_name ?? '–' }} &bull; {{ $first->campus->name ?? '–' }}
-              </div>
-              <div style="font-size: 15px; color: white; font-weight: 700;">
-                <i class="fas fa-book me-1"></i>{{ $first->mainSubject->title ?? '–' }}
-              </div>
-            </div>
-            <div class="p-3">
-              <p style="font-size: 12px; color: #6b7280; font-weight: 600; margin-bottom: 8px; text-transform: uppercase; letter-spacing: 0.5px;">Combo Subjects</p>
-              @foreach($rows as $row)
-              <div class="d-flex justify-content-between align-items-center mb-2" style="background: #f9fafb; border-radius: 8px; padding: 8px 12px;">
-                <span style="font-size: 13px; color: #374151;">{{ $row->comboSubject->title ?? '–' }}</span>
-                <a href="{{ url('erp/admin/master/delete-subject-combination/' . $row->id) }}"
-                  onclick="return confirm('Remove this combo subject?')"
-                  style="color: #dc2626; font-size: 12px; text-decoration: none; flex-shrink: 0; margin-left: 8px;">
-                  <i class="fas fa-times-circle"></i>
-                </a>
-              </div>
-              @endforeach
-              <button class="btn btn-sm w-100 mt-2 btn-modern"
-                style="background: #ede9fe; color: #5b4cdb; font-size: 12px;"
-                data-bs-toggle="modal"
-                data-bs-target="#addMoreCombos_{{ $first->batch_id }}_{{ $first->campus_id }}_{{ $first->main_subject_id }}">
-                <i class="fas fa-plus me-1"></i>Add More Combos
-              </button>
-            </div>
-          </div>
-        </div>
-
-
-        <div class="modal fade" id="addMoreCombos_{{ $first->batch_id }}_{{ $first->campus_id }}_{{ $first->main_subject_id }}" tabindex="-1" aria-hidden="true">
-          <div class="modal-dialog modal-md">
-            <div class="modal-content" style="border-radius: 20px; border: none;">
-              <div class="modal-header" style="border-bottom: 1px solid #f0f0f0; padding: 24px; background: linear-gradient(135deg, #5b4cdb 0%, #7c3aed 100%); border-radius: 20px 20px 0 0;">
-                <h5 class="modal-title" style="color: white; font-weight: 700;">
-                  Add More Combos — {{ $first->mainSubject->title ?? '' }}
-                </h5>
-                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
-              </div>
-              <form action="{{ url('erp/admin/master/subject-combination') }}" method="POST">
-                @csrf
-                <input type="hidden" name="batch_id" value="{{ $first->batch_id }}">
-                <input type="hidden" name="campus_id" value="{{ $first->campus_id }}">
-                <input type="hidden" name="main_subject_id" value="{{ $first->main_subject_id }}">
-                <div class="modal-body" style="padding: 24px;">
-                  <label style="color: #1a1a1a; font-weight: 600; margin-bottom: 8px; display: block;">Select Combo Subject(s)</label>
-                  <select name="combo_subject_ids[]" class="form-select select-multiple" style="border-radius: 12px; border: 1px solid #e5e7eb; padding: 10px;" multiple required>
-                    @foreach($allSubjects as $subj)
-                    <option value="{{ $subj->id }}">{{ $subj->title }}</option>
-                    @endforeach
-                  </select>
-                </div>
-                <div class="modal-footer" style="border-top: 1px solid #f0f0f0; padding: 24px;">
-                  <button type="button" class="btn btn-modern" style="background: #f5f7fa; color: #6b7280;" data-bs-dismiss="modal">Cancel</button>
-                  <button type="submit" class="btn btn-modern" style="background: #5b4cdb; color: white;">Add</button>
-                </div>
-              </form>
-            </div>
-          </div>
-        </div>
-        @endforeach
-      </div>
-      @else
-      <div class="text-center py-5">
-        <i class="fas fa-layer-group fa-3x mb-3" style="color: #e5e7eb;"></i>
-        <p style="color: #6b7280;">No subject combinations defined yet.</p>
-      </div>
-      @endif
-    </div>
-  </div> -->
-
-  <!-- Add Subject Combination Modal -->
-  <!-- <div class="modal fade" id="addSubjectCombination" tabindex="-1" aria-hidden="true">
-    <div class="modal-dialog modal-lg">
-      <div class="modal-content" style="border-radius: 20px; border: none;">
-        <div class="modal-header" style="border-bottom: 1px solid #f0f0f0; padding: 24px; background: linear-gradient(135deg, #5b4cdb 0%, #7c3aed 100%); border-radius: 20px 20px 0 0;">
-          <h5 class="modal-title" style="color: white; font-weight: 700;">
-            <i class="fas fa-layer-group me-2"></i>New Subject Combination
-          </h5>
-          <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
-        </div>
-        <form action="{{ url('erp/admin/master/subject-combination') }}" method="POST">
-          @csrf
-          <input type="hidden" name="main_subject_id" value="{{ $data->id }}">
-          <div class="modal-body" style="padding: 24px;">
-            <div class="row g-3 mb-3">
-              <div class="col-6">
-                <label style="color: #1a1a1a; font-weight: 600; margin-bottom: 8px; display: block;">Academic Batch</label>
-                <select name="batch_id" class="form-select" style="border-radius: 12px; border: 1px solid #e5e7eb; padding: 12px;" required>
-                  <option value="">-- Select Batch --</option>
-                  @foreach($allBatches as $batch)
-                  <option value="{{ $batch->id }}">{{ $batch->batch_name }}</option>
-                  @endforeach
-                </select>
-              </div>
-              <div class="col-6">
-                <label style="color: #1a1a1a; font-weight: 600; margin-bottom: 8px; display: block;">Campus</label>
-                <select name="campus_id" class="form-select" style="border-radius: 12px; border: 1px solid #e5e7eb; padding: 12px;" required>
-                  <option value="">-- Select Campus --</option>
-                  @foreach($allCampuses as $campus)
-                  <option value="{{ $campus->id }}">{{ $campus->name }}</option>
-                  @endforeach
-                </select>
-              </div>
-            </div>
-            <label style="color: #1a1a1a; font-weight: 600; margin-bottom: 8px; display: block;">Combo Subject(s)</label>
-            <select name="combo_subject_ids[]" class="form-select select-multiple" style="border-radius: 12px; border: 1px solid #e5e7eb; padding: 10px;" multiple required>
-              @foreach($allSubjects as $subj)
-              <option value="{{ $subj->id }}">{{ $subj->title }}</option>
-              @endforeach
-            </select>
-          </div>
-          <div class="modal-footer" style="border-top: 1px solid #f0f0f0; padding: 24px;">
-            <button type="button" class="btn btn-modern" style="background: #f5f7fa; color: #6b7280;" data-bs-dismiss="modal">Cancel</button>
-            <button type="submit" class="btn btn-modern" style="background: #5b4cdb; color: white;">Save Combination</button>
-          </div>
-        </form>
-      </div>
-    </div>
-  </div> -->
 
   <!-- Modals -->
   <!-- Add Program Modal -->
   <div class="modal fade" id="programConnect" tabindex="-1" aria-labelledby="exampleModalLabel" aria-hidden="true">
-    <div class="modal-dialog modal-lg">
-      <div class="modal-content" style="border-radius: 20px; border: none;">
-        <div class="modal-header" style="border-bottom: 1px solid #f0f0f0; padding: 24px;">
-          <h5 class="modal-title" style="color: #1a1a1a; font-weight: 700;" id="exampleModalLabel">Connect Programs for {{$data->title}}</h5>
+    <div class="modal-dialog modal-dialog-centered modal-lg">
+      <div class="modal-content" style="border-radius: 16px; border: 1px solid #e5e7eb; box-shadow: 0 16px 40px rgba(15, 23, 42, 0.12);">
+        <div class="modal-header" style="padding: 18px 20px; border-bottom: 1px solid #eef2f7;">
+          <h5 class="modal-title" style="color: #111827; font-weight: 700;" id="exampleModalLabel">Connect Programs</h5>
           <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
         </div>
-        <form action="{{route('add.programs.to.subject')}}" method="post" enctype="multipart/form-data">
+        <form action="{{route('add.programs.to.subject')}}" method="post">
           @csrf
-          <div class="modal-body" style="padding: 24px;">
-            <div class="row g-3 mb-3">
-              <div class="col-5">
-                <label for="" style="color: #1a1a1a; font-weight: 600; margin-bottom: 8px;">Select Academic Batch</label>
-                <select name="batch_id" class="form-select" style="border-radius: 12px; border: 1px solid #e5e7eb; padding: 12px;">
+          <div class="modal-body" style="padding: 20px;">
+            <div class="row g-3">
+              <div class="col-md-4">
+                <label for="programConnectBatch" class="form-label" style="color: #111827; font-weight: 600;">Batch</label>
+                <select name="batch_id" id="programConnectBatch" class="form-select" style="border-radius: 10px; border: 1px solid #dbe3ee;">
+                  <option value="">--Select--</option>
                   @foreach ($batches as $batch)
                   <option value="{{$batch->id}}">{{$batch->batch_name}}</option>
                   @endforeach
                 </select>
               </div>
-              <div class="col-5">
-                <label for="" style="color: #1a1a1a; font-weight: 600; margin-bottom: 8px;">Select Program Type</label>
-                <select name="program_type" class="form-select" style="border-radius: 12px; border: 1px solid #e5e7eb; padding: 12px;" required>
-                  <option value="">-- Select Program Type --</option>
+              <div class="col-md-4">
+                <label for="programConnectCampus" class="form-label" style="color: #111827; font-weight: 600;">Campus</label>
+                <select name="campus_id" id="programConnectCampus" class="form-select" style="border-radius: 10px; border: 1px solid #dbe3ee;" required>
+                  <option value="">-- Select Campus --</option>
+                  @foreach ($campuses as $campus)
+                  <option value="{{ $campus->id }}" {{ (int) ($data->campus_id ?? 0) === (int) $campus->id ? 'selected' : '' }}>{{ $campus->name }}</option>
+                  @endforeach
+                </select>
+              </div>
+              <div class="col-md-2">
+                <label for="program" class="form-label" style="color: #111827; font-weight: 600;">Program Type</label>
+                <select name="program_type" id="programConnectProgramType" class="form-select" style="border-radius: 10px; border: 1px solid #dbe3ee;" required>
+                  <option value="">-- Select --</option>
                   @foreach ($mainStreams as $ms)
                   <option value="{{ $ms->title }}">{{ $ms->title }}</option>
                   @endforeach
                 </select>
               </div>
-              <div class="col-2">
-                <label for="" style="color: #1a1a1a; font-weight: 600; margin-bottom: 8px;">Total Seats</label>
-                <input type=" number" name="total_seats" class="form-control mb-3" style="border-radius: 12px; border: 1px solid #e5e7eb; padding: 12px;" required>
-
+              <div class="col-md-2">
+                <label for="programConnectTotalSeats" class="form-label" style="color: #111827; font-weight: 600;">Total Seats</label>
+                <input type="number" id="programConnectTotalSeats" name="total_seats" class="form-control" style="border-radius: 10px; border: 1px solid #dbe3ee;" min="0" required>
               </div>
             </div>
 
-            <label for="" style="color: #1a1a1a; font-weight: 600; margin-bottom: 8px;">Select Program</label>
-            <select name="programs[]" class="form-select mb-3 select-multiple" style="border-radius: 12px; border: 1px solid #e5e7eb; padding: 12px;" multiple>
-              @foreach ($programs as $prg)
-              <option value="{{$prg->id}}">{{$prg->code}} - {{$prg->name}}</option>
-              @endforeach
-            </select>
+            <div id="programConnectProgramsBlock" class="mt-3 d-none">
+              <label for="programConnectPrograms" class="form-label" style="color: #111827; font-weight: 600;">Programs</label>
+              <select
+                name="programs[]"
+                id="programConnectPrograms"
+                class="form-select select-multiple"
+                style="border-radius: 10px; border: 1px solid #dbe3ee;"
+                data-programs-url="{{ route('department.batch.enrolled-programs') }}"
+                data-subject-id="{{ $data->id }}"
+                multiple>
+              </select>
+            </div>
+
+            <div id="programConnectProgramsHint" class="small mt-3" style="color: #64748b;"></div>
 
 
             <input type="hidden" name="subject_id" value="{{$data->id}}">
           </div>
-          <div class="modal-footer" style="border-top: 1px solid #f0f0f0; padding: 24px;">
-            <button type="button" class="btn btn-modern" style="background: #f5f7fa; color: #6b7280;" data-bs-dismiss="modal">Cancel</button>
-            <button type="submit" class="btn btn-modern" style="background: #43cea2; color: white;">Submit</button>
-          </div>
-        </form>
-      </div>
-    </div>
-  </div>
-
-  <!-- Add Faculty Modal -->
-  <div class="modal fade" id="addFaculty" tabindex="-1" aria-labelledby="exampleModalLabel" aria-hidden="true">
-    <div class="modal-dialog modal-lg">
-      <div class="modal-content" style="border-radius: 20px; border: none;">
-        <div class="modal-header" style="border-bottom: 1px solid #f0f0f0; padding: 24px;">
-          <h5 class="modal-title" style="color: #1a1a1a; font-weight: 700;" id="exampleModalLabel">Add Faculty for {{$data->title}}</h5>
-          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-        </div>
-        <form action="{{route('dept.add.faculty.master')}}" method="post" enctype="multipart/form-data">
-          @csrf
-          <div class="modal-body" style="padding: 24px;">
-            <label for="" style="color: #1a1a1a; font-weight: 600; margin-bottom: 8px;">Add Faculty</label>
-            <select name="faculty[]" class="form-select mb-3 select-multiple" style="border-radius: 12px; border: 1px solid #e5e7eb; padding: 12px;" multiple>
-              @foreach ($faculties as $faculty)
-
-              <option value="{{$faculty->id}}">{{$faculty->USER_CODE}} - {{$faculty->FIRST_NAME}} {{$faculty->LAST_NAME}}</option>
-              @endforeach
-            </select>
-            <input type="hidden" name="subject_id" value="{{$data->id}}">
-          </div>
-          <div class="modal-footer" style="border-top: 1px solid #f0f0f0; padding: 24px;">
-            <button type="button" class="btn btn-modern" style="background: #f5f7fa; color: #6b7280;" data-bs-dismiss="modal">Cancel</button>
-            <button type="submit" class="btn btn-modern" style="background: #43cea2; color: white;">Submit</button>
+          <div class="modal-footer" style="padding: 14px 20px; border-top: 1px solid #eef2f7;">
+            <button type="button" class="btn btn-light" data-bs-dismiss="modal">Close</button>
+            <button type="submit" class="btn btn-success">Connect</button>
           </div>
         </form>
       </div>
@@ -684,5 +658,143 @@ if (!empty($deptFacultyIds)) {
   </div>
 
 </div>
+
+<script>
+  document.addEventListener('DOMContentLoaded', function() {
+    const programModal = document.getElementById('programConnect');
+    const batchSelect = document.getElementById('programConnectBatch');
+    const campusSelect = document.getElementById('programConnectCampus');
+    const programBlock = document.getElementById('programConnectProgramsBlock');
+    const programSelect = document.getElementById('programConnectPrograms');
+    const hint = document.getElementById('programConnectProgramsHint');
+
+    if (!batchSelect || !campusSelect || !programSelect) {
+      return;
+    }
+
+    const endpoint = programSelect.getAttribute('data-programs-url');
+    const subjectId = programSelect.getAttribute('data-subject-id');
+
+    const setHint = function(text) {
+      if (hint) {
+        hint.textContent = text;
+      }
+    };
+
+    const toggleProgramBlock = function(show) {
+      if (!programBlock) {
+        return;
+      }
+      programBlock.classList.toggle('d-none', !show);
+    };
+
+    const initProgramSelectUi = function() {
+      if (!window.jQuery) {
+        return;
+      }
+
+      const $select = window.jQuery(programSelect);
+      if (typeof window.jQuery.fn.bsMultiSelect === 'function') {
+        try {
+          $select.bsMultiSelect('Dispose');
+        } catch (e) {
+          // Ignore if not initialized yet.
+        }
+        $select.bsMultiSelect();
+        return;
+      }
+
+      // Fallback for pages using dselect on this control.
+      if (typeof window.dselect === 'function' && programSelect.classList.contains('dselect-example')) {
+        window.dselect(programSelect, {
+          search: true,
+          clearable: true,
+          maxHeight: '300px',
+          size: 'sm',
+        });
+      }
+    };
+
+    const rebuildOptions = function(programs) {
+      programSelect.innerHTML = '';
+      programs.forEach(function(program) {
+        const option = document.createElement('option');
+        option.value = program.id;
+        option.textContent = [program.code, program.name].filter(Boolean).join(' - ');
+        programSelect.appendChild(option);
+      });
+
+      initProgramSelectUi();
+    };
+
+    const clearPrograms = function(message) {
+      rebuildOptions([]);
+      toggleProgramBlock(false);
+      setHint(message || 'Select batch and campus to load enrolled programs.');
+    };
+
+    const loadBatchCampusPrograms = function(batchId, campusId) {
+      if (!batchId || !campusId || !endpoint || !subjectId) {
+        clearPrograms('Select batch and campus to load enrolled programs.');
+        return;
+      }
+
+      setHint('Loading enrolled programs...');
+      fetch(endpoint + '?batch_id=' + encodeURIComponent(batchId) + '&campus_id=' + encodeURIComponent(campusId) + '&subject_id=' + encodeURIComponent(subjectId), {
+          headers: {
+            'X-Requested-With': 'XMLHttpRequest',
+            'Accept': 'application/json'
+          }
+        })
+        .then(function(response) {
+          if (!response.ok) {
+            throw new Error('Failed to fetch programs');
+          }
+          return response.json();
+        })
+        .then(function(payload) {
+          const programs = Array.isArray(payload.programs) ? payload.programs : [];
+          rebuildOptions(programs);
+          if (programs.length === 0) {
+            clearPrograms('No enrolled programs found for this batch in this subject campus.');
+          } else {
+            toggleProgramBlock(true);
+            setHint(programs.length + ' enrolled program(s) available.');
+          }
+        })
+        .catch(function() {
+          rebuildOptions([]);
+          toggleProgramBlock(false);
+          setHint('Could not load programs. Please refresh and try again.');
+        });
+    };
+
+    const refreshPrograms = function() {
+      loadBatchCampusPrograms(batchSelect.value, campusSelect.value);
+    };
+
+    batchSelect.addEventListener('change', function() {
+      refreshPrograms();
+    });
+
+    campusSelect.addEventListener('change', function() {
+      refreshPrograms();
+    });
+
+    if (batchSelect.value && campusSelect.value) {
+      refreshPrograms();
+    } else {
+      clearPrograms('Select batch and campus to load enrolled programs.');
+    }
+
+    if (programModal) {
+      programModal.addEventListener('shown.bs.modal', function() {
+        if (!programBlock.classList.contains('d-none')) {
+          initProgramSelectUi();
+        }
+      });
+    }
+  });
+</script>
 
 @include('includes.footer')

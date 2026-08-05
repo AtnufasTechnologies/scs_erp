@@ -12,6 +12,13 @@ class Subject extends Model
 
     protected $fillable = [
         'main_dept_id',
+        'has_shift_delivery',
+        'shift_ids',
+    ];
+
+    protected $casts = [
+        'shift_ids' => 'array',
+        'has_shift_delivery' => 'boolean',
     ];
 
     function campusmaster()

@@ -52,11 +52,13 @@
                   </div>
                   <div class="col-md-4 mb-3">
                     <label class="form-label fw-semibold">Start Time</label>
-                    <input type="time" name="start_time" class="form-control" value="{{ old('start_time') }}">
+                    <input type="time" name="start_time" class="form-control @error('start_time') is-invalid @enderror" value="{{ old('start_time') }}">
+                    @error('start_time')<div class="invalid-feedback">{{ $message }}</div>@enderror
                   </div>
                   <div class="col-md-4 mb-3">
                     <label class="form-label fw-semibold">End Time</label>
-                    <input type="time" name="end_time" class="form-control" value="{{ old('end_time') }}">
+                    <input type="time" name="end_time" class="form-control @error('end_time') is-invalid @enderror" value="{{ old('end_time') }}">
+                    @error('end_time')<div class="invalid-feedback">{{ $message }}</div>@enderror
                   </div>
                 </div>
 

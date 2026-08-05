@@ -30,44 +30,28 @@ $rolename = UserHasRole::where('user_id', Auth::id())->value('role_name');
 
 
     <li>
-      <a href="javascript:;" class="has-arrow">
-        <div class="parent-icon"><i class="fas fa-graduation-cap"></i></div>
-        <div class="menu-title">Academics</div>
+      <a href="{{ route('student.console.dashboard') }}#tab-timetable" onclick="switchTab('timetable')">
+        <div class="parent-icon">
+          <i class="fas fa-calendar-week"></i>
+        </div>
+        <div class="menu-title">Timetable</div>
       </a>
-      <ul>
-        <li>
-          <a href="{{ route('student.console.dashboard') }}#tab-timetable" onclick="switchTab('timetable')">
-            <div class="parent-icon">
-              <i class="fas fa-calendar-week"></i>
-            </div>
-            <div class="menu-title">Timetable</div>
-          </a>
-        </li>
-        <li>
-          <a href="{{ route('student.console.dashboard') }}#tab-courses" onclick="switchTab('courses')">
-            <div class="parent-icon">
-              <i class="fas fa-book-open"></i>
-            </div>
-            <div class="menu-title">My Courses</div>
-          </a>
-        </li>
-        <li>
-          <a href="{{ route('student.console.dashboard') }}#tab-attendance" onclick="switchTab('attendance')">
-            <div class="parent-icon">
-              <i class="fas fa-user-check"></i>
-            </div>
-            <div class="menu-title">Attendance</div>
-          </a>
-        </li>
-        <li>
-          <a href="{{ route('student.offerings.index') }}">
-            <div class="parent-icon">
-              <i class="fas fa-ticket-alt"></i>
-            </div>
-            <div class="menu-title">Course Registration</div>
-          </a>
-        </li>
-      </ul>
+    </li>
+    <li>
+      <a href="{{ route('student.console.dashboard') }}#tab-courses" onclick="switchTab('courses')">
+        <div class="parent-icon">
+          <i class="fas fa-book-open"></i>
+        </div>
+        <div class="menu-title">My Courses</div>
+      </a>
+    </li>
+    <li>
+      <a href="{{ route('student.console.dashboard') }}#tab-attendance" onclick="switchTab('attendance')">
+        <div class="parent-icon">
+          <i class="fas fa-user-check"></i>
+        </div>
+        <div class="menu-title">Attendance</div>
+      </a>
     </li>
     {{-- Examination --}}
     <!-- <li>
@@ -97,7 +81,7 @@ $rolename = UserHasRole::where('user_id', Auth::id())->value('role_name');
     </li>
 
     {{-- Syllabus and Feedbacks--}}
-    <li>
+    <!-- <li>
       <a href="{{ route('student.feedback.list') }}">
         <div class="parent-icon"><i class="fas fa-star"></i></div>
         <div class="menu-title">
@@ -107,7 +91,7 @@ $rolename = UserHasRole::where('user_id', Auth::id())->value('role_name');
           @endif
         </div>
       </a>
-    </li>
+    </li> -->
 
     {{-- Mentorship --}}
     <li>

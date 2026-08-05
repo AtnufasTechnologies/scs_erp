@@ -26,6 +26,35 @@ use App\Models\CollegeBankAccount;
 
 class FeePaymentController extends Controller
 {
+    private function getFixedLateFeeMapForInvoice(int $studentId, $feeStructureIds): array
+    {
+        $ids = collect($feeStructureIds)->filter()->unique()->values();
+
+        if ($studentId <= 0 || $ids->isEmpty()) {
+            return [];
+        }
+
+        return StudentLateFeeExemption::where('student_id', $studentId)
+            ->whereIn('fee_structure_id', $ids)
+            ->where('is_active', true)
+            ->whereNotNull('fixed_late_fee')
+            ->get()
+            ->pluck('fixed_late_fee', 'fee_structure_id')
+            ->map(function ($amount) {
+                return (float) $amount;
+            })
+            ->toArray();
+    }
+
+    private function applyAcademicPathwayFilter($query, StudentMaster $student)
+    {
+        if (!empty($student->academic_pathway_id)) {
+            $query->where('academic_pathway_id', $student->academic_pathway_id);
+        }
+
+        return $query;
+    }
+
     function index(Request $request)
     {
         // ---- Base Query ----
@@ -47,6 +76,7 @@ class FeePaymentController extends Controller
                 foreach ($searchValues as $value) {
                     $q->orWhere('roll_no', 'LIKE', "%$value%");
                     $q->orWhere('first_name', 'LIKE', "%$value%");
+                    $q->orWhere('last_name', 'LIKE', "%$value%");
                 }
             });
         }
@@ -66,16 +96,26 @@ class FeePaymentController extends Controller
         // ---- TRANSFORM EACH RECORD USING through() ----
         $students = $data->through(function ($student) {
 
+            $exemptions = StudentLateFeeExemption::where('student_id', $student->id)
+                ->where('is_active', true)
+                ->get()
+                ->keyBy('fee_structure_id');
+
+            $hasBlanketExemption = $exemptions->contains(function ($exemption) {
+                return is_null($exemption->fee_structure_id);
+            });
+
             $applicableFS = FeesStructure::with(['feeHeads.head.bankmaster'])
                 ->where('batch_id', $student->batch)
                 ->whereHas('programspivot', function ($q) use ($student) {
                     $q->where('std_program_id', $student->new_program_id);
                 })
-                ->whereIn('std_current_year', range(1, $student->current_year))
-                ->get();
+                ->whereIn('std_current_year', range(1, $student->current_year));
+
+            $applicableFS = $this->applyAcademicPathwayFilter($applicableFS, $student)->get();
             $lateFeePerDay = LateFee::where('status', 1)->value('late_fee_amount'); // 100
 
-            $fsWithStatus = $applicableFS->map(function ($fs) use ($student, $lateFeePerDay) {
+            $fsWithStatus = $applicableFS->map(function ($fs) use ($student, $lateFeePerDay, $exemptions, $hasBlanketExemption) {
 
                 $payment = $student->feepayment
                     ->where('fee_structure_id', $fs->id)
@@ -88,6 +128,8 @@ class FeePaymentController extends Controller
                 // ---- LATE FEE CALCULATION ----
                 $lateDays = 0;
                 $lateFee = 0;
+                $isExempted = false;
+                $fixedLateFee = null;
 
                 if (!$payment) {
                     $dueDate = Carbon::parse($fs->due_date)->timezone('asia/kolkata');
@@ -97,7 +139,22 @@ class FeePaymentController extends Controller
                     if ($today->gt($dueDate)) {
 
                         $lateDays = $dueDate->diffInDays($today);
-                        $lateFee = $lateDays * $lateFeePerDay;
+
+                        $isExempted = $hasBlanketExemption || $exemptions->has($fs->id);
+                        if ($isExempted) {
+                            $exemption = $hasBlanketExemption
+                                ? $exemptions->first(function ($e) {
+                                    return is_null($e->fee_structure_id);
+                                })
+                                : $exemptions->get($fs->id);
+
+                            if ($exemption && !is_null($exemption->fixed_late_fee)) {
+                                $fixedLateFee = (float) $exemption->fixed_late_fee;
+                                $lateFee = $fixedLateFee;
+                            }
+                        } else {
+                            $lateFee = $lateDays * $lateFeePerDay;
+                        }
                     }
                 }
 
@@ -114,6 +171,22 @@ class FeePaymentController extends Controller
                     ->values()
                     ->toArray();
 
+                $appliedExemption = $hasBlanketExemption
+                    ? $exemptions->first(function ($e) {
+                        return is_null($e->fee_structure_id);
+                    })
+                    : $exemptions->get($fs->id);
+
+                $paidBaseAmount = (float) ($payment->amount ?? 0);
+                $paidLateFeeAmount = (float) ($payment->late_fee_amount ?? 0);
+                $paidFixedLateFeeAmount = !is_null($appliedExemption?->fixed_late_fee)
+                    ? (float) $appliedExemption->fixed_late_fee
+                    : null;
+                $displayPaidLateFeeAmount = !is_null($paidFixedLateFeeAmount)
+                    ? $paidFixedLateFeeAmount
+                    : $paidLateFeeAmount;
+                $displayPaidTotalAmount = $paidBaseAmount + $displayPaidLateFeeAmount;
+
                 return [
                     'paymentinfo' => $payment,
                     'fee_structure_id' => $fs->id,
@@ -123,10 +196,21 @@ class FeePaymentController extends Controller
                     'total_amount' => $totalAmount,
                     'late_days' => $lateDays,
                     'late_fee' => $lateFee,
+                    'is_late_fee_exempted' => $isExempted,
+                    'fixed_late_fee' => $fixedLateFee,
                     'payable_amount' => $totalAmount + $lateFee,
                     'paid' => $payment ? true : false,
                     'paid_amount' => $payment->amount ?? 0,
-                    'status' => $payment ? 'success' : ($lateFee > 0 ? 'late' : 'due'),
+                    'paid_base_amount' => $paidBaseAmount,
+                    'paid_late_fee_amount' => $paidLateFeeAmount,
+                    'paid_late_days' => (int) ($payment->late_days ?? 0),
+                    'paid_total_amount' => $paidBaseAmount + $paidLateFeeAmount,
+                    'paid_fixed_late_fee' => $paidFixedLateFeeAmount,
+                    'display_paid_late_fee_amount' => $displayPaidLateFeeAmount,
+                    'display_paid_total_amount' => $displayPaidTotalAmount,
+                    'status' => $payment
+                        ? 'success'
+                        : ($isExempted && $lateDays > 0 ? 'due-exempted' : ($lateFee > 0 ? 'late' : 'due')),
                     'bank_accounts' => $bankAccounts,
                 ];
             });
@@ -146,6 +230,9 @@ class FeePaymentController extends Controller
                 'programgroup' => $student->programgroup->program_code ?? '',
                 'programinfo' => $student->programgroup->programInfo->name ?? '',
                 'stdprogramenrolled' => $student->stdprogramenrolled,
+                'academic_pathway_label' => ((int) ($student->academic_pathway_id ?? 0) === 1)
+                    ? 'Single Major'
+                    : (((int) ($student->academic_pathway_id ?? 0) === 2) ? 'Dual Major' : 'Not Set'),
                 'current_year' => $student->current_year,
                 'fee_status' => $fsWithStatus
             ];
@@ -231,36 +318,40 @@ class FeePaymentController extends Controller
             'campusmaster',
             'batchmaster',
             'stdprogramenrolled',
-            'feepayment' // your payment table
         ])->where('roll_no', $rollno)->firstOrFail();
+
+        $payments = StudentPayment::with('feepaymentinfo:id,quarter_title')
+            ->where('student_id', $student->id)
+            ->whereRaw('LOWER(status) = ?', ['success'])
+            ->orderBy('transaction_date')
+            ->orderBy('id')
+            ->get();
+
+        $fixedLateFeeMap = $this->getFixedLateFeeMapForInvoice($student->id, $payments->pluck('fee_structure_id'));
 
         $paidInvoices = [];
         $totalPaid = 0;
 
-        foreach ($student->feepayment as $item) {
+        foreach ($payments as $payment) {
+            $amount = FeeStructureHasHead::where('fee_structure_id', $payment->fee_structure_id)->sum('amount');
+            $storedLateFee = (float)($payment->late_fee_amount ?? 0);
+            $hasFixedLateFee = array_key_exists((int) $payment->fee_structure_id, $fixedLateFeeMap);
+            $lateFee = $hasFixedLateFee
+                ? (float) $fixedLateFeeMap[(int) $payment->fee_structure_id]
+                : $storedLateFee;
 
-            // check if payment done
-            $payment = $student->feepayment
-                ->where('id', $item->id)
-                ->where('status', 'success')
-                ->first();
+            $paidInvoices[] = [
+                'quarter'        => $payment->feepaymentinfo->quarter_title ?? 'N/A',
+                'payable_amount' => $amount,
+                'late_fee'       => $lateFee,
+                'has_fixed_late_fee' => $hasFixedLateFee,
+                'grand_amount'   => $amount + $lateFee,
+                'status'         => 'PAID',
+                'paid_on'        => $payment->transaction_date ?? 'N/A',
+                'inv_id'         => $payment->invoice_id ?? 'N/A',
+            ];
 
-            if ($payment) {
-                $amount   = FeeStructureHasHead::where('fee_structure_id', $item->fee_structure_id)->sum('amount');
-                $lateFee  = (float)($payment->late_fee_amount ?? 0);
-
-                $paidInvoices[] = [
-                    'quarter'        => $payment->feepaymentinfo->quarter_title ?? 'N/A',
-                    'payable_amount' => $amount,
-                    'late_fee'       => $lateFee,
-                    'grand_amount'   => $amount + $lateFee,
-                    'status'         => 'PAID',
-                    'paid_on'        => $payment->transaction_date ?? 'N/A',
-                    'inv_id'         => $payment->invoice_id ?? 'N/A',
-                ];
-
-                $totalPaid += $amount + $lateFee;
-            }
+            $totalPaid += $amount + $lateFee;
         }
 
 
@@ -275,7 +366,7 @@ class FeePaymentController extends Controller
 
     function generateFeeReciept(int $feeId)
     {
-        $paymentRecord =    StudentPayment::find($feeId);
+        $paymentRecord = StudentPayment::findOrFail($feeId);
 
         $student = StudentMaster::with([
             'campusmaster',
@@ -294,20 +385,16 @@ class FeePaymentController extends Controller
             ->where('status', 'success')
             ->first();
 
-        // Fetch late fee if present
-        $lateFee = $payment->late_fee_amount ?? 0;
-        $lateDays = $payment->late_days ?? 0;
+        // Build fee-structure-wise late fee overrides for this invoice.
+        $invoiceFeeStructureIds = StudentPayment::where('invoice_id', $payment->invoice_id)
+            ->pluck('fee_structure_id')
+            ->filter()
+            ->unique()
+            ->values();
 
-        // Check if a fixed late fee exemption was applied
-        $fixedLateFee = null;
-        $exemption = StudentLateFeeExemption::where('student_id', $student->id)
-            ->where('fee_structure_id', $feeId)
-            ->where('is_active', true)
-            ->first();
-        if ($exemption && !is_null($exemption->fixed_late_fee)) {
-            $fixedLateFee = (float)$exemption->fixed_late_fee;
-        }
-        return $this->showSuccessPage($payment->invoice_id, $fixedLateFee);
+        $fixedLateFeeMap = $this->getFixedLateFeeMapForInvoice($student->id, $invoiceFeeStructureIds);
+
+        return $this->showSuccessPage($payment->invoice_id, $fixedLateFeeMap);
     }
 
     function studentValidation()
@@ -449,8 +536,9 @@ class FeePaymentController extends Controller
                 $q->where('std_program_id', $student->new_program_id);
             })
             ->whereIn('std_current_year', range(1, $student->current_year))
-            ->orderBy('std_current_year')
-            ->get();
+            ->orderBy('std_current_year');
+
+        $applicableFS = $this->applyAcademicPathwayFilter($applicableFS, $student)->get();
         // ---- PREPARE FEE STATUS ----
         $feeStatus = $applicableFS->map(function ($fs) use ($student, $lateFeePerDay, $exemptions, $hasBlanketExemption) {
             // Success payment
@@ -683,6 +771,16 @@ class FeePaymentController extends Controller
         // ---- STUDENT ----
         $student = StudentMaster::find($studentId);
 
+        $allowedFeeIds = $this->applyAcademicPathwayFilter(
+            FeesStructure::whereIn('id', $feeStructureIds),
+            $student
+        )->pluck('id')->map(fn($id) => (int) $id)->toArray();
+
+        $invalidFeeIds = array_diff(array_map('intval', $feeStructureIds), $allowedFeeIds);
+        if (!empty($invalidFeeIds)) {
+            return back()->withErrors('Selected fee structure does not match the student major pathway.');
+        }
+
         // ---- INVOICE ----
         $prefix = $gateway === 'easebuzz' ? 'EZ' : 'BL';
         $invoice = StaticController::generateInvoiceId($prefix . $studentId);
@@ -829,7 +927,7 @@ class FeePaymentController extends Controller
         return redirect('erp/student/transaction-success/' . $txnid);
     }
 
-    function showSuccessPage($txnId, $fixedLateFee = null)
+    function showSuccessPage($txnId, $fixedLateFeeMap = [])
     {
         $txnrecs =  StudentPayment::where('invoice_id', $txnId)->with([
             'studentmaster:id,first_name,last_name,roll_no,mobile_no,mail_id',
@@ -842,6 +940,11 @@ class FeePaymentController extends Controller
             abort(404, "Transaction not found");
         }
 
+        if (empty($fixedLateFeeMap)) {
+            $studentId = (int) ($txnrecs->first()->student_id ?? 0);
+            $fixedLateFeeMap = $this->getFixedLateFeeMapForInvoice($studentId, $txnrecs->pluck('fee_structure_id'));
+        }
+
         return view('includes.success-page', [
             'invoiceId' => $data[0]['invoice_id'] ?? 'N/A',
             'gatewayRef' => $data[0]['gateway_ref_code'] ?? 'N/A',
@@ -850,7 +953,7 @@ class FeePaymentController extends Controller
             'transactions' => $data,
             'status' => $data[0]['status'] ?? 'pending',
             'gatewayType' => $data[0]['gateway_type_id'] ?? null,
-            'fixedLateFee' => $fixedLateFee,
+            'fixedLateFeeMap' => $fixedLateFeeMap,
             'downloadPdfUrl' => url('erp/student/transaction-success/' . $txnId . '/download-pdf'),
         ]);
     }
@@ -862,7 +965,15 @@ class FeePaymentController extends Controller
             'feepaymentinfo:id,quarter_title',
             'feepaymentinfo.feeHeads.head:id,head_name'
         ])->get();
+
+        if ($txnrecs->isEmpty()) {
+            abort(404, "Transaction not found");
+        }
+
         $transactions = json_decode($txnrecs, true);
+
+        $studentId = (int) ($txnrecs->first()->student_id ?? 0);
+        $fixedLateFeeMap = $this->getFixedLateFeeMapForInvoice($studentId, $txnrecs->pluck('fee_structure_id'));
 
         $data = [
             'invoiceId'        => $transactions[0]['invoice_id'],
@@ -871,6 +982,7 @@ class FeePaymentController extends Controller
             'student'          => $transactions[0]['studentmaster'],
             'transactions'     => $transactions,
             'status'           => $transactions[0]['status'],
+            'fixedLateFeeMap'  => $fixedLateFeeMap,
         ];
 
         $pdf = Pdf::loadView('includes.success-page', $data)
@@ -1206,8 +1318,9 @@ class FeePaymentController extends Controller
             ->whereIn('std_current_year', range(1, $student->current_year))
             ->select('id', 'quarter_title', 'std_current_year', 'quarter_no')
             ->orderBy('std_current_year')
-            ->orderBy('quarter_no')
-            ->get();
+            ->orderBy('quarter_no');
+
+        $feeStructures = $this->applyAcademicPathwayFilter($feeStructures, $student)->get();
 
         return response()->json($feeStructures);
     }
@@ -1251,8 +1364,9 @@ class FeePaymentController extends Controller
                 $q->where('std_program_id', $student->new_program_id);
             })
             ->whereIn('std_current_year', range(1, $student->current_year))
-            ->orderBy('std_current_year')
-            ->get();
+            ->orderBy('std_current_year');
+
+        $applicableFS = $this->applyAcademicPathwayFilter($applicableFS, $student)->get();
 
         // Only show fee structures for which late fee has been paid
         $paidFeeStructureIds = \App\Models\StudentPayment::where('late_fee_amount', '>', 0)
@@ -1443,8 +1557,9 @@ class FeePaymentController extends Controller
                     $q->where('std_program_id', $student->new_program_id);
                 })
                 ->whereIn('std_current_year', range(1, $student->current_year))
-                ->where('is_payable', 1)
-                ->get();
+                ->where('is_payable', 1);
+
+            $applicableFS = $this->applyAcademicPathwayFilter($applicableFS, $student)->get();
 
             foreach ($applicableFS as $fs) {
                 $payment = $student->feepayment

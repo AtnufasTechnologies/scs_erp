@@ -53,8 +53,8 @@
         </div>
         <div class="col-md-3">
           <label class="form-label">Pay Band</label>
-          <input type="number" name="pay_band" class="form-control @error('pay_band') is-invalid @enderror"
-            value="{{ old('pay_band') }}" min="0">
+          <input type="text" name="pay_band" class="form-control @error('pay_band') is-invalid @enderror"
+            value="{{ old('pay_band') }}" maxlength="100" placeholder="e.g. 9300-34800">
           @error('pay_band')<div class="invalid-feedback">{{ $message }}</div>@enderror
         </div>
         <div class="col-md-3">
@@ -63,6 +63,7 @@
             value="{{ old('grade_pay') }}" min="0">
           @error('grade_pay')<div class="invalid-feedback">{{ $message }}</div>@enderror
         </div>
+
       </div>
       <div class="row mb-3">
         <div class="col-md-4">
@@ -100,6 +101,7 @@
             <option value="adhoc" {{ old('employment_type') == 'adhoc'        ? 'selected' : '' }}>Ad-hoc</option>
             <option value="guest" {{ old('employment_type') == 'guest'        ? 'selected' : '' }}>Guest</option>
             <option value="visiting" {{ old('employment_type') == 'visiting'     ? 'selected' : '' }}>Visiting</option>
+            <option value="visiting" {{ old('employment_type') == 'adjunct'     ? 'selected' : '' }}>Adjunct</option>
           </select>
           @error('employment_type')<div class="invalid-feedback">{{ $message }}</div>@enderror
         </div>
@@ -211,6 +213,12 @@
           <input type="number" name="special_allowance" class="form-control @error('special_allowance') is-invalid @enderror"
             value="{{ old('special_allowance', 0) }}" min="0" step="0.01">
           @error('special_allowance')<div class="invalid-feedback">{{ $message }}</div>@enderror
+        </div>
+        <div class="col-md-3">
+          <label class="form-label">Research Allowance (₹)</label>
+          <input type="number" name="research_allowance" class="form-control @error('research_allowance') is-invalid @enderror"
+            value="{{ old('research_allowance', 0) }}" min="0" step="0.01">
+          @error('research_allowance')<div class="invalid-feedback">{{ $message }}</div>@enderror
         </div>
         <div class="col-md-3">
           <label class="form-label">Other Allowances (₹)</label>

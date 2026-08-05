@@ -34,7 +34,7 @@
         <div class="parent-icon">
           <i class="fas fa-book"></i>
         </div>
-        <div class="menu-title">Subjects </div>
+        <div class="menu-title">My Courses </div>
       </a>
     </li>
 
@@ -53,6 +53,15 @@
           <i class="fas fa-briefcase"></i>
         </div>
         <div class="menu-title">Work Diary </div>
+      </a>
+    </li>
+
+    <li>
+      <a href="{{route('faculty.attendance.index')}}">
+        <div class="parent-icon">
+          <i class="fas fa-clipboard-list"></i>
+        </div>
+        <div class="menu-title">Attendance </div>
       </a>
     </li>
 
@@ -83,14 +92,7 @@
       </a>
     </li>
 
-    <li>
-      <a href="{{route('faculty.attendance.index')}}">
-        <div class="parent-icon">
-          <i class="fas fa-clipboard-list"></i>
-        </div>
-        <div class="menu-title">Attendance </div>
-      </a>
-    </li>
+
 
     <li>
       <a href="{{route('faculty.quiz.index')}}">
@@ -152,13 +154,13 @@
                 </div>
               </a>
             </li> -->
-        <li class="nav-item">
+        <!-- <li class="nav-item">
           <a class="nav-link dark-mode-icon" href="javascript:;">
             <div class="mode-icon">
               <ion-icon name="moon-sharp"></ion-icon>
             </div>
           </a>
-        </li>
+        </li> -->
 
 
 

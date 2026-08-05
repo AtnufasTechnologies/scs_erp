@@ -157,6 +157,7 @@ $campuses = Campus::all();
                     <option value="adhoc" {{ old('employee_type') == 'adhoc' ? 'selected' : '' }}>Adhoc</option>
                     <option value="guest" {{ old('employee_type') == 'guest' ? 'selected' : '' }}>Guest</option>
                     <option value="visiting" {{ old('employee_type') == 'visiting' ? 'selected' : '' }}>Visiting</option>
+                    <option value="adhoc" {{ old('employee_type') == 'adjunct' ? 'selected' : '' }}>Adjunct</option>
                   </select>
                   @error('employee_type')<div class="invalid-feedback">{{ $message }}</div>@enderror
                 </div>

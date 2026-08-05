@@ -808,6 +808,7 @@
       </div>
       <div class="modal-body">
         <p class="mb-3">Have you appeared for the NCET (National Common Entrance Test) Examination?</p>
+        <p>For Non NCET are you a candidate from WB, Sikkim, North East?</p>
         <div class="alert alert-info">
           <i class="fas fa-info-circle"></i> This information is required for the selected course combination.
         </div>

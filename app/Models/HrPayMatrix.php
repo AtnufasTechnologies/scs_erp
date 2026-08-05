@@ -31,6 +31,7 @@ class HrPayMatrix extends Model
     'ta',
     'medical_allowance',
     'special_allowance',
+    'research_allowance',
     'other_allowances',
     'pf_percentage',
     'pf_fixed',
@@ -60,6 +61,7 @@ class HrPayMatrix extends Model
     'ta' => 'decimal:2',
     'medical_allowance' => 'decimal:2',
     'special_allowance' => 'decimal:2',
+    'research_allowance' => 'decimal:2',
     'other_allowances' => 'decimal:2',
     'pf_percentage' => 'decimal:2',
     'pf_fixed' => 'decimal:2',
@@ -123,6 +125,12 @@ class HrPayMatrix extends Model
   public function facultySalaries()
   {
     return $this->hasMany(FacultySalaryMaster::class, 'pay_matrix_id');
+  }
+
+  // Linked grade level master for min/max pay range.
+  public function gradeLevelMaster()
+  {
+    return $this->belongsTo(HrGradeLevel::class, 'grade_level_id');
   }
 
   // Creator
@@ -221,6 +229,7 @@ class HrPayMatrix extends Model
       + $this->ta
       + $this->medical_allowance
       + $this->special_allowance
+      + $this->research_allowance
       + $this->other_allowances;
   }
 
@@ -247,6 +256,7 @@ class HrPayMatrix extends Model
         'ta' => $this->ta,
         'medical_allowance' => $this->medical_allowance,
         'special_allowance' => $this->special_allowance,
+        'research_allowance' => $this->research_allowance,
         'other_allowances' => $this->other_allowances,
       ],
       'deductions' => [

@@ -90,8 +90,9 @@ $batchProgramMap = StudentMaster::query()
 
             </div>
           </td>
-          <div class="meta-line"> Batch {{ $item['batch'] }} | Current Year: {{ $item['current_year'] }}</div>
+          <div class="meta-line"> Batch {{ $item['batch'] }} | Current Year: {{ $item['current_year'] }} |</div>
           <div class="meta-line">{{ $item['stdprogramenrolled']->code ?? '—' }} - {{ $item['stdprogramenrolled']->name ?? '—' }} </div>
+          <div class="meta-line">Major Type: {{ $item['academic_pathway_label'] ?? 'Not Set' }}</div>
         </div>
 
         <div>
@@ -113,13 +114,48 @@ $batchProgramMap = StudentMaster::query()
           <b> <i><small class="text-info"> #{{ $fee['fee_structure_id'] }} For Developer Reference Only</small> </i></b>
           <div class="fee-title">{{ $fee['quarter'] }} <span class="badge badge-{{ $fee['is_payable'] == 'Active' ? 'success' : 'warning' }}">{{ $fee['is_payable'] }}</span> </div>
           <div class="text-muted">Fee Amount: ₹{{ number_format($fee['total_amount']) }}</div>
-          <div class="text-muted">Late Fee: ₹{{ $fee['late_fee'] }} / {{ $fee['late_days'] }} days</div>
-          <div class="text-title">Total Payable Amount <strong>₹{{ $fee['payable_amount'] }}</strong> </div>
+          @if($fee['status'] === 'success')
+          <div class="text-muted">Paid Base Amount: ₹{{ number_format($fee['paid_base_amount'] ?? 0, 2) }}</div>
+          @if(!is_null($fee['paid_fixed_late_fee']))
+          <div class="text-muted">
+            Applied Fixed Late Fee (Exemption): ₹{{ number_format($fee['paid_fixed_late_fee'], 2) }}
+            @if(($fee['paid_late_days'] ?? 0) > 0)
+            / {{ $fee['paid_late_days'] }} days
+            @endif
+          </div>
+          @elseif(($fee['display_paid_late_fee_amount'] ?? 0) > 0)
+          <div class="text-muted">
+            Applied Late Fee: ₹{{ number_format($fee['display_paid_late_fee_amount'], 2) }}
+            @if(($fee['paid_late_days'] ?? 0) > 0)
+            / {{ $fee['paid_late_days'] }} days
+            @endif
+          </div>
+          @endif
+          <div class="text-title text-success">Paid Amount <strong>₹{{ number_format($fee['display_paid_total_amount'] ?? 0, 2) }}</strong></div>
+          @else
+          @if(!empty($fee['is_late_fee_exempted']) && $fee['late_days'] > 0)
+          <div class="text-muted">
+            Late Fee: ₹{{ number_format($fee['late_fee'], 2) }}
+            @if(!is_null($fee['fixed_late_fee']))
+            <span class="badge bg-info text-dark">Fixed (Exemption)</span>
+            @endif
+            / {{ $fee['late_days'] }} days
+          </div>
+          @else
+          <div class="text-muted">Late Fee: ₹{{ number_format($fee['late_fee'], 2) }} / {{ $fee['late_days'] }} days</div>
+          @endif
+          <div class="text-title">Total Payable Amount <strong>₹{{ number_format($fee['payable_amount'], 2) }}</strong> </div>
+          @endif
         </div>
 
         {{-- RIGHT SIDE --}}
         <div>
           @if($fee['status'] === 'success')
+          @if(!is_null($fee['paid_fixed_late_fee']))
+          <div class="mb-1">
+            <span class="badge badge-warning">Exemption Applied</span>
+          </div>
+          @endif
           <a href="{{ url('erp/admin/accounts/print-feereciept/'.$fee['paymentinfo']['id']) }}"
             target="_blank"
             class="badge-paid">
@@ -153,6 +189,10 @@ $batchProgramMap = StudentMaster::query()
 <div class="mt-3">
   {{ $data->links('pagination::bootstrap-5') }}
 </div>
+
+
+@include('admin.accounts.manual-payment-modal')
+@include('includes.footer')
 <script>
   document.addEventListener("DOMContentLoaded", () => {
     const batchProgramMap = @json($batchProgramMap);
@@ -226,6 +266,3 @@ $batchProgramMap = StudentMaster::query()
     });
   });
 </script>
-
-@include('admin.accounts.manual-payment-modal')
-@include('includes.footer')

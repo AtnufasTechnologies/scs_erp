@@ -17,7 +17,11 @@ return new class extends Migration
             $table->integer('batch');
             $table->integer('semester');
             $table->integer('course_id');
-            $table->enum('course_type', ['compulsary', 'elective']);
+            $table->integer('academic_pathway_id')->nullable();
+            $table->integer('degree_track_id')->nullable();
+            $table->enum('course_type', ['AUTO', 'STUDENT_CHOICE', 'DEPARTMENT_CHOICE']);
+            $table->smallInteger('display_order')->default(1);
+            $table->boolean('is_active')->default(true);
             $table->timestamps();
             $table->softDeletes();
         });

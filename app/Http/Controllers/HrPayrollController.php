@@ -109,7 +109,8 @@ class HrPayrollController extends Controller
         'ta' => $components['earnings']['ta'],
         'medical_allowance' => $components['earnings']['medical_allowance'],
         'special_allowance' => $components['earnings']['special_allowance'],
-        'other_allowances' => $components['earnings']['other_allowances'],
+        // Keep research allowance tracked in pay matrix and merged into salary master.
+        'other_allowances' => ($components['earnings']['other_allowances'] ?? 0) + ($components['earnings']['research_allowance'] ?? 0),
         'pf' => $components['deductions']['pf'],
         'esi' => $components['deductions']['esi'],
         'professional_tax' => $components['deductions']['professional_tax'],
