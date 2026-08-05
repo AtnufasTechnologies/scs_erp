@@ -73,7 +73,7 @@ class StudentTimetableService
       }
     }
 
-    $combinationSelect = ['id'];
+    $combinationSelect = ['id', 'subject_id'];
     if (Schema::hasColumn('subject_has_student_progams', 'shift')) {
       $combinationSelect[] = 'shift';
     }
@@ -122,6 +122,7 @@ class StudentTimetableService
     }
 
     $programCombinationId = (int) ($programCombination->id ?? 0);
+    $programSubjectId = (int) ($programCombination->subject_id ?? 0);
 
     $specializationId = self::resolveSpecializationId($student, $programCombinationId, $semesterId);
 
@@ -459,6 +460,9 @@ class StudentTimetableService
       ->values();
 
     $subjectCourseMap = SubjectCourseMaster::query()
+      ->when($programSubjectId > 0, function ($query) use ($programSubjectId) {
+        $query->where('subject_id', $programSubjectId);
+      })
       ->whereIn('course_master_id', $effectiveCourseIds->all())
       ->get(['id', 'course_master_id'])
       ->groupBy('course_master_id');
@@ -486,6 +490,9 @@ class StudentTimetableService
         'coFacultyMembers:id,FIRST_NAME,LAST_NAME',
       ])
       ->where('is_active', 1)
+      ->when($programSubjectId > 0, function ($query) use ($programSubjectId) {
+        $query->where('subject_id', $programSubjectId);
+      })
       ->whereIn('course_id', $effectiveCourseIds->all())
       ->get();
 
@@ -506,6 +513,17 @@ class StudentTimetableService
 
     $routineQuery = SubjectHasRoutine::query()
       ->where('batch_id', $batchId)
+      ->when($programSubjectId > 0, function ($query) use ($programSubjectId) {
+        $query->where(function ($subjectScope) use ($programSubjectId) {
+          $subjectScope
+            ->whereHas('subjectCourse', function ($subjectCourseQuery) use ($programSubjectId) {
+              $subjectCourseQuery->where('subject_id', $programSubjectId);
+            })
+            ->orWhereHas('syllabus', function ($syllabusQuery) use ($programSubjectId) {
+              $syllabusQuery->where('subject_id', $programSubjectId);
+            });
+        });
+      })
       ->where(function ($query) use ($subjectCourseIds, $assignmentIds, $hasTeachingAssignmentId, $hasTeachingAllocationId) {
         $hasCondition = false;
 
