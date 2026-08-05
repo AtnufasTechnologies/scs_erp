@@ -1151,6 +1151,7 @@ Route::group(['prefix' => '/erp'], function () {
     Route::group(['prefix' => '/principal',], function () {
         Route::get('dashboard', [PrincipalController::class, 'dashboard'])->name('principal.dashboard');
         Route::get('students', [PrincipalController::class, 'students'])->name('principal.students.index');
+        Route::get('subjects', [PrincipalController::class, 'subjects'])->name('principal.subjects.index');
         Route::get('{id}/student-profile/{rollno}', [PrincipalController::class, 'studentProfile'])->name('principal.student.profile');
         Route::get('faculty', [PrincipalController::class, 'faculty'])->name('principal.faculty.index');
         Route::get('faculty/{id}', [PrincipalController::class, 'facultyDetail'])->name('principal.faculty.detail');
@@ -1158,6 +1159,8 @@ Route::group(['prefix' => '/erp'], function () {
         Route::get('faculty/{id}/work-diary', [PrincipalController::class, 'facultyWorkDiary'])->name('principal.faculty.work-diary');
         Route::get('courses', [PrincipalController::class, 'courses'])->name('principal.courses.index');
         Route::get('courses/{id}', [PrincipalController::class, 'courseDetail'])->name('principal.courses.detail');
+        Route::get('curriculam', [PrincipalController::class, 'curriculamProgramWise'])->name('principal.curriculam.index');
+        Route::get('curriculam/defaulters', [PrincipalController::class, 'curriculamDefaulters'])->name('principal.curriculam.defaulters');
         Route::get('syllabus', [PrincipalController::class, 'subjectSyllabus'])->name('principal.syllabus.index');
         Route::get('syllabus/{id}', [PrincipalController::class, 'subjectSyllabusDetail'])->name('principal.syllabus.detail');
         Route::get('classes', [PrincipalController::class, 'classes'])->name('principal.classes.index');
@@ -1179,6 +1182,7 @@ Route::group(['prefix' => '/erp'], function () {
         Route::get('work-diary', [PrincipalController::class, 'workDiaryOverview'])->name('principal.work-diary.overview');
         Route::post('work-diary/{id}/approve', [PrincipalController::class, 'approveWorkDiary'])->name('principal.work-diary.approve');
         Route::post('work-diary/bulk-approve', [PrincipalController::class, 'bulkApproveWorkDiary'])->name('principal.work-diary.bulk-approve');
+        Route::get('event-controller-work', [PrincipalController::class, 'eventControllerWork'])->name('principal.events.work');
 
         // Student Affairs Monitoring (view-only)
         Route::get('monitoring/mentoring', [PrincipalMonitoringController::class, 'mentoring'])->name('principal.monitoring.mentoring');

@@ -1,7 +1,17 @@
+<?php
+
+use App\Http\Controllers\StaticController;
+
+$userRoleType = StaticController::fetchUserRole();
+?>
 @include('includes.header')
 
 <div class="wrapper">
+  @if($userRoleType == 'principal' || $userRoleType == 'vice-principal' || $userRoleType == 'bursar')
+  @include('principal.sidebar')
+  @else
   @include('event-coordinator.sidebar')
+  @endif
 
   <main class="page-content">
     <div class="page-breadcrumb d-none d-sm-flex align-items-center gap-2">
@@ -36,9 +46,7 @@
                 &nbsp;·&nbsp; Status: <strong>{{ ucfirst($event->status) }}</strong>
               </p>
             </div>
-            <button onclick="window.print()" class="btn btn-light btn-sm no-print">
-              <i class="fas fa-print me-1"></i>Print Report
-            </button>
+
           </div>
         </div>
       </div>

@@ -1046,6 +1046,80 @@ class AdminController extends Controller
                 ->orderByDesc('id')
                 ->get();
 
+            $combinationIds = $combinations->pluck('id')
+                ->map(fn($id) => (int) $id)
+                ->filter(fn($id) => $id > 0)
+                ->values();
+
+            $subjectIds = $combinations->pluck('subject_id')
+                ->map(fn($id) => (int) $id)
+                ->filter(fn($id) => $id > 0)
+                ->unique()
+                ->values();
+
+            $curriculumRowsByCombination = collect();
+            $assignmentsBySubjectCourse = collect();
+
+            if ($combinationIds->isNotEmpty()) {
+                $curriculumModel = new ProgramWiseSemesterCourse();
+                $curriculumTable = $curriculumModel->getTable();
+                $hasDisplayOrderColumn = Schema::hasColumn($curriculumTable, 'display_order');
+                $hasIsActiveColumn = Schema::hasColumn($curriculumTable, 'is_active');
+
+                $curriculumQuery = ProgramWiseSemesterCourse::with('programinfo:id,course_code,course_title')
+                    ->whereIn('program_combo_refid', $combinationIds)
+                    ->orderBy('semester');
+
+                if ($hasDisplayOrderColumn) {
+                    $curriculumQuery->orderBy('display_order');
+                }
+
+                if ($hasIsActiveColumn) {
+                    $curriculumQuery->where('is_active', 1);
+                }
+
+                $curriculumRows = $curriculumQuery->get([
+                    'program_combo_refid',
+                    'course_id',
+                    'semester',
+                    'course_type',
+                    'delivery_category',
+                ]);
+
+                $curriculumRowsByCombination = $curriculumRows->groupBy(function ($row) {
+                    return (int) ($row->program_combo_refid ?? 0);
+                });
+
+                $courseIds = $curriculumRows->pluck('course_id')
+                    ->map(fn($id) => (int) $id)
+                    ->filter(fn($id) => $id > 0)
+                    ->unique()
+                    ->values();
+
+                if ($courseIds->isNotEmpty()) {
+                    $teachingAssignments = TeachingAssignment::with([
+                        'faculty:id,FIRST_NAME,LAST_NAME,USER_CODE',
+                        'coFacultyMembers:id,FIRST_NAME,LAST_NAME,USER_CODE',
+                    ])
+                        ->whereIn('course_id', $courseIds)
+                        ->when($subjectIds->isNotEmpty(), function ($query) use ($subjectIds) {
+                            $query->whereIn('subject_id', $subjectIds);
+                        })
+                        ->get([
+                            'id',
+                            'subject_id',
+                            'course_id',
+                            'faculty_id',
+                            'delivery_type',
+                            'allocation_group',
+                        ]);
+
+                    $assignmentsBySubjectCourse = $teachingAssignments->groupBy(function ($assignment) {
+                        return (int) ($assignment->subject_id ?? 0) . '|' . (int) ($assignment->course_id ?? 0);
+                    });
+                }
+            }
+
             $programRows = $combinations->map(function ($combination) {
                 $studentsCount = StudentMaster::where('new_program_id', $combination->student_program_id)
                     ->where('batch', $combination->batch_id)
@@ -1068,6 +1142,74 @@ class AdminController extends Controller
                     'auto_courses_count' => (int) $autoCoursesCount,
                     'curriculum_done' => $autoCoursesCount > 0,
                 ];
+            });
+
+            $programRows = $programRows->map(function ($row) use ($combinations, $curriculumRowsByCombination, $assignmentsBySubjectCourse) {
+                $combination = $combinations->firstWhere('id', (int) $row->combination_id);
+                $subjectId = (int) ($combination->subject_id ?? 0);
+                $comboCurriculumRows = $curriculumRowsByCombination->get((int) $row->combination_id, collect());
+
+                $curriculumCourses = $comboCurriculumRows->map(function ($curriculumRow) use ($subjectId, $assignmentsBySubjectCourse) {
+                    $courseId = (int) ($curriculumRow->course_id ?? 0);
+                    $deliveryType = strtoupper(trim((string) ($curriculumRow->delivery_category ?? $curriculumRow->course_type ?? '-')));
+                    $subjectCourseKey = $subjectId . '|' . $courseId;
+
+                    $matchingAssignments = collect($assignmentsBySubjectCourse->get($subjectCourseKey, collect()));
+
+                    $normalizedDeliveryType = preg_replace('/[^A-Z0-9]/', '', $deliveryType);
+                    if ($matchingAssignments->isNotEmpty() && $normalizedDeliveryType !== '') {
+                        $deliveryMatchedAssignments = $matchingAssignments->filter(function ($assignment) use ($normalizedDeliveryType) {
+                            $assignmentDelivery = strtoupper(trim((string) ($assignment->delivery_type ?? '')));
+                            $normalizedAssignmentDelivery = preg_replace('/[^A-Z0-9]/', '', $assignmentDelivery);
+                            return $normalizedAssignmentDelivery === $normalizedDeliveryType;
+                        });
+
+                        if ($deliveryMatchedAssignments->isNotEmpty()) {
+                            $matchingAssignments = $deliveryMatchedAssignments;
+                        }
+                    }
+
+                    $teachers = $matchingAssignments
+                        ->map(function ($assignment) {
+                            $primaryLabel = trim((string) (optional($assignment->faculty)->FIRST_NAME ?? '') . ' ' . (string) (optional($assignment->faculty)->LAST_NAME ?? ''));
+                            $primaryLabel = $primaryLabel !== '' ? $primaryLabel : '-';
+
+                            $coFaculty = collect($assignment->coFacultyMembers ?? [])
+                                ->map(function ($faculty) {
+                                    return trim((string) ($faculty->FIRST_NAME ?? '') . ' ' . (string) ($faculty->LAST_NAME ?? ''));
+                                })
+                                ->filter()
+                                ->values();
+
+                            if ($coFaculty->isEmpty()) {
+                                return $primaryLabel;
+                            }
+
+                            return $primaryLabel . ' (Co: ' . $coFaculty->implode(', ') . ')';
+                        })
+                        ->filter()
+                        ->unique()
+                        ->values();
+
+                    return [
+                        'course_code' => (string) (optional($curriculumRow->programinfo)->course_code ?? '-'),
+                        'course_title' => (string) (optional($curriculumRow->programinfo)->course_title ?? '-'),
+                        'semester' => (int) ($curriculumRow->semester ?? 0),
+                        'course_type' => (string) ($curriculumRow->course_type ?? '-'),
+                        'delivery_type' => $deliveryType !== '' ? $deliveryType : '-',
+                        'teachers' => $teachers->isNotEmpty() ? $teachers->implode('; ') : 'Not assigned yet',
+                    ];
+                })
+                    ->sortBy([
+                        ['semester', 'asc'],
+                        ['course_code', 'asc'],
+                    ])
+                    ->values();
+
+                $row->curriculum_courses = $curriculumCourses->all();
+                $row->curriculum_courses_count = $curriculumCourses->count();
+
+                return $row;
             });
         }
 
