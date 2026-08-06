@@ -856,6 +856,7 @@ Route::group(['prefix' => '/erp'], function () {
         // Faculty Timetable
 
         //timetable
+        Route::get('timetable/{id}/view', [TimetableController::class, 'history'])->name('department.timetable.history');
         Route::get('timetable/{id}/{slug}', [TimetableController::class, 'index'])->name('department.timetable');
         Route::get('timetable/{subjectId}/{batchId}/{semesterId}', [TimetableController::class, 'editSemesterTimetable'])->name('department.timetable.edit');
         Route::get('timetable-hours', [TimetableController::class, 'getTeachingHoursByShift'])->name('department.timetable.hours');

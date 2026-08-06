@@ -651,6 +651,12 @@ class StudentTimetableService
           return null;
         }
 
+        $displayGroup = $matchedCurriculum['group'] ?? $routineGroup;
+        $groupLabel = trim((string) ($assignment?->allocation_group_label ?? $routine->teachingAllocation?->allocation_group_label ?? ''));
+        if ($groupLabel === '' && !is_null($displayGroup)) {
+          $groupLabel = 'Group ' . $displayGroup;
+        }
+
         $courseCode = (string) ($resolvedCourse?->course_code ?? '');
         $courseTitle = (string) ($resolvedCourse?->course_title ?? '');
 
@@ -672,17 +678,44 @@ class StudentTimetableService
 
         $hourLabel = (string) ($routine->hourmaster?->title ?? $routine->hourmaster?->name ?? '');
 
+        $weekdayId = (int) ($routine->weekday_id ?? 0);
+        $weekdayMap = [
+          1 => 'Monday',
+          2 => 'Tuesday',
+          3 => 'Wednesday',
+          4 => 'Thursday',
+          5 => 'Friday',
+          6 => 'Saturday',
+          7 => 'Sunday',
+        ];
+
+        $weekday = (string) ($weekdayMap[$weekdayId] ?? '');
+        if ($weekday === '') {
+          $rawWeekdayTitle = strtoupper(trim((string) ($routine->weekdaymaster?->title ?? '')));
+          $weekdayAliasMap = [
+            'MONDAY' => 'Monday',
+            'TUESDAY' => 'Tuesday',
+            'WEDNESDAY' => 'Wednesday',
+            'THURSDAY' => 'Thursday',
+            'FRIDAY' => 'Friday',
+            'SATURDAY' => 'Saturday',
+            'SUNDAY' => 'Sunday',
+          ];
+          $weekday = (string) ($weekdayAliasMap[$rawWeekdayTitle] ?? '');
+        }
+
         return [
           'weekday_id' => (int) ($routine->weekday_id ?? 0),
           'hour_order' => (int) ($routine->hourmaster?->hour_no ?? $routine->hour_id ?? 0),
-          'weekday' => (string) ($routine->weekdaymaster?->title ?? ''),
+          'weekday' => $weekday,
           'hour' => $hourLabel,
           'course_code' => $courseCode,
           'course_title' => $courseTitle,
           'faculty' => $facultyLabel,
           'room' => $room,
           'delivery_type' => (string) ($matchedCurriculum['delivery_type'] ?? ProgramWiseSemesterCourse::DELIVERY_PROGRAMME_COMMON),
-          'group' => $matchedCurriculum['group'] ?? null,
+          'group' => $displayGroup,
+          'group_label' => $groupLabel,
           'shift' => (string) ($routine->shift ?? ''),
         ];
       })

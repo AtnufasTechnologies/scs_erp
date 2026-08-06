@@ -274,6 +274,11 @@ if (!empty($deptFacultyIds)) {
                 <a href="{{ route('department.timetable', [$data->id,$data->title]) }}" style="color: white; text-decoration: none;">Scheduler</a>
               </div>
               <div style="opacity: 0.9; font-size: 13px;">Manager →</div>
+              <div style="margin-top: 6px; font-size: 13px;">
+                <a href="{{ route('department.timetable.history', [$data->id]) }}" style="color: #fff3a3; text-decoration: none; font-weight: 700;">
+                  <i class="fa fa-history me-1"></i>Full History View
+                </a>
+              </div>
             </div>
             <div style="width: 56px; height: 56px; background: rgba(255, 255, 255, 0.2); border-radius: 14px; display: flex; align-items: center; justify-content: center;">
               <i class="fas fa-calendar-alt" style="font-size: 28px;"></i>

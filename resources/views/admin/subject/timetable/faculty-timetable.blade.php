@@ -1,11 +1,17 @@
 <?php
 
+use App\Http\Controllers\StaticController;
 use App\Models\BatchMaster;
 
 $batches = BatchMaster::latest()->get();
+$userroletype = StaticController::fetchUserRole();
 ?>
 @include('includes.header')
+@if($userroletype == 'itcell')
 @include('admin.sidebar')
+@else
+@include('includes.dept-sidebar')
+@endif
 
 <div class="main-content">
   <div class="container-fluid py-4">

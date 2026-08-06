@@ -243,15 +243,9 @@ $days = Weekday::all();
           <span class="fw-bold text-white text-capitalize">{{ $data->code ?? '-' }} - {{ $data->title ?? '-' }} / TimeTable Management</span>
         </a>
         <div class="d-flex">
-          @if(StaticController::fetchUserRole() == 'dept-admin-erp')
-          <a href="{{ route('department.dashboard') }}" class="btn btn-light btn-sm fw-bold ms-auto" style="box-shadow:0 2px 8px #5740b433;">
-            <i class="fa fa-step-backward me-1"></i> back
+          <a href="{{ route('department.timetable.history', [$data->id]) }}" class="btn btn-success btn-sm fw-bold me-2" style="box-shadow:0 2px 8px rgba(0,0,0,0.15);">
+            <i class="fa fa-history me-1"></i> View Timetable
           </a>
-          @else
-          <a href="{{ url('erp/admin/master/view-subject?id='.$data->id.'/slug='.$data->slug) }}" class="btn btn-light btn-sm fw-bold ms-auto" style="box-shadow:0 2px 8px #5740b433;">
-            <i class="fa fa-step-backward me-1"></i> back
-          </a>
-          @endif
         </div>
     </nav>
 
