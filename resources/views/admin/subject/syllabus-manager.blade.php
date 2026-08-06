@@ -44,8 +44,11 @@ $taxonomyFrameworkLabel = function ($level) use ($taxonomyDomainLabel) {
 @include('includes.header')
 @include('includes.dept-sidebar')
 <!-- Main Content -->
-<div class="main-content">
-  <h3 class="text-capitalize">Syllabus Manager - {{$data['slug']}}</h3>
+<div class="main-content corporate-shell">
+  <div class="corp-page-head">
+    <h3 class="corp-page-title text-capitalize">Syllabus Manager - {{$data['slug']}}</h3>
+    <p class="corp-page-subtitle">Design and monitor syllabus delivery with structured progress and status controls.</p>
+  </div>
 
   <div class="toast-container position-fixed top-0 end-0 p-3" style="z-index: 1080;">
     <div id="syllabusStatusToast" class="toast align-items-center border-0 text-bg-success" role="alert" aria-live="assertive" aria-atomic="true" data-bs-delay="3000">
@@ -70,40 +73,33 @@ $taxonomyFrameworkLabel = function ($level) use ($taxonomyDomainLabel) {
   </div>
   @endif
 
-  <div class="alert alert-warning">
-    <p>Note: We dont not need to define any COMBO1 or COMBO2 logic in here. Simply select the courses you will be offering from your department for the batch and semester and design its contents.
-      You dont need to <b>duplicate</b> the same Course as COMBO1 or COMBO2. how ever it can be done if the syllabus is different.
-    </p>
+  <div class="alert corp-alert">
+    <p class="mb-0">Note: COMBO1/COMBO2 split is not required here. Select the courses your department offers for each batch and semester and design the syllabus content. Duplicate a course only when the syllabus genuinely differs.</p>
 
   </div>
 
   <div class="no-print mb-4">
-    <div class=" ">
+    <div class="card corp-control-panel">
       <div class="card-body p-3 p-lg-4">
         <div class="d-flex flex-column flex-xl-row gap-3 gap-xl-4 align-items-xl-center justify-content-between">
           <div class="d-flex flex-wrap gap-2 gap-lg-3">
-            <button class="cst-button" style="--clr: #21d9c7ff;" data-bs-toggle="modal" data-bs-target="#addSyllabus">
-              <span class="button-decor"></span>
-              <div class="button-content">
-                <div class="button__icon">
-                  <i class="fa fa-plus-circle"></i>
-                </div>
-                <span class="button__text">Add New</span>
-              </div>
+            <button class="btn btn-success corp-action-btn d-flex align-items-center gap-2" data-bs-toggle="modal" data-bs-target="#addSyllabus">
+              <i class="fa fa-plus-circle"></i>
+              <span>Add New</span>
             </button>
 
-            <button class="btn btn-danger d-flex align-items-center gap-2" data-bs-toggle="modal" data-bs-target="#pdfBatchModal">
+            <button class="btn btn-outline-danger corp-action-btn d-flex align-items-center gap-2" data-bs-toggle="modal" data-bs-target="#pdfBatchModal">
               <i class="fa fa-file-pdf"></i>
               <span>Download PDF</span>
             </button>
 
-            <button class="btn btn-primary d-flex align-items-center gap-2" data-bs-toggle="modal" data-bs-target="#uploadRefPdfModal">
+            <button class="btn btn-primary corp-action-btn d-flex align-items-center gap-2" data-bs-toggle="modal" data-bs-target="#uploadRefPdfModal">
               <i class="fa fa-upload"></i>
               <span>Upload Ref PDF</span>
             </button>
           </div>
 
-          <form action="{{ route('department.syllabus.manager', ['id' => $data['id'],'slug' => $data['slug']]) }}" method="get" class="w-100 w-xl-auto">
+          <form action="{{ route('department.syllabus.manager', ['id' => $data['id'],'slug' => $data['slug']]) }}" method="get" class="w-100 w-xl-auto corp-filter-form">
             <div class="row g-2 align-items-center">
               <div class="col-12 col-md-4">
                 <select name="filter_batch" class="form-select">
@@ -135,7 +131,7 @@ $taxonomyFrameworkLabel = function ($level) use ($taxonomyDomainLabel) {
               <div class="col-12 col-md-2 d-grid">
                 <input type="hidden" name="id" value="{{$data['id']}}">
                 <input type="hidden" name="slug" value="{{$data['slug']}}">
-                <button class="btn btn-outline-success d-flex align-items-center justify-content-center gap-2">
+                <button class="btn btn-success corp-filter-btn d-flex align-items-center justify-content-center gap-2">
                   <i class="fa fa-search"></i>
                   <span>Filter</span>
                 </button>
@@ -332,7 +328,7 @@ $taxonomyFrameworkLabel = function ($level) use ($taxonomyDomainLabel) {
   <!-- Udemy-Style Syllabus Display -->
   <div class="mt-4">
     @forelse ($data['organized_syllabus'] ?? [] as $batchName => $programGroups)
-    <div class="card mb-4 shadow-sm">
+    <div class="card mb-4 shadow-sm corp-batch-card">
       <div class="card-header bg-primary text-white">
         <h5 class="mb-0"><i class="fa fa-graduation-cap"></i> Batch: {{ $batchName }}</h5>
       </div>
@@ -345,7 +341,7 @@ $taxonomyFrameworkLabel = function ($level) use ($taxonomyDomainLabel) {
 
           @foreach ($semesterGroups as $semesterName => $courses)
           <div class="border-top">
-            <div class="p-3 bg-light">
+            <div class="p-3 bg-light corp-semester-strip">
               <h6 class="mb-0"><i class="fa fa-calendar"></i> {{ $semesterName }}</h6>
             </div>
             <div class="accordion" id="accordion{{ Str::slug($batchName . $programType . $semesterName) }}">
@@ -1049,6 +1045,137 @@ $taxonomyFrameworkLabel = function ($level) use ($taxonomyDomainLabel) {
 
 <!-- Print Styles -->
 <style>
+  .corporate-shell {
+    background: linear-gradient(180deg, #f4f7fb 0%, #f9fbfd 48%, #ffffff 100%);
+    min-height: 100vh;
+    padding-bottom: 24px;
+  }
+
+  .corp-page-head {
+    background: #ffffff;
+    border: 1px solid #e5eaf1;
+    border-left: 5px solid #1f4e79;
+    border-radius: 12px;
+    padding: 16px 18px;
+    box-shadow: 0 6px 18px rgba(17, 36, 64, 0.06);
+    margin-bottom: 14px;
+  }
+
+  .corp-page-title {
+    margin: 0;
+    font-size: 1.2rem;
+    font-weight: 700;
+    letter-spacing: 0.2px;
+    color: #0f2741;
+  }
+
+  .corp-page-subtitle {
+    margin: 4px 0 0;
+    color: #5f7188;
+    font-size: 0.92rem;
+  }
+
+  .corp-alert {
+    border: 1px solid #f0d6a3;
+    background: #fffaf0;
+    color: #6d4b13;
+    border-radius: 10px;
+    box-shadow: 0 2px 8px rgba(109, 75, 19, 0.08);
+  }
+
+  .corp-control-panel {
+    background: #ffffff;
+    border: 1px solid #e5eaf1;
+    border-radius: 12px;
+    box-shadow: 0 8px 18px rgba(15, 39, 65, 0.07);
+  }
+
+  .corp-control-panel .card-body {
+    padding: 1rem 1.25rem;
+  }
+
+  .corp-action-btn {
+    border-radius: 10px;
+    font-weight: 600;
+    min-height: 40px;
+    padding: 0.45rem 0.9rem;
+  }
+
+  .corp-filter-btn {
+    border-radius: 10px;
+    font-weight: 600;
+  }
+
+  .corp-filter-form .form-select,
+  .corp-filter-form .form-control {
+    border-radius: 10px;
+    border-color: #d5deea;
+  }
+
+  .corp-filter-form .form-select:focus,
+  .corp-filter-form .form-control:focus {
+    border-color: #1f4e79;
+    box-shadow: 0 0 0 0.2rem rgba(31, 78, 121, 0.15);
+  }
+
+  .corp-batch-card {
+    border: 1px solid #dbe4ef;
+    border-radius: 14px;
+    overflow: hidden;
+    box-shadow: 0 8px 20px rgba(15, 39, 65, 0.08);
+  }
+
+  .corp-batch-card .card-header {
+    background: linear-gradient(135deg, #1f4e79 0%, #2b6aa0 100%) !important;
+    color: #ffffff !important;
+    border-bottom: 1px solid #204f7d;
+  }
+
+  .corp-semester-strip {
+    background: #eef3fa !important;
+    border-top: 1px solid #d9e3ef;
+    border-bottom: 1px solid #d9e3ef;
+  }
+
+  .accordion-item {
+    border: 1px solid #dde5f0;
+    border-radius: 10px;
+    margin: 10px;
+    overflow: hidden;
+    box-shadow: 0 4px 14px rgba(15, 39, 65, 0.05);
+  }
+
+  .accordion-button {
+    background: #ffffff;
+    color: #17324f;
+    font-weight: 600;
+  }
+
+  .accordion-button:not(.collapsed) {
+    background: #f0f5fb;
+    color: #102c49;
+    box-shadow: inset 0 -1px 0 rgba(0, 0, 0, 0.05);
+  }
+
+  .accordion-button:focus {
+    box-shadow: 0 0 0 0.2rem rgba(31, 78, 121, 0.15);
+    border-color: #1f4e79;
+  }
+
+  .list-group-item {
+    border-color: #e6edf5;
+  }
+
+  .modal-header {
+    background: #f4f7fb;
+    border-bottom: 1px solid #dde6f0;
+  }
+
+  .modal-title {
+    color: #163553;
+    font-weight: 700;
+  }
+
   @media print {
 
     /* Hide navigation, sidebar, and buttons */

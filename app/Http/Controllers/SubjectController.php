@@ -1316,6 +1316,19 @@ class SubjectController extends Controller
     function deleteCourseSpecificObjective($id)
     {
         $cso = CoHasCso::findOrFail($id);
+        $deptSubjectId = $this->currentDeptSubjectId();
+
+        if (!$this->canDepartmentManageCso($cso, $deptSubjectId)) {
+            return redirect()->back()->with('error', 'You are not allowed to delete this CSO.');
+        }
+
+        $linkedOtherSubject = SyllabusManager::where('cso_id', $id)
+            ->where('subject_id', '!=', $deptSubjectId)
+            ->exists();
+
+        if ($linkedOtherSubject) {
+            return redirect()->back()->with('error', 'This CSO is linked to another department and cannot be deleted here.');
+        }
 
         // Block deletion if any syllabus entry using this CSO has attendance or timetable
         $syllabusRecords = SyllabusManager::where('cso_id', $id)->get();
@@ -1346,6 +1359,22 @@ class SubjectController extends Controller
     function deleteCsoSubunit($id)
     {
         $subunit = CsoSubunit::findOrFail($id);
+        $cso = CoHasCso::find($subunit->cso_id);
+        $deptSubjectId = $this->currentDeptSubjectId();
+
+        if (!$cso || !$this->canDepartmentManageCso($cso, $deptSubjectId)) {
+            return redirect()->back()->with('error', 'You are not allowed to delete this subunit.');
+        }
+
+        $linkedOtherSubject = SyllabusSubunit::where('unit_id', $id)
+            ->whereHas('syllabusManager', function ($query) use ($deptSubjectId) {
+                $query->where('subject_id', '!=', $deptSubjectId);
+            })
+            ->exists();
+
+        if ($linkedOtherSubject) {
+            return redirect()->back()->with('error', 'This subunit is linked to another department and cannot be deleted here.');
+        }
 
         // Block deletion if any syllabus subunit uses this and the course has attendance or timetable
         $syllabusSubunits = SyllabusSubunit::with('syllabusManager')
@@ -1451,7 +1480,8 @@ class SubjectController extends Controller
             'batch',
             'semester',
             'courseobjective',
-            'cso.csosubunits.taxonomies.rbtmaster',
+            'cso',
+            'syllabusSubunits.csoSubunit.taxonomies.rbtmaster',
         ])->where('subject_id', $id);
 
         if (!empty($request->filter_batch)) {
@@ -1660,6 +1690,20 @@ class SubjectController extends Controller
         $isJsonRequest = request()->expectsJson() || request()->ajax();
         $subunit = SyllabusSubunit::with('syllabusManager')->findOrFail($id);
         $syllabusManager = $subunit->syllabusManager;
+        $deptSubjectId = $this->currentDeptSubjectId();
+
+        if (!$syllabusManager || (int) $syllabusManager->subject_id !== (int) $deptSubjectId) {
+            $message = 'You are not allowed to delete this syllabus subunit.';
+
+            if ($isJsonRequest) {
+                return response()->json([
+                    'status' => false,
+                    'message' => $message,
+                ], 403);
+            }
+
+            return redirect()->back()->with('error', $message);
+        }
 
         if ($syllabusManager) {
             $coId    = $syllabusManager->co_id;
@@ -1755,6 +1799,21 @@ class SubjectController extends Controller
     {
         $isJsonRequest = request()->expectsJson() || request()->ajax();
         $programType = $this->resolveSyllabusProgramType($request, 'program_type');
+        $deptSubjectId = $this->currentDeptSubjectId();
+
+        if ((int) $subjectId !== (int) $deptSubjectId) {
+            $message = 'You are not allowed to delete this syllabus course.';
+
+            if ($isJsonRequest) {
+                return response()->json([
+                    'status' => false,
+                    'message' => $message,
+                ], 403);
+            }
+
+            return redirect()->back()->with('error', $message);
+        }
+
         $hasAttendance = StudentAttendance::where('course_id', $coId)->exists();
         $hasTimetable  = SubjectHasRoutine::where('subject_course_id', $coId)
             ->where('batch_id', $batchId)
@@ -2806,8 +2865,33 @@ class SubjectController extends Controller
 
     function deleteCsoSubunitTaxonomy($id)
     {
-        SubunitHasRbt::findOrFail($id)->delete();
+        $taxonomy = SubunitHasRbt::findOrFail($id);
+        $subunit = CsoSubunit::find($taxonomy->subunit_id);
+        $deptSubjectId = $this->currentDeptSubjectId();
+        $cso = $subunit ? CoHasCso::find($subunit->cso_id) : null;
+
+        if (!$cso || !$this->canDepartmentManageCso($cso, $deptSubjectId)) {
+            return redirect()->back()->with('error', 'You are not allowed to remove this taxonomy mapping.');
+        }
+
+        $taxonomy->delete();
         return redirect()->back()->with('success', 'Taxonomy level removed from subunit');
+    }
+
+    private function currentDeptSubjectId(): int
+    {
+        return (int) SubjectHasDeptAdmin::where('user_id', Auth::id())->value('subject_id');
+    }
+
+    private function canDepartmentManageCso(CoHasCso $cso, int $deptSubjectId): bool
+    {
+        if ($deptSubjectId <= 0) {
+            return false;
+        }
+
+        return SubjectCourseMaster::where('course_master_id', (int) $cso->co_id)
+            ->where('subject_id', $deptSubjectId)
+            ->exists();
     }
 
 
@@ -2985,24 +3069,8 @@ class SubjectController extends Controller
 
         $publishedCoursesBySemester = $this->getPublishedCoursesBySemesterForCombination($data);
         $selectedSemester = (int) request('semester');
-        $combo2SubjectId = (int) ($comboBoundary['combo2'] ?? 0);
         $generatedCourses = $selectedSemester > 0
-            ? collect($publishedCoursesBySemester[(string) $selectedSemester] ?? [])
-            ->filter(function ($course) use ($combo2SubjectId) {
-                $courseTypeTitle = strtoupper(trim((string) ($course['course_type_title'] ?? '')));
-                $sourceSubjectId = (int) ($course['source_subject_id'] ?? 0);
-
-                if (
-                    $combo2SubjectId > 0
-                    && $courseTypeTitle === ProgramWiseSemesterCourse::DELIVERY_OPEN_CHOICE
-                    && $sourceSubjectId === $combo2SubjectId
-                ) {
-                    return false;
-                }
-
-                return true;
-            })
-            ->values()
+            ? collect($publishedCoursesBySemester[(string) $selectedSemester] ?? [])->values()
             : collect();
 
         $semesters = Semester::query()->orderBy('id')->get(['id', 'title']);
@@ -3147,16 +3215,6 @@ class SubjectController extends Controller
         // Keep combo1 precedence when a course appears in both combos.
         $semesterCourses = $combo2Courses
             ->concat($combo1Courses)
-            ->filter(function ($course) use ($combo2SubjectId) {
-                $courseTypeTitle = strtoupper(trim((string) ($course['course_type_title'] ?? '')));
-                $sourceSubjectId = (int) ($course['source_subject_id'] ?? 0);
-
-                return !(
-                    $combo2SubjectId > 0
-                    && $courseTypeTitle === ProgramWiseSemesterCourse::DELIVERY_OPEN_CHOICE
-                    && $sourceSubjectId === $combo2SubjectId
-                );
-            })
             ->keyBy('id')
             ->values()
             ->sortBy(fn($course) => ($course['course_code'] ?? '') . ' ' . ($course['course_title'] ?? ''))
