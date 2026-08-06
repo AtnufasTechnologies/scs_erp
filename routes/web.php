@@ -69,6 +69,7 @@ use App\Http\Controllers\StudentAttendanceScanController;
 use App\Http\Controllers\TestController;
 use App\Http\Controllers\TimetableController;
 use App\Http\Controllers\ITCellController;
+use App\Http\Controllers\TrainingPlacementController;
 use App\Http\Controllers\Dean\AttendanceMonitoringController as DeanAttendanceMonitoringController;
 use App\Http\Controllers\Dean\AttendanceRegularizationController as DeanAttendanceRegularizationController;
 use App\Http\Controllers\Dean\ClubsController as DeanClubsController;
@@ -1411,6 +1412,27 @@ Route::group(['prefix' => '/erp'], function () {
     Route::get('careers/{id}', [HrVacancyController::class, 'publicShow'])->name('vacancies.public.show');
     Route::get('careers/{id}/apply', [HrVacancyController::class, 'publicApplyForm'])->name('vacancies.public.apply-form');
     Route::post('careers/{id}/apply', [HrVacancyController::class, 'publicApply'])->name('vacancies.public.apply');
+
+    // ========================================================
+    // Training and Placement Office Module
+    Route::group(['prefix' => '/tpo'], function () {
+        Route::get('dashboard', [TrainingPlacementController::class, 'dashboard'])->name('tpo.training-placement.dashboard');
+        Route::get('training-placement', [TrainingPlacementController::class, 'index'])->name('tpo.training-placement.index');
+        Route::get('training-placement/placement', [TrainingPlacementController::class, 'placementIndex'])->name('tpo.training-placement.placement.index');
+        Route::get('training-placement/analytics', [TrainingPlacementController::class, 'analytics'])->name('tpo.training-placement.analytics');
+        Route::post('training-placement/training', [TrainingPlacementController::class, 'storeTraining'])->name('tpo.training-placement.training.store');
+        Route::put('training-placement/training/{training}', [TrainingPlacementController::class, 'updateTraining'])->name('tpo.training-placement.training.update');
+        Route::delete('training-placement/training/{training}', [TrainingPlacementController::class, 'destroyTraining'])->name('tpo.training-placement.training.destroy');
+        Route::post('training-placement/training/{training}/resources', [TrainingPlacementController::class, 'storeResource'])->name('tpo.training-placement.resource.store');
+        Route::delete('training-placement/resources/{resource}', [TrainingPlacementController::class, 'destroyResource'])->name('tpo.training-placement.resource.destroy');
+        Route::post('training-placement/training/{training}/survey-questions', [TrainingPlacementController::class, 'storeSurveyQuestion'])->name('tpo.training-placement.survey-question.store');
+        Route::delete('training-placement/survey-questions/{question}', [TrainingPlacementController::class, 'destroySurveyQuestion'])->name('tpo.training-placement.survey-question.destroy');
+        Route::get('training-placement/training/{training}/attempt', [TrainingPlacementController::class, 'attempt'])->name('tpo.training-placement.attempt');
+        Route::post('training-placement/training/{training}/attempt', [TrainingPlacementController::class, 'submitAttempt'])->name('tpo.training-placement.attempt.submit');
+        Route::post('training-placement/placement', [TrainingPlacementController::class, 'storePlacement'])->name('tpo.training-placement.placement.store');
+        Route::put('training-placement/placement/{placement}', [TrainingPlacementController::class, 'updatePlacement'])->name('tpo.training-placement.placement.update');
+        Route::delete('training-placement/placement/{placement}', [TrainingPlacementController::class, 'destroyPlacement'])->name('tpo.training-placement.placement.destroy');
+    });
 
 
     //Testing route

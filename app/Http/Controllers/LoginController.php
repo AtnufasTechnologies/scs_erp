@@ -99,7 +99,9 @@ class LoginController extends Controller
                     case 'dean-of-student-affairs':
                         //Event Coordinator Dashboard
                         return redirect()->route('dean.dashboard')->with('success', 'Login Success');
-
+                    case 'training-and-placement-officer':
+                        //training and placement
+                        return redirect()->route('tpo.training-placement.dashboard')->with('success', 'Login Success');
                     default:
                         //for all Super Admin| Office assistane| Admin | IT CEll
                         return redirect('erp/admin/dashboard')->with('success', 'Login Success');
