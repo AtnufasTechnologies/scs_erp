@@ -147,32 +147,56 @@ class TimetableController extends Controller
 
         $facultyDeliveryTypes = [];
         foreach ($teachingAssignments as $assignment) {
-            if (empty($assignment->faculty_id) || empty($assignment->delivery_type)) {
+            if (empty($assignment->delivery_type)) {
                 continue;
             }
 
-            if (!isset($facultyDeliveryTypes[$assignment->faculty_id])) {
-                $facultyDeliveryTypes[$assignment->faculty_id] = [];
+            $assignmentFacultyIds = collect($assignment->allAssignedFacultyIds())
+                ->map(fn($id) => (int) $id)
+                ->filter(fn($id) => $id > 0)
+                ->unique()
+                ->values();
+
+            if ($assignmentFacultyIds->isEmpty() && !empty($assignment->faculty_id)) {
+                $assignmentFacultyIds = collect([(int) $assignment->faculty_id]);
             }
 
-            if (!in_array($assignment->delivery_type, $facultyDeliveryTypes[$assignment->faculty_id], true)) {
-                $facultyDeliveryTypes[$assignment->faculty_id][] = $assignment->delivery_type;
+            foreach ($assignmentFacultyIds as $facultyId) {
+                if (!isset($facultyDeliveryTypes[$facultyId])) {
+                    $facultyDeliveryTypes[$facultyId] = [];
+                }
+
+                if (!in_array($assignment->delivery_type, $facultyDeliveryTypes[$facultyId], true)) {
+                    $facultyDeliveryTypes[$facultyId][] = $assignment->delivery_type;
+                }
             }
         }
 
         $assignmentMeta = [];
         foreach ($teachingAssignments as $assignment) {
-            if (empty($assignment->course_id) || empty($assignment->faculty_id)) {
+            if (empty($assignment->course_id)) {
                 continue;
             }
 
-            $key = $assignment->course_id . '|' . $assignment->faculty_id;
-            if (!isset($assignmentMeta[$key])) {
-                $assignmentMeta[$key] = [
-                    'delivery_type' => $assignment->delivery_type,
-                    'allocation_group' => $assignment->allocation_group,
-                    'allocation_group_label' => $assignment->allocation_group_label,
-                ];
+            $assignmentFacultyIds = collect($assignment->allAssignedFacultyIds())
+                ->map(fn($id) => (int) $id)
+                ->filter(fn($id) => $id > 0)
+                ->unique()
+                ->values();
+
+            if ($assignmentFacultyIds->isEmpty() && !empty($assignment->faculty_id)) {
+                $assignmentFacultyIds = collect([(int) $assignment->faculty_id]);
+            }
+
+            foreach ($assignmentFacultyIds as $facultyId) {
+                $key = $assignment->course_id . '|' . $facultyId;
+                if (!isset($assignmentMeta[$key])) {
+                    $assignmentMeta[$key] = [
+                        'delivery_type' => $assignment->delivery_type,
+                        'allocation_group' => $assignment->allocation_group,
+                        'allocation_group_label' => $assignment->allocation_group_label,
+                    ];
+                }
             }
         }
 
@@ -544,12 +568,24 @@ class TimetableController extends Controller
             $assignmentByPair = [];
             $assignmentByCourse = [];
             foreach ($teachingAssignments as $assignment) {
-                if (!empty($assignment->course_id) && !empty($assignment->faculty_id)) {
-                    $pairKey = $assignment->course_id . '|' . $assignment->faculty_id;
-                    if (!isset($assignmentByPair[$pairKey])) {
-                        $assignmentByPair[$pairKey] = [];
+                $assignmentFacultyIds = collect($assignment->allAssignedFacultyIds())
+                    ->map(fn($id) => (int) $id)
+                    ->filter(fn($id) => $id > 0)
+                    ->unique()
+                    ->values();
+
+                if ($assignmentFacultyIds->isEmpty() && !empty($assignment->faculty_id)) {
+                    $assignmentFacultyIds = collect([(int) $assignment->faculty_id]);
+                }
+
+                if (!empty($assignment->course_id)) {
+                    foreach ($assignmentFacultyIds as $facultyId) {
+                        $pairKey = $assignment->course_id . '|' . $facultyId;
+                        if (!isset($assignmentByPair[$pairKey])) {
+                            $assignmentByPair[$pairKey] = [];
+                        }
+                        $assignmentByPair[$pairKey][] = $assignment;
                     }
-                    $assignmentByPair[$pairKey][] = $assignment;
                 }
 
                 if (!empty($assignment->course_id) && !isset($assignmentByCourse[$assignment->course_id])) {
@@ -573,7 +609,17 @@ class TimetableController extends Controller
                 ->keyBy('faculty_id');
 
             // Get direct faculty lookup for faculty_ids stored in routines
-            $allFaculties = Faculty::whereIn('id', $routines->pluck('faculty_id')->filter()->merge($teachingAssignments->pluck('faculty_id')->filter())->unique())
+            $assignedFacultyIds = $teachingAssignments
+                ->flatMap(function ($assignment) {
+                    return collect($assignment->allAssignedFacultyIds())
+                        ->map(fn($id) => (int) $id)
+                        ->filter(fn($id) => $id > 0)
+                        ->values();
+                })
+                ->unique()
+                ->values();
+
+            $allFaculties = Faculty::whereIn('id', $routines->pluck('faculty_id')->filter()->merge($assignedFacultyIds)->unique())
                 ->get()
                 ->keyBy('id');
 

@@ -47,14 +47,29 @@ class AttendanceController extends Controller
 
   private function applyFacultyRoutineAccess($query, int $facultyId)
   {
+    $hasTeachingAllocationLink = Schema::hasColumn('subject_has_routines', 'teaching_allocation_id');
+
     return $query->where(function ($nested) use ($facultyId) {
       $nested->where('faculty_id', $facultyId)
         ->orWhereHas('teachingAssignment', function ($assignmentQuery) use ($facultyId) {
           $assignmentQuery->where('faculty_id', $facultyId)
+            ->orWhereHas('facultyAssignments', function ($facultyAssignmentQuery) use ($facultyId) {
+              $facultyAssignmentQuery->where('faculty_id', $facultyId);
+            })
             ->orWhereHas('coFacultyMembers', function ($coFacultyQuery) use ($facultyId) {
               $coFacultyQuery->where('faculties.id', $facultyId);
             });
         });
+    })->when($hasTeachingAllocationLink, function ($builder) use ($facultyId) {
+      $builder->orWhereHas('teachingAllocation', function ($assignmentQuery) use ($facultyId) {
+        $assignmentQuery->where('faculty_id', $facultyId)
+          ->orWhereHas('facultyAssignments', function ($facultyAssignmentQuery) use ($facultyId) {
+            $facultyAssignmentQuery->where('faculty_id', $facultyId);
+          })
+          ->orWhereHas('coFacultyMembers', function ($coFacultyQuery) use ($facultyId) {
+            $coFacultyQuery->where('faculties.id', $facultyId);
+          });
+      });
     });
   }
 

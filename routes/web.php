@@ -922,6 +922,7 @@ Route::group(['prefix' => '/erp'], function () {
 
         //Teaching Assignment
         Route::get('teaching-assignment/{id}/{slug}', [SubjectController::class, 'teachingAssignment'])->name('department.teaching.assignment');
+        Route::post('teaching-assignment/{id}/toggle-multi-primary', [SubjectController::class, 'toggleTeachingAssignmentMultiPrimaryMode'])->name('department.teaching.assignment.toggle-multi-primary');
         Route::post('teaching-assignment/{subjectId}', [SubjectController::class, 'storeTeachingAssignment'])->name('department.teaching.assignment.store');
         Route::put('teaching-assignment/{id}', [SubjectController::class, 'updateTeachingAssignment'])->name('department.teaching.assignment.update');
         Route::delete('teaching-assignment/{id}', [SubjectController::class, 'deleteTeachingAssignment'])->name('department.teaching.assignment.delete');
