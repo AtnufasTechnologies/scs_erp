@@ -401,6 +401,7 @@ class FacultyDashboardController extends Controller
         'teachingAssignment.course:id,course_code,course_title,course_type',
         'teachingAssignment.course.coursetypemaster:id,title',
         'teachingAssignment.faculty:id,FIRST_NAME,LAST_NAME,USER_CODE',
+        'teachingAssignment.primaryFacultyMembers:id,FIRST_NAME,LAST_NAME,USER_CODE',
         'teachingAssignment.coFacultyMembers:id,FIRST_NAME,LAST_NAME,USER_CODE',
         'syllabus.subject:id,title',
         'syllabus.batchmaster:id,batch_name',
@@ -415,6 +416,7 @@ class FacultyDashboardController extends Controller
         'teachingAllocation.course:id,course_code,course_title,course_type',
         'teachingAllocation.course.coursetypemaster:id,title',
         'teachingAllocation.faculty:id,FIRST_NAME,LAST_NAME,USER_CODE',
+        'teachingAllocation.primaryFacultyMembers:id,FIRST_NAME,LAST_NAME,USER_CODE',
         'teachingAllocation.coFacultyMembers:id,FIRST_NAME,LAST_NAME,USER_CODE',
       ]);
     }
@@ -451,6 +453,11 @@ class FacultyDashboardController extends Controller
           $assignment = $routine->teachingAllocation;
         }
         $course = $routine->subjectCourse->courseMaster ?? optional($assignment)->course;
+        $primaryFacultyNames = collect($assignment?->primaryFacultyMembers ?? [])
+          ->map(fn($primaryFaculty) => trim((string) ($primaryFaculty->FIRST_NAME ?? '') . ' ' . (string) ($primaryFaculty->LAST_NAME ?? '')))
+          ->filter()
+          ->values()
+          ->all();
 
         $hourNo = (int) ($routine->hourmaster->hour_no ?? $routine->hour_id ?? 0);
         $hourName = (string) ($routine->hourmaster->name ?? $routine->hourmaster->title ?? ('Hour ' . $hourNo));
@@ -474,7 +481,9 @@ class FacultyDashboardController extends Controller
           'room' => trim((string) ($assignment->room ?? '')) !== '' ? trim((string) ($assignment->room ?? '')) : '-',
           'course' => trim($courseCode . ($courseCode !== '' ? ' - ' : '') . $courseTitle),
           'course_type' => (string) ($course->coursetypemaster->title ?? '-'),
-          'faculty' => trim((string) ($assignment?->faculty?->FIRST_NAME ?? '') . ' ' . (string) ($assignment?->faculty?->LAST_NAME ?? '')),
+          'faculty' => !empty($primaryFacultyNames)
+            ? implode(', ', $primaryFacultyNames)
+            : trim((string) ($assignment?->faculty?->FIRST_NAME ?? '') . ' ' . (string) ($assignment?->faculty?->LAST_NAME ?? '')),
           'co_faculty' => collect($assignment?->coFacultyMembers ?? [])
             ->map(fn($coFaculty) => trim((string) ($coFaculty->FIRST_NAME ?? '') . ' ' . (string) ($coFaculty->LAST_NAME ?? '')))
             ->filter()

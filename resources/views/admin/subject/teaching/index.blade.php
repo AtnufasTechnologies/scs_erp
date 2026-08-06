@@ -3,6 +3,29 @@
 <div class="main-content">
   <h4 class="text-capitalize">{{$subject->title}} - Teaching Assignment</h4>
 
+  <div class="card mt-3 mb-3 border-0 shadow-sm">
+    <div class="card-body d-flex flex-wrap justify-content-between align-items-center gap-2">
+      <div>
+        <h6 class="mb-1">Primary Faculty Mode</h6>
+        @if(!empty($allowsMultiPrimaryFaculty))
+        <span class="badge bg-success">Multi Primary Enabled</span>
+        <small class="text-muted d-block mt-1">This department can assign more than one primary faculty.</small>
+        @else
+        <span class="badge bg-secondary">Single Primary Enabled</span>
+        <small class="text-muted d-block mt-1">This department allows only one primary faculty per assignment.</small>
+        @endif
+      </div>
+      <form action="{{ route('department.teaching.assignment.toggle-multi-primary', $subject->id) }}" method="post" class="m-0">
+        @csrf
+        @if(!empty($allowsMultiPrimaryFaculty))
+        <button type="submit" class="btn btn-outline-secondary btn-sm">Switch To Single Primary</button>
+        @else
+        <button type="submit" class="btn btn-outline-primary btn-sm">Enable Multi Primary</button>
+        @endif
+      </form>
+    </div>
+  </div>
+
   <div class="toast-container position-fixed top-0 end-0 p-3" style="z-index: 1080;">
     <div id="teachingAssignmentToast" class="toast align-items-center text-white bg-success border-0" role="alert" aria-live="assertive" aria-atomic="true">
       <div class="d-flex">
@@ -58,6 +81,18 @@
 
           <div class="col-lg-6">
             <label class="form-label fw-semibold">Primary Faculty <span class="text-danger">*</span></label>
+            @if(!empty($allowsMultiPrimaryFaculty))
+            <select name="primary_faculty_ids[]" class="dselect-example" multiple required>
+              @foreach($faculties as $faculty)
+              @if($faculty->faculty)
+              <option value="{{ $faculty->faculty->id }}">
+                {{ $faculty->faculty->USER_CODE }} - {{ $faculty->faculty->FIRST_NAME }} {{ $faculty->faculty->LAST_NAME }}
+              </option>
+              @endif
+              @endforeach
+            </select>
+            <small class="text-muted d-block mt-1">Select one or more primary faculty members.</small>
+            @else
             <select name="faculty_id" class="dselect-example" required>
               <option value="">--Select--</option>
               @foreach($faculties as $faculty)
@@ -68,6 +103,8 @@
               @endif
               @endforeach
             </select>
+            <small class="text-muted d-block mt-1">Select one primary faculty member.</small>
+            @endif
           </div>
 
           <div class="col-lg-6">
@@ -156,7 +193,15 @@
             <tr id="assignment-row-{{ $assignment->id }}">
               <td>{{ $loop->iteration }}</td>
               <td>{{ $assignment->course->course_code ?? '-' }} - {{ $assignment->course->course_title ?? '-' }}</td>
-              <td>{{ $assignment->faculty->USER_CODE ?? '-' }} - {{ $assignment->faculty->FIRST_NAME ?? '-' }} {{ $assignment->faculty->LAST_NAME ?? '' }}</td>
+              <td>
+                @php
+                $primaryFacultyLabels = ($assignment->primaryFacultyMembers ?? collect())
+                ->map(fn($faculty) => trim(($faculty->USER_CODE ?? '-') . ' - ' . ($faculty->FIRST_NAME ?? '-') . ' ' . ($faculty->LAST_NAME ?? '')))
+                ->filter()
+                ->values();
+                @endphp
+                {{ $primaryFacultyLabels->isNotEmpty() ? $primaryFacultyLabels->implode(', ') : (($assignment->faculty->USER_CODE ?? '-') . ' - ' . ($assignment->faculty->FIRST_NAME ?? '-') . ' ' . ($assignment->faculty->LAST_NAME ?? '')) }}
+              </td>
               <td>
                 @php
                 $coFacultyLabels = ($assignment->coFacultyMembers ?? collect())
@@ -184,7 +229,7 @@
                   class="btn btn-sm btn-primary js-edit-assignment"
                   data-id="{{ $assignment->id }}"
                   data-course_id="{{ $assignment->course_id }}"
-                  data-faculty_id="{{ $assignment->faculty_id }}"
+                  data-primary_faculty_ids='@json((($assignment->primaryFacultyMembers ?? collect())->isNotEmpty() ? ($assignment->primaryFacultyMembers ?? collect())->pluck("id") : collect([(int) ($assignment->faculty_id ?? 0)]))->map(fn($id) => (int) $id)->filter(fn($id) => $id > 0)->values()->all())'
                   data-co_faculty_ids='@json(($assignment->coFacultyMembers ?? collect())->pluck("id")->map(fn($id) => (int) $id)->values()->all())'
                   data-delivery_type="{{ $assignment->delivery_type }}"
                   data-shift_id="{{ (int) ($assignment->shift_id ?? 0) }}"
@@ -232,6 +277,8 @@
     const deliveryTypeSelect = form.querySelector('[name="delivery_type"]');
     const courseSelect = form.querySelector('[name="course_id"]');
     const deliveryTypeHelpText = document.getElementById('deliveryTypeHelpText');
+    const primaryFacultyMultiSelect = form.querySelector('[name="primary_faculty_ids[]"]');
+    const primaryFacultySingleSelect = form.querySelector('[name="faculty_id"]');
 
     function deliveryTypeLabel(type) {
       const normalized = String(type || '').trim().toUpperCase().replace(/[_-]+/g, ' ');
@@ -319,7 +366,9 @@
 
     function buildRowHtml(assignment) {
       const safeCourse = escapeHtml(assignment.course_text || '-');
-      const safeFaculty = escapeHtml(assignment.faculty_text || '-');
+      const safePrimaryFaculty = Array.isArray(assignment.primary_faculty_text) && assignment.primary_faculty_text.length ?
+        assignment.primary_faculty_text.map((label) => escapeHtml(label)).join(', ') :
+        escapeHtml(assignment.faculty_text || '-');
       const safeCoFaculty = Array.isArray(assignment.co_faculty_text) && assignment.co_faculty_text.length ?
         assignment.co_faculty_text.map((label) => escapeHtml(label)).join(', ') : '-';
       const safeDelivery = escapeHtml(assignment.delivery_type || '-');
@@ -334,7 +383,7 @@
         <tr id="assignment-row-${assignment.id}">
           <td>0</td>
           <td>${safeCourse}</td>
-          <td>${safeFaculty}</td>
+          <td>${safePrimaryFaculty}</td>
           <td>${safeCoFaculty}</td>
           <td>${safeDelivery}</td>
           <td>${safeShift}</td>
@@ -348,7 +397,7 @@
               class="btn btn-sm btn-primary js-edit-assignment"
               data-id="${assignment.id}"
               data-course_id="${assignment.course_id}"
-              data-faculty_id="${assignment.faculty_id}"
+              data-primary_faculty_ids='${escapeHtml(JSON.stringify(Array.isArray(assignment.primary_faculty_ids) ? assignment.primary_faculty_ids : []))}'
               data-co_faculty_ids='${escapeHtml(JSON.stringify(Array.isArray(assignment.co_faculty_ids) ? assignment.co_faculty_ids : []))}'
               data-delivery_type="${escapeHtml(assignment.delivery_type || '')}"
               data-shift_id="${assignment.shift_id || ''}"
@@ -379,12 +428,22 @@
       formTitle.textContent = 'New Teaching Assignment';
       cancelEditBtn.style.display = 'none';
       form.querySelector('[name="course_id"]').dispatchEvent(new Event('change'));
-      form.querySelector('[name="faculty_id"]').dispatchEvent(new Event('change'));
+      if (primaryFacultyMultiSelect) {
+        Array.from(primaryFacultyMultiSelect.options).forEach((option) => {
+          option.selected = false;
+        });
+        primaryFacultyMultiSelect.dispatchEvent(new Event('change'));
+      }
+      if (primaryFacultySingleSelect) {
+        primaryFacultySingleSelect.value = '';
+        primaryFacultySingleSelect.dispatchEvent(new Event('change'));
+      }
       const coFacultySelect = form.querySelector('[name="co_faculty_ids[]"]');
       if (coFacultySelect) {
         Array.from(coFacultySelect.options).forEach((option) => {
           option.selected = false;
         });
+        coFacultySelect.dispatchEvent(new Event('change'));
       }
       setDeliveryOptionsForCourse(form.querySelector('[name="course_id"]').value);
     }
@@ -456,7 +515,28 @@
 
       assignmentIdInput.value = editButton.dataset.id || '';
       form.querySelector('[name="course_id"]').value = editButton.dataset.course_id || '';
-      form.querySelector('[name="faculty_id"]').value = editButton.dataset.faculty_id || '';
+      let selectedPrimaryFacultyIds = [];
+      try {
+        selectedPrimaryFacultyIds = JSON.parse(editButton.dataset.primary_faculty_ids || '[]');
+        if (!Array.isArray(selectedPrimaryFacultyIds)) {
+          selectedPrimaryFacultyIds = [];
+        }
+      } catch (error) {
+        selectedPrimaryFacultyIds = [];
+      }
+
+      if (primaryFacultyMultiSelect) {
+        const selectedPrimarySet = new Set(selectedPrimaryFacultyIds.map((value) => String(value)));
+        Array.from(primaryFacultyMultiSelect.options).forEach((option) => {
+          option.selected = selectedPrimarySet.has(String(option.value));
+        });
+        primaryFacultyMultiSelect.dispatchEvent(new Event('change'));
+      }
+
+      if (primaryFacultySingleSelect) {
+        primaryFacultySingleSelect.value = String(selectedPrimaryFacultyIds[0] || '');
+        primaryFacultySingleSelect.dispatchEvent(new Event('change'));
+      }
       const coFacultySelect = form.querySelector('[name="co_faculty_ids[]"]');
       if (coFacultySelect) {
         let selectedCoFacultyIds = [];
@@ -473,6 +553,7 @@
         Array.from(coFacultySelect.options).forEach((option) => {
           option.selected = selectedSet.has(String(option.value));
         });
+        coFacultySelect.dispatchEvent(new Event('change'));
       }
       form.querySelector('[name="shift_id"]').value = editButton.dataset.shift_id || '';
       form.querySelector('[name="status"]').value = editButton.dataset.status || '1';
@@ -481,7 +562,6 @@
 
       form.querySelector('[name="course_id"]').dispatchEvent(new Event('change'));
       setDeliveryOptionsForCourse(editButton.dataset.course_id || '', editButton.dataset.delivery_type || '');
-      form.querySelector('[name="faculty_id"]').dispatchEvent(new Event('change'));
 
       submitBtn.textContent = 'Update Assignment';
       formTitle.textContent = 'Edit Teaching Assignment';

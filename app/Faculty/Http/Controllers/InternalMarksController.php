@@ -13,9 +13,38 @@ use App\Models\SubjectHasRoutine;
 use App\Models\SubjectHasSyllabus;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Schema;
 
 class InternalMarksController extends Controller
 {
+  private function applyFacultyRoutineAccess($query, int $facultyId)
+  {
+    $hasTeachingAllocationLink = Schema::hasColumn('subject_has_routines', 'teaching_allocation_id');
+
+    return $query->where(function ($nested) use ($facultyId) {
+      $nested->where('faculty_id', $facultyId)
+        ->orWhereHas('teachingAssignment', function ($assignmentQuery) use ($facultyId) {
+          $assignmentQuery->where('faculty_id', $facultyId)
+            ->orWhereHas('facultyAssignments', function ($facultyAssignmentQuery) use ($facultyId) {
+              $facultyAssignmentQuery->where('faculty_id', $facultyId);
+            })
+            ->orWhereHas('coFacultyMembers', function ($coFacultyQuery) use ($facultyId) {
+              $coFacultyQuery->where('faculties.id', $facultyId);
+            });
+        });
+    })->when($hasTeachingAllocationLink, function ($builder) use ($facultyId) {
+      $builder->orWhereHas('teachingAllocation', function ($assignmentQuery) use ($facultyId) {
+        $assignmentQuery->where('faculty_id', $facultyId)
+          ->orWhereHas('facultyAssignments', function ($facultyAssignmentQuery) use ($facultyId) {
+            $facultyAssignmentQuery->where('faculty_id', $facultyId);
+          })
+          ->orWhereHas('coFacultyMembers', function ($coFacultyQuery) use ($facultyId) {
+            $coFacultyQuery->where('faculties.id', $facultyId);
+          });
+      });
+    });
+  }
+
   /**
    * Show course/semester/year selection form
    */
@@ -25,7 +54,8 @@ class InternalMarksController extends Controller
     $facultyId = SubjectFacultyMaster::where('access_id', $userId)->value('faculty_id');
 
     // Get syllabus IDs assigned to this faculty
-    $syllabusIds = SubjectHasRoutine::where('faculty_id', $facultyId)->pluck('syllabus_id');
+    $syllabusIds = $this->applyFacultyRoutineAccess(SubjectHasRoutine::query(), (int) $facultyId)
+      ->pluck('syllabus_id');
 
     // Get unique courses from syllabi (course_id in subject_has_syllabi = ProgramCourseMaster id)
     $courseIds = SubjectHasSyllabus::whereIn('id', $syllabusIds)

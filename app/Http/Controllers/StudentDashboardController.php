@@ -932,6 +932,10 @@ class StudentDashboardController extends Controller
       ->values();
 
     $assignments = TeachingAssignment::query()
+      ->with([
+        'primaryFacultyMembers:id',
+        'coFacultyMembers:id',
+      ])
       ->where('is_active', 1)
       ->whereIn('course_id', $selectedCourseIds->all())
       ->get(['id', 'course_id', 'faculty_id', 'delivery_type'])
@@ -946,7 +950,30 @@ class StudentDashboardController extends Controller
       ->filter(fn($assignment) => $selectedPairKeys->contains(((int) $assignment->course_id) . '_' . $assignment->normalized_delivery_type))
       ->values();
     $assignmentIds = $assignments->pluck('id')->map(fn($id) => (int) $id)->filter(fn($id) => $id > 0)->unique()->values();
-    $assignmentFacultyIds = $assignments->pluck('faculty_id')->map(fn($id) => (int) $id)->filter(fn($id) => $id > 0)->unique()->values();
+    $assignmentFacultyIds = $assignments
+      ->flatMap(function ($assignment) {
+        $primaryIds = collect($assignment->primaryFacultyMembers ?? collect())
+          ->pluck('id')
+          ->map(fn($id) => (int) $id)
+          ->filter(fn($id) => $id > 0)
+          ->values();
+
+        if ($primaryIds->isEmpty() && !empty($assignment->faculty_id)) {
+          $primaryIds = collect([(int) $assignment->faculty_id]);
+        }
+
+        $coIds = collect($assignment->coFacultyMembers ?? collect())
+          ->pluck('id')
+          ->map(fn($id) => (int) $id)
+          ->filter(fn($id) => $id > 0)
+          ->values();
+
+        return $primaryIds->merge($coIds)->unique()->values();
+      })
+      ->map(fn($id) => (int) $id)
+      ->filter(fn($id) => $id > 0)
+      ->unique()
+      ->values();
 
     $subjectCourseIds = SubjectCourseMaster::query()
       ->whereIn('course_master_id', $selectedCourseIds->all())

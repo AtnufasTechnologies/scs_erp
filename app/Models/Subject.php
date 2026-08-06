@@ -14,11 +14,13 @@ class Subject extends Model
         'main_dept_id',
         'has_shift_delivery',
         'shift_ids',
+        'allow_multi_primary_faculty',
     ];
 
     protected $casts = [
         'shift_ids' => 'array',
         'has_shift_delivery' => 'boolean',
+        'allow_multi_primary_faculty' => 'boolean',
     ];
 
     function campusmaster()
