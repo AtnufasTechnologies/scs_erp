@@ -53,6 +53,23 @@
         </div>
       </div>
 
+      <div class="card border-0 shadow-sm mb-3">
+        <div class="card-body">
+          <form method="GET" action="{{ route('tpo.training-placement.index') }}" class="row g-2 align-items-end">
+            <div class="col-md-9">
+              <label class="form-label fw-semibold mb-1">Search Training</label>
+              <input type="text" name="search" value="{{ $trainingSearch ?? '' }}" class="form-control" placeholder="Search by training title or description">
+            </div>
+            <div class="col-md-3 d-flex gap-2">
+              <button type="submit" class="btn btn-primary w-100">Search</button>
+              @if(!empty($trainingSearch))
+              <a href="{{ route('tpo.training-placement.index') }}" class="btn btn-outline-secondary w-100">Reset</a>
+              @endif
+            </div>
+          </form>
+        </div>
+      </div>
+
       <ul class="nav nav-tabs mb-3" id="tpoTab" role="tablist">
         <li class="nav-item" role="presentation">
           <button class="nav-link active" id="training-tab" data-bs-toggle="tab" data-bs-target="#training-pane" type="button" role="tab">Training</button>

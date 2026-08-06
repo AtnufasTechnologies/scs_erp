@@ -1185,6 +1185,8 @@ Route::group(['prefix' => '/erp'], function () {
         Route::post('work-diary/{id}/approve', [PrincipalController::class, 'approveWorkDiary'])->name('principal.work-diary.approve');
         Route::post('work-diary/bulk-approve', [PrincipalController::class, 'bulkApproveWorkDiary'])->name('principal.work-diary.bulk-approve');
         Route::get('event-controller-work', [PrincipalController::class, 'eventControllerWork'])->name('principal.events.work');
+        Route::get('tpo-events', [TrainingPlacementController::class, 'principalEventsIndex'])->name('principal.tpo-events.index');
+        Route::post('tpo-events/{event}/approval', [TrainingPlacementController::class, 'principalApproveEvent'])->name('principal.tpo-events.approval');
 
         // Student Affairs Monitoring (view-only)
         Route::get('monitoring/mentoring', [PrincipalMonitoringController::class, 'mentoring'])->name('principal.monitoring.mentoring');
@@ -1418,6 +1420,7 @@ Route::group(['prefix' => '/erp'], function () {
         Route::get('dashboard', [TrainingPlacementController::class, 'dashboard'])->name('tpo.training-placement.dashboard');
         Route::get('training-placement', [TrainingPlacementController::class, 'index'])->name('tpo.training-placement.index');
         Route::get('training-placement/placement', [TrainingPlacementController::class, 'placementIndex'])->name('tpo.training-placement.placement.index');
+        Route::get('training-placement/events', [TrainingPlacementController::class, 'eventsIndex'])->name('tpo.training-placement.events.index');
         Route::get('training-placement/analytics', [TrainingPlacementController::class, 'analytics'])->name('tpo.training-placement.analytics');
         Route::post('training-placement/training', [TrainingPlacementController::class, 'storeTraining'])->name('tpo.training-placement.training.store');
         Route::put('training-placement/training/{training}', [TrainingPlacementController::class, 'updateTraining'])->name('tpo.training-placement.training.update');
@@ -1431,6 +1434,9 @@ Route::group(['prefix' => '/erp'], function () {
         Route::post('training-placement/placement', [TrainingPlacementController::class, 'storePlacement'])->name('tpo.training-placement.placement.store');
         Route::put('training-placement/placement/{placement}', [TrainingPlacementController::class, 'updatePlacement'])->name('tpo.training-placement.placement.update');
         Route::delete('training-placement/placement/{placement}', [TrainingPlacementController::class, 'destroyPlacement'])->name('tpo.training-placement.placement.destroy');
+        Route::post('training-placement/events', [TrainingPlacementController::class, 'storeEvent'])->name('tpo.training-placement.events.store');
+        Route::put('training-placement/events/{event}', [TrainingPlacementController::class, 'updateEvent'])->name('tpo.training-placement.events.update');
+        Route::delete('training-placement/events/{event}', [TrainingPlacementController::class, 'destroyEvent'])->name('tpo.training-placement.events.destroy');
     });
 
 

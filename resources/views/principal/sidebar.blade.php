@@ -180,6 +180,14 @@ $pendingLeaveCount = $pendingLeaveQuery->count();
       </a>
     </li>
     <li>
+      <a href="{{ route('principal.tpo-events.index') }}">
+        <div class="parent-icon">
+          <i class="fas fa-user-check"></i>
+        </div>
+        <div class="menu-title">TPO Event Approvals</div>
+      </a>
+    </li>
+    <li>
       <a href="javascript:;" class="has-arrow">
         <div class="parent-icon">
           <i class="fas fa-sitemap"></i>
