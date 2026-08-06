@@ -38,7 +38,7 @@ use Illuminate\Support\Facades\Auth;
         <div class="parent-icon">
           <i class="fas fa-briefcase"></i>
         </div>
-        <div class="menu-title">Placement</div>
+        <div class="menu-title">Placement Openings / Applications</div>
       </a>
     </li>
 

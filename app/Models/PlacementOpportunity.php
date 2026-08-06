@@ -21,7 +21,13 @@ class PlacementOpportunity extends Model
     'country',
     'logo_path',
     'student_year',
+    'campus_id',
     'subject_id',
+    'subject_ids',
+    'internship_stipend_type',
+    'placement_type',
+    'opening_type',
+    'documentation_required',
     'is_active',
     'created_by',
   ];
@@ -30,6 +36,8 @@ class PlacementOpportunity extends Model
     'month' => 'integer',
     'drive_date' => 'date',
     'apply_deadline' => 'date',
+    'subject_ids' => 'array',
+    'documentation_required' => 'array',
   ];
 
   public function targetRoles()
@@ -40,5 +48,10 @@ class PlacementOpportunity extends Model
   public function subject()
   {
     return $this->belongsTo(Subject::class);
+  }
+
+  public function campus()
+  {
+    return $this->belongsTo(Campus::class);
   }
 }

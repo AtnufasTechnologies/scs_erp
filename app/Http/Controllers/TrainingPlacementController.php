@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\PlacementOpportunity;
+use App\Models\Campus;
 use App\Models\RoleMaster;
 use App\Models\TrainingAttempt;
 use App\Models\TrainingProgram;
@@ -16,6 +17,7 @@ use App\Models\UserHasRole;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Facades\Storage;
 
 class TrainingPlacementController extends Controller
@@ -90,28 +92,55 @@ class TrainingPlacementController extends Controller
       ->latest()
       ->get();
 
+    $placements = PlacementOpportunity::with(['subject', 'campus'])->latest()->get();
+    $subjects = Subject::orderBy('title')->get(['id', 'title', 'code', 'campus_id']);
+    $subjectLookup = $subjects->keyBy('id');
+    $campuses = Campus::orderBy('name')->get(['id', 'name']);
+    $categoryOptions = $this->placementCategoryOptions();
+    $placementTypeOptions = $this->placementTypeOptions();
+    $openingTypeOptions = $this->openingTypeOptions();
+    $monthOptions = $this->monthOptions();
+    $yearOptions = $this->studentYearOptions();
+
     $analytics = $this->buildTrainingAnalytics($trainings);
 
     return view('tpo.training-placement.index', compact(
       'trainings',
       'roleOptions',
       'myTrainings',
-      'analytics'
+      'analytics',
+      'placements',
+      'subjects',
+      'subjectLookup',
+      'campuses',
+      'categoryOptions',
+      'placementTypeOptions',
+      'openingTypeOptions',
+      'monthOptions',
+      'yearOptions'
     ));
   }
 
   public function placementIndex()
   {
-    $placements = PlacementOpportunity::with('subject')->latest()->get();
-    $subjects = Subject::orderBy('title')->get();
+    $placements = PlacementOpportunity::with(['subject', 'campus'])->latest()->get();
+    $subjects = Subject::orderBy('title')->get(['id', 'title', 'code', 'campus_id']);
+    $subjectLookup = $subjects->keyBy('id');
+    $campuses = Campus::orderBy('name')->get(['id', 'name']);
     $categoryOptions = $this->placementCategoryOptions();
+    $placementTypeOptions = $this->placementTypeOptions();
+    $openingTypeOptions = $this->openingTypeOptions();
     $monthOptions = $this->monthOptions();
     $yearOptions = $this->studentYearOptions();
 
     return view('tpo.training-placement.placement', compact(
       'placements',
       'subjects',
+      'subjectLookup',
+      'campuses',
       'categoryOptions',
+      'placementTypeOptions',
+      'openingTypeOptions',
       'monthOptions',
       'yearOptions'
     ));
@@ -395,16 +424,102 @@ class TrainingPlacementController extends Controller
       'country' => 'nullable|string|max:255',
       'logo' => 'nullable|image|mimes:jpg,jpeg,png,webp|max:5120',
       'student_year' => 'required|in:1st Year,2nd Year,3rd Year,4th Year,5th Year,Passout',
-      'subject_id' => 'required|exists:subjects,id',
+      'internship_stipend_type' => 'nullable|in:stipend,non_stipend',
+      'placement_type' => 'nullable|in:on,off,online_virtual,pool',
+      'opening_type' => 'nullable|in:psu,private',
+      'documentation_required_text' => 'nullable|string',
     ]);
+
+    $applicabilityScope = (string) $request->input('applicability_scope', 'selected_departments');
+    $allowedScopes = ['both_campuses_all_departments', 'selected_campus_all_departments', 'selected_departments'];
+    if (!in_array($applicabilityScope, $allowedScopes, true)) {
+      return back()->withErrors([
+        'applicability_scope' => 'Please select a valid applicability option.',
+      ])->withInput();
+    }
+
+    $campusId = null;
+    if ($applicabilityScope !== 'both_campuses_all_departments') {
+      $request->validate([
+        'campus_id' => 'required|integer|exists:campuses,id',
+      ]);
+      $campusId = (int) $request->input('campus_id');
+    }
+
+    if ($applicabilityScope === 'both_campuses_all_departments') {
+      $subjectIds = Subject::query()
+        ->pluck('id')
+        ->map(fn($id) => (int) $id)
+        ->unique()
+        ->values();
+    } elseif ($applicabilityScope === 'selected_campus_all_departments') {
+      $subjectIds = Subject::query()
+        ->where('campus_id', $campusId)
+        ->pluck('id')
+        ->map(fn($id) => (int) $id)
+        ->unique()
+        ->values();
+    } else {
+      $request->validate([
+        'subject_ids' => 'required|array|min:1',
+        'subject_ids.*' => 'required|integer|exists:subjects,id',
+      ]);
+
+      $subjectIds = collect($request->input('subject_ids', []))
+        ->map(fn($id) => (int) $id)
+        ->unique()
+        ->values();
+
+      $matchingSubjectCount = Subject::whereIn('id', $subjectIds)
+        ->where('campus_id', $campusId)
+        ->count();
+      if ($matchingSubjectCount !== $subjectIds->count()) {
+        return back()->withErrors([
+          'subject_ids' => 'All selected departments must belong to the selected campus.',
+        ])->withInput();
+      }
+    }
+
+    if ($subjectIds->isEmpty()) {
+      return back()->withErrors([
+        'subject_ids' => 'No departments found for the selected applicability option.',
+      ])->withInput();
+    }
+
+    $documentationRequired = $this->parseDocumentationList((string) ($validated['documentation_required_text'] ?? ''));
+    $internshipStipendType = $validated['internship_stipend_type'] ?? null;
+    if ($validated['category'] === 'placements') {
+      if (empty($validated['placement_type'])) {
+        return back()->withErrors(['placement_type' => 'Placement type is required for Placement category.'])->withInput();
+      }
+      if (empty($validated['opening_type'])) {
+        return back()->withErrors(['opening_type' => 'Opening type is required for Placement category.'])->withInput();
+      }
+      if (empty($documentationRequired)) {
+        return back()->withErrors(['documentation_required_text' => 'Please list required documentation for Placement category.'])->withInput();
+      }
+      $internshipStipendType = null;
+    } elseif ($validated['category'] === 'internship') {
+      if (empty($internshipStipendType)) {
+        return back()->withErrors(['internship_stipend_type' => 'Please select stipend or non stipend for Internship category.'])->withInput();
+      }
+      $validated['placement_type'] = null;
+      $validated['opening_type'] = null;
+      $documentationRequired = null;
+    } else {
+      $internshipStipendType = null;
+      $validated['placement_type'] = null;
+      $validated['opening_type'] = null;
+      $documentationRequired = null;
+    }
 
     $logoPath = null;
     if ($request->hasFile('logo')) {
       $logoPath = $request->file('logo')->store('placement_logos', 's3');
     }
 
-    DB::transaction(function () use ($validated, $logoPath) {
-      $placement = PlacementOpportunity::create([
+    DB::transaction(function () use ($validated, $logoPath, $subjectIds, $documentationRequired, $campusId, $internshipStipendType) {
+      $attributes = [
         'title' => $validated['title'],
         'category' => $validated['category'],
         'month' => $validated['month'],
@@ -416,10 +531,18 @@ class TrainingPlacementController extends Controller
         'country' => $validated['country'] ?? null,
         'logo_path' => $logoPath,
         'student_year' => $validated['student_year'],
-        'subject_id' => $validated['subject_id'],
+        'campus_id' => $campusId,
+        'subject_id' => $subjectIds->first(),
+        'subject_ids' => $subjectIds->all(),
+        'internship_stipend_type' => $internshipStipendType,
+        'placement_type' => $validated['placement_type'] ?? null,
+        'opening_type' => $validated['opening_type'] ?? null,
+        'documentation_required' => $documentationRequired,
         'is_active' => 1,
         'created_by' => Auth::id(),
-      ]);
+      ];
+
+      PlacementOpportunity::create($this->filterPlacementAttributes($attributes));
     });
 
     return back()->with('success', 'Placement opportunity added successfully.');
@@ -439,9 +562,95 @@ class TrainingPlacementController extends Controller
       'country' => 'nullable|string|max:255',
       'logo' => 'nullable|image|mimes:jpg,jpeg,png,webp|max:5120',
       'student_year' => 'required|in:1st Year,2nd Year,3rd Year,4th Year,5th Year,Passout',
-      'subject_id' => 'required|exists:subjects,id',
+      'internship_stipend_type' => 'nullable|in:stipend,non_stipend',
+      'placement_type' => 'nullable|in:on,off,online_virtual,pool',
+      'opening_type' => 'nullable|in:psu,private',
+      'documentation_required_text' => 'nullable|string',
       'is_active' => 'nullable|boolean',
     ]);
+
+    $applicabilityScope = (string) $request->input('applicability_scope', 'selected_departments');
+    $allowedScopes = ['both_campuses_all_departments', 'selected_campus_all_departments', 'selected_departments'];
+    if (!in_array($applicabilityScope, $allowedScopes, true)) {
+      return back()->withErrors([
+        'applicability_scope' => 'Please select a valid applicability option.',
+      ])->withInput();
+    }
+
+    $campusId = null;
+    if ($applicabilityScope !== 'both_campuses_all_departments') {
+      $request->validate([
+        'campus_id' => 'required|integer|exists:campuses,id',
+      ]);
+      $campusId = (int) $request->input('campus_id');
+    }
+
+    if ($applicabilityScope === 'both_campuses_all_departments') {
+      $subjectIds = Subject::query()
+        ->pluck('id')
+        ->map(fn($id) => (int) $id)
+        ->unique()
+        ->values();
+    } elseif ($applicabilityScope === 'selected_campus_all_departments') {
+      $subjectIds = Subject::query()
+        ->where('campus_id', $campusId)
+        ->pluck('id')
+        ->map(fn($id) => (int) $id)
+        ->unique()
+        ->values();
+    } else {
+      $request->validate([
+        'subject_ids' => 'required|array|min:1',
+        'subject_ids.*' => 'required|integer|exists:subjects,id',
+      ]);
+
+      $subjectIds = collect($request->input('subject_ids', []))
+        ->map(fn($id) => (int) $id)
+        ->unique()
+        ->values();
+
+      $matchingSubjectCount = Subject::whereIn('id', $subjectIds)
+        ->where('campus_id', $campusId)
+        ->count();
+      if ($matchingSubjectCount !== $subjectIds->count()) {
+        return back()->withErrors([
+          'subject_ids' => 'All selected departments must belong to the selected campus.',
+        ])->withInput();
+      }
+    }
+
+    if ($subjectIds->isEmpty()) {
+      return back()->withErrors([
+        'subject_ids' => 'No departments found for the selected applicability option.',
+      ])->withInput();
+    }
+
+    $documentationRequired = $this->parseDocumentationList((string) ($validated['documentation_required_text'] ?? ''));
+    $internshipStipendType = $validated['internship_stipend_type'] ?? null;
+    if ($validated['category'] === 'placements') {
+      if (empty($validated['placement_type'])) {
+        return back()->withErrors(['placement_type' => 'Placement type is required for Placement category.'])->withInput();
+      }
+      if (empty($validated['opening_type'])) {
+        return back()->withErrors(['opening_type' => 'Opening type is required for Placement category.'])->withInput();
+      }
+      if (empty($documentationRequired)) {
+        return back()->withErrors(['documentation_required_text' => 'Please list required documentation for Placement category.'])->withInput();
+      }
+      $internshipStipendType = null;
+    } elseif ($validated['category'] === 'internship') {
+      if (empty($internshipStipendType)) {
+        return back()->withErrors(['internship_stipend_type' => 'Please select stipend or non stipend for Internship category.'])->withInput();
+      }
+      $validated['placement_type'] = null;
+      $validated['opening_type'] = null;
+      $documentationRequired = null;
+    } else {
+      $internshipStipendType = null;
+      $validated['placement_type'] = null;
+      $validated['opening_type'] = null;
+      $documentationRequired = null;
+    }
 
     $logoPath = $placement->logo_path;
     if ($request->hasFile('logo')) {
@@ -451,8 +660,8 @@ class TrainingPlacementController extends Controller
       $logoPath = $request->file('logo')->store('placement_logos', 's3');
     }
 
-    DB::transaction(function () use ($validated, $placement, $logoPath) {
-      $placement->update([
+    DB::transaction(function () use ($validated, $placement, $logoPath, $subjectIds, $documentationRequired, $campusId, $internshipStipendType) {
+      $attributes = [
         'title' => $validated['title'],
         'category' => $validated['category'],
         'month' => $validated['month'],
@@ -464,9 +673,17 @@ class TrainingPlacementController extends Controller
         'country' => $validated['country'] ?? null,
         'logo_path' => $logoPath,
         'student_year' => $validated['student_year'],
-        'subject_id' => $validated['subject_id'],
+        'campus_id' => $campusId,
+        'subject_id' => $subjectIds->first(),
+        'subject_ids' => $subjectIds->all(),
+        'internship_stipend_type' => $internshipStipendType,
+        'placement_type' => $validated['placement_type'] ?? null,
+        'opening_type' => $validated['opening_type'] ?? null,
+        'documentation_required' => $documentationRequired,
         'is_active' => isset($validated['is_active']) ? 1 : 0,
-      ]);
+      ];
+
+      $placement->update($this->filterPlacementAttributes($attributes));
     });
 
     return back()->with('success', 'Placement opportunity updated successfully.');
@@ -584,9 +801,42 @@ class TrainingPlacementController extends Controller
     return [
       'internship' => 'Internship',
       'apprenticeship' => 'Apprenticeship',
-      'placements' => 'Placements',
+      'placements' => 'Placement',
       'project' => 'Project',
     ];
+  }
+
+  private function placementTypeOptions(): array
+  {
+    return [
+      'on' => 'On Campus',
+      'off' => 'Off Campus',
+      'online_virtual' => 'Online / Virtual',
+      'pool' => 'Pool Campus',
+    ];
+  }
+
+  private function openingTypeOptions(): array
+  {
+    return [
+      'psu' => 'PSU',
+      'private' => 'Private',
+    ];
+  }
+
+  private function parseDocumentationList(string $documentationText): array
+  {
+    $lines = preg_split('/\r\n|\r|\n/', trim($documentationText));
+    if (!is_array($lines)) {
+      return [];
+    }
+
+    return collect($lines)
+      ->map(fn($line) => trim((string) $line))
+      ->filter()
+      ->unique()
+      ->values()
+      ->all();
   }
 
   private function monthOptions(): array
@@ -617,5 +867,36 @@ class TrainingPlacementController extends Controller
       '5th Year',
       'Passout',
     ];
+  }
+
+  private function filterPlacementAttributes(array $attributes): array
+  {
+    $columns = $this->placementColumnListing();
+    if (empty($columns)) {
+      return [];
+    }
+
+    return collect($attributes)
+      ->filter(function ($value, $key) use ($columns) {
+        return in_array($key, $columns, true);
+      })
+      ->all();
+  }
+
+  private function placementColumnListing(): array
+  {
+    static $columns = null;
+
+    if (is_array($columns)) {
+      return $columns;
+    }
+
+    try {
+      $columns = Schema::getColumnListing('placement_opportunities');
+    } catch (\Throwable $e) {
+      $columns = [];
+    }
+
+    return $columns;
   }
 }
