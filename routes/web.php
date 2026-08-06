@@ -237,8 +237,12 @@ Route::group(['prefix' => '/erp'], function () {
 
             Route::get('student-program-master', [AdminController::class, 'studentProgramMaster'])->name('itcell.student-program-master');
             Route::post('student-program-type/multi-update', [AdminController::class, 'studentProgramTypeMultiUpdate'])->name('itcell.student-program-type.multi.update');
-            Route::get('bulk-student-course-enrollment', [AdminController::class, 'bulkStudentCourseEnrollment'])->name('bulk.student.course.enrollment');
-            Route::post('bulk-student-course-enrollment', [AdminController::class, 'bulkStudentCourseEnrollmentStore'])->name('bulk.student.course.enrollment.store');
+            Route::get('bulk-rollno-reconfiguration', [AdminController::class, 'bulkStudentCourseEnrollment'])->name('itcell.bulk.rollno.reconfigure');
+            Route::post('bulk-rollno-reconfiguration', [AdminController::class, 'bulkStudentCourseEnrollmentStore'])->name('itcell.bulk.rollno.reconfigure.store');
+            Route::get('bulk-rollno-reconfiguration/program-students/{combinationId}', [AdminController::class, 'bulkRollNoProgramStudents'])->name('itcell.bulk.rollno.reconfigure.program-students');
+            // Legacy URL support
+            Route::get('bulk-student-course-enrollment', [AdminController::class, 'bulkStudentCourseEnrollment']);
+            Route::post('bulk-student-course-enrollment', [AdminController::class, 'bulkStudentCourseEnrollmentStore']);
 
             Route::get('semester-engine', [AdminController::class, 'semesterEngine'])->name('itcell.semester.engine');
             Route::post('semester-engine', [AdminController::class, 'semesterEngineStore'])->name('itcell.semester.engine.store');

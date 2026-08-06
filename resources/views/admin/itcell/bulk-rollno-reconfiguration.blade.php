@@ -84,6 +84,33 @@
     font-weight: 700;
     color: #1e3a5f;
   }
+
+  .btn-view-program {
+    border: 1px solid #c9d9ec;
+    background: #f4f8fd;
+    color: #174a7c;
+    font-weight: 600;
+    font-size: 12px;
+    padding: 4px 10px;
+    border-radius: 8px;
+  }
+
+  .btn-view-program:hover {
+    background: #e9f2fb;
+    color: #123d67;
+  }
+
+  .rollno-same {
+    color: #166534;
+    font-weight: 700;
+    font-size: 11px;
+  }
+
+  .rollno-change {
+    color: #9a3412;
+    font-weight: 700;
+    font-size: 11px;
+  }
 </style>
 
 @php
@@ -101,7 +128,7 @@ $totalStudentsCount = (int) $programRowsCollection->sum(fn($row) => (int) ($row-
         <h4 class="mb-1">Bulk Roll Number Reconfiguration</h4>
         <p class="text-muted mb-0">Select batch, choose program combinations, and reconfigure student roll numbers in one run.</p>
         <div class="col-lg-3">
-          <form action="{{ route('bulk.student.course.enrollment') }}" method="GET" class="row g-3 align-items-end mb-3" id="batchFilterForm">
+          <form action="{{ route('itcell.bulk.rollno.reconfigure') }}" method="GET" class="row g-3 align-items-end mb-3" id="batchFilterForm">
             <div class="input-group">
               <select name="batch_id" class="form-control" id="batchSelect" required>
                 <option value="">Select batch</option>
@@ -144,7 +171,7 @@ $totalStudentsCount = (int) $programRowsCollection->sum(fn($row) => (int) ($row-
       </div>
     </div>
 
-    <form action="{{ route('bulk.student.course.enrollment.store') }}" method="POST">
+    <form action="{{ route('itcell.bulk.rollno.reconfigure.store') }}" method="POST">
       @csrf
       <input type="hidden" name="batch_id" value="{{ $selectedBatchId }}">
 
@@ -183,6 +210,7 @@ $totalStudentsCount = (int) $programRowsCollection->sum(fn($row) => (int) ($row-
 
                 <th style="width: 180px;">Campus</th>
                 <th style="width: 140px;">Students</th>
+                <th style="width: 120px;">Action</th>
               </tr>
             </thead>
             <tbody id="programRowsBody">
@@ -209,10 +237,19 @@ $totalStudentsCount = (int) $programRowsCollection->sum(fn($row) => (int) ($row-
                 </td>
                 <td>{{ $row->campus_name }}</td>
                 <td>{{ $row->students_count }}</td>
+                <td>
+                  <button
+                    type="button"
+                    class="btn-view-program js-view-program"
+                    data-combination-id="{{ (int) $row->combination_id }}"
+                    data-program-label="{{ trim(($row->program_code ?? '-') . ' - ' . ($row->program_name ?? '-')) }}">
+                    View
+                  </button>
+                </td>
               </tr>
               @endforeach
               <tr id="noProgramSearchResult" style="display: none;">
-                <td colspan="4" class="text-center text-muted">No matching programs found.</td>
+                <td colspan="5" class="text-center text-muted">No matching programs found.</td>
               </tr>
             </tbody>
           </table>
@@ -228,7 +265,93 @@ $totalStudentsCount = (int) $programRowsCollection->sum(fn($row) => (int) ($row-
 
 
     </form>
+
+    @php
+    $rollnoUpdates = collect(session('rollno_updates', []));
+    $rollnoUpdatesTotal = (int) session('rollno_updates_total', 0);
+    $rollnoUpdatesTruncated = (int) session('rollno_updates_truncated', 0);
+    @endphp
+
+    @if($rollnoUpdates->isNotEmpty())
+    <div class="bulk-card p-3 mb-3">
+      <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-2">
+        <div class="mini-title mb-0">Reconfigured Roll Number List</div>
+        <div class="count-pill">Showing {{ $rollnoUpdates->count() }} of {{ $rollnoUpdatesTotal }}</div>
+      </div>
+
+      <div class="table-responsive">
+        <table class="table table-sm table-striped align-middle mb-0">
+          <thead>
+            <tr>
+              <th style="width: 80px;">#</th>
+              <th style="width: 120px;">Student ID</th>
+              <th>Program</th>
+              <th style="width: 160px;">Campus</th>
+              <th style="width: 220px;">Old Roll No</th>
+              <th style="width: 220px;">New Roll No</th>
+            </tr>
+          </thead>
+          <tbody>
+            @foreach($rollnoUpdates as $index => $update)
+            <tr>
+              <td>{{ $index + 1 }}</td>
+              <td>{{ $update['student_id'] ?? '-' }}</td>
+              <td>
+                <strong>{{ $update['program_code'] ?? '-' }}</strong>
+                <div class="text-muted small">{{ $update['program_name'] ?? '-' }}</div>
+              </td>
+              <td>{{ $update['campus_name'] ?? '-' }}</td>
+              <td>{{ $update['old_roll_no'] !== '' ? $update['old_roll_no'] : '-' }}</td>
+              <td><strong>{{ $update['new_roll_no'] ?? '-' }}</strong></td>
+            </tr>
+            @endforeach
+          </tbody>
+        </table>
+      </div>
+
+      @if($rollnoUpdatesTruncated > 0)
+      <div class="alert alert-warning mt-3 mb-0">
+        Showing first {{ $rollnoUpdates->count() }} entries. {{ $rollnoUpdatesTruncated }} additional record(s) were processed but not displayed.
+      </div>
+      @endif
+    </div>
     @endif
+    @endif
+  </div>
+</div>
+
+<div class="modal fade" id="programStudentsModal" tabindex="-1" aria-labelledby="programStudentsModalLabel" aria-hidden="true">
+  <div class="modal-dialog modal-xl modal-dialog-scrollable">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title" id="programStudentsModalLabel">Program Students</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <div class="modal-body">
+        <div class="d-flex justify-content-between align-items-center mb-2">
+          <div class="text-muted" id="programStudentsMeta">Loading...</div>
+        </div>
+        <div class="table-responsive">
+          <table class="table table-sm table-striped align-middle mb-0">
+            <thead>
+              <tr>
+                <th style="width:70px;">#</th>
+                <th style="width:120px;">Student ID</th>
+                <th>Student Name</th>
+                <th style="width:210px;">Current Roll No</th>
+                <th style="width:210px;">Preview Roll No</th>
+                <th style="width:120px;">Status</th>
+              </tr>
+            </thead>
+            <tbody id="programStudentsBody">
+              <tr>
+                <td colspan="6" class="text-center text-muted">Click View to load students.</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
   </div>
 </div>
 
@@ -251,6 +374,91 @@ $totalStudentsCount = (int) $programRowsCollection->sum(fn($row) => (int) ($row-
     const rowBody = document.getElementById('programRowsBody');
     const noResultRow = document.getElementById('noProgramSearchResult');
     const visibleRowsCount = document.getElementById('visibleRowsCount');
+    const viewButtons = Array.from(document.querySelectorAll('.js-view-program'));
+    const studentsModalEl = document.getElementById('programStudentsModal');
+    const studentsModalTitle = document.getElementById('programStudentsModalLabel');
+    const studentsMeta = document.getElementById('programStudentsMeta');
+    const studentsBody = document.getElementById('programStudentsBody');
+    const selectedBatchId = Number('{{ (int) $selectedBatchId }}');
+    const previewUrlTemplate = '{{ route("itcell.bulk.rollno.reconfigure.program-students", ["combinationId" => "__COMBINATION_ID__"]) }}';
+
+    function openStudentsModal() {
+      if (!studentsModalEl) return;
+      if (window.bootstrap && typeof window.bootstrap.Modal === 'function') {
+        const modal = window.bootstrap.Modal.getOrCreateInstance(studentsModalEl);
+        modal.show();
+        return;
+      }
+      studentsModalEl.style.display = 'block';
+      studentsModalEl.classList.add('show');
+      studentsModalEl.removeAttribute('aria-hidden');
+    }
+
+    function escapeHtml(text) {
+      return String(text || '')
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#039;');
+    }
+
+    async function loadProgramStudents(combinationId, programLabel) {
+      if (!studentsBody || !studentsMeta) return;
+
+      studentsModalTitle.textContent = `Program Students: ${programLabel || '-'}`;
+      studentsMeta.textContent = 'Loading student list...';
+      studentsBody.innerHTML = '<tr><td colspan="6" class="text-center text-muted">Loading...</td></tr>';
+      openStudentsModal();
+
+      const requestUrl = previewUrlTemplate.replace('__COMBINATION_ID__', encodeURIComponent(String(combinationId))) + `?batch_id=${encodeURIComponent(String(selectedBatchId || 0))}`;
+
+      try {
+        const response = await fetch(requestUrl, {
+          method: 'GET',
+          headers: {
+            Accept: 'application/json',
+          },
+        });
+
+        const payload = await response.json();
+        if (!payload || !payload.success) {
+          const message = payload && payload.message ? payload.message : 'Failed to fetch student list.';
+          studentsMeta.textContent = message;
+          studentsBody.innerHTML = `<tr><td colspan="6" class="text-center text-danger">${escapeHtml(message)}</td></tr>`;
+          return;
+        }
+
+        const students = Array.isArray(payload.students) ? payload.students : [];
+        const totalStudents = Number(payload.total_students || students.length || 0);
+        const changedCount = students.filter((row) => !!row.needs_change).length;
+        const program = payload.program || {};
+        const programTitle = [program.program_code || '-', program.program_name || '-'].join(' - ');
+
+        studentsMeta.textContent = `${programTitle} | ${program.campus_name || '-'} | Batch ${program.batch_name || '-'} | ${totalStudents} student(s), ${changedCount} change(s)`;
+
+        if (!students.length) {
+          studentsBody.innerHTML = '<tr><td colspan="6" class="text-center text-muted">No students found for this program.</td></tr>';
+          return;
+        }
+
+        studentsBody.innerHTML = students.map((row, idx) => {
+          const statusText = row.needs_change ? 'Will Change' : 'No Change';
+          const statusClass = row.needs_change ? 'rollno-change' : 'rollno-same';
+          return `<tr>
+            <td>${idx + 1}</td>
+            <td>${escapeHtml(row.student_id)}</td>
+            <td>${escapeHtml(row.student_name || '-')}</td>
+            <td>${escapeHtml(row.current_roll_no || '-')}</td>
+            <td><strong>${escapeHtml(row.preview_roll_no || '-')}</strong></td>
+            <td><span class="${statusClass}">${statusText}</span></td>
+          </tr>`;
+        }).join('');
+      } catch (error) {
+        studentsMeta.textContent = 'Failed to load student list.';
+        studentsBody.innerHTML = '<tr><td colspan="6" class="text-center text-danger">Unable to fetch student list right now.</td></tr>';
+      }
+    }
 
     function syncEnrollButtonState() {
       if (!reconfigureBtn) return;
@@ -306,6 +514,17 @@ $totalStudentsCount = (int) $programRowsCollection->sum(fn($row) => (int) ($row-
         if (noResultRow) {
           noResultRow.style.display = visibleCount === 0 ? '' : 'none';
         }
+      });
+    }
+
+    if (viewButtons.length) {
+      viewButtons.forEach((button) => {
+        button.addEventListener('click', function() {
+          const combinationId = Number(this.getAttribute('data-combination-id') || 0);
+          const programLabel = this.getAttribute('data-program-label') || 'Program';
+          if (!combinationId) return;
+          loadProgramStudents(combinationId, programLabel);
+        });
       });
     }
   })();
