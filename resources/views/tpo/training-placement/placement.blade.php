@@ -68,6 +68,23 @@
         </div>
       </div>
 
+      <div class="card border-0 shadow-sm mb-3">
+        <div class="card-body">
+          <form method="GET" action="{{ route('tpo.training-placement.placement.index') }}" class="row g-2 align-items-end">
+            <div class="col-md-9">
+              <label class="form-label fw-semibold mb-1">Search Placements</label>
+              <input type="text" name="search" value="{{ $placementSearch ?? '' }}" class="form-control" placeholder="Search by title, company, location, category, campus or department">
+            </div>
+            <div class="col-md-3 d-flex gap-2">
+              <button type="submit" class="btn btn-primary w-100">Search</button>
+              @if(!empty($placementSearch))
+              <a href="{{ route('tpo.training-placement.placement.index') }}" class="btn btn-outline-secondary w-100">Reset</a>
+              @endif
+            </div>
+          </form>
+        </div>
+      </div>
+
       <div class="row g-3 mb-4">
         <div class="col-md-3 col-sm-6">
           <div class="stat-card">

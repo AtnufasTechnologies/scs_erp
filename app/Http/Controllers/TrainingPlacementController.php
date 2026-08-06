@@ -12,6 +12,7 @@ use App\Models\TrainingSurveyOption;
 use App\Models\TrainingSurveyQuestion;
 use App\Models\TrainingSurveyResponse;
 use App\Models\TrainingTargetRole;
+use App\Models\TpoEvent;
 use App\Models\Subject;
 use App\Models\UserHasRole;
 use Illuminate\Http\Request;
@@ -71,14 +72,26 @@ class TrainingPlacementController extends Controller
     ));
   }
 
-  public function index()
+  public function index(Request $request)
   {
-    $trainings = TrainingProgram::with([
+    $trainingSearch = trim((string) $request->input('search', ''));
+    $trainingSearchLike = '%' . $trainingSearch . '%';
+
+    $trainingsQuery = TrainingProgram::with([
       'targetRoles',
       'resources',
       'surveyQuestions.options',
       'attempts',
-    ])->latest()->get();
+    ]);
+
+    if ($trainingSearch !== '') {
+      $trainingsQuery->where(function ($query) use ($trainingSearchLike) {
+        $query->where('title', 'like', $trainingSearchLike)
+          ->orWhere('description', 'like', $trainingSearchLike);
+      });
+    }
+
+    $trainings = $trainingsQuery->latest()->get();
 
     $roleOptions = $this->roleOptions();
 
@@ -87,8 +100,17 @@ class TrainingPlacementController extends Controller
       $q->where('role_name', $currentRole);
     })->pluck('training_program_id');
 
-    $myTrainings = TrainingProgram::with('attempts')
-      ->whereIn('id', $myTrainingIds)
+    $myTrainingsQuery = TrainingProgram::with('attempts')
+      ->whereIn('id', $myTrainingIds);
+
+    if ($trainingSearch !== '') {
+      $myTrainingsQuery->where(function ($query) use ($trainingSearchLike) {
+        $query->where('title', 'like', $trainingSearchLike)
+          ->orWhere('description', 'like', $trainingSearchLike);
+      });
+    }
+
+    $myTrainings = $myTrainingsQuery
       ->latest()
       ->get();
 
@@ -117,13 +139,37 @@ class TrainingPlacementController extends Controller
       'placementTypeOptions',
       'openingTypeOptions',
       'monthOptions',
-      'yearOptions'
+      'yearOptions',
+      'trainingSearch'
     ));
   }
 
-  public function placementIndex()
+  public function placementIndex(Request $request)
   {
-    $placements = PlacementOpportunity::with(['subject', 'campus'])->latest()->get();
+    $placementSearch = trim((string) $request->input('search', ''));
+    $placementSearchLike = '%' . $placementSearch . '%';
+
+    $placementsQuery = PlacementOpportunity::with(['subject', 'campus']);
+
+    if ($placementSearch !== '') {
+      $placementsQuery->where(function ($query) use ($placementSearchLike) {
+        $query->where('title', 'like', $placementSearchLike)
+          ->orWhere('description', 'like', $placementSearchLike)
+          ->orWhere('company_name', 'like', $placementSearchLike)
+          ->orWhere('location', 'like', $placementSearchLike)
+          ->orWhere('country', 'like', $placementSearchLike)
+          ->orWhere('category', 'like', $placementSearchLike)
+          ->orWhereHas('campus', function ($campusQuery) use ($placementSearchLike) {
+            $campusQuery->where('name', 'like', $placementSearchLike);
+          })
+          ->orWhereHas('subject', function ($subjectQuery) use ($placementSearchLike) {
+            $subjectQuery->where('title', 'like', $placementSearchLike)
+              ->orWhere('name', 'like', $placementSearchLike);
+          });
+      });
+    }
+
+    $placements = $placementsQuery->latest()->get();
     $subjects = Subject::orderBy('title')->get(['id', 'title', 'code', 'campus_id']);
     $subjectLookup = $subjects->keyBy('id');
     $campuses = Campus::orderBy('name')->get(['id', 'name']);
@@ -142,7 +188,8 @@ class TrainingPlacementController extends Controller
       'placementTypeOptions',
       'openingTypeOptions',
       'monthOptions',
-      'yearOptions'
+      'yearOptions',
+      'placementSearch'
     ));
   }
 
@@ -700,6 +747,184 @@ class TrainingPlacementController extends Controller
     return back()->with('success', 'Placement opportunity deleted successfully.');
   }
 
+  public function eventsIndex(Request $request)
+  {
+    $eventSearch = trim((string) $request->input('search', ''));
+    $eventSearchLike = '%' . $eventSearch . '%';
+
+    $eventsQuery = TpoEvent::with(['campus', 'subject', 'approver']);
+
+    if ($eventSearch !== '') {
+      $eventsQuery->where(function ($query) use ($eventSearchLike) {
+        $query->where('title', 'like', $eventSearchLike)
+          ->orWhere('resource_person', 'like', $eventSearchLike)
+          ->orWhere('program_description', 'like', $eventSearchLike)
+          ->orWhere('event_type', 'like', $eventSearchLike)
+          ->orWhereHas('campus', function ($campusQuery) use ($eventSearchLike) {
+            $campusQuery->where('name', 'like', $eventSearchLike);
+          })
+          ->orWhereHas('subject', function ($subjectQuery) use ($eventSearchLike) {
+            $subjectQuery->where('title', 'like', $eventSearchLike)
+              ->orWhere('name', 'like', $eventSearchLike);
+          });
+      });
+    }
+
+    $events = $eventsQuery
+      ->latest('event_date')
+      ->latest('id')
+      ->get();
+
+    $campuses = Campus::orderBy('name')->get(['id', 'name']);
+    $subjects = Subject::orderBy('title')->get(['id', 'title', 'code', 'campus_id']);
+    $eventTypeOptions = $this->eventTypeOptions();
+
+    return view('tpo.training-placement.events', compact(
+      'events',
+      'campuses',
+      'subjects',
+      'eventTypeOptions',
+      'eventSearch'
+    ));
+  }
+
+  public function storeEvent(Request $request)
+  {
+    $validated = $request->validate([
+      'event_type' => 'required|in:training_program,guest_lecture,workshop',
+      'title' => 'required|string|max:255',
+      'resource_person' => 'nullable|string|max:255',
+      'campus_id' => 'required|integer|exists:campuses,id',
+      'subject_id' => 'required|integer|exists:subjects,id',
+      'event_date' => 'required|date',
+      'program_description' => 'required|string',
+      'participant_count' => 'required|integer|min:0',
+      'report_file' => 'nullable|file|mimes:pdf,doc,docx,jpg,jpeg,png|max:10240',
+    ]);
+
+    $subjectBelongsToCampus = Subject::where('id', (int) $validated['subject_id'])
+      ->where('campus_id', (int) $validated['campus_id'])
+      ->exists();
+
+    if (!$subjectBelongsToCampus) {
+      return back()->withErrors([
+        'subject_id' => 'Selected department must belong to the selected campus.',
+      ])->withInput();
+    }
+
+    $reportPath = null;
+    if ($request->hasFile('report_file')) {
+      $reportPath = $request->file('report_file')->store('tpo_event_reports', 's3');
+    }
+
+    TpoEvent::create([
+      'event_type' => $validated['event_type'],
+      'title' => $validated['title'],
+      'resource_person' => $validated['resource_person'] ?? null,
+      'campus_id' => (int) $validated['campus_id'],
+      'subject_id' => (int) $validated['subject_id'],
+      'event_date' => $validated['event_date'],
+      'program_description' => $validated['program_description'],
+      'participant_count' => (int) $validated['participant_count'],
+      'report_path' => $reportPath,
+      'approval_status' => 'pending',
+      'approved_by' => null,
+      'approved_at' => null,
+      'created_by' => Auth::id(),
+    ]);
+
+    return back()->with('success', 'Event added successfully.');
+  }
+
+  public function updateEvent(Request $request, TpoEvent $event)
+  {
+    $validated = $request->validate([
+      'event_type' => 'required|in:training_program,guest_lecture,workshop',
+      'title' => 'required|string|max:255',
+      'resource_person' => 'nullable|string|max:255',
+      'campus_id' => 'required|integer|exists:campuses,id',
+      'subject_id' => 'required|integer|exists:subjects,id',
+      'event_date' => 'required|date',
+      'program_description' => 'required|string',
+      'participant_count' => 'required|integer|min:0',
+      'report_file' => 'nullable|file|mimes:pdf,doc,docx,jpg,jpeg,png|max:10240',
+    ]);
+
+    $subjectBelongsToCampus = Subject::where('id', (int) $validated['subject_id'])
+      ->where('campus_id', (int) $validated['campus_id'])
+      ->exists();
+
+    if (!$subjectBelongsToCampus) {
+      return back()->withErrors([
+        'subject_id' => 'Selected department must belong to the selected campus.',
+      ])->withInput();
+    }
+
+    $reportPath = $event->report_path;
+    if ($request->hasFile('report_file')) {
+      if (!empty($reportPath)) {
+        Storage::disk('s3')->delete($reportPath);
+      }
+      $reportPath = $request->file('report_file')->store('tpo_event_reports', 's3');
+    }
+
+    $event->update([
+      'event_type' => $validated['event_type'],
+      'title' => $validated['title'],
+      'resource_person' => $validated['resource_person'] ?? null,
+      'campus_id' => (int) $validated['campus_id'],
+      'subject_id' => (int) $validated['subject_id'],
+      'event_date' => $validated['event_date'],
+      'program_description' => $validated['program_description'],
+      'participant_count' => (int) $validated['participant_count'],
+      'report_path' => $reportPath,
+      'approval_status' => 'pending',
+      'approved_by' => null,
+      'approved_at' => null,
+    ]);
+
+    return back()->with('success', 'Event updated and moved to pending approval.');
+  }
+
+  public function destroyEvent(TpoEvent $event)
+  {
+    if (!empty($event->report_path)) {
+      Storage::disk('s3')->delete($event->report_path);
+    }
+
+    $event->delete();
+
+    return back()->with('success', 'Event deleted successfully.');
+  }
+
+  public function principalEventsIndex()
+  {
+    $events = TpoEvent::with(['campus', 'subject', 'creator', 'approver'])
+      ->latest('event_date')
+      ->latest('id')
+      ->get();
+
+    $eventTypeOptions = $this->eventTypeOptions();
+
+    return view('principal.tpo-events.index', compact('events', 'eventTypeOptions'));
+  }
+
+  public function principalApproveEvent(Request $request, TpoEvent $event)
+  {
+    $validated = $request->validate([
+      'approval_status' => 'required|in:approved,rejected',
+    ]);
+
+    $status = $validated['approval_status'];
+    $event->update([
+      'approval_status' => $status,
+      'approved_by' => Auth::id(),
+      'approved_at' => $status === 'approved' ? now() : null,
+    ]);
+
+    return back()->with('success', 'Event approval status updated successfully.');
+  }
+
   public function analytics()
   {
     $trainings = TrainingProgram::with(['targetRoles', 'attempts'])->latest()->get();
@@ -821,6 +1046,15 @@ class TrainingPlacementController extends Controller
     return [
       'psu' => 'PSU',
       'private' => 'Private',
+    ];
+  }
+
+  private function eventTypeOptions(): array
+  {
+    return [
+      'training_program' => 'Training Program',
+      'guest_lecture' => 'Guest Lecture',
+      'workshop' => 'Workshop',
     ];
   }
 
