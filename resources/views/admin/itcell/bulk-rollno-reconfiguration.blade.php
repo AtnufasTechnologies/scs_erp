@@ -38,6 +38,11 @@
     color: #3730a3;
   }
 
+  .badge-combination-id {
+    background: #ecfeff;
+    color: #155e75;
+  }
+
   .stat-pill {
     border-radius: 10px;
     padding: 0.5rem 0.75rem;
@@ -242,7 +247,7 @@ $totalStudentsCount = (int) $programRowsCollection->sum(fn($row) => (int) ($row-
                     type="button"
                     class="btn-view-program js-view-program"
                     data-combination-id="{{ (int) $row->combination_id }}"
-                    data-program-label="{{ trim(($row->program_code ?? '-') . ' - ' . ($row->program_name ?? '-')) }}">
+                    data-program-label="{{ trim(($row->program_code ?? '-') . ' - ' . ($row->program_name ?? '-')) }} | CID {{ (int) $row->combination_id }}">
                     View
                   </button>
                 </td>

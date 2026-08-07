@@ -1046,7 +1046,19 @@ class AdminController extends Controller
                 ->orderByDesc('id')
                 ->get();
 
-            $programRows = $combinations->map(function ($combination) {
+            $uniqueCombinations = $combinations
+                ->groupBy(function ($combination) {
+                    return (int) $combination->batch_id . '|'
+                        . (int) $combination->student_program_id . '|'
+                        . (int) $combination->campus_id . '|'
+                        . strtoupper(trim((string) ($combination->program_type ?? '')));
+                })
+                ->map(function ($group) {
+                    return $group->sortByDesc('id')->first();
+                })
+                ->values();
+
+            $programRows = $uniqueCombinations->map(function ($combination) {
                 $studentsCount = StudentMaster::where('new_program_id', $combination->student_program_id)
                     ->where('batch', $combination->batch_id)
                     ->where('campus_id', $combination->campus_id)
@@ -1062,7 +1074,13 @@ class AdminController extends Controller
                     'campus_name' => (string) optional($combination->campusmaster)->name,
                     'students_count' => (int) $studentsCount,
                 ];
-            });
+            })
+                ->sortBy([
+                    ['program_code', 'asc'],
+                    ['program_type', 'asc'],
+                    ['campus_name', 'asc'],
+                ])
+                ->values();
         }
 
         return view('admin.itcell.bulk-rollno-reconfiguration', [
@@ -1094,7 +1112,17 @@ class AdminController extends Controller
         ])
             ->where('batch_id', $batchId)
             ->whereIn('id', $combinationIds)
+            ->orderByDesc('id')
             ->get();
+
+        $combinations = $combinations
+            ->unique(function ($combination) {
+                return (int) $combination->batch_id . '|'
+                    . (int) $combination->student_program_id . '|'
+                    . (int) $combination->campus_id . '|'
+                    . strtoupper(trim((string) ($combination->program_type ?? '')));
+            })
+            ->values();
 
         if ($combinations->isEmpty()) {
             return redirect()->route('itcell.bulk.rollno.reconfigure', [
@@ -1198,8 +1226,9 @@ class AdminController extends Controller
             $batchToken = (string) date('Y');
         }
 
+        $programTypeToken = $this->resolveRollProgramTypePrefix($combination->program_type ?? null);
         $campusToken = ((int) $combination->campus_id) === 1 ? 'SO' : 'SL';
-        $prefix = $campusToken . $batchToken . $programCode;
+        $prefix = $programTypeToken . $campusToken . $batchToken . $programCode;
 
         $studentTable = (new StudentMaster())->getTable();
         $nameCandidateColumns = [
@@ -1269,6 +1298,31 @@ class AdminController extends Controller
         ]);
     }
 
+    private function resolveRollProgramTypePrefix($programType): string
+    {
+        $normalized = strtoupper(trim((string) $programType));
+
+        if ($normalized === 'UG' || $normalized === 'U' || str_starts_with($normalized, 'UG')) {
+            return 'U';
+        }
+
+        if ($normalized === 'PG' || $normalized === 'P' || str_starts_with($normalized, 'PG')) {
+            return 'P';
+        }
+
+        if (ctype_digit($normalized)) {
+            $programTypeId = (int) $normalized;
+            if ($programTypeId === 1) {
+                return 'U';
+            }
+            if ($programTypeId === 2) {
+                return 'P';
+            }
+        }
+
+        return '';
+    }
+
     private function bulkReconfigureRollNo($students, SubjectHasStudentProgam $combination, string $batchName): array
     {
         $programCode = strtoupper((string) optional($combination->studentprograminfo)->code);
@@ -1281,8 +1335,9 @@ class AdminController extends Controller
             $batchToken = (string) date('Y');
         }
 
+        $programTypeToken = $this->resolveRollProgramTypePrefix($combination->program_type ?? null);
         $campusToken = ((int) $combination->campus_id) === 1 ? 'SO' : 'SL';
-        $prefix = $campusToken . $batchToken . $programCode;
+        $prefix = $programTypeToken . $campusToken . $batchToken . $programCode;
 
         $updates = [];
         $counter = 1;
