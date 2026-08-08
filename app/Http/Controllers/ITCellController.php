@@ -825,15 +825,55 @@ class ITCellController extends Controller
             $selectedCampusId = 1;
         }
 
+        $selectedProgramId = (int) $request->input('program_id', 0);
+        if ($selectedProgramId < 0) {
+            $selectedProgramId = 0;
+        }
+
         $search = trim((string) $request->input('search', ''));
+
+        $batchIdsWithStudents = StudentMaster::query()
+            ->whereIn('campus_id', $allowedCampusIds)
+            ->whereNotNull('batch')
+            ->distinct()
+            ->pluck('batch')
+            ->filter(fn($id) => !empty($id))
+            ->map(fn($id) => (int) $id)
+            ->values();
+
+        $batches = BatchMaster::query()
+            ->whereIn('id', $batchIdsWithStudents)
+            ->orderByDesc('batch_name')
+            ->get(['id', 'batch_name']);
+
+        $enrolledProgramOptionsQuery = StudentProgram::query()
+            ->select('student_program.id', 'student_program.name', 'student_program.code', 'student_program.campus_id')
+            ->join('student_masters', 'student_masters.new_program_id', '=', 'student_program.id')
+            ->whereIn('student_program.campus_id', $allowedCampusIds)
+            ->where('student_masters.campus_id', $selectedCampusId)
+            ->whereNotNull('student_masters.new_program_id');
+
+        $enrolledPrograms = $enrolledProgramOptionsQuery
+            ->distinct()
+            ->orderBy('student_program.name')
+            ->get();
+
+        if ($selectedProgramId > 0 && !$enrolledPrograms->contains('id', $selectedProgramId)) {
+            $selectedProgramId = 0;
+        }
 
         $studentsQuery = StudentMaster::query()
             ->with([
                 'campusmaster:id,name',
                 'stdprogramenrolled:id,name,code,campus_id',
+                'batchmaster:id,batch_name',
             ])
             ->whereIn('campus_id', $allowedCampusIds)
             ->where('campus_id', $selectedCampusId);
+
+        if ($selectedProgramId > 0) {
+            $studentsQuery->where('new_program_id', $selectedProgramId);
+        }
 
         if ($search !== '') {
             $studentsQuery->where(function ($query) use ($search) {
@@ -851,14 +891,9 @@ class ITCellController extends Controller
             ->paginate(30)
             ->appends([
                 'campus_id' => $selectedCampusId,
+                'program_id' => $selectedProgramId,
                 'search' => $search,
             ]);
-
-        $programsByCampus = StudentProgram::query()
-            ->whereIn('campus_id', $allowedCampusIds)
-            ->orderBy('name')
-            ->get(['id', 'name', 'code', 'campus_id'])
-            ->groupBy('campus_id');
 
         $recentTransfers = StudentCampusTransferLog::query()
             ->with([
@@ -875,10 +910,13 @@ class ITCellController extends Controller
 
         return view('admin.itcell.student-campus-transfer', [
             'campuses' => $campuses,
+            'batches' => $batches,
             'selectedCampusId' => $selectedCampusId,
+            'selectedProgramId' => $selectedProgramId,
             'search' => $search,
             'students' => $students,
-            'programsByCampus' => $programsByCampus,
+            'allowedCampusIds' => $allowedCampusIds,
+            'enrolledPrograms' => $enrolledPrograms,
             'recentTransfers' => $recentTransfers,
         ]);
     }
@@ -888,6 +926,7 @@ class ITCellController extends Controller
         $validated = $request->validate([
             'student_id' => 'required|integer|exists:student_masters,id',
             'to_campus_id' => 'required|integer|in:1,2',
+            'to_batch_id' => 'required|integer|exists:batch_masters,id',
             'to_program_id' => 'required|integer|exists:student_program,id',
             'reason' => 'nullable|string|max:500',
         ]);
@@ -912,9 +951,22 @@ class ITCellController extends Controller
                 }
 
                 $toProgram = StudentProgram::query()->findOrFail((int) $validated['to_program_id']);
+                $toBatchId = (int) $validated['to_batch_id'];
                 if ((int) $toProgram->campus_id !== $toCampusId) {
                     throw ValidationException::withMessages([
                         'to_program_id' => 'Selected enrolled program does not belong to the target campus.',
+                    ]);
+                }
+
+                $targetEnrollmentExists = StudentMaster::query()
+                    ->where('campus_id', $toCampusId)
+                    ->where('batch', $toBatchId)
+                    ->where('new_program_id', (int) $toProgram->id)
+                    ->exists();
+
+                if (!$targetEnrollmentExists) {
+                    throw ValidationException::withMessages([
+                        'to_program_id' => 'Selected enrolled program is not available for the chosen target campus and batch.',
                     ]);
                 }
 
@@ -922,6 +974,7 @@ class ITCellController extends Controller
                     'student_id' => $student->id,
                     'roll_no' => $student->roll_no,
                     'campus_id' => $student->campus_id,
+                    'batch' => $student->batch,
                     'new_program_id' => $student->new_program_id,
                     'department' => $student->department,
                     'academic_dept_id' => $student->academic_dept_id,
@@ -936,6 +989,7 @@ class ITCellController extends Controller
                 // Keep roll_no unchanged; transfer only campus/program and linked department fields.
                 $student->update([
                     'campus_id' => $toCampusId,
+                    'batch' => $toBatchId,
                     'new_program_id' => $toProgram->id,
                     'department' => $newDepartmentId,
                     'academic_dept_id' => $newDepartmentId,
@@ -945,6 +999,7 @@ class ITCellController extends Controller
                     'student_id' => $student->id,
                     'roll_no' => $student->roll_no,
                     'campus_id' => $student->campus_id,
+                    'batch' => $student->batch,
                     'new_program_id' => $student->new_program_id,
                     'department' => $student->department,
                     'academic_dept_id' => $student->academic_dept_id,
@@ -974,6 +1029,53 @@ class ITCellController extends Controller
         } catch (\Exception $e) {
             return back()->with('error', 'Transfer failed. Please try again.');
         }
+    }
+
+    public function getStudentCampusTransferPrograms(Request $request)
+    {
+        $allowedCampusIds = [1, 2];
+
+        $validated = $request->validate([
+            'campus_id' => 'required|integer|in:1,2',
+            'batch_id' => 'nullable|integer|min:1',
+        ]);
+
+        $campusId = (int) $validated['campus_id'];
+        if (!in_array($campusId, $allowedCampusIds, true)) {
+            return response()->json([
+                'success' => true,
+                'programs' => [],
+            ]);
+        }
+
+        $programsQuery = StudentProgram::query()
+            ->select('student_program.id', 'student_program.code', 'student_program.name')
+            ->join('student_masters', 'student_masters.new_program_id', '=', 'student_program.id')
+            ->where('student_program.campus_id', $campusId)
+            ->where('student_masters.campus_id', $campusId)
+            ->whereNotNull('student_masters.new_program_id');
+
+        if (!empty($validated['batch_id'])) {
+            $programsQuery->where('student_masters.batch', (int) $validated['batch_id']);
+        }
+
+        $programs = $programsQuery
+            ->distinct()
+            ->orderBy('student_program.name')
+            ->get()
+            ->map(function ($program) {
+                return [
+                    'id' => (int) $program->id,
+                    'code' => (string) ($program->code ?? ''),
+                    'name' => (string) ($program->name ?? ''),
+                ];
+            })
+            ->values();
+
+        return response()->json([
+            'success' => true,
+            'programs' => $programs,
+        ]);
     }
 
     private function generateLateralEntryRollNo(int $program_type, $batchName, ?string $programCode, int $campusId, int $departmentId): string
