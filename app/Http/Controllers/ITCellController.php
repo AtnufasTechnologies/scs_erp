@@ -15,16 +15,21 @@ use App\Models\DepartmentMaster;
 use App\Models\LateralEntryAuditLog;
 use App\Models\NationalityMaster;
 use App\Models\ProgramMaster;
+use App\Models\ProgramCourseMaster;
+use App\Models\ProgramWiseSemesterCourse;
 use App\Models\ReligionMaster;
 use App\Models\Semester;
+use App\Models\StudentCourseInfo;
 use App\Models\StudentCampusTransferLog;
 use App\Models\StudentSemesterConfig;
 use App\Models\StudentMaster;
 use App\Models\StudentProgram;
 use App\Models\Subject;
+use App\Models\SubjectHasStudentProgam;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Validation\ValidationException;
 use Maatwebsite\Excel\Facades\Excel;
@@ -481,6 +486,652 @@ class ITCellController extends Controller
         return redirect()
             ->route('itcell.pathway.mapper', array_filter($query, fn($value) => $value !== null && $value !== ''))
             ->with('success', $updatedCount . ' student(s) updated successfully.');
+    }
+
+    public function studentMdcSelectionIndex(Request $request)
+    {
+        $batches = BatchMaster::query()->orderByDesc('batch_name')->get(['id', 'batch_name']);
+        $semesters = Semester::query()->orderBy('id')->get(['id', 'title']);
+        $campuses = Campus::query()->orderBy('name')->get(['id', 'name']);
+
+        $selectedBatchId = (int) $request->input('batch_id', 0);
+        if ($selectedBatchId < 0) {
+            $selectedBatchId = 0;
+        }
+
+        $selectedSemesterId = (int) $request->input('semester_id', 0);
+        if ($selectedSemesterId < 0) {
+            $selectedSemesterId = 0;
+        }
+
+        $selectedProgramId = (int) $request->input('program_id', 0);
+        if ($selectedProgramId < 0) {
+            $selectedProgramId = 0;
+        }
+
+        $selectedCampusId = (int) $request->input('campus_id', 0);
+        if ($selectedCampusId < 0) {
+            $selectedCampusId = 0;
+        }
+
+        $search = trim((string) $request->input('search', ''));
+
+        $enrolledProgramsQuery = StudentProgram::query()
+            ->select('student_program.id', 'student_program.code', 'student_program.name')
+            ->join('student_masters', 'student_masters.new_program_id', '=', 'student_program.id')
+            ->whereNotNull('student_masters.new_program_id')
+            ->where('student_masters.is_deleted', 0)
+            ->where('student_masters.is_left', 0);
+
+        if ($selectedBatchId > 0) {
+            $enrolledProgramsQuery->where('student_masters.batch', $selectedBatchId);
+        }
+
+        if ($selectedCampusId > 0) {
+            $enrolledProgramsQuery->where('student_masters.campus_id', $selectedCampusId);
+        }
+
+        $enrolledPrograms = $enrolledProgramsQuery
+            ->distinct()
+            ->orderBy('student_program.name')
+            ->get();
+
+        if ($selectedProgramId > 0 && !$enrolledPrograms->contains('id', $selectedProgramId)) {
+            $selectedProgramId = 0;
+        }
+
+        $studentsQuery = StudentMaster::query()
+            ->with([
+                'batchmaster:id,batch_name',
+                'campusmaster:id,name',
+                'stdprogramenrolled:id,name,code',
+                'activeSemesterConfig:id,student_id,semester_id,current_semester',
+            ])
+            ->where('is_deleted', 0)
+            ->where('is_left', 0);
+
+        if ($selectedBatchId > 0) {
+            $studentsQuery->where('batch', $selectedBatchId);
+        }
+
+        if ($selectedSemesterId > 0) {
+            $studentsQuery->whereHas('activeSemesterConfig', function ($query) use ($selectedSemesterId) {
+                $query->where('semester_id', (string) $selectedSemesterId);
+            });
+        }
+
+        if ($selectedProgramId > 0) {
+            $studentsQuery->where('new_program_id', $selectedProgramId);
+        }
+
+        if ($selectedCampusId > 0) {
+            $studentsQuery->where('campus_id', $selectedCampusId);
+        }
+
+        if ($search !== '') {
+            $studentsQuery->where(function ($query) use ($search) {
+                $query->where('roll_no', 'like', '%' . $search . '%')
+                    ->orWhere('register_no', 'like', '%' . $search . '%')
+                    ->orWhere('user_code', 'like', '%' . $search . '%')
+                    ->orWhere('first_name', 'like', '%' . $search . '%')
+                    ->orWhere('last_name', 'like', '%' . $search . '%');
+            });
+        }
+
+        $students = $studentsQuery
+            ->orderBy('first_name')
+            ->orderBy('last_name')
+            ->paginate(30)
+            ->appends([
+                'batch_id' => $selectedBatchId,
+                'semester_id' => $selectedSemesterId,
+                'program_id' => $selectedProgramId,
+                'campus_id' => $selectedCampusId,
+                'search' => $search,
+            ]);
+
+        $offeredMdcCourses = $this->resolveOfferedMdcCoursesForBatchSemester(
+            $selectedBatchId,
+            $selectedSemesterId,
+            $selectedProgramId,
+            $selectedCampusId,
+        );
+
+        $mdcOptionsByStudent = [];
+        $currentMdcByStudent = [];
+
+        foreach ($students as $student) {
+            $studentId = (int) ($student->id ?? 0);
+            $semesterId = (int) ($student->activeSemesterConfig->semester_id ?? 0);
+
+            if ($studentId <= 0 || $semesterId <= 0) {
+                $mdcOptionsByStudent[$studentId] = [];
+                $currentMdcByStudent[$studentId] = null;
+                continue;
+            }
+
+            $mdcOptionsByStudent[$studentId] = $this->resolveAvailableMdcCoursesForStudent($student, $semesterId);
+            $currentMdcByStudent[$studentId] = $this->resolveCurrentMdcEnrollmentForStudent($student, $semesterId);
+        }
+
+        return view('admin.itcell.student-mdc-selection', [
+            'batches' => $batches,
+            'semesters' => $semesters,
+            'campuses' => $campuses,
+            'enrolledPrograms' => $enrolledPrograms,
+            'selectedBatchId' => $selectedBatchId,
+            'selectedSemesterId' => $selectedSemesterId,
+            'selectedProgramId' => $selectedProgramId,
+            'selectedCampusId' => $selectedCampusId,
+            'search' => $search,
+            'students' => $students,
+            'offeredMdcCourses' => $offeredMdcCourses,
+            'mdcOptionsByStudent' => $mdcOptionsByStudent,
+            'currentMdcByStudent' => $currentMdcByStudent,
+        ]);
+    }
+
+    public function studentMdcSelectionExport(Request $request)
+    {
+        $batchId = (int) $request->input('batch_id', 0);
+        $semesterId = (int) $request->input('semester_id', 0);
+        $programId = (int) $request->input('program_id', 0);
+        $campusId = (int) $request->input('campus_id', 0);
+
+        if ($batchId <= 0 || $semesterId <= 0) {
+            return back()->with('error', 'Please select both batch and semester before exporting MDC offered list.');
+        }
+
+        $offeredMdcCourses = $this->resolveOfferedMdcCoursesForBatchSemester($batchId, $semesterId, $programId, $campusId);
+        if (empty($offeredMdcCourses)) {
+            return back()->with('error', 'No MDC offered records found to export for the selected filters.');
+        }
+
+        $batchName = (string) (BatchMaster::query()->where('id', $batchId)->value('batch_name') ?? $batchId);
+        $semesterTitle = (string) (Semester::query()->where('id', $semesterId)->value('title') ?? ('Semester ' . $semesterId));
+
+        $filename = 'mdc-offered-batch-' . preg_replace('/[^A-Za-z0-9_-]/', '-', $batchName)
+            . '-semester-' . preg_replace('/[^A-Za-z0-9_-]/', '-', $semesterTitle)
+            . '-' . date('Y-m-d') . '.csv';
+
+        $headers = [
+            'Content-Type' => 'text/csv; charset=UTF-8',
+        ];
+
+        $callback = function () use ($offeredMdcCourses, $batchName, $semesterTitle) {
+            $handle = fopen('php://output', 'w');
+
+            // UTF-8 BOM for proper Excel compatibility.
+            fwrite($handle, "\xEF\xBB\xBF");
+
+            fputcsv($handle, ['Batch', 'Semester', 'Course Code', 'Course Title', 'Offered Department', 'Offered Programs']);
+
+            foreach ($offeredMdcCourses as $course) {
+                fputcsv($handle, [
+                    $batchName,
+                    $semesterTitle,
+                    (string) ($course['course_code'] ?? ''),
+                    (string) ($course['course_title'] ?? ''),
+                    (string) ($course['offered_department'] ?? ''),
+                    implode(', ', (array) ($course['offered_programs'] ?? [])),
+                ]);
+            }
+
+            fclose($handle);
+        };
+
+        return response()->streamDownload($callback, $filename, $headers);
+    }
+
+    private function resolveOfferedMdcCoursesForBatchSemester(int $batchId, int $semesterId, int $programId = 0, int $campusId = 0): array
+    {
+        if ($batchId <= 0 || $semesterId <= 0 || !Schema::hasTable('curriculam_engine')) {
+            return [];
+        }
+
+        $courseTable = (new ProgramCourseMaster())->getTable();
+
+        $query = DB::table('curriculam_engine as ce')
+            ->join($courseTable . ' as pcm', 'pcm.id', '=', 'ce.course_id')
+            ->leftJoin('subject_type_masters as stm', 'stm.id', '=', 'pcm.course_type')
+            ->leftJoin('subjects as sub', 'sub.id', '=', 'pcm.department')
+            ->leftJoin('subject_has_student_progams as shsp', 'shsp.id', '=', 'ce.program_combo_refid')
+            ->leftJoin('student_program as sp', 'sp.id', '=', 'shsp.student_program_id')
+            ->where('ce.batch', $batchId)
+            ->where('ce.semester', $semesterId);
+
+        if (Schema::hasColumn('curriculam_engine', 'deleted_at')) {
+            $query->whereNull('ce.deleted_at');
+        }
+
+        if (Schema::hasColumn('curriculam_engine', 'is_active')) {
+            $query->where('ce.is_active', 1);
+        }
+
+        if (Schema::hasColumn('curriculam_engine', 'delivery_category')) {
+            $query->whereRaw("UPPER(TRIM(COALESCE(ce.delivery_category, ''))) = ?", [ProgramWiseSemesterCourse::DELIVERY_OPEN_CHOICE]);
+        }
+
+        if (Schema::hasColumn($courseTable, 'deleted_at')) {
+            $query->whereNull('pcm.deleted_at');
+        }
+
+        if ($programId > 0) {
+            $query->where('shsp.student_program_id', $programId);
+        }
+
+        if ($campusId > 0 && Schema::hasColumn('subject_has_student_progams', 'campus_id')) {
+            $query->where('shsp.campus_id', $campusId);
+        }
+
+        $rows = $query
+            ->select([
+                'pcm.id as course_id',
+                'pcm.course_code',
+                'pcm.course_title',
+                'stm.title as course_type_title',
+                'sub.title as department_title',
+                'sp.id as program_id',
+                'sp.code as program_code',
+                'sp.name as program_name',
+            ])
+            ->orderBy('pcm.course_title')
+            ->get();
+
+        $mdcRows = collect($rows)->filter(function ($row) {
+            $typeTitle = strtoupper(trim((string) ($row->course_type_title ?? '')));
+            $normalizedType = $typeTitle !== '' ? preg_replace('/\s.*/', '', $typeTitle) : '';
+            $courseCode = strtoupper(trim((string) ($row->course_code ?? '')));
+
+            return $normalizedType === ProgramWiseSemesterCourse::DELIVERY_OPEN_CHOICE
+                || str_contains($courseCode, ProgramWiseSemesterCourse::DELIVERY_OPEN_CHOICE);
+        });
+
+        return $mdcRows
+            ->groupBy(fn($row) => (int) ($row->course_id ?? 0))
+            ->map(function ($group) {
+                $first = $group->first();
+                $offeredPrograms = $group
+                    ->map(function ($row) {
+                        $code = trim((string) ($row->program_code ?? ''));
+                        $name = trim((string) ($row->program_name ?? ''));
+                        return trim(($code !== '' ? $code . ' - ' : '') . $name);
+                    })
+                    ->filter(fn($label) => $label !== '')
+                    ->unique()
+                    ->values()
+                    ->all();
+
+                return [
+                    'course_id' => (int) ($first->course_id ?? 0),
+                    'course_code' => (string) ($first->course_code ?? ''),
+                    'course_title' => (string) ($first->course_title ?? ''),
+                    'offered_department' => (string) ($first->department_title ?? ''),
+                    'offered_programs' => $offeredPrograms,
+                ];
+            })
+            ->sortBy(fn($row) => trim(($row['course_code'] ?? '') . ' ' . ($row['course_title'] ?? '')))
+            ->values()
+            ->all();
+    }
+
+    public function studentMdcSelectionStore(Request $request)
+    {
+        $courseTable = (new ProgramCourseMaster())->getTable();
+
+        $validated = $request->validate([
+            'batch_id' => 'nullable|integer|exists:batch_masters,id',
+            'semester_id' => 'required|integer|exists:semesters,id',
+            'mdc_course_id' => 'required|integer|exists:' . $courseTable . ',id',
+            'student_ids' => 'required|array|min:1',
+            'student_ids.*' => 'integer|exists:student_masters,id',
+        ]);
+
+        try {
+            $semesterId = (int) $validated['semester_id'];
+            $selectedMdcCourseId = (int) $validated['mdc_course_id'];
+            $selectedBatchId = (int) $validated['batch_id'];
+            $studentIds = collect((array) $validated['student_ids'])
+                ->map(fn($id) => (int) $id)
+                ->filter(fn($id) => $id > 0)
+                ->unique()
+                ->values();
+
+            $summary = [
+                'processed' => 0,
+                'enrolled' => 0,
+                'restored' => 0,
+                'already' => 0,
+                'skipped_semester' => 0,
+                'replaced' => 0,
+            ];
+
+            DB::transaction(function () use ($studentIds, $selectedBatchId, $semesterId, $selectedMdcCourseId, &$summary) {
+                $studentsQuery = StudentMaster::query()
+                    ->with([
+                        'batchmaster:id,batch_name',
+                        'activeSemesterConfig:id,student_id,semester_id,current_semester',
+                    ])
+                    ->whereIn('id', $studentIds->all())
+                    ->lockForUpdate();
+
+                if ($selectedBatchId > 0) {
+                    $studentsQuery->where('batch', $selectedBatchId);
+                }
+
+                $students = $studentsQuery->get();
+
+                foreach ($students as $student) {
+                    $summary['processed']++;
+
+                    $activeSemesterId = (int) ($student->activeSemesterConfig->semester_id ?? 0);
+                    if ($activeSemesterId !== $semesterId) {
+                        $summary['skipped_semester']++;
+                        continue;
+                    }
+
+                    $academicYear = (string) (optional($student->batchmaster)->batch_name ?: date('Y'));
+
+                    // Rule: only one elective/MDC row per student per semester.
+                    $replacedRows = StudentCourseInfo::query()
+                        ->where('student_id', (int) $student->id)
+                        ->where('semester', $semesterId)
+                        ->where('is_elective', 1)
+                        ->where('course_id', '!=', $selectedMdcCourseId)
+                        ->delete();
+
+                    if ($replacedRows > 0) {
+                        $summary['replaced'] += (int) $replacedRows;
+                    }
+
+                    $existingSelectedCourse = StudentCourseInfo::withTrashed()
+                        ->where('student_id', (int) $student->id)
+                        ->where('course_id', $selectedMdcCourseId)
+                        ->where('semester', $semesterId)
+                        ->first();
+
+                    if ($existingSelectedCourse) {
+                        if (method_exists($existingSelectedCourse, 'trashed') && $existingSelectedCourse->trashed()) {
+                            $existingSelectedCourse->restore();
+                            $summary['restored']++;
+                        } else {
+                            $summary['already']++;
+                        }
+
+                        $existingSelectedCourse->update([
+                            'campus_id' => (int) ($student->campus_id ?? 0),
+                            'is_active' => 1,
+                            'is_elective' => 1,
+                            'academic_year' => $academicYear,
+                        ]);
+                    } else {
+                        StudentCourseInfo::create([
+                            'student_id' => (int) $student->id,
+                            'course_id' => $selectedMdcCourseId,
+                            'semester' => $semesterId,
+                            'campus_id' => (int) ($student->campus_id ?? 0),
+                            'is_active' => 1,
+                            'academic_year' => $academicYear,
+                            'is_elective' => 1,
+                        ]);
+                        $summary['enrolled']++;
+                    }
+                }
+            });
+
+            $message = 'Bulk MDC enrollment completed. '
+                . $summary['enrolled'] . ' enrolled, '
+                . $summary['restored'] . ' restored, '
+                . $summary['already'] . ' already enrolled.';
+
+            if ($summary['skipped_semester'] > 0) {
+                $message .= ' Skipped ' . $summary['skipped_semester'] . ' student(s) due to semester mismatch.';
+            }
+
+            if ($summary['replaced'] > 0) {
+                $message .= ' Replaced ' . $summary['replaced'] . ' previous elective/MDC row(s) to enforce one MDC per semester.';
+            }
+
+            if ($summary['processed'] === 0) {
+                return back()->with('error', 'No matching students were processed for the selected filters.');
+            }
+
+            return back()->with('success', $message);
+        } catch (ValidationException $e) {
+            throw $e;
+        } catch (\Throwable $e) {
+            return back()->with('error', 'Failed to update MDC selection. Please try again.');
+        }
+    }
+
+    private function isMdcCourseMappedForStudent(StudentMaster $student, int $semesterId, int $courseId): bool
+    {
+        if ($semesterId <= 0 || $courseId <= 0 || empty($student->new_program_id) || empty($student->batch)) {
+            return false;
+        }
+
+        if (!Schema::hasTable('subject_has_student_progams') || !Schema::hasTable('curriculam_engine')) {
+            return false;
+        }
+
+        $combinationQuery = DB::table('subject_has_student_progams')
+            ->where('student_program_id', (int) $student->new_program_id)
+            ->where('batch_id', (int) $student->batch);
+
+        if (Schema::hasColumn('subject_has_student_progams', 'campus_id') && (int) ($student->campus_id ?? 0) > 0) {
+            $combinationQuery->where('campus_id', (int) $student->campus_id);
+        }
+
+        $combinationIds = $combinationQuery
+            ->pluck('id')
+            ->map(fn($id) => (int) $id)
+            ->filter(fn($id) => $id > 0)
+            ->values();
+
+        if ($combinationIds->isEmpty()) {
+            $fallbackComboIds = DB::table('subject_has_student_progams')
+                ->where('student_program_id', (int) $student->new_program_id)
+                ->where('batch_id', (int) $student->batch)
+                ->pluck('id')
+                ->map(fn($id) => (int) $id)
+                ->filter(fn($id) => $id > 0)
+                ->values();
+
+            $combinationIds = $fallbackComboIds;
+        }
+
+        if ($combinationIds->isEmpty()) {
+            return false;
+        }
+
+        $baseQuery = DB::table('curriculam_engine')
+            ->whereIn('program_combo_refid', $combinationIds->all())
+            ->where('batch', (int) $student->batch)
+            ->where('semester', $semesterId)
+            ->where('course_id', $courseId);
+
+        if (Schema::hasColumn('curriculam_engine', 'deleted_at')) {
+            $baseQuery->whereNull('deleted_at');
+        }
+
+        if (Schema::hasColumn('curriculam_engine', 'is_active')) {
+            $baseQuery->where('is_active', 1);
+        }
+
+        $hasDeliveryCategoryColumn = Schema::hasColumn('curriculam_engine', 'delivery_category');
+        if ($hasDeliveryCategoryColumn) {
+            $mdcDeliveryQuery = clone $baseQuery;
+            $mdcDeliveryQuery->whereRaw(
+                "UPPER(TRIM(COALESCE(delivery_category, ''))) IN (?, ?, ?)",
+                [
+                    ProgramWiseSemesterCourse::DELIVERY_OPEN_CHOICE,
+                    'OPEN_CHOICE',
+                    'OPEN CHOICE',
+                ]
+            );
+
+            if ($mdcDeliveryQuery->exists()) {
+                return true;
+            }
+        }
+
+        // Fallback: if delivery category data is inconsistent/missing, accept only if
+        // curriculum row exists and the course itself is tagged as MDC.
+        if (!$baseQuery->exists()) {
+            return false;
+        }
+
+        return $this->isMdcCourseId($courseId);
+    }
+
+    private function isMdcCourseId(int $courseId): bool
+    {
+        if ($courseId <= 0) {
+            return false;
+        }
+
+        $course = ProgramCourseMaster::query()
+            ->with(['coursetypemaster:id,title'])
+            ->find($courseId);
+
+        return $this->isMdcCourse($course);
+    }
+
+    private function resolveAvailableMdcCoursesForStudent(StudentMaster $student, int $semesterId): array
+    {
+        if ($semesterId <= 0 || empty($student->new_program_id) || empty($student->batch)) {
+            return [];
+        }
+
+        $combinationQuery = SubjectHasStudentProgam::query()
+            ->where('student_program_id', (int) $student->new_program_id)
+            ->where('batch_id', (int) $student->batch);
+
+        if (Schema::hasColumn('subject_has_student_progams', 'campus_id') && (int) ($student->campus_id ?? 0) > 0) {
+            $combinationQuery->where('campus_id', (int) $student->campus_id);
+        }
+
+        $combination = $combinationQuery->orderByDesc('id')->first(['id']);
+
+        if (!$combination) {
+            $combination = SubjectHasStudentProgam::query()
+                ->where('student_program_id', (int) $student->new_program_id)
+                ->where('batch_id', (int) $student->batch)
+                ->orderByDesc('id')
+                ->first(['id']);
+        }
+
+        if (!$combination) {
+            return [];
+        }
+
+        $curriculumTable = (new ProgramWiseSemesterCourse())->getTable();
+
+        $courseIdsQuery = ProgramWiseSemesterCourse::query()
+            ->where('program_combo_refid', (int) $combination->id)
+            ->where('batch', (int) $student->batch)
+            ->where('semester', $semesterId);
+
+        if (Schema::hasColumn($curriculumTable, 'is_active')) {
+            $courseIdsQuery->where('is_active', 1);
+        }
+
+        if (Schema::hasColumn($curriculumTable, 'delivery_category')) {
+            $courseIdsQuery->whereRaw("UPPER(TRIM(COALESCE(delivery_category, ''))) = ?", [ProgramWiseSemesterCourse::DELIVERY_OPEN_CHOICE]);
+        }
+
+        if (Schema::hasColumn($curriculumTable, 'academic_pathway_id')) {
+            $pathwayId = (int) ($student->academic_pathway_id ?? 0);
+            if ($pathwayId > 0) {
+                $courseIdsQuery->where('academic_pathway_id', $pathwayId);
+            } else {
+                $courseIdsQuery->whereNull('academic_pathway_id');
+            }
+        }
+
+        if (Schema::hasColumn($curriculumTable, 'degree_track_id')) {
+            $degreeTrackId = (int) ($student->degree_track_id ?? 0);
+            if ($degreeTrackId > 0) {
+                $courseIdsQuery->where('degree_track_id', $degreeTrackId);
+            } else {
+                $courseIdsQuery->whereNull('degree_track_id');
+            }
+        }
+
+        $courseIds = $courseIdsQuery
+            ->pluck('course_id')
+            ->map(fn($id) => (int) $id)
+            ->filter(fn($id) => $id > 0)
+            ->unique()
+            ->values();
+
+        if ($courseIds->isEmpty()) {
+            return [];
+        }
+
+        $courses = ProgramCourseMaster::query()
+            ->with(['coursetypemaster:id,title'])
+            ->whereIn('id', $courseIds->all())
+            ->orderBy('course_title')
+            ->get()
+            ->filter(fn($course) => $this->isMdcCourse($course))
+            ->map(function ($course) {
+                return [
+                    'id' => (int) ($course->id ?? 0),
+                    'label' => trim(((string) ($course->course_code ?? '')) . ' - ' . ((string) ($course->course_title ?? ''))),
+                ];
+            })
+            ->filter(fn($course) => !empty($course['id']))
+            ->values()
+            ->all();
+
+        return $courses;
+    }
+
+    private function resolveCurrentMdcEnrollmentForStudent(StudentMaster $student, int $semesterId): ?array
+    {
+        if ($semesterId <= 0 || empty($student->id)) {
+            return null;
+        }
+
+        $academicYear = (string) (optional($student->batchmaster)->batch_name ?: date('Y'));
+
+        $currentElective = StudentCourseInfo::query()
+            ->with(['coursemaster.coursetypemaster:id,title'])
+            ->where('student_id', (int) $student->id)
+            ->where('semester', $semesterId)
+            ->where('is_elective', 1)
+            ->where(function ($query) use ($academicYear) {
+                $query->where('academic_year', $academicYear)
+                    ->orWhereNull('academic_year')
+                    ->orWhere('academic_year', '');
+            })
+            ->orderByDesc('id')
+            ->first();
+
+        if ($currentElective) {
+            return [
+                'course_id' => (int) ($currentElective->course_id ?? 0),
+                'label' => trim(((string) ($currentElective->coursemaster->course_code ?? '')) . ' - ' . ((string) ($currentElective->coursemaster->course_title ?? ''))),
+            ];
+        }
+
+        return null;
+    }
+
+    private function isMdcCourse($course): bool
+    {
+        if (!$course) {
+            return false;
+        }
+
+        $typeTitle = strtoupper(trim((string) ($course->coursetypemaster->title ?? '')));
+        if ($typeTitle !== '' && preg_replace('/\s.*/', '', $typeTitle) === ProgramWiseSemesterCourse::DELIVERY_OPEN_CHOICE) {
+            return true;
+        }
+
+        $courseCode = strtoupper(trim((string) ($course->course_code ?? '')));
+        return str_contains($courseCode, ProgramWiseSemesterCourse::DELIVERY_OPEN_CHOICE);
     }
 
     public function lateralEntryIndex()

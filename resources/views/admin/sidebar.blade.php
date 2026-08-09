@@ -323,6 +323,15 @@ $roleType = UserHasRole::where('user_id', $userId)->value('role_name');
     </li>
 
     <li>
+      <a href="{{ route('itcell.student-mdc-selection.index') }}">
+        <div class="parent-icon">
+          <i class="fas fa-book-reader"></i>
+        </div>
+        <div class="menu-title">Student MDC Mapper</div>
+      </a>
+    </li>
+
+    <li>
       <a href="{{ route('itcell.lateral-entry.index') }}">
         <div class="parent-icon">
           <i class="fas fa-user-plus"></i>

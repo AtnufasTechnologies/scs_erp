@@ -143,6 +143,9 @@ Route::group(['prefix' => '/erp'], function () {
         Route::get('annual-promotion-logs/{id}', [ITCellController::class, 'annualStudentPromotionLogs'])->name('annual.student.promotionlogs');
         Route::get('itcell/pathway-mapper', [ITCellController::class, 'studentPathwayMapper'])->name('itcell.pathway.mapper');
         Route::post('itcell/pathway-mapper/bulk-update', [ITCellController::class, 'studentPathwayMapperBulkUpdate'])->name('itcell.pathway.mapper.bulk-update');
+        Route::get('itcell/student-mdc-selection', [ITCellController::class, 'studentMdcSelectionIndex'])->name('itcell.student-mdc-selection.index');
+        Route::get('itcell/student-mdc-selection/export', [ITCellController::class, 'studentMdcSelectionExport'])->name('itcell.student-mdc-selection.export');
+        Route::post('itcell/student-mdc-selection', [ITCellController::class, 'studentMdcSelectionStore'])->name('itcell.student-mdc-selection.store');
         Route::get('itcell/lateral-entry', [ITCellController::class, 'lateralEntryIndex'])->name('itcell.lateral-entry.index');
         Route::get('itcell/lateral-entry/programs', [ITCellController::class, 'getProgramsForLateralEntry'])->name('itcell.lateral-entry.programs');
         Route::get('itcell/lateral-entry/application-data', [ITCellController::class, 'getLateralEntryApplicationData'])->name('itcell.lateral-entry.application-data');
