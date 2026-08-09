@@ -24,6 +24,8 @@
           <h5 class="fw-bold mb-1">{{ $course->course_title ?? 'N/A' }} {{ $course->course_code ? '('.$course->course_code.')' : '' }}</h5>
           <p class="text-muted mb-0">
             <span class="badge bg-success me-1">Semester: {{ $semester }}</span>
+            <span class="badge bg-secondary me-1">Batch: {{ $syllabusAssignment->batchmaster->batch_name ?? 'N/A' }}</span>
+            <span class="badge bg-primary me-1">Component: {{ $component->name ?? 'N/A' }}</span>
             @if($course->departmentmaster)
             <span class="badge bg-secondary">{{ $course->departmentmaster->dept_name ?? '' }}</span>
             @endif
@@ -35,7 +37,7 @@
       <div class="card shadow-sm border-0">
         <div class="card-header bg-white py-3 d-flex justify-content-between align-items-center">
           <h6 class="mb-0 fw-bold"><i class="fas fa-list-ol text-primary me-2"></i>Submitted Marks</h6>
-          <a href="{{ route('faculty.internal-marks.enter', ['course_id' => $course->id, 'semester' => $semester]) }}" class="btn btn-sm btn-primary">
+          <a href="{{ route('faculty.internal-marks.enter', ['rec_id' => $routineId, 'syllabus_id' => $syllabusId, 'component_id' => $componentId]) }}" class="btn btn-sm btn-primary">
             <i class="fas fa-edit me-1"></i>Edit Marks
           </a>
         </div>
@@ -69,7 +71,7 @@
           <div class="text-center py-5">
             <i class="fas fa-clipboard fa-3x text-muted mb-3"></i>
             <p class="text-muted">No marks have been entered for this course yet.</p>
-            <a href="{{ route('faculty.internal-marks.enter', ['course_id' => $course->id, 'semester' => $semester]) }}" class="btn btn-primary">
+            <a href="{{ route('faculty.internal-marks.enter', ['rec_id' => $routineId, 'syllabus_id' => $syllabusId, 'component_id' => $componentId]) }}" class="btn btn-primary">
               <i class="fas fa-edit me-1"></i>Enter Marks Now
             </a>
           </div>

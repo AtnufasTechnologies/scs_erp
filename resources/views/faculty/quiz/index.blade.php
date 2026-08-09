@@ -1,9 +1,60 @@
 @include('includes.header')
 
+<style>
+  :root {
+    --quiz-accent: #0f4c81;
+    --quiz-accent-soft: #e8f0f8;
+    --quiz-border: #d9e1ea;
+    --quiz-text-muted: #5e6b78;
+  }
+
+  .quiz-page .card {
+    border: 1px solid var(--quiz-border);
+    border-radius: 10px;
+  }
+
+  .quiz-page .card-header {
+    background: linear-gradient(90deg, #f7f9fc 0%, #eef3f8 100%);
+    border-bottom: 1px solid var(--quiz-border);
+    padding: 0.75rem 1rem;
+  }
+
+  .quiz-page .form-label {
+    margin-bottom: 0.25rem;
+    font-size: 0.82rem;
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+    color: var(--quiz-text-muted);
+  }
+
+  .quiz-page .form-control,
+  .quiz-page .form-select {
+    min-height: 38px;
+  }
+
+  .quiz-page .toolbar {
+    background: var(--quiz-accent-soft);
+    border: 1px solid var(--quiz-border);
+    border-radius: 8px;
+    padding: 0.6rem 0.8rem;
+  }
+
+  .quiz-page .table thead th {
+    white-space: nowrap;
+    font-size: 0.78rem;
+    text-transform: uppercase;
+    color: var(--quiz-text-muted);
+  }
+
+  .quiz-page .question-card {
+    border-left: 4px solid var(--quiz-accent);
+  }
+</style>
+
 <div class="wrapper">
   @include('faculty.sidebar')
 
-  <main class="page-content">
+  <main class="page-content quiz-page">
     <div class="page-breadcrumb d-none d-sm-flex align-items-center gap-2">
       <div class="breadcrumb-title pe-3">Quiz</div>
       <div class="ps-2">
@@ -41,28 +92,25 @@
       </div>
       @endif
 
+      <div class="d-flex justify-content-end mb-3">
+        <a href="{{ route('faculty.fa1.my-quizzes') }}" class="btn btn-outline-primary btn-sm">Go To My Quizzes</a>
+      </div>
+
       <div class="card shadow-sm border-0 mb-4">
         <div class="card-header bg-white py-3">
-          <h5 class="mb-0 fw-bold">Create New Quiz</h5>
+          <h5 class="mb-0 fw-bold text-uppercase" style="color: var(--quiz-accent); font-size: 0.95rem;">Create FA1 Quiz</h5>
         </div>
         <div class="card-body">
-          <form method="POST" action="{{ route('faculty.quiz.store') }}" id="quizForm" enctype="multipart/form-data">
+          <form method="POST" action="{{ route('faculty.fa1.store') }}" id="quizForm" enctype="multipart/form-data">
             @csrf
-            <div class="row g-3">
-              <div class="col-md-6">
-                <label class="form-label fw-bold">Quiz Title</label>
-                <input type="text" class="form-control" name="title" value="{{ old('title') }}" required>
-              </div>
+            <div class="row g-2">
               <div class="col-md-3">
                 <label class="form-label fw-bold">CIA Component</label>
-                <select class="form-select" name="sup_cia_component_id" required>
-                  <option value="">Select</option>
-                  @foreach($components as $component)
-                  <option value="{{ $component->id }}" @selected(old('sup_cia_component_id')==$component->id)>
-                    {{ $component->name }}
-                  </option>
-                  @endforeach
-                </select>
+                <input type="hidden" name="sup_cia_component_id" value="{{ $fa1Component->id ?? '' }}">
+                <input type="text" class="form-control" value="{{ $fa1Component->name ?? 'FA1 component not configured' }}" readonly>
+                @if(!$fa1Component)
+                <small class="text-danger">Please ask admin to configure CIA component as FA1.</small>
+                @endif
               </div>
               <div class="col-md-3">
                 <label class="form-label fw-bold">Total Marks</label>
@@ -109,74 +157,41 @@
                   <label class="form-check-label" for="shuffle_options">Shuffle Options</label>
                 </div>
               </div>
+              <div class="col-md-3">
+                <label class="form-label fw-bold">Pre-Start Countdown (Seconds)</label>
+                <input type="number" min="0" max="300" class="form-control" name="pre_start_countdown_seconds" value="{{ old('pre_start_countdown_seconds', 10) }}" placeholder="e.g. 10">
+              </div>
+              <div class="col-md-6">
+                <label class="form-label fw-bold">Bulk Upload Questions (Excel/CSV)</label>
+                <input type="file" class="form-control" name="bulk_questions_file" accept=".xlsx,.xls,.csv">
+                <small class="text-muted">
+                  Columns required: <strong>question_text, option_1, option_2, option_3, option_4, correct_option</strong>.
+                  Correct option accepts 1-4 or A-D.
+                </small>
+                <div class="mt-2">
+                  <a href="{{ route('faculty.fa1.bulk-template.download') }}" class="btn btn-sm btn-outline-primary">
+                    Download Excel Template
+                  </a>
+                </div>
+              </div>
             </div>
 
             <hr class="my-4">
 
-            <div class="d-flex justify-content-between align-items-center mb-3">
-              <h6 class="fw-bold mb-0">Questions (MCQ)</h6>
+            <div class="toolbar d-flex justify-content-between align-items-center mb-3">
+              <h6 class="fw-bold mb-0">Manual Questions (MCQ)</h6>
               <button type="button" class="btn btn-sm btn-primary" id="addQuestionBtn">Add Question</button>
             </div>
 
             <div id="questionsWrapper"></div>
 
-            <div class="mt-3">
-              <button type="submit" class="btn btn-success">Create Quiz</button>
+            <div class="mt-3 d-flex justify-content-end">
+              <button type="submit" class="btn btn-success" @disabled(!$fa1Component)>Create FA1 Quiz</button>
             </div>
           </form>
         </div>
       </div>
 
-      <div class="card shadow-sm border-0">
-        <div class="card-header bg-white py-3">
-          <h5 class="mb-0 fw-bold">My Quizzes</h5>
-        </div>
-        <div class="card-body table-responsive">
-          <table class="table table-bordered align-middle">
-            <thead>
-              <tr>
-                <th>Title</th>
-                <th>Subject</th>
-                <th>Course</th>
-                <th>Component</th>
-                <th>Total Marks</th>
-                <th>Open At</th>
-                <th>Questions</th>
-                <th>Time</th>
-                <th>Shuffle</th>
-                <th>Results</th>
-                <th>CIA Group ID</th>
-              </tr>
-            </thead>
-            <tbody>
-              @forelse($quizzes as $quiz)
-              <tr>
-                <td>{{ $quiz->title }}</td>
-                <td>{{ $quiz->subject->title ?? 'N/A' }}</td>
-                <td>{{ $quiz->course->course_title ?? 'N/A' }}</td>
-                <td>{{ $quiz->ciaComponent->name ?? 'N/A' }}</td>
-                <td>{{ $quiz->total_marks }}</td>
-                <td>{{ optional($quiz->open_at)->format('d M Y h:i A') }}</td>
-                <td>{{ $quiz->questions_count }}</td>
-                <td>{{ $quiz->time_limit_minutes ? $quiz->time_limit_minutes . ' mins' : 'No limit' }}</td>
-                <td>
-                  Q: {{ $quiz->shuffle_questions ? 'Yes' : 'No' }}<br>
-                  O: {{ $quiz->shuffle_options ? 'Yes' : 'No' }}
-                </td>
-                <td>
-                  <a href="{{ route('faculty.quiz.results', $quiz->id) }}" class="btn btn-sm btn-outline-primary">View</a>
-                </td>
-                <td>{{ $quiz->cia_group_id }}</td>
-              </tr>
-              @empty
-              <tr>
-                <td colspan="11" class="text-center text-muted">No quizzes created yet.</td>
-              </tr>
-              @endforelse
-            </tbody>
-          </table>
-        </div>
-      </div>
     </div>
   </main>
 </div>
@@ -190,7 +205,7 @@
     function addQuestionBlock() {
       const q = questionIndex++;
       const block = document.createElement('div');
-      block.className = 'card border mb-3';
+      block.className = 'card question-card mb-2';
       block.innerHTML = `
         <div class="card-body">
           <div class="d-flex justify-content-between align-items-center mb-2">
@@ -234,7 +249,7 @@
         block.remove();
       });
 
-      questionsWrapper.appendChild(block);
+      questionsWrapper.prepend(block);
     }
 
     addQuestionBtn.addEventListener('click', addQuestionBlock);

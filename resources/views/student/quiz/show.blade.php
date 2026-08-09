@@ -1,5 +1,4 @@
 @include('includes.header')
-@include('student.sidebar')
 
 @php
 use Illuminate\Support\Facades\Storage;
@@ -25,6 +24,7 @@ return asset('storage/' . $path);
 <div class="wrapper">
   <main class="page-content">
     <div class="container-fluid mt-4">
+      @include('student.quiz.partials.brand_header')
       <div class="card shadow-sm border-0 mb-3">
         <div class="card-body">
           <h4 class="fw-bold mb-1">{{ $quiz->title }}</h4>
@@ -51,7 +51,11 @@ return asset('storage/' . $path);
       </div>
       @endif
 
-      <form method="POST" action="{{ route('student.quiz.submit', $quiz->id) }}">
+      <div class="alert alert-warning py-2">
+        Exam mode is active: tab switching will auto-submit. On Safari, compatibility mode is enabled to prevent browser crashes.
+      </div>
+
+      <form method="POST" action="{{ route('student.fa1.submit', $quiz->id) }}">
         @csrf
         <div class="card shadow-sm border-0">
           <div class="card-body">
@@ -94,7 +98,7 @@ return asset('storage/' . $path);
             @endforeach
 
             <button type="submit" class="btn btn-success">Submit Quiz</button>
-            <a href="{{ route('student.quiz.index') }}" class="btn btn-outline-secondary">Back</a>
+            <a href="{{ route('student.fa1.lobby', $quiz->id) }}" class="btn btn-outline-secondary">Back</a>
           </div>
         </div>
       </form>
@@ -107,11 +111,185 @@ return asset('storage/' . $path);
     const timerEl = document.getElementById('quizTimer');
     const form = document.querySelector('form[action*="/submit"]');
     const csrf = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '{{ csrf_token() }}';
+    const lockKey = 'fa1_exam_lock_{{ $quiz->id }}_{{ $attempt->id }}';
+    const tabId = Math.random().toString(36).slice(2);
+    const ua = navigator.userAgent || '';
+    const isSafari = /^((?!chrome|android).)*safari/i.test(ua) || /iPad|iPhone|iPod/.test(ua);
+    let hasSubmittedByRestriction = false;
+    let hasCleanedUp = false;
 
     function formatTime(sec) {
       const mm = Math.floor(sec / 60).toString().padStart(2, '0');
       const ss = (sec % 60).toString().padStart(2, '0');
       return `${mm}:${ss}`;
+    }
+
+    function submitByRestriction(reason) {
+      if (!form || hasSubmittedByRestriction) {
+        return;
+      }
+
+      hasSubmittedByRestriction = true;
+      cleanupExamMode();
+
+      const hiddenTimeout = document.createElement('input');
+      hiddenTimeout.type = 'hidden';
+      hiddenTimeout.name = 'auto_timeout';
+      hiddenTimeout.value = '1';
+      form.appendChild(hiddenTimeout);
+
+      const hiddenReason = document.createElement('input');
+      hiddenReason.type = 'hidden';
+      hiddenReason.name = 'violation_reason';
+      hiddenReason.value = reason;
+      form.appendChild(hiddenReason);
+
+      form.submit();
+    }
+
+    async function requestExamFullscreen() {
+      if (!document.fullscreenElement && document.documentElement.requestFullscreen) {
+        try {
+          await document.documentElement.requestFullscreen();
+        } catch (e) {
+          // Browser may block fullscreen on some flows.
+        }
+      }
+    }
+
+    function cleanupExamMode() {
+      if (hasCleanedUp) {
+        return;
+      }
+
+      hasCleanedUp = true;
+      sessionStorage.removeItem('fa1_force_fullscreen');
+
+      try {
+        const raw = localStorage.getItem(lockKey);
+        if (raw) {
+          const payload = JSON.parse(raw);
+          if (payload?.tabId === tabId) {
+            localStorage.removeItem(lockKey);
+          }
+        }
+      } catch (e) {
+        // Ignore cleanup failures.
+      }
+
+      if (document.fullscreenElement && document.exitFullscreen) {
+        document.exitFullscreen().catch(() => {
+          // Ignore fullscreen exit failure.
+        });
+      }
+    }
+
+    function writeLock() {
+      localStorage.setItem(lockKey, JSON.stringify({
+        tabId,
+        ts: Date.now()
+      }));
+    }
+
+    function hasActiveForeignTab() {
+      const raw = localStorage.getItem(lockKey);
+      if (!raw) {
+        return false;
+      }
+
+      try {
+        const parsed = JSON.parse(raw);
+        if (!parsed || !parsed.tabId || !parsed.ts) {
+          return false;
+        }
+
+        if (parsed.tabId === tabId) {
+          return false;
+        }
+
+        return (Date.now() - Number(parsed.ts)) < 12000;
+      } catch (e) {
+        return false;
+      }
+    }
+
+    if (!isSafari && hasActiveForeignTab()) {
+      submitByRestriction('multiple_tab_open');
+      return;
+    }
+
+    if (!isSafari) {
+      requestExamFullscreen();
+      if (sessionStorage.getItem('fa1_force_fullscreen') === '1') {
+        requestExamFullscreen();
+      }
+    }
+
+    let lockHeartbeat = null;
+    if (!isSafari) {
+      writeLock();
+
+      lockHeartbeat = setInterval(() => {
+        writeLock();
+      }, 2000);
+
+      window.addEventListener('storage', function(event) {
+        if (event.key !== lockKey || !event.newValue) {
+          return;
+        }
+
+        try {
+          const payload = JSON.parse(event.newValue);
+          if (payload?.tabId && payload.tabId !== tabId) {
+            submitByRestriction('multiple_tab_open');
+          }
+        } catch (e) {
+          // Ignore malformed storage payload.
+        }
+      });
+    }
+
+    document.addEventListener('visibilitychange', function() {
+      if (document.hidden) {
+        submitByRestriction('tab_switch_detected');
+      }
+    });
+
+    if (!isSafari) {
+      window.addEventListener('blur', function() {
+        submitByRestriction('window_focus_lost');
+      });
+    }
+
+    window.addEventListener('beforeunload', function() {
+      clearInterval(lockHeartbeat);
+      cleanupExamMode();
+    });
+
+    if (form) {
+      form.addEventListener('submit', function() {
+        hasSubmittedByRestriction = true;
+        cleanupExamMode();
+      });
+    }
+
+    // Safari compatibility: avoid global keyboard lock to prevent crashes.
+    if (!isSafari) {
+      ['keydown', 'keypress', 'keyup'].forEach((eventName) => {
+        document.addEventListener(eventName, function(event) {
+          const target = event.target;
+          const isInputLike = target && (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable);
+
+          if (isInputLike || event.key === 'Tab') {
+            return;
+          }
+
+          event.preventDefault();
+          event.stopPropagation();
+          event.stopImmediatePropagation();
+          return false;
+        }, true);
+      });
     }
 
     if (timerEl) {
@@ -128,6 +306,7 @@ return asset('storage/' . $path);
           hidden.name = 'auto_timeout';
           hidden.value = '1';
           form.appendChild(hidden);
+          cleanupExamMode();
           form.submit();
         }
       }, 1000);
@@ -139,7 +318,7 @@ return asset('storage/' . $path);
         const optionId = this.dataset.optionId;
 
         try {
-          await fetch("{{ route('student.quiz.save-answer', $quiz->id) }}", {
+          await fetch("{{ route('student.fa1.save-answer', $quiz->id) }}", {
             method: 'POST',
             headers: {
               'Content-Type': 'application/json',

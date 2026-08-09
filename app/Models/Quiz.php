@@ -25,6 +25,7 @@ class Quiz extends Model
     'shuffle_questions',
     'shuffle_options',
     'time_limit_minutes',
+    'pre_start_countdown_seconds',
     'is_published',
     'created_by',
   ];
@@ -35,6 +36,7 @@ class Quiz extends Model
     'shuffle_questions' => 'boolean',
     'shuffle_options' => 'boolean',
     'time_limit_minutes' => 'integer',
+    'pre_start_countdown_seconds' => 'integer',
     'is_published' => 'boolean',
     'total_marks' => 'decimal:2',
   ];
@@ -67,5 +69,15 @@ class Quiz extends Model
   public function subject()
   {
     return $this->belongsTo(Subject::class, 'subject_id');
+  }
+
+  public function batchmaster()
+  {
+    return $this->belongsTo(BatchMaster::class, 'batch_id');
+  }
+
+  public function semestermaster()
+  {
+    return $this->belongsTo(Semester::class, 'semester_id');
   }
 }

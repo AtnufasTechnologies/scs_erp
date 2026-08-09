@@ -786,12 +786,19 @@ Route::group(['prefix' => '/erp'], function () {
         Route::post('payment-failure', [FeePaymentController::class, 'paymentFailure'])->name('payment.failure');
         Route::get('transaction-success/{id}', [FeePaymentController::class, 'showSuccessPage']);
         Route::get('transaction-success/{id}/download-pdf', [FeePaymentController::class, 'downloadInvoice']);
+    });
 
-        // Quiz Routes
-        Route::get('quiz', [StudentQuizController::class, 'index'])->name('student.quiz.index');
-        Route::get('quiz/{id}', [StudentQuizController::class, 'show'])->name('student.quiz.show');
-        Route::post('quiz/{id}/save-answer', [StudentQuizController::class, 'saveAnswer'])->name('student.quiz.save-answer');
-        Route::post('quiz/{id}/submit', [StudentQuizController::class, 'submit'])->name('student.quiz.submit');
+    Route::group(['prefix' => 'online-exam'], function () {
+        // FA1 Online Exam Portal Routes
+        Route::get('fa1/access', [StudentQuizController::class, 'accessPage'])->name('student.fa1.access');
+        Route::post('fa1/access/verify', [StudentQuizController::class, 'verifyAccess'])->name('student.fa1.access.verify');
+        Route::get('fa1/logout', [StudentQuizController::class, 'logout'])->name('student.fa1.logout');
+        Route::get('fa1', [StudentQuizController::class, 'index'])->name('student.fa1.index');
+        Route::get('fa1/{id}/lobby', [StudentQuizController::class, 'lobby'])->name('student.fa1.lobby');
+        Route::post('fa1/{id}/start', [StudentQuizController::class, 'start'])->name('student.fa1.start');
+        Route::get('fa1/{id}', [StudentQuizController::class, 'show'])->name('student.fa1.show');
+        Route::post('fa1/{id}/save-answer', [StudentQuizController::class, 'saveAnswer'])->name('student.fa1.save-answer');
+        Route::post('fa1/{id}/submit', [StudentQuizController::class, 'submit'])->name('student.fa1.submit');
     });
 
     //admission
@@ -1063,10 +1070,13 @@ Route::group(['prefix' => '/erp'], function () {
         Route::get('internal-marks/view', [InternalMarksController::class, 'view'])->name('faculty.internal-marks.view');
 
         // Moodle-style Quiz Routes
-        Route::get('quiz', [FacultyQuizController::class, 'index'])->name('faculty.quiz.index');
-        Route::post('quiz', [FacultyQuizController::class, 'store'])->name('faculty.quiz.store');
-        Route::get('quiz/{id}/results', [FacultyQuizController::class, 'results'])->name('faculty.quiz.results');
-        Route::post('quiz/{id}/allow-attempts', [FacultyQuizController::class, 'allowAttempts'])->name('faculty.quiz.allow-attempts');
+        Route::get('fa1', [FacultyQuizController::class, 'index'])->name('faculty.fa1.index');
+        Route::get('fa1/my-quizzes', [FacultyQuizController::class, 'myQuizzes'])->name('faculty.fa1.my-quizzes');
+        Route::get('fa1/bulk-template/download', [FacultyQuizController::class, 'downloadBulkTemplate'])->name('faculty.fa1.bulk-template.download');
+        Route::post('fa1', [FacultyQuizController::class, 'store'])->name('faculty.fa1.store');
+        Route::put('fa1/{id}/timing', [FacultyQuizController::class, 'updateTiming'])->name('faculty.fa1.timing.update');
+        Route::get('fa1/{id}/results', [FacultyQuizController::class, 'results'])->name('faculty.fa1.results');
+        Route::post('fa1/{id}/allow-attempts', [FacultyQuizController::class, 'allowAttempts'])->name('faculty.fa1.allow-attempts');
     });
 
 

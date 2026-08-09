@@ -5,7 +5,7 @@
 
   <main class="page-content">
     <div class="page-breadcrumb d-none d-sm-flex align-items-center gap-2">
-      <div class="breadcrumb-title pe-3">Internal Marks (FA)</div>
+      <div class="breadcrumb-title pe-3">Internal Marks (FA II and III)</div>
       <div class="ps-2">
         <nav aria-label="breadcrumb">
           <ol class="breadcrumb mb-0 p-0">
@@ -33,29 +33,33 @@
 
       <div class="card shadow-sm border-0">
         <div class="card-header bg-white py-3">
-          <h5 class="mb-0 fw-bold"><i class="fas fa-pen-alt text-primary me-2"></i>Internal Assessment (FA Marks)</h5>
+          <h5 class="mb-0 fw-bold"><i class="fas fa-pen-alt text-primary me-2"></i>FA Marks Manual Entry</h5>
         </div>
         <div class="card-body">
           <form action="{{ route('faculty.internal-marks.enter') }}" method="GET" id="selectForm">
+            <input type="hidden" name="syllabus_id" id="syllabusIdInput">
             <div class="row g-3 align-items-end">
-              <div class="col-md-4">
-                <label class="form-label fw-bold">Course</label>
-                <select name="course_id" class="form-select" required>
-                  <option value="">-- Select Course --</option>
-                  @foreach($courses as $course)
-                  <option value="{{ $course->id }}">
-                    {{ $course->course_title ?? '' }} {{ $course->course_code ? '('.$course->course_code.')' : '' }}
-                    @if($course->departmentmaster) - {{ $course->departmentmaster->dept_name ?? '' }} @endif
+              <div class="col-md-6">
+                <label class="form-label fw-bold">Faculty Assigned Course</label>
+                <select name="rec_id" id="routineSelect" class="form-select" required>
+                  <option value="">-- Select Assigned Course --</option>
+                  @foreach(($syllabusAssignments ?? collect()) as $item)
+                  <option value="{{ $item->id }}" data-syllabus-id="{{ $item->syllabus->id ?? '' }}">
+                    {{ $item->syllabus->courseLink->courseMaster->course_title ?? 'N/A' }}
+                    ({{ $item->syllabus->courseLink->courseMaster->course_code ?? 'N/A' }})
+                    - {{ $item->syllabus->semestermaster->title ?? 'N/A' }}
+                    | Batch: {{ $item->syllabus->batchmaster->batch_name ?? 'N/A' }}
+                    | Shift: {{ ucfirst($item->shift ?? 'common') }}
                   </option>
                   @endforeach
                 </select>
               </div>
               <div class="col-md-3">
-                <label class="form-label fw-bold">Semester</label>
-                <select name="semester" class="form-select" required>
-                  <option value="">-- Select Semester --</option>
-                  @foreach($semesters as $sem)
-                  <option value="{{ $sem->id }}">{{ $sem->title }}</option>
+                <label class="form-label fw-bold">FA Component</label>
+                <select name="component_id" class="form-select" required>
+                  <option value="">-- Select Component --</option>
+                  @foreach(($faComponents ?? collect()) as $component)
+                  <option value="{{ $component->id }}">{{ $component->name }}</option>
                   @endforeach
                 </select>
               </div>
@@ -79,6 +83,32 @@
   </main>
 </div>
 
-@include('includes.footer')
+<script>
+  (function() {
+    const routineSelect = document.getElementById('routineSelect');
+    const syllabusInput = document.getElementById('syllabusIdInput');
+    const form = document.getElementById('selectForm');
+
+    function syncSyllabusId() {
+      const option = routineSelect?.options[routineSelect.selectedIndex];
+      syllabusInput.value = option?.dataset?.syllabusId || '';
+    }
+
+    if (routineSelect) {
+      routineSelect.addEventListener('change', syncSyllabusId);
+      syncSyllabusId();
+    }
+
+    if (form) {
+      form.addEventListener('submit', function(event) {
+        syncSyllabusId();
+        if (!syllabusInput.value) {
+          event.preventDefault();
+          alert('Please select a valid assigned course.');
+        }
+      });
+    }
+  })();
+</script>
 
 @include('includes.footer')
