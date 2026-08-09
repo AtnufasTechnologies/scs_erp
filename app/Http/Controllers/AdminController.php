@@ -384,6 +384,19 @@ class AdminController extends Controller
                 ->get();
         }
 
+        $subjects = Subject::where('campus_id', (int) $data->campus_id)
+            ->orderBy('title')
+            ->get(['id', 'title', 'code', 'campus_id']);
+
+        $availablePrograms = collect();
+        if (!empty($data->batch) && !empty($data->campus_id) && !empty($data->academic_dept_id)) {
+            $availablePrograms = $this->getEnrolledProgramsByBatchCampusAndSubject(
+                (int) $data->batch,
+                (int) $data->campus_id,
+                (int) $data->academic_dept_id
+            );
+        }
+
         return view('admin.master.student-profile', [
             'data'               => $data,
             'studentCourses'     => $studentCourses,
@@ -399,7 +412,8 @@ class AdminController extends Controller
             'examResults'        => $examResults,
             'examStudent'        => $examStudent,
             'batches'            => BatchMaster::orderBy('batch_name')->get(),
-            'departments'        => DepartmentMaster::orderBy('name')->get(),
+            'subjects'           => $subjects,
+            'availablePrograms'  => $availablePrograms,
             'campuses'           => Campus::orderBy('name')->get(),
             'religions'          => ReligionMaster::orderBy('name')->get(),
             'nationalities'      => NationalityMaster::orderBy('name')->get(),
@@ -864,7 +878,8 @@ class AdminController extends Controller
             'guardian_mobile_no'    => 'nullable|string|max:15',
             'fr_occupation'         => 'nullable|string|max:150',
             'mr_occupation'         => 'nullable|string|max:150',
-            'department'            => 'nullable|integer|exists:department_masters,id',
+            'academic_dept_id'      => 'nullable|integer|exists:subjects,id',
+            'new_program_id'        => 'nullable|integer|exists:student_program,id',
             'batch'                 => 'nullable|integer|exists:batch_masters,id',
             'campus_id'             => 'nullable|integer|exists:campuses,id',
             'roll_no'               => 'nullable|string|max:50',
@@ -874,6 +889,7 @@ class AdminController extends Controller
             'admission_date'        => 'nullable|date',
             'graduation_year'       => 'nullable|integer',
             'status'                => 'nullable|string|max:50',
+            'mark_left_deactivate'  => 'nullable|boolean',
             'nationality'           => 'nullable|integer|exists:nationality_masters,id',
             'religion'              => 'nullable|integer|exists:religion_masters,id',
             'community'             => 'nullable|string|max:100',
@@ -905,10 +921,118 @@ class AdminController extends Controller
             ]);
         }
 
+        if ($request->boolean('mark_left_deactivate')) {
+            $validated['status'] = 'left';
+        }
+
         $student->update($validated);
+
+        if ($request->boolean('mark_left_deactivate')) {
+            if (Schema::hasColumn($student->getTable(), 'is_active')) {
+                $student->is_active = 0;
+                $student->save();
+            }
+
+            User::where('roll_no', $student->roll_no)->update([
+                'status' => 'INACTIVE',
+            ]);
+        }
 
         return redirect()->route('admin.student.profile', ['id' => $id, 'rollno' => $student->roll_no])
             ->with('success', 'Student details updated successfully.');
+    }
+
+    function fetchEnrolledProgramsByBatchAndSubject(Request $request)
+    {
+        $request->validate([
+            'batch_id' => 'required|integer|exists:batch_masters,id',
+            'campus_id' => 'required|integer|exists:campuses,id',
+            'subject_id' => 'required|integer|exists:subjects,id',
+        ]);
+
+        $programs = $this->getEnrolledProgramsByBatchCampusAndSubject(
+            (int) $request->batch_id,
+            (int) $request->campus_id,
+            (int) $request->subject_id
+        );
+
+        return response()->json([
+            'success' => true,
+            'programs' => $programs,
+        ]);
+    }
+
+    function fetchSubjectsByCampus(Request $request)
+    {
+        $request->validate([
+            'campus_id' => 'required|integer|exists:campuses,id',
+        ]);
+
+        $subjects = Subject::where('campus_id', (int) $request->campus_id)
+            ->orderBy('title')
+            ->get(['id', 'title', 'code', 'campus_id']);
+
+        return response()->json([
+            'success' => true,
+            'subjects' => $subjects,
+        ]);
+    }
+
+    private function getEnrolledProgramsByBatchCampusAndSubject(int $batchId, int $campusId, int $subjectId)
+    {
+        $subject = Subject::find($subjectId);
+        if (!$subject || (int) $subject->campus_id !== $campusId) {
+            return collect();
+        }
+
+        // Restrict by combinations configured for selected subject + batch (+ campus when available).
+        $combinationQuery = SubjectHasStudentProgam::where('subject_id', $subjectId)
+            ->where('batch_id', $batchId);
+
+        if (Schema::hasColumn((new SubjectHasStudentProgam())->getTable(), 'campus_id')) {
+            $combinationQuery->where('campus_id', $campusId);
+        }
+
+        $subjectProgramIds = $combinationQuery
+            ->pluck('student_program_id')
+            ->map(fn($id) => (int) $id)
+            ->filter()
+            ->unique()
+            ->values()
+            ->all();
+
+        if (empty($subjectProgramIds)) {
+            return collect();
+        }
+
+        // Keep only programs where students are actually enrolled for this batch + campus.
+        $enrolledProgramIds = StudentMaster::where('batch', $batchId)
+            ->where('campus_id', $campusId)
+            ->whereIn('new_program_id', $subjectProgramIds)
+            ->whereNotNull('new_program_id')
+            ->distinct()
+            ->pluck('new_program_id')
+            ->map(fn($id) => (int) $id)
+            ->toArray();
+
+        if (empty($enrolledProgramIds)) {
+            return collect();
+        }
+
+        return StudentProgram::query()
+            ->where('campus_id', $campusId)
+            ->whereIn('id', $enrolledProgramIds)
+            ->orderBy('name')
+            ->get(['id', 'code', 'name', 'program_type'])
+            ->map(function ($program) {
+                return [
+                    'id' => (int) $program->id,
+                    'code' => (string) ($program->code ?? ''),
+                    'name' => (string) ($program->name ?? ''),
+                    'program_type' => (string) ($program->program_type ?? ''),
+                ];
+            })
+            ->values();
     }
 
     // ── Student Course CRUD ──────────────────────────────────────────────

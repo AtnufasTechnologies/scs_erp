@@ -128,6 +128,8 @@ Route::group(['prefix' => '/erp'], function () {
         Route::get('student-search', [AdminController::class, 'searchStudents'])->name('admin.student.search');
         Route::get('faculty-master', [AdminController::class, 'facultyMaster']);
         Route::get('{id}/std-profile/{rollno}', [AdminController::class, 'stdprofile'])->name('admin.student.profile');
+        Route::get('student/subjects/by-campus', [AdminController::class, 'fetchSubjectsByCampus'])->name('admin.student.subjects-by-campus');
+        Route::get('student/enrolled-programs/by-batch-subject', [AdminController::class, 'fetchEnrolledProgramsByBatchAndSubject'])->name('admin.student.enrolled-programs');
         Route::put('{id}/std-update', [AdminController::class, 'stdUpdate'])->name('admin.student.update');
         Route::post('{studentId}/courses', [AdminController::class, 'stdCourseStore'])->name('admin.student.courses.store');
         Route::put('{studentId}/courses/{sciId}', [AdminController::class, 'stdCourseUpdate'])->name('admin.student.courses.update');
