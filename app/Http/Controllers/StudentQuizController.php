@@ -303,7 +303,7 @@ class StudentQuizController extends Controller
       return response()->json(['message' => 'Roll number verification required.'], 422);
     }
 
-    $quiz = $this->eligibleQuizQuery($student)->with(['questions.options'])->findOrFail($id);
+    $quiz = $this->eligibleQuizQuery($student)->findOrFail($id);
 
     $request->validate([
       'question_id' => 'required|integer',
@@ -325,27 +325,42 @@ class StudentQuizController extends Controller
       return response()->json(['message' => 'Time limit expired. Quiz auto-submitted.'], 422);
     }
 
-    $question = $quiz->questions->firstWhere('id', (int) $request->question_id);
-    if (!$question) {
+    $questionId = (int) $request->question_id;
+    $questionExists = DB::table('quiz_questions')
+      ->where('id', $questionId)
+      ->where('quiz_id', (int) $quiz->id)
+      ->exists();
+
+    if (!$questionExists) {
       return response()->json(['message' => 'Invalid question.'], 422);
     }
 
-    $selectedOption = null;
+    $selectedOptionId = null;
+    $isCorrect = false;
     if ($request->filled('option_id')) {
-      $selectedOption = $question->options->firstWhere('id', (int) $request->option_id);
-      if (!$selectedOption) {
+      $candidateOptionId = (int) $request->option_id;
+      $optionRow = DB::table('quiz_question_options')
+        ->where('id', $candidateOptionId)
+        ->where('quiz_question_id', $questionId)
+        ->select('id', 'is_correct')
+        ->first();
+
+      if (!$optionRow) {
         return response()->json(['message' => 'Invalid option.'], 422);
       }
+
+      $selectedOptionId = (int) $optionRow->id;
+      $isCorrect = (bool) $optionRow->is_correct;
     }
 
     QuizAttemptAnswer::updateOrCreate(
       [
         'quiz_attempt_id' => $attempt->id,
-        'quiz_question_id' => $question->id,
+        'quiz_question_id' => $questionId,
       ],
       [
-        'quiz_question_option_id' => $selectedOption?->id,
-        'is_correct' => $selectedOption ? (bool) $selectedOption->is_correct : false,
+        'quiz_question_option_id' => $selectedOptionId,
+        'is_correct' => $isCorrect,
       ]
     );
 
@@ -363,7 +378,7 @@ class StudentQuizController extends Controller
       return redirect()->route('student.fa1.index')->with('error', 'Please enter your roll number to access FA1 examination portal.');
     }
 
-    $quiz = $this->eligibleQuizQuery($student)->with(['questions.options'])->findOrFail($id);
+    $quiz = $this->eligibleQuizQuery($student)->findOrFail($id);
 
     $this->autoSubmitExpiredAttempts($student->id, $quiz->id);
 
@@ -378,26 +393,70 @@ class StudentQuizController extends Controller
     }
 
     $answers = $request->input('answers', []);
-    foreach ($quiz->questions as $question) {
-      $selectedOptionId = $answers[$question->id] ?? null;
-      if (!$selectedOptionId) {
-        continue;
+    $rowsToUpsert = [];
+
+    if (is_array($answers) && !empty($answers)) {
+      $answerQuestionIds = [];
+      $answerOptionIds = [];
+
+      foreach ($answers as $questionId => $optionId) {
+        $qId = (int) $questionId;
+        $oId = (int) $optionId;
+        if ($qId > 0 && $oId > 0) {
+          $answerQuestionIds[] = $qId;
+          $answerOptionIds[] = $oId;
+        }
       }
 
-      $selectedOption = $question->options->firstWhere('id', (int) $selectedOptionId);
-      if (!$selectedOption) {
-        continue;
-      }
+      if (!empty($answerQuestionIds) && !empty($answerOptionIds)) {
+        $validQuestionIds = DB::table('quiz_questions')
+          ->where('quiz_id', (int) $quiz->id)
+          ->whereIn('id', array_values(array_unique($answerQuestionIds)))
+          ->pluck('id')
+          ->map(fn($id) => (int) $id)
+          ->all();
 
-      QuizAttemptAnswer::updateOrCreate(
-        [
-          'quiz_attempt_id' => $attempt->id,
-          'quiz_question_id' => $question->id,
-        ],
-        [
-          'quiz_question_option_id' => $selectedOption->id,
-          'is_correct' => (bool) $selectedOption->is_correct,
-        ]
+        $validQuestionLookup = array_fill_keys($validQuestionIds, true);
+
+        $validOptions = DB::table('quiz_question_options as qqo')
+          ->join('quiz_questions as qq', 'qq.id', '=', 'qqo.quiz_question_id')
+          ->where('qq.quiz_id', (int) $quiz->id)
+          ->whereIn('qqo.id', array_values(array_unique($answerOptionIds)))
+          ->select('qqo.id as option_id', 'qqo.quiz_question_id as question_id', 'qqo.is_correct')
+          ->get()
+          ->keyBy('option_id');
+
+        $now = now();
+        foreach ($answers as $questionId => $optionId) {
+          $qId = (int) $questionId;
+          $oId = (int) $optionId;
+
+          if ($qId <= 0 || $oId <= 0 || !isset($validQuestionLookup[$qId])) {
+            continue;
+          }
+
+          $option = $validOptions->get($oId);
+          if (!$option || (int) $option->question_id !== $qId) {
+            continue;
+          }
+
+          $rowsToUpsert[] = [
+            'quiz_attempt_id' => (int) $attempt->id,
+            'quiz_question_id' => $qId,
+            'quiz_question_option_id' => $oId,
+            'is_correct' => (bool) $option->is_correct,
+            'created_at' => $now,
+            'updated_at' => $now,
+          ];
+        }
+      }
+    }
+
+    if (!empty($rowsToUpsert)) {
+      DB::table('quiz_attempt_answers')->upsert(
+        $rowsToUpsert,
+        ['quiz_attempt_id', 'quiz_question_id'],
+        ['quiz_question_option_id', 'is_correct', 'updated_at']
       );
     }
 
@@ -575,35 +634,35 @@ class StudentQuizController extends Controller
 
   private function finalizeAttempt(QuizAttempt $attempt, bool $submittedByTimeout = false): void
   {
-    $quiz = $attempt->quiz()->with(['questions.options'])->first();
-    if (!$quiz || $attempt->status === 'submitted') {
+    $quiz = $attempt->quiz()
+      ->select('id', 'course_id', 'batch_id', 'semester_id', 'cia_group_id', 'sup_cia_component_id', 'total_marks')
+      ->withCount('questions')
+      ->first();
+
+    if (!$quiz) {
       return;
     }
 
     DB::transaction(function () use ($attempt, $quiz, $submittedByTimeout) {
-      $answers = QuizAttemptAnswer::where('quiz_attempt_id', $attempt->id)
-        ->pluck('quiz_question_option_id', 'quiz_question_id');
+      $attemptRow = QuizAttempt::where('id', (int) $attempt->id)
+        ->lockForUpdate()
+        ->first();
 
-      $correctCount = 0;
-      $totalQuestions = $quiz->questions->count();
-
-      foreach ($quiz->questions as $question) {
-        $selectedOptionId = $answers[$question->id] ?? null;
-        if (!$selectedOptionId) {
-          continue;
-        }
-
-        $selectedOption = $question->options->firstWhere('id', (int) $selectedOptionId);
-        if ($selectedOption && $selectedOption->is_correct) {
-          $correctCount++;
-        }
+      if (!$attemptRow || $attemptRow->status === 'submitted') {
+        return;
       }
+
+      $totalQuestions = (int) ($quiz->questions_count ?? 0);
+      $correctCount = DB::table('quiz_attempt_answers')
+        ->where('quiz_attempt_id', (int) $attempt->id)
+        ->where('is_correct', 1)
+        ->count();
 
       $score = $totalQuestions > 0
         ? round(($correctCount / $totalQuestions) * (float) $quiz->total_marks, 2)
         : 0;
 
-      $attempt->update([
+      $attemptRow->update([
         'status' => 'submitted',
         'raw_score' => $correctCount,
         'total_questions' => $totalQuestions,
