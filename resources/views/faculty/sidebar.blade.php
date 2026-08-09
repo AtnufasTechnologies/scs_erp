@@ -95,6 +95,15 @@
 
 
     <li>
+      <a href="{{route('faculty.quiz.index')}}">
+        <div class="parent-icon">
+          <i class="fas fa-question-circle"></i>
+        </div>
+        <div class="menu-title">Quiz </div>
+      </a>
+    </li>
+
+    <li>
       <a href="{{route('faculty.attendance.view.remedial-class')}}">
         <div class="parent-icon">
           <i class="fas fa-chalkboard-teacher"></i>
