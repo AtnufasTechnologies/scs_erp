@@ -538,6 +538,7 @@ class PrincipalController extends Controller
 
     $selectedCampusId = (int) $request->query('campus_id', 0);
     $selectedBatchId = (int) $request->query('batch_id', 0);
+    $selectedSubjectId = (int) $request->query('subject_id', 0);
 
     if ($isVicePrincipal) {
       $vpCampusId = (int) UserCampusSetting::where('user_id', auth()->id())->value('campus_id');
@@ -564,6 +565,24 @@ class PrincipalController extends Controller
       $combinationQuery->where('batch_id', $selectedBatchId);
     }
 
+    $subjectFilterIds = SubjectHasStudentProgam::query()
+      ->when($selectedCampusId > 0, fn($query) => $query->where('campus_id', $selectedCampusId))
+      ->when($selectedBatchId > 0, fn($query) => $query->where('batch_id', $selectedBatchId))
+      ->pluck('subject_id')
+      ->map(fn($id) => (int) $id)
+      ->filter(fn($id) => $id > 0)
+      ->unique()
+      ->values();
+
+    $subjects = Subject::query()
+      ->when($subjectFilterIds->isNotEmpty(), fn($query) => $query->whereIn('id', $subjectFilterIds->all()))
+      ->orderBy('title')
+      ->get(['id', 'title', 'code']);
+
+    if ($selectedSubjectId > 0) {
+      $combinationQuery->where('subject_id', $selectedSubjectId);
+    }
+
     $combinations = $combinationQuery->get([
       'id',
       'student_program_id',
@@ -575,6 +594,54 @@ class PrincipalController extends Controller
 
     $combinationIds = $combinations->pluck('id')->map(fn($id) => (int) $id)->filter(fn($id) => $id > 0)->values();
     $subjectIds = $combinations->pluck('subject_id')->map(fn($id) => (int) $id)->filter(fn($id) => $id > 0)->unique()->values();
+
+    $programIds = $combinations->pluck('student_program_id')->map(fn($id) => (int) $id)->filter(fn($id) => $id > 0)->unique()->values();
+    $batchIds = $combinations->pluck('batch_id')->map(fn($id) => (int) $id)->filter(fn($id) => $id > 0)->unique()->values();
+
+    $enrolledProgramBatchKeyMap = collect();
+    if ($programIds->isNotEmpty() && $batchIds->isNotEmpty()) {
+      $enrolledStudentsQuery = StudentMaster::query()
+        ->whereIn('new_program_id', $programIds->all())
+        ->whereIn('batch', $batchIds->all());
+
+      if ($selectedCampusId > 0 && Schema::hasColumn((new StudentMaster())->getTable(), 'campus_id')) {
+        $enrolledStudentsQuery->where('campus_id', $selectedCampusId);
+      }
+
+      $enrolledProgramBatchKeyMap = $enrolledStudentsQuery
+        ->get(['new_program_id', 'batch'])
+        ->map(function ($student) {
+          return (int) ($student->new_program_id ?? 0) . '|' . (int) ($student->batch ?? 0);
+        })
+        ->filter()
+        ->unique()
+        ->flip();
+    }
+
+    $enrolledCombinations = $combinations->filter(function ($combination) use ($enrolledProgramBatchKeyMap) {
+      if ($enrolledProgramBatchKeyMap->isEmpty()) {
+        return false;
+      }
+
+      $key = (int) ($combination->student_program_id ?? 0) . '|' . (int) ($combination->batch_id ?? 0);
+      return $enrolledProgramBatchKeyMap->has($key);
+    })->values();
+
+    $batchWiseCombinationCounts = $enrolledCombinations
+      ->groupBy(fn($combination) => (int) ($combination->batch_id ?? 0))
+      ->map(function ($batchCombinations) {
+        $batchCombinations = collect($batchCombinations)->values();
+        $firstCombination = $batchCombinations->first();
+
+        return (object) [
+          'batch_id' => (int) ($firstCombination->batch_id ?? 0),
+          'batch_name' => (string) (optional($firstCombination?->batchmaster)->batch_name ?? '-'),
+          'combination_count' => $batchCombinations->count(),
+          'department_count' => $batchCombinations->pluck('subject_id')->map(fn($id) => (int) $id)->filter(fn($id) => $id > 0)->unique()->count(),
+        ];
+      })
+      ->sortBy('batch_id')
+      ->values();
 
     $curriculumRowsByCombination = collect();
     $assignmentsBySubjectCourse = collect();
@@ -615,23 +682,29 @@ class PrincipalController extends Controller
         ->values();
 
       if ($courseIds->isNotEmpty()) {
-        $teachingAssignments = TeachingAssignment::with([
+        $teachingAssignmentQuery = TeachingAssignment::with([
           'faculty:id,USER_CODE,FIRST_NAME,LAST_NAME',
           'coFacultyMembers:id,USER_CODE,FIRST_NAME,LAST_NAME',
         ])
           ->whereIn('course_id', $courseIds)
           ->when($subjectIds->isNotEmpty(), function ($query) use ($subjectIds) {
             $query->whereIn('subject_id', $subjectIds);
-          })
-          ->get([
-            'id',
-            'subject_id',
-            'course_id',
-            'faculty_id',
-            'delivery_type',
-            'allocation_group',
-            'is_active',
-          ]);
+          });
+
+        $teachingAssignmentTable = (new TeachingAssignment())->getTable();
+        if (Schema::hasColumn($teachingAssignmentTable, 'is_active')) {
+          $teachingAssignmentQuery->where('is_active', 1);
+        }
+
+        $teachingAssignments = $teachingAssignmentQuery->get([
+          'id',
+          'subject_id',
+          'course_id',
+          'faculty_id',
+          'delivery_type',
+          'allocation_group',
+          'is_active',
+        ]);
 
         $assignmentsBySubjectCourse = $teachingAssignments->groupBy(function ($assignment) {
           return (int) ($assignment->subject_id ?? 0) . '|' . (int) ($assignment->course_id ?? 0);
@@ -737,13 +810,31 @@ class PrincipalController extends Controller
       return $row->combination_count > 0;
     })->values();
 
+    $combinationsWithCurriculum = $curriculumRowsByCombination
+      ->filter(fn($rows) => collect($rows)->isNotEmpty())
+      ->count();
+
+    $totalCombinations = $combinations->count();
+    $curriculumSummary = (object) [
+      'total_departments' => $subjectIds->count(),
+      'total_combinations' => $totalCombinations,
+      'combinations_with_curriculum' => $combinationsWithCurriculum,
+      'combinations_without_curriculum' => max(0, $totalCombinations - $combinationsWithCurriculum),
+      'curriculum_source_table' => Schema::hasTable('curriculam_engine') ? 'curriculam_engine' : 'program_wise_semester_courses',
+      'curriculum_records_found' => $curriculumRowsByCombination->flatten(1)->count() > 0,
+    ];
+
     return view('principal.curriculam.index', [
       'campuses' => $campuses,
       'batches' => $batches,
+      'subjects' => $subjects,
       'selectedCampusId' => $selectedCampusId,
       'selectedBatchId' => $selectedBatchId,
+      'selectedSubjectId' => $selectedSubjectId,
       'programRows' => $programRows,
       'isVicePrincipal' => $isVicePrincipal,
+      'batchWiseCombinationCounts' => $batchWiseCombinationCounts,
+      'curriculumSummary' => $curriculumSummary,
     ]);
   }
 
@@ -760,6 +851,7 @@ class PrincipalController extends Controller
 
     $selectedCampusId = (int) $request->query('campus_id', 0);
     $selectedBatchId = (int) $request->query('batch_id', 0);
+    $selectedSubjectId = (int) $request->query('subject_id', 0);
 
     if ($isVicePrincipal) {
       $vpCampusId = (int) UserCampusSetting::where('user_id', auth()->id())->value('campus_id');
@@ -784,10 +876,60 @@ class PrincipalController extends Controller
       $combinationQuery->where('batch_id', $selectedBatchId);
     }
 
+    $subjectFilterIds = SubjectHasStudentProgam::query()
+      ->when($selectedCampusId > 0, fn($query) => $query->where('campus_id', $selectedCampusId))
+      ->when($selectedBatchId > 0, fn($query) => $query->where('batch_id', $selectedBatchId))
+      ->pluck('subject_id')
+      ->map(fn($id) => (int) $id)
+      ->filter(fn($id) => $id > 0)
+      ->unique()
+      ->values();
+
+    $subjects = Subject::query()
+      ->when($subjectFilterIds->isNotEmpty(), fn($query) => $query->whereIn('id', $subjectFilterIds->all()))
+      ->orderBy('title')
+      ->get(['id', 'title', 'code']);
+
+    if ($selectedSubjectId > 0) {
+      $combinationQuery->where('subject_id', $selectedSubjectId);
+    }
+
     $combinations = $combinationQuery
       ->orderBy('student_program_id')
       ->orderBy('batch_id')
       ->get(['id', 'student_program_id', 'subject_id', 'batch_id', 'campus_id', 'program_type']);
+
+    $programIds = $combinations->pluck('student_program_id')->map(fn($id) => (int) $id)->filter(fn($id) => $id > 0)->unique()->values();
+    $batchIds = $combinations->pluck('batch_id')->map(fn($id) => (int) $id)->filter(fn($id) => $id > 0)->unique()->values();
+
+    $enrolledProgramBatchKeyMap = collect();
+    if ($programIds->isNotEmpty() && $batchIds->isNotEmpty()) {
+      $enrolledStudentsQuery = StudentMaster::query()
+        ->whereIn('new_program_id', $programIds->all())
+        ->whereIn('batch', $batchIds->all());
+
+      if ($selectedCampusId > 0 && Schema::hasColumn((new StudentMaster())->getTable(), 'campus_id')) {
+        $enrolledStudentsQuery->where('campus_id', $selectedCampusId);
+      }
+
+      $enrolledProgramBatchKeyMap = $enrolledStudentsQuery
+        ->get(['new_program_id', 'batch'])
+        ->map(function ($student) {
+          return (int) ($student->new_program_id ?? 0) . '|' . (int) ($student->batch ?? 0);
+        })
+        ->filter()
+        ->unique()
+        ->flip();
+    }
+
+    $combinations = $combinations->filter(function ($combination) use ($enrolledProgramBatchKeyMap) {
+      if ($enrolledProgramBatchKeyMap->isEmpty()) {
+        return false;
+      }
+
+      $key = (int) ($combination->student_program_id ?? 0) . '|' . (int) ($combination->batch_id ?? 0);
+      return $enrolledProgramBatchKeyMap->has($key);
+    })->values();
 
     $combinationIds = $combinations->pluck('id')->map(fn($id) => (int) $id)->filter(fn($id) => $id > 0)->values();
     $subjectIds = $combinations->pluck('subject_id')->map(fn($id) => (int) $id)->filter(fn($id) => $id > 0)->unique()->values();
@@ -819,6 +961,14 @@ class PrincipalController extends Controller
 
     $defaulters = $combinations->filter(function ($combination) use ($curriculumCounts) {
       return (int) ($curriculumCounts[$combination->id] ?? 0) <= 0;
+    })->unique(function ($combination) {
+      return implode('|', [
+        (int) ($combination->student_program_id ?? 0),
+        (int) ($combination->subject_id ?? 0),
+        (int) ($combination->batch_id ?? 0),
+        (int) ($combination->campus_id ?? 0),
+        strtoupper(trim((string) ($combination->program_type ?? ''))),
+      ]);
     })->map(function ($combination) {
       $programInfo = $combination->studentprograminfo;
       $subject = $combination->subjectmaster;
@@ -838,8 +988,10 @@ class PrincipalController extends Controller
     return view('principal.curriculam.defaulters', [
       'campuses' => $campuses,
       'batches' => $batches,
+      'subjects' => $subjects,
       'selectedCampusId' => $selectedCampusId,
       'selectedBatchId' => $selectedBatchId,
+      'selectedSubjectId' => $selectedSubjectId,
       'programRows' => $defaulters,
       'isVicePrincipal' => $isVicePrincipal,
       'totalDefaulters' => $defaulters->count(),

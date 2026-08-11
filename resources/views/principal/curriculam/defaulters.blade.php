@@ -26,7 +26,7 @@
       </div>
       <div class="card-body">
         <form method="GET" action="{{ route('principal.curriculam.defaulters') }}" class="row g-2 align-items-end">
-          <div class="col-md-4">
+          <div class="col-md-3">
             <label class="form-label">Campus</label>
             <select name="campus_id" class="form-select" {{ $isVicePrincipal ? 'disabled' : '' }}>
               <option value="">All Campuses</option>
@@ -40,7 +40,7 @@
             @endif
           </div>
 
-          <div class="col-md-4">
+          <div class="col-md-3">
             <label class="form-label">Batch</label>
             <select name="batch_id" class="form-select">
               <option value="">All Batches</option>
@@ -50,7 +50,19 @@
             </select>
           </div>
 
-          <div class="col-md-4 d-flex gap-2">
+          <div class="col-md-3">
+            <label class="form-label">Subject / Department</label>
+            <select name="subject_id" class="form-select">
+              <option value="">All Subjects</option>
+              @foreach(($subjects ?? collect()) as $subject)
+              <option value="{{ $subject->id }}" {{ (int) ($selectedSubjectId ?? 0) === (int) $subject->id ? 'selected' : '' }}>
+                {{ $subject->code ? $subject->code . ' - ' : '' }}{{ $subject->title }}
+              </option>
+              @endforeach
+            </select>
+          </div>
+
+          <div class="col-md-3 d-flex gap-2">
             <button type="submit" class="btn btn-success w-100"><i class="fa fa-search me-1"></i>Apply</button>
             <a href="{{ route('principal.curriculam.defaulters') }}" class="btn btn-outline-secondary w-100">Clear</a>
           </div>

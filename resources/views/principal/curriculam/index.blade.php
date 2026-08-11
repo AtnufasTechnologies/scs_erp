@@ -36,7 +36,7 @@
 
 
       <form method="GET" action="{{ route('principal.curriculam.index') }}" class="row g-2 align-items-end">
-        <div class="col-md-4">
+        <div class="col-md-3">
           <label class="form-label">Campus</label>
           <select name="campus_id" class="form-select" {{ $isVicePrincipal ? 'disabled' : '' }}>
             <option value="">All Campuses</option>
@@ -50,7 +50,7 @@
           @endif
         </div>
 
-        <div class="col-md-4">
+        <div class="col-md-3">
           <label class="form-label">Batch</label>
           <select name="batch_id" class="form-select">
             <option value="">All Batches</option>
@@ -60,11 +60,99 @@
           </select>
         </div>
 
-        <div class="col-md-4 d-flex gap-2">
+        <div class="col-md-3">
+          <label class="form-label">Subject / Department</label>
+          <select name="subject_id" class="form-select">
+            <option value="">All Subjects</option>
+            @foreach(($subjects ?? collect()) as $subject)
+            <option value="{{ $subject->id }}" {{ (int) ($selectedSubjectId ?? 0) === (int) $subject->id ? 'selected' : '' }}>
+              {{ $subject->code ? $subject->code . ' - ' : '' }}{{ $subject->title }}
+            </option>
+            @endforeach
+          </select>
+        </div>
+
+        <div class="col-md-3 d-flex gap-2">
           <button type="submit" class="btn btn-success w-100"><i class="fa fa-search me-1"></i>Apply</button>
           <a href="{{ route('principal.curriculam.index') }}" class="btn btn-outline-secondary w-100">Clear</a>
         </div>
       </form>
+    </div>
+
+    <div class="row mt-3 g-3">
+      <div class="col-12 col-md-3">
+        <div class="stat-card">
+          <div class="card-body py-3">
+            <div class="small text-muted">Total Departments (Subjects)</div>
+            <div class="h4 mb-0">{{ (int) ($curriculumSummary->total_departments ?? 0) }}</div>
+          </div>
+        </div>
+      </div>
+      <div class="col-12 col-md-3">
+        <div class="stat-card">
+          <div class="card-body py-3">
+            <div class="small text-muted">Offered Combinations</div>
+            <div class="h4 mb-0">{{ (int) ($curriculumSummary->total_combinations ?? 0) }}</div>
+          </div>
+        </div>
+      </div>
+      <div class="col-12 col-md-3">
+        <div class="stat-card">
+          <div class="card-body py-3">
+            <div class="small text-muted">Combinations with Curriculum</div>
+            <div class="h4 mb-0 text-success">{{ (int) ($curriculumSummary->combinations_with_curriculum ?? 0) }}</div>
+          </div>
+        </div>
+      </div>
+      <div class="col-12 col-md-3">
+        <div class="stat-card">
+          <div class="card-body py-3">
+            <div class="small text-muted">Combinations pending Curriculum</div>
+            <div class="h4 mb-0 text-danger">{{ (int) ($curriculumSummary->combinations_without_curriculum ?? 0) }}</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="alert alert-secondary mt-3 mb-0">
+      Curriculum source table: <strong>{{ $curriculumSummary->curriculum_source_table ?? 'program_wise_semester_courses' }}</strong>
+      @if(!empty($curriculumSummary->curriculum_records_found))
+      <span class="badge bg-success ms-2">Records Found</span>
+      @else
+      <span class="badge bg-danger ms-2">No Records Found</span>
+      @endif
+    </div>
+
+    <div class="card mt-3 border-0 shadow-sm">
+      <div class="card-header bg-white">
+        <h6 class="mb-0">Batch-wise Offered Combinations (from subject_has_student_progams)</h6>
+      </div>
+      <div class="card-body">
+        @if(($batchWiseCombinationCounts ?? collect())->isEmpty())
+        <div class="text-muted small mb-0">No combination rows found for selected filters.</div>
+        @else
+        <div class="table-responsive">
+          <table class="table table-sm table-bordered align-middle mb-0">
+            <thead class="table-light">
+              <tr>
+                <th style="width: 140px;">Batch</th>
+                <th style="width: 220px;">Combinations Offered</th>
+                <th style="width: 220px;">Departments (Subjects)</th>
+              </tr>
+            </thead>
+            <tbody>
+              @foreach($batchWiseCombinationCounts as $batchStat)
+              <tr>
+                <td>{{ $batchStat->batch_name }}</td>
+                <td>{{ (int) $batchStat->combination_count }}</td>
+                <td>{{ (int) $batchStat->department_count }}</td>
+              </tr>
+              @endforeach
+            </tbody>
+          </table>
+        </div>
+        @endif
+      </div>
     </div>
 
 
