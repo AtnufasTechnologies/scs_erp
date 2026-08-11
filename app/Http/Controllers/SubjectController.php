@@ -1306,10 +1306,13 @@ class SubjectController extends Controller
 
 
         $request->validate([
+            'subject_id' => 'required|integer|exists:subjects,id',
             'course_code' => 'required|string|max:255',
             'course_title' => 'required|string|max:255',
             'course_type' => 'required',
             'paper_type' => 'required',
+            'co_cso_not_applicable' => 'nullable|in:0,1',
+            'co_cso_not_applicable_note' => 'nullable|string|max:255',
         ]);
 
         $normalizedCourseCode = Str::upper(trim((string) $request->course_code));
@@ -1333,6 +1336,24 @@ class SubjectController extends Controller
             'total_alloted_hours' => $request->total_alloted_hours,
             'paper_type_id' => $request->paper_type,
         ]);
+
+        $subjectCourseMap = SubjectCourseMaster::query()
+            ->where('subject_id', (int) $request->subject_id)
+            ->where('course_master_id', (int) $id)
+            ->first();
+
+        if ($subjectCourseMap && Schema::hasColumn('subject_course_masters', 'co_cso_not_applicable')) {
+            $isNoCoCsoApplicable = (int) $request->input('co_cso_not_applicable', 0) === 1;
+            $subjectCourseMap->co_cso_not_applicable = $isNoCoCsoApplicable;
+
+            if (Schema::hasColumn('subject_course_masters', 'co_cso_not_applicable_note')) {
+                $subjectCourseMap->co_cso_not_applicable_note = $isNoCoCsoApplicable
+                    ? (trim((string) $request->input('co_cso_not_applicable_note', '')) ?: null)
+                    : null;
+            }
+
+            $subjectCourseMap->save();
+        }
 
         return redirect()->back()->with('success', 'Course Master Updated');
     }
@@ -1518,6 +1539,15 @@ class SubjectController extends Controller
             ->unique('course_master_id')
             ->values();
 
+        $courseApplicabilityMap = $cos->mapWithKeys(function ($item) {
+            return [
+                (int) ($item->course_master_id ?? 0) => [
+                    'co_cso_not_applicable' => (bool) ($item->co_cso_not_applicable ?? false),
+                    'co_cso_not_applicable_note' => trim((string) ($item->co_cso_not_applicable_note ?? '')),
+                ],
+            ];
+        });
+
         $mappedCourseIds = $cos
             ->pluck('course_master_id')
             ->filter()
@@ -1620,6 +1650,7 @@ class SubjectController extends Controller
             'batches'        => $batches,
             'semesters'      => $semesters,
             'cos'            => $cos,
+            'courseApplicabilityMap' => $courseApplicabilityMap,
             'data'           => $data,
             'shiftOptions'   => $shiftOptions,
             'selectedProgramType' => $selectedProgramType,
@@ -1642,12 +1673,34 @@ class SubjectController extends Controller
             'program_type' => 'required|in:UG,PG',
             'shift' => ['nullable', Rule::in($allowedShifts)],
             'co_id' => 'required',
-            'cso_id' => 'required|array|min:1',
+            'cso_id' => 'nullable|array',
             'cso_id.*' => 'integer|exists:co_has_csos,id',
-            'cso_subunit_map' => 'required|array|min:1',
+            'cso_subunit_map' => 'nullable|array',
             'status' => 'required|in:draft,published',
+            'declare_no_co_cso' => 'nullable|in:0,1',
+            'co_cso_not_applicable_note' => 'nullable|string|max:255',
 
         ]);
+
+        $courseMasterId = (int) ($request->co_id ?? 0);
+        $subjectCourseMap = SubjectCourseMaster::query()
+            ->where('subject_id', (int) $request->subject_id)
+            ->where('course_master_id', $courseMasterId)
+            ->first();
+
+        if (!$subjectCourseMap) {
+            return redirect()->back()->with('error', 'Selected course is not mapped to this department.');
+        }
+
+        $declaredNoCoCsoInRequest = (int) $request->input('declare_no_co_cso', 0) === 1;
+        $isAlreadyDeclaredNoCoCso = (bool) ($subjectCourseMap->co_cso_not_applicable ?? false);
+
+        if ($declaredNoCoCsoInRequest) {
+            $subjectCourseMap->co_cso_not_applicable = true;
+            $subjectCourseMap->co_cso_not_applicable_note = trim((string) $request->input('co_cso_not_applicable_note', '')) ?: null;
+            $subjectCourseMap->save();
+            $isAlreadyDeclaredNoCoCso = true;
+        }
 
         // Save syllabus only for one selected shift.
         $targetShifts = [$defaultShift];
@@ -1664,6 +1717,7 @@ class SubjectController extends Controller
         $updatedCount = 0;
         $status = $request->status ?? 'draft';
         $programType = $this->resolveSyllabusProgramType($request, 'program_type');
+        $allowNoCoCsoFlow = $isAlreadyDeclaredNoCoCso;
 
         if (Schema::hasColumn('subject_has_syllabi', 'program_type')) {
             SubjectHasSyllabus::firstOrCreate([
@@ -1694,8 +1748,42 @@ class SubjectController extends Controller
         $hasAtLeastOneSubunit = $selectedCsoIds
             ->contains(fn($csoId) => !empty($csoSubunitMap->get((string) $csoId, [])));
 
-        if (!$hasAtLeastOneSubunit) {
+        if (!$allowNoCoCsoFlow && $selectedCsoIds->isEmpty()) {
+            return redirect()->back()->with('error', 'Please select at least one CSO, or declare this course as CO/CSO not applicable.');
+        }
+
+        if (!$allowNoCoCsoFlow && !$hasAtLeastOneSubunit) {
             return redirect()->back()->with('error', 'Please select at least one subunit for the selected CSO(s).');
+        }
+
+        if ($allowNoCoCsoFlow) {
+            foreach ($targetShifts as $shiftSlug) {
+                $rec = SyllabusManager::updateOrCreate([
+                    'subject_id' => $request->subject_id,
+                    'batch_id' => $request->batch,
+                    'semester_id' => $request->semester,
+                    'shift' => $shiftSlug,
+                    'program_type' => $programType,
+                    'co_id' => $request->co_id,
+                    'cso_id' => null,
+                ], [
+                    'status' => $status,
+                ]);
+
+                if ($rec->wasRecentlyCreated) {
+                    $createdCount++;
+                } else {
+                    $updatedCount++;
+                }
+            }
+
+            if ($createdCount > 0 && $updatedCount > 0) {
+                return redirect()->back()->with('success', 'Syllabus created and updated (CO/CSO not applicable) with status: ' . ucfirst($status));
+            }
+
+            return redirect()->back()->with('success', $createdCount > 0
+                ? 'Syllabus created (CO/CSO not applicable) with status: ' . ucfirst($status)
+                : 'Syllabus updated (CO/CSO not applicable) with status: ' . ucfirst($status));
         }
 
         foreach ($targetShifts as $shiftSlug) {

@@ -251,13 +251,30 @@ $userType = StaticController::fetchUserRole();
 
     <div class="container-fluid">
       @if(count($mycourses))
+      <div class="row mt-3">
+        <div class="col-12 col-lg-6">
+          <label for="courseMasterSearchInput" class="form-label fw-semibold">Search Courses</label>
+          <input
+            type="text"
+            id="courseMasterSearchInput"
+            class="form-control"
+            placeholder="Search by code, title, type, paper type, credits, marks...">
+          <small class="text-muted">Live filter on loaded rows.</small>
+        </div>
+        <div class="col-12 col-lg-6 d-flex align-items-end justify-content-lg-end mt-2 mt-lg-0">
+          <div class="text-muted">Showing: <strong id="courseMasterVisibleCount">{{ count($mycourses) }}</strong> / {{ count($mycourses) }}</div>
+        </div>
+      </div>
+
       <div class="table-responsive mt-4">
-        <table class="table table-bordered table-hover align-middle" id="exportTable">
+        <table class="table table-bordered table-hover align-middle">
           <thead class="table-light">
             <tr>
               <th>RefId#</th>
               <th>Code</th>
               <th>Course Title</th>
+              <th>CO/CSO Applicability</th>
+              <th>Reason</th>
               <th>Type</th>
               <th>Credits</th>
               <th>Paper Type</th>
@@ -271,10 +288,42 @@ $userType = StaticController::fetchUserRole();
           </thead>
           <tbody>
             @forelse($mycourses as $course)
-            <tr class="course-row">
+            @php
+            $isNoCoCsoApplicable = (int) ($course->co_cso_not_applicable ?? 0) === 1;
+            $noCoCsoReason = trim((string) ($course->co_cso_not_applicable_note ?? ''));
+            $courseSearchText = strtolower(trim(
+            '#' . ($course->id ?? '') . ' ' .
+            (string) ($course->courseMaster->course_code ?? '') . ' ' .
+            (string) ($course->courseMaster->course_title ?? '') . ' ' .
+            ($isNoCoCsoApplicable ? 'co cso not applicable declared not applicable' : 'co cso applicable') . ' ' .
+            (string) $noCoCsoReason . ' ' .
+            (string) ($course->courseMaster->coursetypemaster->title ?? '') . ' ' .
+            (string) ($course->courseMaster->coursetypemaster->description ?? '') . ' ' .
+            (string) ($course->courseMaster->papertypemaster->name ?? '') . ' ' .
+            (string) ($course->courseMaster->credits ?? '') . ' ' .
+            (string) ($course->courseMaster->total_alloted_hours ?? '') . ' ' .
+            (string) ($course->courseMaster->internal ?? '') . ' ' .
+            (string) ($course->courseMaster->external ?? '')
+            ));
+            @endphp
+            <tr class="course-row" data-course-search="{{ $courseSearchText }}">
               <td>#{{ $course->id }}</td>
               <td>{{ $course->courseMaster->course_code ?? '' }}</td>
               <td>{{ $course->courseMaster->course_title ?? '' }}</td>
+              <td>
+                @if($isNoCoCsoApplicable)
+                <span class="badge bg-warning text-dark">Not Applicable</span>
+                @else
+                <span class="badge bg-success">Applicable</span>
+                @endif
+              </td>
+              <td>
+                @if($isNoCoCsoApplicable)
+                {{ $noCoCsoReason !== '' ? $noCoCsoReason : '-' }}
+                @else
+                -
+                @endif
+              </td>
               <td>{{ $course->courseMaster->coursetypemaster->title ?? '-' }} - {{ $course->courseMaster->coursetypemaster->description ?? '-' }}</td>
               <td>{{ $course->courseMaster->credits ?? '-' }}</td>
               <td>{{ $course->courseMaster->papertypemaster->name ?? '-' }}</td>
@@ -299,6 +348,7 @@ $userType = StaticController::fetchUserRole();
                       <form class="edit-course-form" action="{{ route('department.update.course.master',$course->courseMaster->id ?? '') }}" method="post" data-course-master-id="{{ (int) ($course->courseMaster->id ?? 0) }}">
                         @csrf
                         @method('PUT')
+                        <input type="hidden" name="subject_id" value="{{ (int) ($data->id ?? 0) }}">
                         <div class="modal-body">
                           <div class="row">
                             <div class="col-lg-4">
@@ -381,6 +431,34 @@ $userType = StaticController::fetchUserRole();
                                 <input type="text" class="form-control" name="course_title" value="{{ $course->courseMaster->course_title ?? '' }}" required>
                               </div>
                             </div>
+
+                            <div class="col-lg-12">
+                              <div class="border rounded p-3 bg-light">
+                                <div class="form-check">
+                                  <input
+                                    class="form-check-input"
+                                    type="checkbox"
+                                    id="noCoCsoApplicable{{ $course->id }}"
+                                    name="co_cso_not_applicable"
+                                    value="1"
+                                    {{ (int) ($course->co_cso_not_applicable ?? 0) === 1 ? 'checked' : '' }}>
+                                  <label class="form-check-label" for="noCoCsoApplicable{{ $course->id }}">
+                                    I Hereby Declare CO and CSO not applicable for this department-course
+                                  </label>
+                                </div>
+                                <div class="mt-2">
+                                  <label class="form-label mb-1" for="noCoCsoNote{{ $course->id }}">Reason (optional)</label>
+                                  <input
+                                    type="text"
+                                    class="form-control"
+                                    id="noCoCsoNote{{ $course->id }}"
+                                    name="co_cso_not_applicable_note"
+                                    maxlength="255"
+                                    value="{{ (string) ($course->co_cso_not_applicable_note ?? '') }}"
+                                    placeholder="Example: Practical paper without CO/CSO structure">
+                                </div>
+                              </div>
+                            </div>
                           </div>
                         </div>
                         <div class="modal-footer">
@@ -405,10 +483,15 @@ $userType = StaticController::fetchUserRole();
               </td>
             </tr>
             @empty
-            <tr>
-              <td colspan="11" class="text-center text-muted">No courses found.</td>
+            <tr id="courseMasterEmptyStateRow">
+              <td colspan="13" class="text-center text-muted">No courses found.</td>
             </tr>
             @endforelse
+            @if(count($mycourses) > 0)
+            <tr id="courseMasterNoSearchResultRow" style="display:none;">
+              <td colspan="13" class="text-center text-muted">No matching courses found for your search.</td>
+            </tr>
+            @endif
           </tbody>
         </table>
       </div>
@@ -693,6 +776,42 @@ $userType = StaticController::fetchUserRole();
       }
     });
   });
+
+  (function() {
+    const searchInput = document.getElementById('courseMasterSearchInput');
+    const rows = Array.from(document.querySelectorAll('tr.course-row'));
+    const noResultRow = document.getElementById('courseMasterNoSearchResultRow');
+    const visibleCountElement = document.getElementById('courseMasterVisibleCount');
+
+    if (!searchInput || rows.length === 0) {
+      return;
+    }
+
+    function applyCourseFilter() {
+      const term = String(searchInput.value || '').toLowerCase().trim();
+      let visibleCount = 0;
+
+      rows.forEach(function(row) {
+        const haystack = String(row.getAttribute('data-course-search') || '').toLowerCase();
+        const match = term === '' || haystack.includes(term);
+        row.style.display = match ? '' : 'none';
+        if (match) {
+          visibleCount++;
+        }
+      });
+
+      if (visibleCountElement) {
+        visibleCountElement.textContent = String(visibleCount);
+      }
+
+      if (noResultRow) {
+        noResultRow.style.display = visibleCount === 0 ? '' : 'none';
+      }
+    }
+
+    searchInput.addEventListener('input', applyCourseFilter);
+    applyCourseFilter();
+  })();
 </script>
 
 @include('includes.footer')

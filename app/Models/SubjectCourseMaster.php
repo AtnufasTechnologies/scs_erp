@@ -13,6 +13,12 @@ class SubjectCourseMaster extends Model
     protected $fillable = [
         'subject_id',
         'course_master_id',
+        'co_cso_not_applicable',
+        'co_cso_not_applicable_note',
+    ];
+
+    protected $casts = [
+        'co_cso_not_applicable' => 'boolean',
     ];
 
     function subject()

@@ -8,6 +8,7 @@ $subjectUsesShifts = $subjectUsesShifts ?? false;
 $shiftTitleMap = collect($shiftOptions ?? [])->pluck('title', 'slug')->toArray();
 $selectedProgramType = strtoupper((string) ($selectedProgramType ?? request('filter_program_type', 'UG')));
 $selectedProgramType = $selectedProgramType === 'PG' ? 'PG' : 'UG';
+$courseApplicabilityMap = collect($courseApplicabilityMap ?? []);
 
 $taxonomyDomainLabel = function ($level) {
   if (!$level) {
@@ -292,6 +293,16 @@ $taxonomyFrameworkLabel = function ($level) use ($taxonomyDomainLabel) {
 
                 <div class="col-lg-12">
                   <label for="">Select CSO *</label>
+                  <div class="form-check mb-2">
+                    <input class="form-check-input" type="checkbox" value="1" id="declare_no_co_cso" name="declare_no_co_cso">
+                    <label class="form-check-label" for="declare_no_co_cso">
+                      Declare for this department-course: CO/CSO not applicable (for practical/non-theory paper)
+                    </label>
+                  </div>
+                  <div class="mb-2">
+                    <input type="text" name="co_cso_not_applicable_note" id="co_cso_not_applicable_note" class="form-control" maxlength="255" placeholder="Optional reason for no CO/CSO applicability">
+                  </div>
+                  <small class="text-muted d-block mb-2" id="coCsoDeclarationHint">You can bypass CSO and subunit selection only when this declaration is set.</small>
                   <div id="cso_checkboxes" class="border rounded p-3 mb-2" style="max-height: 220px; overflow-y: auto;">
                     <p class="text-muted mb-0">--Select Course First--</p>
                   </div>
@@ -373,6 +384,11 @@ $taxonomyFrameworkLabel = function ($level) use ($taxonomyDomainLabel) {
               $completionPercent = $totalUnits > 0 ? (int) round(($completedUnits / $totalUnits) * 100) : 0;
               $isLowCompletion = $totalUnits > 0 && $completionPercent < 50;
               $progressBarClass = $completionPercent >= 75 ? 'bg-success' : ($completionPercent >= 50 ? 'bg-warning' : 'bg-danger');
+              $courseMasterId = (int) ($courseData['course']->id ?? 0);
+              $courseApplicability = (array) ($courseApplicabilityMap[$courseMasterId] ?? []);
+              $isCourseDeclaredNoCoCso = (bool) ($courseApplicability['co_cso_not_applicable'] ?? false);
+              $declaredNoCoCsoNote = trim((string) ($courseApplicability['co_cso_not_applicable_note'] ?? ''));
+              $hasConcreteCso = collect($courseData['csos'] ?? [])->contains(fn($item) => (int) ($item->cso_id ?? 0) > 0);
               ?>
               <div class="accordion-item {{ $isLowCompletion ? 'border border-danger' : '' }}">
                 <div class="accordion-header d-flex align-items-center">
@@ -516,8 +532,19 @@ $taxonomyFrameworkLabel = function ($level) use ($taxonomyDomainLabel) {
 
                     <!-- CSOs -->
                     <h6 class="border-bottom pb-2 mb-3">Course Specific Objectives (CSOs)</h6>
+                    @if($isCourseDeclaredNoCoCso && !$hasConcreteCso)
+                    <div class="alert alert-info py-2" role="alert">
+                      CO/CSO is declared as not applicable for this course by the department.
+                      @if($declaredNoCoCsoNote !== '')
+                      <div class="small mt-1">Reason: {{ $declaredNoCoCsoNote }}</div>
+                      @endif
+                    </div>
+                    @endif
                     @foreach ($courseData['csos'] as $syllabus)
-                    <div class="card mb-3">
+                    @if((int) ($syllabus->cso_id ?? 0) <= 0)
+                      @continue
+                      @endif
+                      <div class="card mb-3">
                       <div class="card-header bg-info text-white">
                         <div class="d-flex justify-content-between align-items-center">
                           <span>
@@ -579,25 +606,25 @@ $taxonomyFrameworkLabel = function ($level) use ($taxonomyDomainLabel) {
                           @endforeach
                         </div>
                       </div>
-                    </div>
-                    @endforeach
                   </div>
+                  @endforeach
                 </div>
               </div>
-              @endforeach
             </div>
+            @endforeach
           </div>
-          @endforeach
         </div>
         @endforeach
       </div>
+      @endforeach
     </div>
-    @empty
-    <div class="alert alert-info text-center" role="alert">
-      <i class="fa fa-info-circle"></i> No syllabus data available. Click "Add New" to create your first syllabus.
-    </div>
-    @endforelse
   </div>
+  @empty
+  <div class="alert alert-info text-center" role="alert">
+    <i class="fa fa-info-circle"></i> No syllabus data available. Click "Add New" to create your first syllabus.
+  </div>
+  @endforelse
+</div>
 </div>
 
 
@@ -667,6 +694,10 @@ $taxonomyFrameworkLabel = function ($level) use ($taxonomyDomainLabel) {
 </div>
 
 @include('includes.footer')
+
+<script id="courseApplicabilityJson" type="application/json">
+  @json($courseApplicabilityMap)
+</script>
 
 <!-- CSO AJAX Script -->
 <script>
@@ -851,7 +882,65 @@ $taxonomyFrameworkLabel = function ($level) use ($taxonomyDomainLabel) {
     const courseSelect = document.getElementById('course_objective');
     const csoCheckboxes = document.getElementById('cso_checkboxes');
     const csoSubunitCheckboxes = document.getElementById('cso_subunit_checkboxes');
+    const declareNoCoCsoCheckbox = document.getElementById('declare_no_co_cso');
+    const noCoCsoReasonInput = document.getElementById('co_cso_not_applicable_note');
+    const declarationHint = document.getElementById('coCsoDeclarationHint');
+    const courseApplicabilityMap = (() => {
+      const raw = document.getElementById('courseApplicabilityJson')?.textContent || '{}';
+      try {
+        const parsed = JSON.parse(raw);
+        return parsed && typeof parsed === 'object' ? parsed : {};
+      } catch (error) {
+        return {};
+      }
+    })();
     let csoCache = [];
+
+    function isDeclaredNoCoCsoForCourse(courseId) {
+      const key = String(courseId || '');
+      const meta = key ? courseApplicabilityMap[key] : null;
+      return meta && Number(meta.co_cso_not_applicable ? 1 : 0) === 1;
+    }
+
+    function getDeclaredNoCoCsoNote(courseId) {
+      const key = String(courseId || '');
+      const meta = key ? courseApplicabilityMap[key] : null;
+      return meta && meta.co_cso_not_applicable_note ? String(meta.co_cso_not_applicable_note) : '';
+    }
+
+    function resetCsoBlocksForNoApplicability(reasonText) {
+      const reason = String(reasonText || '').trim();
+      const reasonSuffix = reason !== '' ? '<br><small>Reason: ' + reason.replace(/</g, '&lt;').replace(/>/g, '&gt;') + '</small>' : '';
+      csoCheckboxes.innerHTML = '<p class="text-info mb-0">CO/CSO is marked as not applicable for this course.' + reasonSuffix + '</p>';
+      csoSubunitCheckboxes.innerHTML = '<p class="text-info mb-0">No CSO subunits required for this declared course.</p>';
+      csoCache = [];
+    }
+
+    function setNoCoCsoMode(active, reasonText, lockDeclarationCheckbox) {
+      if (declareNoCoCsoCheckbox) {
+        declareNoCoCsoCheckbox.checked = !!active;
+        declareNoCoCsoCheckbox.disabled = !!lockDeclarationCheckbox;
+      }
+
+      if (noCoCsoReasonInput) {
+        if (active && String(reasonText || '').trim() !== '') {
+          noCoCsoReasonInput.value = String(reasonText || '').trim();
+        }
+        noCoCsoReasonInput.disabled = !!lockDeclarationCheckbox;
+      }
+
+      if (declarationHint) {
+        declarationHint.textContent = active ?
+          (lockDeclarationCheckbox ?
+            'This course is already declared as CO/CSO not applicable. CSO/subunit selection is bypassed.' :
+            'This submission will declare this course as CO/CSO not applicable and bypass CSO/subunit selection.') :
+          'You can bypass CSO and subunit selection only when this declaration is set.';
+      }
+
+      if (active) {
+        resetCsoBlocksForNoApplicability(reasonText || '');
+      }
+    }
 
     function renderSubunitsForSelectedCsos() {
       csoSubunitCheckboxes.innerHTML = '';
@@ -964,7 +1053,30 @@ $taxonomyFrameworkLabel = function ($level) use ($taxonomyDomainLabel) {
         csoCheckboxes.innerHTML = '<p class="text-muted mb-0">--Select Course First--</p>';
         csoSubunitCheckboxes.innerHTML = '<p class="text-muted">--Select CSO First--</p>';
 
+        if (declareNoCoCsoCheckbox) {
+          declareNoCoCsoCheckbox.checked = false;
+          declareNoCoCsoCheckbox.disabled = false;
+        }
+        if (noCoCsoReasonInput) {
+          noCoCsoReasonInput.disabled = false;
+        }
+        if (declarationHint) {
+          declarationHint.textContent = 'You can bypass CSO and subunit selection only when this declaration is set.';
+        }
+
         if (!courseId) {
+          return;
+        }
+
+        const alreadyDeclared = isDeclaredNoCoCsoForCourse(courseId);
+        const declaredNote = getDeclaredNoCoCsoNote(courseId);
+        if (alreadyDeclared) {
+          setNoCoCsoMode(true, declaredNote, true);
+          return;
+        }
+
+        if (declareNoCoCsoCheckbox && declareNoCoCsoCheckbox.checked) {
+          setNoCoCsoMode(true, noCoCsoReasonInput ? noCoCsoReasonInput.value : '', false);
           return;
         }
 
@@ -1011,6 +1123,23 @@ $taxonomyFrameworkLabel = function ($level) use ($taxonomyDomainLabel) {
             csoCheckboxes.innerHTML = '<p class="text-danger mb-0">Failed to load CSOs</p>';
             csoCache = [];
           });
+      });
+    }
+
+    if (declareNoCoCsoCheckbox) {
+      declareNoCoCsoCheckbox.addEventListener('change', function() {
+        if (!courseSelect || !courseSelect.value) {
+          this.checked = false;
+          alert('Select a course first.');
+          return;
+        }
+
+        if (this.checked) {
+          setNoCoCsoMode(true, noCoCsoReasonInput ? noCoCsoReasonInput.value : '', false);
+        } else {
+          setNoCoCsoMode(false, '', false);
+          courseSelect.dispatchEvent(new Event('change'));
+        }
       });
     }
 

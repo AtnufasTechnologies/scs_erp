@@ -1720,6 +1720,67 @@ class PrincipalController extends Controller
     $selectedSemester = $request->semester_id;
     $selectedAcademicYear = $request->academic_year;
 
+    $syllabiWithDeclaration = $syllabi->filter(function ($syl) {
+      return (bool) (optional($syl->courseLink)->co_cso_not_applicable ?? false);
+    })->values();
+
+    $declaredUniqueCourses = $syllabiWithDeclaration
+      ->groupBy(function ($syl) {
+        return (int) ($syl->subject_id ?? 0) . '|' . (int) ($syl->course_id ?? 0);
+      })
+      ->map(function ($items) {
+        return collect($items)->first();
+      })
+      ->values();
+
+    $declaredTotal = $declaredUniqueCourses->count();
+    $totalUniqueCourses = $syllabi
+      ->groupBy(function ($syl) {
+        return (int) ($syl->subject_id ?? 0) . '|' . (int) ($syl->course_id ?? 0);
+      })
+      ->count();
+
+    $declarationRate = $totalUniqueCourses > 0
+      ? round(($declaredTotal / $totalUniqueCourses) * 100, 1)
+      : 0;
+
+    $declarationReasons = $declaredUniqueCourses
+      ->map(function ($syl) {
+        $reason = trim((string) (optional($syl->courseLink)->co_cso_not_applicable_note ?? ''));
+        return $reason !== '' ? $reason : 'No reason provided';
+      })
+      ->groupBy(fn($reason) => $reason)
+      ->map(fn($items, $reason) => [
+        'reason' => (string) $reason,
+        'count' => collect($items)->count(),
+      ])
+      ->values()
+      ->sortByDesc('count')
+      ->values();
+
+    $declaredWithReason = $declaredUniqueCourses->filter(function ($syl) {
+      return trim((string) (optional($syl->courseLink)->co_cso_not_applicable_note ?? '')) !== '';
+    })->count();
+
+    $declaredWithoutReason = max(0, $declaredTotal - $declaredWithReason);
+
+    $declarationByDepartment = $declaredUniqueCourses
+      ->groupBy(function ($syl) {
+        return (int) ($syl->subject_id ?? 0);
+      })
+      ->map(function ($items, $subjectId) {
+        $items = collect($items)->values();
+        $first = $items->first();
+        return [
+          'subject_id' => (int) $subjectId,
+          'subject_name' => (string) (optional($first?->subject)->title ?? '-'),
+          'count' => $items->count(),
+        ];
+      })
+      ->values()
+      ->sortByDesc('count')
+      ->values();
+
     return view('principal.courses.index', compact(
       'syllabi',
       'campuses',
@@ -1729,7 +1790,14 @@ class PrincipalController extends Controller
       'selectedCampus',
       'selectedDepartment',
       'selectedSemester',
-      'selectedAcademicYear'
+      'selectedAcademicYear',
+      'declaredTotal',
+      'totalUniqueCourses',
+      'declarationRate',
+      'declarationReasons',
+      'declaredWithReason',
+      'declaredWithoutReason',
+      'declarationByDepartment'
     ));
   }
 
