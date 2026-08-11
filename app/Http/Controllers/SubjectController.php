@@ -5352,7 +5352,8 @@ class SubjectController extends Controller
         $request->validate([
             'batch' => 'required|integer|exists:batch_masters,id',
             'program_combo_id' => 'required|integer|exists:subject_has_student_progams,id',
-            'specialization_id' => 'required|integer|exists:specialization_masters,id',
+            'assignment_action' => ['required', Rule::in(['assign', 'reset'])],
+            'specialization_id' => ['nullable', 'integer', Rule::exists('specialization_masters', 'id')],
             'student_ids' => 'required|array|min:1',
             'student_ids.*' => 'required|integer|exists:student_masters,id',
             'student_search' => 'nullable|string|max:100',
@@ -5365,7 +5366,8 @@ class SubjectController extends Controller
 
         $batchId = (int) $request->batch;
         $programComboId = (int) $request->program_combo_id;
-        $specializationId = (int) $request->specialization_id;
+        $assignmentAction = (string) $request->input('assignment_action', 'assign');
+        $specializationId = (int) $request->input('specialization_id', 0);
         $studentIds = collect($request->input('student_ids', []))->map(fn($v) => (int) $v)->filter(fn($v) => $v > 0)->unique()->values();
 
         $programCombination = SubjectHasStudentProgam::where('id', $programComboId)
@@ -5377,22 +5379,28 @@ class SubjectController extends Controller
             return redirect()->back()->with('error', 'Invalid program combination for selected batch.');
         }
 
-        $specialization = SpecializationMaster::where('id', $specializationId)
-            ->where('subject_id', (int) $subject->id)
-            ->where('is_active', 1)
-            ->first();
+        if ($assignmentAction === 'assign') {
+            if ($specializationId <= 0) {
+                return redirect()->back()->with('error', 'Please select specialization to assign.');
+            }
 
-        if (!$specialization) {
-            return redirect()->back()->with('error', 'Please select an active specialization from this department.');
-        }
+            $specialization = SpecializationMaster::where('id', $specializationId)
+                ->where('subject_id', (int) $subject->id)
+                ->where('is_active', 1)
+                ->first();
 
-        $allowedSpecializationIds = collect($programCombination->specialization_ids ?? [])
-            ->map(fn($v) => (int) $v)
-            ->filter(fn($v) => $v > 0)
-            ->values();
+            if (!$specialization) {
+                return redirect()->back()->with('error', 'Please select an active specialization from this department.');
+            }
 
-        if (!$allowedSpecializationIds->contains($specializationId)) {
-            return redirect()->back()->with('error', 'Selected specialization is not offered for the selected program.');
+            $allowedSpecializationIds = collect($programCombination->specialization_ids ?? [])
+                ->map(fn($v) => (int) $v)
+                ->filter(fn($v) => $v > 0)
+                ->values();
+
+            if (!$allowedSpecializationIds->contains($specializationId)) {
+                return redirect()->back()->with('error', 'Selected specialization is not offered for the selected program.');
+            }
         }
 
         $eligibleStudentsQuery = StudentMaster::query()
@@ -5417,8 +5425,10 @@ class SubjectController extends Controller
         $hasSemesterColumn = Schema::hasColumn('student_specializations', 'semester_id');
         $hasActiveColumn = Schema::hasColumn('student_specializations', 'is_active');
         $hasDeletedAt = Schema::hasColumn('student_specializations', 'deleted_at');
+        $specializationColumnMeta = DB::selectOne("SELECT IS_NULLABLE FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'student_specializations' AND COLUMN_NAME = 'specialization_id'");
+        $canSpecializationBeNull = strtoupper((string) ($specializationColumnMeta->IS_NULLABLE ?? 'NO')) === 'YES';
 
-        DB::transaction(function () use ($eligibleStudentIds, $programComboId, $specializationId, $hasSemesterColumn, $hasActiveColumn, $hasDeletedAt) {
+        DB::transaction(function () use ($eligibleStudentIds, $programComboId, $specializationId, $assignmentAction, $hasSemesterColumn, $hasActiveColumn, $hasDeletedAt, $canSpecializationBeNull) {
             foreach ($eligibleStudentIds as $studentId) {
                 $existingQuery = DB::table('student_specializations')
                     ->where('student_id', (int) $studentId)
@@ -5431,23 +5441,35 @@ class SubjectController extends Controller
                 $existing = $existingQuery->orderByDesc('id')->first();
 
                 if ($existing) {
-                    $updatePayload = [
-                        'specialization_id' => $specializationId,
-                        'updated_at' => now(),
-                    ];
-
-                    if ($hasActiveColumn) {
-                        $updatePayload['is_active'] = 1;
-                    }
-
-                    if ($hasDeletedAt) {
-                        $updatePayload['deleted_at'] = null;
+                    $updatePayload = ['updated_at' => now()];
+                    if ($assignmentAction === 'assign') {
+                        $updatePayload['specialization_id'] = $specializationId;
+                        if ($hasActiveColumn) {
+                            $updatePayload['is_active'] = 1;
+                        }
+                        if ($hasDeletedAt) {
+                            $updatePayload['deleted_at'] = null;
+                        }
+                    } else {
+                        if ($canSpecializationBeNull) {
+                            $updatePayload['specialization_id'] = null;
+                        }
+                        if ($hasActiveColumn) {
+                            $updatePayload['is_active'] = 0;
+                        }
+                        if ($hasDeletedAt) {
+                            $updatePayload['deleted_at'] = now();
+                        }
                     }
 
                     DB::table('student_specializations')
                         ->where('id', (int) $existing->id)
                         ->update($updatePayload);
                 } else {
+                    if ($assignmentAction === 'reset') {
+                        continue;
+                    }
+
                     $insertPayload = [
                         'student_id' => (int) $studentId,
                         'subject_has_student_program_id' => $programComboId,
@@ -5485,7 +5507,9 @@ class SubjectController extends Controller
 
         return redirect()
             ->route('department.specialization.master', ['id' => $id, 'slug' => $slug] + $queryParams)
-            ->with('success', 'Specialization assigned to ' . $eligibleStudentIds->count() . ' student(s).');
+            ->with('success', $assignmentAction === 'reset'
+                ? 'Specialization reset for ' . $eligibleStudentIds->count() . ' student(s).'
+                : 'Specialization assigned to ' . $eligibleStudentIds->count() . ' student(s).');
     }
 
 

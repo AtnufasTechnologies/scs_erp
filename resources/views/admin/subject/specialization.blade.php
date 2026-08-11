@@ -141,6 +141,7 @@
         <input type="hidden" name="batch" value="{{ $selectedBatchId }}">
         <input type="hidden" name="program_combo_id" value="{{ $selectedProgramComboId }}">
         <input type="hidden" name="student_search" value="{{ $studentSearch }}">
+        <input type="hidden" name="assignment_action" id="assignmentAction" value="assign">
 
         <div class="alert alert-light border mb-3">
           <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-2">
@@ -180,9 +181,14 @@
           </div>
 
           <div class="col-lg-2 col-md-12 d-flex align-items-end">
-            <button type="submit" class="btn btn-success w-100" {{ $students->isEmpty() ? 'disabled' : '' }}>
-              <i class="fa fa-save"></i> Assign
-            </button>
+            <div class="d-flex w-100 gap-2">
+              <button type="submit" id="assignSpecializationBtn" class="btn btn-success w-100" {{ $students->isEmpty() ? 'disabled' : '' }}>
+                <i class="fa fa-save"></i> Assign
+              </button>
+              <button type="submit" id="resetSpecializationBtn" class="btn btn-outline-danger w-100" {{ $students->isEmpty() ? 'disabled' : '' }}>
+                <i class="fa fa-undo"></i> Reset
+              </button>
+            </div>
           </div>
         </div>
 
@@ -293,6 +299,9 @@
     var studentCheckboxes = document.querySelectorAll('.student-checkbox');
     var quickFilter = document.getElementById('studentQuickFilter');
     var studentRows = document.querySelectorAll('#studentSpecTable tbody .student-row');
+    var assignmentAction = document.getElementById('assignmentAction');
+    var assignButton = document.getElementById('assignSpecializationBtn');
+    var resetButton = document.getElementById('resetSpecializationBtn');
 
     if (batchSelect && filterForm) {
       batchSelect.addEventListener('change', function() {
@@ -321,6 +330,29 @@
           var visible = !search || roll.indexOf(search) !== -1 || name.indexOf(search) !== -1;
           row.style.display = visible ? '' : 'none';
         });
+      });
+    }
+
+    if (assignButton && assignmentAction) {
+      assignButton.addEventListener('click', function() {
+        assignmentAction.value = 'assign';
+      });
+    }
+
+    if (resetButton && assignmentAction) {
+      resetButton.addEventListener('click', function(event) {
+        assignmentAction.value = 'reset';
+
+        var checkedCount = document.querySelectorAll('.student-checkbox:checked').length;
+        if (checkedCount <= 0) {
+          event.preventDefault();
+          alert('Please select at least one student to reset specialization.');
+          return;
+        }
+
+        if (!confirm('Reset specialization for selected students? This will mark them as Not Assigned.')) {
+          event.preventDefault();
+        }
       });
     }
   });
