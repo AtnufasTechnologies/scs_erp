@@ -63,6 +63,10 @@
       $selectedProgramCombination = $selectedProgramCombination ?? null;
       $students = $students ?? collect();
       $availableSpecializationsForSelectedProgram = $availableSpecializationsForSelectedProgram ?? collect();
+      $selectedIntegratedLayer = $selectedIntegratedLayer ?? 'all';
+      $showIntegratedLayerFilter = (bool) ($showIntegratedLayerFilter ?? false);
+      $integratedLayerOptions = $integratedLayerOptions ?? collect();
+      $integratedProgramIdsWithSublayers = collect($integratedProgramIdsWithSublayers ?? [])->map(fn($v) => (int) $v);
       $studentAssignmentMap = $studentAssignmentMap ?? collect();
       $specializationLookup = $specializationLookup ?? collect();
       @endphp
@@ -88,13 +92,26 @@
 
               $programName = $combo->studentprograminfo->name ?? 'Program';
               $programType = $combo->studentprograminfo->programtypemaster->name ?? ($combo->program_type ?? 'N/A');
+              $programId = (int) ($combo->student_program_id ?? 0);
+              $isIntegratedProgram = $integratedProgramIdsWithSublayers->contains($programId);
               @endphp
               <option value="{{ $combo->id }}" {{ $selectedProgramComboId === (int) $combo->id ? 'selected' : '' }}>
-                {{ $programName }} ({{ $programType }})
+                {{ $programName }} ({{ $programType }}){{ $isIntegratedProgram ? ' - Integrated' : '' }}
               </option>
               @endforeach
             </select>
           </div>
+
+          @if($showIntegratedLayerFilter)
+          <div class="col-lg-2 col-md-6">
+            <label class="form-label">Integrated Layer</label>
+            <select name="integrated_layer" class="form-control">
+              @foreach($integratedLayerOptions as $layer)
+              <option value="{{ $layer['value'] }}" {{ $selectedIntegratedLayer === $layer['value'] ? 'selected' : '' }}>{{ $layer['label'] }}</option>
+              @endforeach
+            </select>
+          </div>
+          @endif
 
           <div class="col-lg-3 col-md-6">
             <label class="form-label">Search Student</label>
@@ -141,6 +158,7 @@
         <input type="hidden" name="batch" value="{{ $selectedBatchId }}">
         <input type="hidden" name="program_combo_id" value="{{ $selectedProgramComboId }}">
         <input type="hidden" name="student_search" value="{{ $studentSearch }}">
+        <input type="hidden" name="integrated_layer" value="{{ $selectedIntegratedLayer }}">
         <input type="hidden" name="assignment_action" id="assignmentAction" value="assign">
 
         <div class="alert alert-light border mb-3">
@@ -208,6 +226,7 @@
                 <th style="width: 80px;">#</th>
                 <th style="width: 180px;">Roll No</th>
                 <th>Student Name</th>
+                <th style="width: 140px;">Current Year</th>
                 <th style="width: 260px;">Current Specialization</th>
               </tr>
             </thead>
@@ -224,6 +243,7 @@
                 <td>{{ $index + 1 }}</td>
                 <td class="student-roll">{{ $student->roll_no ?: '-' }}</td>
                 <td class="student-name">{{ trim(($student->first_name ?? '') . ' ' . ($student->last_name ?? '')) ?: '-' }}</td>
+                <td>{{ (int) ($student->current_year ?? 0) > 0 ? (int) $student->current_year : '-' }}</td>
                 <td>
                   @if($currentSpec)
                   <span class="badge badge-info">{{ $currentSpec->name }}</span>
@@ -234,7 +254,7 @@
               </tr>
               @empty
               <tr>
-                <td colspan="5" class="text-center text-muted">No students found for selected batch/program.</td>
+                <td colspan="6" class="text-center text-muted">No students found for selected batch/program.</td>
               </tr>
               @endforelse
             </tbody>

@@ -350,6 +350,24 @@ $roleType = UserHasRole::where('user_id', $userId)->value('role_name');
     </li>
 
     <li>
+      <a href="{{ route('itcell.integrated-sublayer-settings.index') }}">
+        <div class="parent-icon">
+          <i class="fas fa-layer-group"></i>
+        </div>
+        <div class="menu-title">Integrated Program Sublayers</div>
+      </a>
+    </li>
+
+    <li>
+      <a href="{{ route('itcell.integrated-student-shift.index') }}">
+        <div class="parent-icon">
+          <i class="fas fa-random"></i>
+        </div>
+        <div class="menu-title">Integrated Student Shift</div>
+      </a>
+    </li>
+
+    <li>
       <a class="has-arrow" href="javascript:;">
         <div class="parent-icon">
           <i class="fas fa-bring-forward"></i>

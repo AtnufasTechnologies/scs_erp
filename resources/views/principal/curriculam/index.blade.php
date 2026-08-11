@@ -123,6 +123,13 @@
       @endif
     </div>
 
+    @if(!empty($integratedProgramsExcluded))
+    <div class="alert alert-info mt-3 mb-0">
+      Integrated programs with configured sublayers are excluded from this principal curriculum view.
+      <span class="badge bg-info text-dark ms-1">Excluded Program Types: {{ (int) ($integratedProgramCount ?? 0) }}</span>
+    </div>
+    @endif
+
     <div class="card mt-3 border-0 shadow-sm">
       <div class="card-header bg-white">
         <h6 class="mb-0">Batch-wise Offered Combinations (from subject_has_student_progams)</h6>

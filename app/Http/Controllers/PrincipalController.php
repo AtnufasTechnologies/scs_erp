@@ -547,6 +547,17 @@ class PrincipalController extends Controller
       }
     }
 
+    $integratedProgramIds = collect();
+    if (Schema::hasTable('integrated_program_sublayer_settings')) {
+      $integratedProgramIds = DB::table('integrated_program_sublayer_settings')
+        ->where('is_active', 1)
+        ->pluck('student_program_id')
+        ->map(fn($id) => (int) $id)
+        ->filter(fn($id) => $id > 0)
+        ->unique()
+        ->values();
+    }
+
     $combinationQuery = SubjectHasStudentProgam::with([
       'batchmaster:id,batch_name',
       'subjectmaster:id,title,code',
@@ -565,9 +576,14 @@ class PrincipalController extends Controller
       $combinationQuery->where('batch_id', $selectedBatchId);
     }
 
+    if ($integratedProgramIds->isNotEmpty()) {
+      $combinationQuery->whereNotIn('student_program_id', $integratedProgramIds->all());
+    }
+
     $subjectFilterIds = SubjectHasStudentProgam::query()
       ->when($selectedCampusId > 0, fn($query) => $query->where('campus_id', $selectedCampusId))
       ->when($selectedBatchId > 0, fn($query) => $query->where('batch_id', $selectedBatchId))
+      ->when($integratedProgramIds->isNotEmpty(), fn($query) => $query->whereNotIn('student_program_id', $integratedProgramIds->all()))
       ->pluck('subject_id')
       ->map(fn($id) => (int) $id)
       ->filter(fn($id) => $id > 0)
@@ -835,6 +851,8 @@ class PrincipalController extends Controller
       'isVicePrincipal' => $isVicePrincipal,
       'batchWiseCombinationCounts' => $batchWiseCombinationCounts,
       'curriculumSummary' => $curriculumSummary,
+      'integratedProgramsExcluded' => $integratedProgramIds->isNotEmpty(),
+      'integratedProgramCount' => $integratedProgramIds->count(),
     ]);
   }
 
@@ -860,6 +878,17 @@ class PrincipalController extends Controller
       }
     }
 
+    $integratedProgramIds = collect();
+    if (Schema::hasTable('integrated_program_sublayer_settings')) {
+      $integratedProgramIds = DB::table('integrated_program_sublayer_settings')
+        ->where('is_active', 1)
+        ->pluck('student_program_id')
+        ->map(fn($id) => (int) $id)
+        ->filter(fn($id) => $id > 0)
+        ->unique()
+        ->values();
+    }
+
     $combinationQuery = SubjectHasStudentProgam::with([
       'batchmaster:id,batch_name',
       'subjectmaster:id,title,code',
@@ -876,9 +905,14 @@ class PrincipalController extends Controller
       $combinationQuery->where('batch_id', $selectedBatchId);
     }
 
+    if ($integratedProgramIds->isNotEmpty()) {
+      $combinationQuery->whereNotIn('student_program_id', $integratedProgramIds->all());
+    }
+
     $subjectFilterIds = SubjectHasStudentProgam::query()
       ->when($selectedCampusId > 0, fn($query) => $query->where('campus_id', $selectedCampusId))
       ->when($selectedBatchId > 0, fn($query) => $query->where('batch_id', $selectedBatchId))
+      ->when($integratedProgramIds->isNotEmpty(), fn($query) => $query->whereNotIn('student_program_id', $integratedProgramIds->all()))
       ->pluck('subject_id')
       ->map(fn($id) => (int) $id)
       ->filter(fn($id) => $id > 0)
@@ -995,6 +1029,8 @@ class PrincipalController extends Controller
       'programRows' => $defaulters,
       'isVicePrincipal' => $isVicePrincipal,
       'totalDefaulters' => $defaulters->count(),
+      'integratedProgramsExcluded' => $integratedProgramIds->isNotEmpty(),
+      'integratedProgramCount' => $integratedProgramIds->count(),
     ]);
   }
 

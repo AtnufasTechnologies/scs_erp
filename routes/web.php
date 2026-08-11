@@ -158,6 +158,12 @@ Route::group(['prefix' => '/erp'], function () {
         Route::get('itcell/student-campus-transfer', [ITCellController::class, 'studentCampusTransferIndex'])->name('itcell.student-campus-transfer.index');
         Route::get('itcell/student-campus-transfer/programs', [ITCellController::class, 'getStudentCampusTransferPrograms'])->name('itcell.student-campus-transfer.programs');
         Route::post('itcell/student-campus-transfer', [ITCellController::class, 'storeStudentCampusTransfer'])->name('itcell.student-campus-transfer.store');
+        Route::get('itcell/integrated-program-sublayers', [ITCellController::class, 'integratedProgramSublayersIndex'])->name('itcell.integrated-sublayer-settings.index');
+        Route::post('itcell/integrated-program-sublayers', [ITCellController::class, 'integratedProgramSublayersStore'])->name('itcell.integrated-sublayer-settings.store');
+        Route::put('itcell/integrated-program-sublayers/{id}', [ITCellController::class, 'integratedProgramSublayersUpdate'])->name('itcell.integrated-sublayer-settings.update');
+        Route::post('itcell/integrated-program-sublayers/{id}/toggle', [ITCellController::class, 'integratedProgramSublayersToggle'])->name('itcell.integrated-sublayer-settings.toggle');
+        Route::get('itcell/integrated-student-shift', [ITCellController::class, 'integratedStudentShiftIndex'])->name('itcell.integrated-student-shift.index');
+        Route::post('itcell/integrated-student-shift', [ITCellController::class, 'integratedStudentShiftStore'])->name('itcell.integrated-student-shift.store');
         Route::post('itcell-generate-librarycode', [ITCellController::class, 'generateLibraryCode'])->name('itcell.generate.librarycode');
         Route::post('itcell-generate-excel-studentdata', [ITCellController::class, 'generateExcelStudentData'])->name('itcell.generate.excel.studentdata');
 
@@ -913,6 +919,7 @@ Route::group(['prefix' => '/erp'], function () {
         Route::post('faculty-access', [AccessController::class, 'grantFacultyAccess'])->name('department.faculty.grant-access');
         Route::get('faculty-access-revoke/{id}', [AccessController::class, 'revokeFacultyAccess'])->name('department.faculty.revoke-access');
         Route::get('show-student-list', [SubjectController::class, 'showStudentList'])->name('department.show.student.list');
+        Route::get('integrated-program-student-mappings/{combinationId}', [SubjectController::class, 'integratedProgramStudentMappings'])->name('department.integrated.program.student.mappings');
         Route::get('all-students', [SubjectController::class, 'allStudents'])->name('department.all.students');
         Route::get('student-profile', [SubjectController::class, 'studentProfile'])->name('department.student.profile');
         Route::get('faculty-list/{subjectId}/{slug}', [SubjectController::class, 'deptFacultyList'])->name('department.faculty.list');

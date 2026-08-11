@@ -1271,6 +1271,10 @@ class AdminController extends Controller
                     ->where('campus_id', $combination->campus_id)
                     ->where('is_deleted', 0)
                     ->where('is_left', 0)
+                    ->when(
+                        Schema::hasColumn((new StudentMaster())->getTable(), 'is_integrated_program_origin'),
+                        fn($query) => $query->where('is_integrated_program_origin', 0)
+                    )
                     ->orderBy('id')
                     ->get(['id', 'roll_no']);
 
@@ -1379,6 +1383,10 @@ class AdminController extends Controller
             ->where('campus_id', (int) $combination->campus_id)
             ->where('is_deleted', 0)
             ->where('is_left', 0)
+            ->when(
+                Schema::hasColumn($studentTable, 'is_integrated_program_origin'),
+                fn($query) => $query->where('is_integrated_program_origin', 0)
+            )
             ->orderBy('id')
             ->get($studentSelectColumns);
 

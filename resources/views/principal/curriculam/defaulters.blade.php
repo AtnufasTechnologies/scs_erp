@@ -70,6 +70,13 @@
       </div>
     </div>
 
+    @if(!empty($integratedProgramsExcluded))
+    <div class="alert alert-info mt-3 mb-0">
+      Integrated programs with configured sublayers are excluded from this defaulter list.
+      <span class="badge bg-info text-dark ms-1">Excluded Program Types: {{ (int) ($integratedProgramCount ?? 0) }}</span>
+    </div>
+    @endif
+
     @if($programRows->isEmpty())
     <div class="alert alert-info mt-3 mb-0">No defaulters found for the selected filters.</div>
     @else
