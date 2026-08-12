@@ -3,6 +3,8 @@
 namespace App\Http\Controllers;
 
 use App\Models\BatchMaster;
+use App\Models\Deanery;
+use App\Models\DeaneryDeptPivot;
 use App\Models\Faculty;
 use App\Models\FacultySubstitution;
 use App\Models\HourMaster;
@@ -354,6 +356,167 @@ class TimetableController extends Controller
             'teachingAssignmentList' => $teachingAssignmentList,
             'subjectUsesShifts' => $subjectUsesShifts,
             'shiftOptions' => $shiftOptions,
+        ]);
+    }
+
+    public function teachingGroupBuilder(int $subjectId, string $slug)
+    {
+        $subject = Subject::query()->findOrFail($subjectId);
+
+        $subjectMainDeptId = (int) ($subject->main_dept_id ?? 0);
+        $deaneryIds = collect();
+        if ($subjectMainDeptId > 0) {
+            $deaneryIds = DeaneryDeptPivot::query()
+                ->where('dept_id', $subjectMainDeptId)
+                ->pluck('deanery_id')
+                ->map(fn($value) => (int) $value)
+                ->filter(fn($value) => $value > 0)
+                ->unique()
+                ->values();
+        }
+
+        $deaneriesQuery = Deanery::query()
+            ->with([
+                'deanerydeptpivot.department:id,name',
+                'program:id,name,campus_id',
+                'program.campus:id,name',
+            ])
+            ->orderBy('title');
+
+        if ($deaneryIds->isNotEmpty()) {
+            $deaneriesQuery->whereIn('id', $deaneryIds->all());
+        }
+
+        $deaneries = $deaneriesQuery->get();
+
+        return view('admin.subject.teaching-group-builder', [
+            'subject' => $subject,
+            'deaneries' => $deaneries,
+            'selectedDeaneryId' => (int) ($deaneries->first()->id ?? 0),
+            'batchOptions' => BatchMaster::query()->orderByDesc('id')->get(['id', 'batch_name']),
+            'semesterOptions' => Semester::query()->orderBy('title')->get(['id', 'title']),
+        ]);
+    }
+
+    public function getDeaneryCourses(Request $request, int $subjectId)
+    {
+        $subject = Subject::query()->find($subjectId);
+        if (!$subject) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Subject not found.',
+            ], 404);
+        }
+
+        $validated = $request->validate([
+            'deanery_id' => 'required|integer|exists:deaneries,id',
+            'batch_id' => 'nullable|integer|exists:batch_masters,id',
+            'semester_id' => 'nullable|integer|exists:semesters,id',
+            'program_type' => 'nullable|string|in:UG,PG',
+            'search' => 'nullable|string|max:120',
+        ]);
+
+        $deaneryId = (int) $validated['deanery_id'];
+        $deptIds = DeaneryDeptPivot::query()
+            ->where('deanery_id', $deaneryId)
+            ->pluck('dept_id')
+            ->map(fn($value) => (int) $value)
+            ->filter(fn($value) => $value > 0)
+            ->unique()
+            ->values();
+
+        if ($deptIds->isEmpty()) {
+            return response()->json([
+                'success' => true,
+                'rows' => [],
+                'message' => 'No departments connected to selected deanery.',
+            ]);
+        }
+
+        $deanerySubjectIds = Subject::query()
+            ->whereIn('main_dept_id', $deptIds->all())
+            ->pluck('id')
+            ->map(fn($value) => (int) $value)
+            ->filter(fn($value) => $value > 0)
+            ->unique()
+            ->values();
+
+        if ($deanerySubjectIds->isEmpty()) {
+            return response()->json([
+                'success' => true,
+                'rows' => [],
+                'message' => 'No academic departments found for selected deanery.',
+            ]);
+        }
+
+        $curriculumTable = (new ProgramWiseSemesterCourse())->getTable();
+        $courseTable = (new ProgramCourseMaster())->getTable();
+
+        $query = ProgramWiseSemesterCourse::query()
+            ->from($curriculumTable . ' as ce')
+            ->join($courseTable . ' as pcm', 'pcm.id', '=', 'ce.course_id')
+            ->leftJoin('subject_has_student_progams as shsp', 'shsp.id', '=', 'ce.program_combo_refid')
+            ->leftJoin('subjects as sub', 'sub.id', '=', 'ce.offering_dept')
+            ->whereIn('ce.offering_dept', $deanerySubjectIds->all())
+            ->when(Schema::hasColumn($curriculumTable, 'deleted_at'), fn($q) => $q->whereNull('ce.deleted_at'))
+            ->when(Schema::hasColumn($curriculumTable, 'is_active'), fn($q) => $q->where('ce.is_active', 1))
+            ->when(Schema::hasColumn($courseTable, 'deleted_at'), fn($q) => $q->whereNull('pcm.deleted_at'))
+            ->when(!empty($validated['batch_id']), fn($q) => $q->where('ce.batch', (int) $validated['batch_id']))
+            ->when(!empty($validated['semester_id']), fn($q) => $q->where('ce.semester', (int) $validated['semester_id']))
+            ->when(!empty($validated['program_type']), function ($q) use ($validated) {
+                $q->whereRaw("UPPER(TRIM(COALESCE(shsp.program_type, ''))) = ?", [strtoupper((string) $validated['program_type'])]);
+            })
+            ->when(!empty($validated['search']), function ($q) use ($validated) {
+                $keyword = trim((string) $validated['search']);
+                $q->where(function ($inner) use ($keyword) {
+                    $inner->where('pcm.course_code', 'LIKE', '%' . $keyword . '%')
+                        ->orWhere('pcm.course_title', 'LIKE', '%' . $keyword . '%')
+                        ->orWhere('sub.title', 'LIKE', '%' . $keyword . '%')
+                        ->orWhere('ce.delivery_category', 'LIKE', '%' . $keyword . '%');
+                });
+            })
+            ->select([
+                'ce.id as curriculum_row_id',
+                'ce.course_id',
+                'pcm.course_code',
+                'pcm.course_title',
+                'ce.batch',
+                'ce.semester',
+                'ce.delivery_category',
+                'ce.course_type',
+                'ce.offering_dept',
+                'sub.title as offering_dept_name',
+                'shsp.program_type',
+            ])
+            ->orderBy('pcm.course_code')
+            ->orderBy('ce.batch')
+            ->orderBy('ce.semester');
+
+        $rows = $query->get()->map(function ($row) {
+            return [
+                'curriculum_row_id' => (int) ($row->curriculum_row_id ?? 0),
+                'course_id' => (int) ($row->course_id ?? 0),
+                'course_code' => (string) ($row->course_code ?? '-'),
+                'course_title' => (string) ($row->course_title ?? '-'),
+                'course_label' => trim((string) ($row->course_code ?? '-') . ' - ' . (string) ($row->course_title ?? '-')),
+                'batch' => (int) ($row->batch ?? 0),
+                'semester' => (int) ($row->semester ?? 0),
+                'program_type' => strtoupper(trim((string) ($row->program_type ?? ''))),
+                'delivery_type' => (string) ($row->delivery_category ?? ''),
+                'course_type' => (string) ($row->course_type ?? ''),
+                'offering_dept_id' => (int) ($row->offering_dept ?? 0),
+                'offering_dept_name' => (string) ($row->offering_dept_name ?? '-'),
+            ];
+        })->values();
+
+        return response()->json([
+            'success' => true,
+            'rows' => $rows,
+            'meta' => [
+                'count' => $rows->count(),
+                'deanery_subject_count' => $deanerySubjectIds->count(),
+                'deanery_department_count' => $deptIds->count(),
+            ],
         ]);
     }
 

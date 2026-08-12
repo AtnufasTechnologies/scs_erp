@@ -888,6 +888,8 @@ Route::group(['prefix' => '/erp'], function () {
 
         //timetable
         Route::get('timetable/{id}/view', [TimetableController::class, 'history'])->name('department.timetable.history');
+        Route::get('teaching-group-builder/{subjectId}/{slug}', [TimetableController::class, 'teachingGroupBuilder'])->name('department.timetable.group-builder');
+        Route::get('teaching-group-builder/{subjectId}/courses', [TimetableController::class, 'getDeaneryCourses'])->name('department.timetable.group-courses');
         Route::get('timetable/{id}/{slug}', [TimetableController::class, 'index'])->name('department.timetable');
         Route::get('timetable/{subjectId}/{batchId}/{semesterId}', [TimetableController::class, 'editSemesterTimetable'])->name('department.timetable.edit');
         Route::get('timetable-hours', [TimetableController::class, 'getTeachingHoursByShift'])->name('department.timetable.hours');

@@ -1,9 +1,14 @@
 @include('includes.header')
 @include('includes.dept-sidebar')
 <div class="main-content">
-  <h4 class="text-capitalize">{{$subject->title}} - Teaching Assignment</h4>
+  <div class="d-flex flex-wrap justify-content-between align-items-center gap-2">
+    <h4 class="text-capitalize mb-0">{{$subject->title}} - Teaching Assignment</h4>
+    <a href="{{ route('department.timetable.group-builder', [$subject->id, $subject->slug ?? 'group-builder']) }}" class="btn btn-warning btn-sm">
+      <i class="fa fa-object-group me-1"></i>Teaching Groups
+    </a>
+  </div>
 
-  <div class="card mt-3 mb-3 border-0 shadow-sm">
+  <!-- <div class="card mt-3 mb-3 border-0 shadow-sm">
     <div class="card-body d-flex flex-wrap justify-content-between align-items-center gap-2">
       <div>
         <h6 class="mb-1">Primary Faculty Mode</h6>
@@ -24,7 +29,8 @@
         @endif
       </form>
     </div>
-  </div>
+  </div> -->
+
 
   <div class="toast-container position-fixed top-0 end-0 p-3" style="z-index: 1080;">
     <div id="teachingAssignmentToast" class="toast align-items-center text-white bg-success border-0" role="alert" aria-live="assertive" aria-atomic="true">
