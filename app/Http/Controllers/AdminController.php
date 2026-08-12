@@ -1982,31 +1982,32 @@ class AdminController extends Controller
 
     function deanery(Request $request)
     {
-
+        $campusId = (int) $request->get('campus', 0);
         if (!empty($request->campus)) {
-            $campus_id = $request->campus;
             $deanery = Deanery::with([
+                'campus:id,name',
                 'program.campus',
-                'deanerydeptpivot.department:id,name'
-            ])->whereHas('program.campus', function ($q) use ($campus_id) {
-                $q->where('id', $campus_id);
-            })->latest()->get();
+                'deanerydeptpivot.department:id,title,code'
+            ])->where('campus_id', $campusId)->latest()->get();
         } else {
             $deanery = Deanery::with([
+                'campus:id,name',
                 'program.campus',
-                'deanerydeptpivot.department:id,name'
+                'deanerydeptpivot.department:id,title,code'
             ])->latest()->get();
         }
 
         $programs = MainProgram::with('campus')->orderBy('name')->get();
+        $campuses = Campus::orderBy('name')->get(['id', 'name']);
         $departments = Subject::all();
-        return view('admin.master.deanery', compact('deanery', 'programs', 'departments'));
+        return view('admin.master.deanery', compact('deanery', 'programs', 'departments', 'campuses'));
     }
 
     function addDeanery(Request $request)
     {
         $request->validate([
-            'program_id' => 'required|integer|exists:main_programs,id',
+            'campus_id' => 'required|integer|exists:campuses,id',
+            'program_id' => 'nullable|integer|exists:main_programs,id',
             'title' => 'required|string|max:255'
         ]);
 
@@ -2021,7 +2022,8 @@ class AdminController extends Controller
         }
 
         $rec = new Deanery();
-        $rec->program_id = (int) $request->program_id;
+        $rec->campus_id = (int) $request->campus_id;
+        $rec->program_id = !empty($request->program_id) ? (int) $request->program_id : null;
         $rec->slug = $slug;
         $rec->title = $title;
         $rec->save();
@@ -2031,7 +2033,8 @@ class AdminController extends Controller
     function updateDeanery(Request $request, $id)
     {
         $request->validate([
-            'program_id' => 'required|integer|exists:main_programs,id',
+            'campus_id' => 'required|integer|exists:campuses,id',
+            'program_id' => 'nullable|integer|exists:main_programs,id',
             'title' => 'required|string|max:255',
         ]);
 
@@ -2046,7 +2049,8 @@ class AdminController extends Controller
             $slug = $slugBase . '-' . $suffix;
         }
 
-        $deanery->program_id = (int) $request->program_id;
+        $deanery->campus_id = (int) $request->campus_id;
+        $deanery->program_id = !empty($request->program_id) ? (int) $request->program_id : null;
         $deanery->title = $title;
         $deanery->slug = $slug;
         $deanery->save();
@@ -2069,10 +2073,11 @@ class AdminController extends Controller
     function addDeaneryDepartments(Request $request, $id)
     {
         $deanery = Deanery::findOrFail((int) $id);
+        $deaneryCampusId = (int) ($deanery->campus_id ?? 0);
 
         $request->validate([
             'dept_ids' => 'required|array|min:1',
-            'dept_ids.*' => 'integer|exists:department_masters,id',
+            'dept_ids.*' => 'integer|exists:subjects,id',
         ]);
 
         $deptIds = collect($request->dept_ids)
@@ -2080,6 +2085,19 @@ class AdminController extends Controller
             ->filter(fn($v) => $v > 0)
             ->unique()
             ->values();
+
+        if ($deaneryCampusId > 0) {
+            $validDeptIds = Subject::query()
+                ->whereIn('id', $deptIds->all())
+                ->where('campus_id', $deaneryCampusId)
+                ->pluck('id')
+                ->map(fn($value) => (int) $value)
+                ->values();
+
+            if ($validDeptIds->count() !== $deptIds->count()) {
+                return redirect()->back()->with('error', 'Only departments from the same campus can be mapped to this deanery.');
+            }
+        }
 
         $added = 0;
         foreach ($deptIds as $deptId) {
@@ -2108,10 +2126,11 @@ class AdminController extends Controller
     function syncDeaneryDepartments(Request $request, $id)
     {
         $deanery = Deanery::findOrFail((int) $id);
+        $deaneryCampusId = (int) ($deanery->campus_id ?? 0);
 
         $request->validate([
             'dept_ids' => 'nullable|array',
-            'dept_ids.*' => 'integer|exists:department_masters,id',
+            'dept_ids.*' => 'integer|exists:subjects,id',
         ]);
 
         $deptIds = collect($request->dept_ids ?? [])
@@ -2119,6 +2138,19 @@ class AdminController extends Controller
             ->filter(fn($v) => $v > 0)
             ->unique()
             ->values();
+
+        if ($deaneryCampusId > 0 && $deptIds->isNotEmpty()) {
+            $validDeptIds = Subject::query()
+                ->whereIn('id', $deptIds->all())
+                ->where('campus_id', $deaneryCampusId)
+                ->pluck('id')
+                ->map(fn($value) => (int) $value)
+                ->values();
+
+            if ($validDeptIds->count() !== $deptIds->count()) {
+                return redirect()->back()->with('error', 'Only departments from the same campus can be mapped to this deanery.');
+            }
+        }
 
         DB::transaction(function () use ($deanery, $deptIds) {
             DeaneryDeptPivot::where('deanery_id', (int) $deanery->id)

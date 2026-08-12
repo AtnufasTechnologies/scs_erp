@@ -47,13 +47,15 @@
       <form action="{{url('erp/admin/master/deanery')}}" method="post">
         @csrf
         <div class="modal-body">
-          <label class="form-label">Select Program (UG/PG) *</label>
-          <select name="program_id" class="form-control mb-3" required>
-            <option value="">Select Program</option>
-            @foreach ($programs as $p)
-            <option value="{{$p->id}}">{{$p->campus->name ?? 'N/A'}} - {{$p->name}}</option>
+          <label class="form-label">Select Campus *</label>
+          <select name="campus_id" class="form-control mb-3" required>
+            <option value="">Select Campus</option>
+            @foreach ($campuses as $campus)
+            <option value="{{$campus->id}}">{{$campus->name}}</option>
             @endforeach
           </select>
+
+
           <label class="form-label">Deanery Name *</label>
           <input type="text" class="form-control mb-3" name="title" placeholder="Type Here..." required>
 
@@ -75,7 +77,8 @@
         <th>#</th>
         <th>Name</th>
         <th>Campus</th>
-        <th>Subjects/Departments</th>
+        <th>Departments</th>
+        <th></th>
         <th>Actions</th>
       </tr>
     </thead>
@@ -89,12 +92,12 @@
       <tr>
         <td>{{$sl++}}</td>
         <td>{{ $d->title }}</td>
-        <td>{{ $d->program->campus->name ?? '' }}</td>
+        <td>{{ $d->campus->name ?? ($d->program->campus->name ?? '') }}</td>
         <td>
           <div class="d-flex flex-wrap gap-2 mb-2">
             @foreach($d->deanerydeptpivot as $dp)
             <span class="badge bg-primary">
-              {{$dp->department != null ? $dp->department->name : 'N/A'}}
+              {{$dp->department != null ? ($dp->department->title ?? $dp->department->name ?? 'N/A') : 'N/A'}}
               <a
                 href="{{ route('deanery.departments.delete', $dp->id) }}"
                 onclick="return confirm('Remove this subject/department from deanery?')"
@@ -103,28 +106,30 @@
             </span>
             @endforeach
           </div>
+        </td>
+        <td>
           <button type="button" class="btn btn-sm btn-outline-success" data-bs-toggle="modal" data-bs-target="#addDepartmentsModal{{$d->id}}">
-            <i class="fa fa-plus"></i> Add Subjects
+            <i class="fa fa-plus-circle"></i> DEPT
           </button>
 
-          <button type="button" class="btn btn-sm btn-outline-info" data-bs-toggle="modal" data-bs-target="#syncDepartmentsModal{{$d->id}}">
-            <i class="fa fa-refresh"></i> Sync Subjects
-          </button>
+
 
           <div class="modal fade" id="addDepartmentsModal{{$d->id}}" tabindex="-1" aria-hidden="true">
             <div class="modal-dialog">
               <div class="modal-content">
                 <div class="modal-header">
-                  <h5 class="modal-title">Add Subjects - {{$d->title}}</h5>
+                  <h5 class="modal-title">Add Departments - {{$d->title}}</h5>
                   <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
                 </div>
                 <form method="POST" action="{{ route('deanery.departments.store', $d->id) }}">
                   @csrf
                   <div class="modal-body">
-                    <label class="form-label">Select Subjects/Departments</label>
+                    <label class="form-label">Select Departments</label>
                     <select name="dept_ids[]" class="dselect-example" multiple size="10" required>
                       @foreach($departments as $department)
+                      @if((int) ($department->campus_id ?? 0) === (int) ($d->campus_id ?? 0))
                       <option value="{{ $department->id }}">{{ $department->title }}</option>
+                      @endif
                       @endforeach
                     </select>
 
@@ -137,31 +142,7 @@
             </div>
           </div>
 
-          <div class="modal fade" id="syncDepartmentsModal{{$d->id}}" tabindex="-1" aria-hidden="true">
-            <div class="modal-dialog">
-              <div class="modal-content">
-                <div class="modal-header">
-                  <h5 class="modal-title">Sync Subjects - {{$d->title}}</h5>
-                  <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-                </div>
-                <form method="POST" action="{{ route('deanery.departments.sync', $d->id) }}">
-                  @csrf
-                  <div class="modal-body">
-                    <label class="form-label">Select final subject/department list</label>
-                    <select name="dept_ids[]" class="form-control" multiple size="10">
-                      @foreach($departments as $department)
-                      <option value="{{ $department->id }}" {{ in_array((int) $department->id, $mappedDeptIds, true) ? 'selected' : '' }}>{{ $department->name }}</option>
-                      @endforeach
-                    </select>
-                    <small class="text-muted">Selected rows will be kept. Unselected rows will be removed.</small>
-                  </div>
-                  <div class="modal-footer">
-                    <button type="submit" class="btn btn-primary">Update Mappings</button>
-                  </div>
-                </form>
-              </div>
-            </div>
-          </div>
+
         </td>
         <td>
           <button type="button" class="btn btn-sm btn-warning" data-bs-toggle="modal" data-bs-target="#editDeaneryModal{{$d->id}}">
@@ -184,14 +165,16 @@
                 <form method="POST" action="{{ route('deanery.update', $d->id) }}">
                   @csrf
                   <div class="modal-body">
-                    <label class="form-label">Select Program (UG/PG) *</label>
-                    <select name="program_id" class="form-control mb-3" required>
-                      @foreach($programs as $program)
-                      <option value="{{ $program->id }}" {{ (int) ($d->program_id ?? 0) === (int) $program->id ? 'selected' : '' }}>
-                        {{ $program->campus->name ?? 'N/A' }} - {{ $program->name }}
+                    <label class="form-label">Select Campus *</label>
+                    <select name="campus_id" class="form-control mb-3" required>
+                      @foreach($campuses as $campus)
+                      <option value="{{ $campus->id }}" {{ (int) ($d->campus_id ?? 0) === (int) $campus->id ? 'selected' : '' }}>
+                        {{ $campus->name }}
                       </option>
                       @endforeach
                     </select>
+
+
 
                     <label class="form-label">Deanery Name *</label>
                     <input type="text" name="title" class="form-control" value="{{ $d->title }}" required>

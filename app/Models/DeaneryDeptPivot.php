@@ -9,7 +9,8 @@ class DeaneryDeptPivot extends Model
 {
     use HasFactory;
 
-     function department(){
-        return $this->hasOne(Department::class,'id','dept_id');
+    function department()
+    {
+        return $this->hasOne(Subject::class, 'id', 'dept_id');
     }
 }
