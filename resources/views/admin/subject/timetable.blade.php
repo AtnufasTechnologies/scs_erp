@@ -368,14 +368,23 @@ $days = Weekday::all();
           <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
         </div>
         <div class="modal-body">
-          <div class="mb-3">
-            <label class="form-label">Teaching Assignment</label>
-            <select class="dselect-example" id="modalTeachingAssignment" style="border-radius:0.5em;">
-              <option value="">Select Assignment</option>
-            </select>
-            <small class="text-muted" id="assignmentHint">Showing active rows from Teaching Assignments.</small>
+          <div id="deptAssignmentSection">
+            <div class="mb-3">
+              <label class="form-label">Teaching Assignment</label>
+              <select class="dselect-example" id="modalTeachingAssignment" style="border-radius:0.5em;">
+                <option value="">Select Assignment</option>
+              </select>
+              <small class="text-muted" id="assignmentHint">Showing active rows from Teaching Assignments.</small>
+            </div>
+            <div class="mb-3" id="courseAssignmentInfo" style="display:none;"></div>
           </div>
-          <div class="mb-3" id="courseAssignmentInfo" style="display:none;"></div>
+
+          <div id="groupAssignmentSection" style="display:none;">
+            <div class="alert alert-info mb-0">
+              <div class="fw-semibold">Add From Group</div>
+              <div class="small mt-1">Group-based slot assignment flow will be added in the next step.</div>
+            </div>
+          </div>
         </div>
         <div class="modal-footer">
           <button type="button" class="btn btn-secondary" data-bs-dismiss="modal" style="border-radius:0.5em;">Close</button>
@@ -388,6 +397,7 @@ $days = Weekday::all();
   <input type="hidden" id="subjectIdInput" value="{{ $data->id }}">
   <input type="hidden" id="selectedHour" value="">
   <input type="hidden" id="selectedDay" value="">
+  <input type="hidden" id="slotAddMode" value="dept">
   <script id="teachingAssignmentListJson" type="application/json">
     {
       !!json_encode($teachingAssignmentList ?? []) !!
@@ -510,6 +520,59 @@ $days = Weekday::all();
       alert(text);
     }
 
+    async function openSlotSourceChooser(hourNumber, day) {
+      if (typeof Swal !== 'undefined' && Swal && typeof Swal.fire === 'function') {
+        const result = await Swal.fire({
+          icon: 'question',
+          title: 'Add Slot From',
+          text: 'Choose how you want to add this timetable slot.',
+          showCancelButton: true,
+          confirmButtonText: 'Add From Dept',
+          denyButtonText: 'Add From Group',
+          showDenyButton: true,
+        });
+
+        if (result.isConfirmed) {
+          openSubjectModal(hourNumber, day, null, 'dept');
+        } else if (result.isDenied) {
+          openSubjectModal(hourNumber, day, null, 'group');
+        }
+
+        return;
+      }
+
+      const useDeptFlow = confirm('Press OK for Add From Dept.\nPress Cancel for Add From Group.');
+      openSubjectModal(hourNumber, day, null, useDeptFlow ? 'dept' : 'group');
+    }
+
+    function setSlotModalMode(mode = 'dept', isEdit = false) {
+      const normalizedMode = mode === 'group' ? 'group' : 'dept';
+      const modalTitle = document.getElementById('slotModalLabel');
+      const saveButton = document.getElementById('saveSlotBtn');
+      const modeInput = document.getElementById('slotAddMode');
+      const deptSection = document.getElementById('deptAssignmentSection');
+      const groupSection = document.getElementById('groupAssignmentSection');
+
+      if (modeInput) {
+        modeInput.value = normalizedMode;
+      }
+
+      if (normalizedMode === 'group' && !isEdit) {
+        if (modalTitle) modalTitle.textContent = 'Add Slot From Group';
+        if (deptSection) deptSection.style.display = 'none';
+        if (groupSection) groupSection.style.display = '';
+        if (saveButton) saveButton.style.display = 'none';
+      } else {
+        if (modalTitle) modalTitle.textContent = isEdit ? 'Update Course & Teacher' : 'Add Slot From Dept';
+        if (deptSection) deptSection.style.display = '';
+        if (groupSection) groupSection.style.display = 'none';
+        if (saveButton) {
+          saveButton.style.display = '';
+          saveButton.textContent = isEdit ? 'Update Slot' : 'Save Slot';
+        }
+      }
+    }
+
     function makeEntryKey(entry) {
       return entry.routine_id ? `r_${entry.routine_id}` : (entry.local_key || '');
     }
@@ -523,6 +586,84 @@ $days = Weekday::all();
 
     function getSlotEntries(hour, day) {
       return timetableData.filter(t => Number(t.hour_number) === Number(hour) && t.day_of_week === day);
+    }
+
+    function getEntryIdentityKey(entry) {
+      const courseId = Number(entry.subject_id || 0);
+      const delivery = normalizeDeliveryType(entry.delivery_type) || String(entry.delivery_type || '').trim().toUpperCase();
+      const groupNumber = Number(entry.allocation_group || 0);
+      const groupLabel = String(entry.allocation_group_label || '').trim().toUpperCase();
+      return [courseId, delivery, groupNumber, groupLabel].join('|');
+    }
+
+    function hasActiveIdenticalEntry(day, hourNumber, identityKey, excludeEntryKey = '') {
+      return timetableData.some((entry) => {
+        if (Number(entry.hour_number) !== Number(hourNumber) || entry.day_of_week !== day) {
+          return false;
+        }
+
+        if (excludeEntryKey && makeEntryKey(entry) === excludeEntryKey) {
+          return false;
+        }
+
+        if (getEntryIdentityKey(entry) !== identityKey) {
+          return false;
+        }
+
+        return Number(entry.slot_active ?? 1) === 1;
+      });
+    }
+
+    function normalizeSlotActivityForCell(day, hourNumber) {
+      const entries = timetableData.filter(entry => Number(entry.hour_number) === Number(hourNumber) && entry.day_of_week === day);
+      if (!entries.length) return;
+
+      const grouped = {};
+      entries.forEach((entry) => {
+        const key = getEntryIdentityKey(entry);
+        if (!grouped[key]) grouped[key] = [];
+        grouped[key].push(entry);
+      });
+
+      Object.values(grouped).forEach((groupEntries) => {
+        if (groupEntries.length <= 1) {
+          if (typeof groupEntries[0]?.slot_active === 'undefined') {
+            groupEntries[0].slot_active = 1;
+          }
+          return;
+        }
+
+        const activeEntries = groupEntries.filter(entry => Number(entry.slot_active ?? 1) === 1);
+        const chosen = activeEntries.length ? activeEntries[0] : groupEntries[0];
+        groupEntries.forEach((entry) => {
+          entry.slot_active = makeEntryKey(entry) === makeEntryKey(chosen) ? 1 : 0;
+        });
+      });
+    }
+
+    function setSlotEntryActive(hourNumber, day, entryKey) {
+      const selectedEntry = getEntryByKey(entryKey);
+      if (!selectedEntry) {
+        return;
+      }
+
+      const identityKey = getEntryIdentityKey(selectedEntry);
+      timetableData = timetableData.map((entry) => {
+        if (Number(entry.hour_number) !== Number(hourNumber) || entry.day_of_week !== day) {
+          return entry;
+        }
+
+        if (getEntryIdentityKey(entry) !== identityKey) {
+          return entry;
+        }
+
+        return {
+          ...entry,
+          slot_active: makeEntryKey(entry) === entryKey ? 1 : 0,
+        };
+      });
+
+      renderTimetable();
     }
 
     function formatEntryMeta(entry) {
@@ -587,6 +728,7 @@ $days = Weekday::all();
           teaching_assignment_id: Number(entry.teaching_assignment_id || 0),
           lecturehall_id: Number(entry.lecturehall_id || 0),
           shift_id: getShiftIdBySlug(String(entry.shift || getActiveShift() || 'common')),
+          slot_active: Number(entry.slot_active ?? 1) === 1 ? 1 : 0,
         }));
     }
 
@@ -705,8 +847,6 @@ $days = Weekday::all();
       const delivery = normalizeDeliveryType(assignment.delivery_type) || assignment.delivery_type || '-';
       const roomText = assignment.room || '-';
       const groupText = assignment.allocation_group_label || (assignment.allocation_group ? `Group ${assignment.allocation_group}` : '-');
-      const coFacultyText = Array.isArray(assignment.co_faculty_label) && assignment.co_faculty_label.length ? assignment.co_faculty_label.join(', ') :
-        (Array.isArray(assignment.co_faculty_text) && assignment.co_faculty_text.length ? assignment.co_faculty_text.join(', ') : '-');
 
       infoBox.style.display = '';
       infoBox.innerHTML = `
@@ -715,7 +855,6 @@ $days = Weekday::all();
           <div class="row g-2" style="font-size:0.95rem;">
             <div class="col-12"><span class="fw-semibold">Course:</span> ${escapeHtml(assignment.course_label || '-')}</div>
             <div class="col-12"><span class="fw-semibold">Primary Faculty:</span> ${escapeHtml(assignment.faculty_label || '-')}</div>
-            <div class="col-12"><span class="fw-semibold">Co-Faculty:</span> ${escapeHtml(coFacultyText)}</div>
             <div class="col-md-6"><span class="fw-semibold">Delivery:</span> ${escapeHtml(delivery)}</div>
             <div class="col-md-6"><span class="fw-semibold">Room:</span> ${escapeHtml(roomText)}</div>
             <div class="col-12"><span class="fw-semibold">Allocation Group:</span> ${escapeHtml(groupText)}</div>
@@ -1030,8 +1169,15 @@ $days = Weekday::all();
         allocation_group: assignment.allocation_group || null,
         allocation_group_label: assignment.allocation_group_label || null,
         room: assignment.room || null,
+        slot_active: hasActiveIdenticalEntry(day, hourNumber, getEntryIdentityKey({
+          subject_id: Number(assignment.course_id),
+          delivery_type: normalizeDeliveryType(assignment.delivery_type) || assignment.delivery_type || null,
+          allocation_group: assignment.allocation_group || null,
+          allocation_group_label: assignment.allocation_group_label || null,
+        })) ? 0 : 1,
       }));
 
+      normalizeSlotActivityForCell(day, hourNumber);
       renderTimetable();
     }
 
@@ -1239,10 +1385,11 @@ $days = Weekday::all();
         `;
 
         days.forEach(day => {
+          normalizeSlotActivityForCell(day, hour);
           const entries = getSlotEntries(hour, day);
           if (!entries.length) {
             tableBody += `
-              <td class="period-cell" style="cursor:pointer;padding:15px;" onclick="openSubjectModal(${hour}, '${day}')">
+              <td class="period-cell" style="cursor:pointer;padding:15px;" onclick="openSlotSourceChooser(${hour}, '${day}'); return false;">
                 <small class="text-muted"><i class="fas fa-plus-circle"></i> Add</small>
               </td>
             `;
@@ -1257,17 +1404,24 @@ $days = Weekday::all();
             const primaryFacultyText = Array.isArray(entry.primary_faculty_names) && entry.primary_faculty_names.length ?
               entry.primary_faculty_names.join(', ') :
               (entry.teacher_name || 'Teacher');
-            const coFacultyText = Array.isArray(entry.co_faculty_names) && entry.co_faculty_names.length ?
-              entry.co_faculty_names.join(', ') : '-';
+            const identityKey = getEntryIdentityKey(entry);
+            const identicalCount = entries.filter(item => getEntryIdentityKey(item) === identityKey).length;
+            const isActive = Number(entry.slot_active ?? 1) === 1;
+            const activityHtml = identicalCount > 1 ?
+              `<div class="mt-1 d-flex flex-wrap align-items-center gap-1">
+                <span class="badge ${isActive ? 'bg-success' : 'bg-secondary'}">${isActive ? 'Active' : 'Inactive'}</span>
+                ${isActive ? '' : `<button class="btn btn-outline-success btn-sm" onclick="event.stopPropagation(); setSlotEntryActive(${hour}, '${day}', '${entryKey}'); return false;">Set Active</button>`}
+              </div>` :
+              `<div class="mt-1"><span class="badge bg-success">Active</span></div>`;
             return `
               <div class="slot-entry p-2 mb-2 text-start" style="font-size:12px;">
                 <div class="fw-bold">${escapeHtml(entry.subject_name || 'Course')}</div>
                 <div><i class="fas fa-user-tie"></i> <span class="fw-semibold">Primary:</span> ${escapeHtml(primaryFacultyText)}</div>
-                <div><i class="fas fa-user-friends"></i> <span class="fw-semibold">Co:</span> ${escapeHtml(coFacultyText)}</div>
                 <div><i class="fas fa-door-open"></i> Room: ${escapeHtml(roomLabel)}</div>
                 <div>
                   ${entryMeta.map((meta, index) => `<span class="slot-chip ${index === 0 ? 'slot-chip-delivery' : 'slot-chip-group'}">${escapeHtml(meta)}</span>`).join('')}
                 </div>
+                ${activityHtml}
                 <div class="mt-1 d-flex gap-1">
                   <button class="btn btn-outline-primary btn-sm" onclick="event.stopPropagation(); openSubjectModal(${hour}, '${day}', '${entryKey}'); return false;"><i class="fas fa-edit"></i></button>
                   <button class="btn btn-outline-danger btn-sm" onclick="event.stopPropagation(); removeSlot(event, ${routineId}, ${hour}, '${day}', '${entryKey}'); return false;"><i class="fas fa-times"></i></button>
@@ -1280,7 +1434,7 @@ $days = Weekday::all();
             <td class="period-cell filled" style="vertical-align:top;">
               <div class="d-flex justify-content-between align-items-center mb-2">
                 <small class="fw-bold text-muted">${entries.length} item(s)</small>
-                <button class="btn btn-success btn-sm" onclick="openSubjectModal(${hour}, '${day}'); return false;"><i class="fas fa-plus"></i></button>
+                <button class="btn btn-success btn-sm" onclick="openSlotSourceChooser(${hour}, '${day}'); return false;"><i class="fas fa-plus"></i></button>
               </div>
               ${rows}
             </td>
@@ -1314,25 +1468,29 @@ $days = Weekday::all();
       `;
     }
 
-    function openSubjectModal(hourNumber, day, entryKey = null) {
+    function openSubjectModal(hourNumber, day, entryKey = null, addMode = 'dept') {
       document.getElementById('selectedHour').value = hourNumber;
       document.getElementById('selectedDay').value = day;
       editingEntryKey = entryKey;
 
       const assignmentSelect = document.getElementById('modalTeachingAssignment');
-      const saveButton = document.getElementById('saveSlotBtn');
 
       if (entryKey) {
         const entry = getEntryByKey(entryKey);
         if (entry) {
+          setSlotModalMode('dept', true);
           populateTeachingAssignmentOptions(entry.teaching_assignment_id, day, hourNumber, Number(entry.routine_id || 0));
-          if (saveButton) saveButton.textContent = 'Update Slot';
         }
       } else {
-        populateTeachingAssignmentOptions('', day, hourNumber, 0);
-        if (assignmentSelect) assignmentSelect.value = '';
-        renderCourseAssignmentInfo('');
-        if (saveButton) saveButton.textContent = 'Save Slot';
+        setSlotModalMode(addMode, false);
+        if (addMode === 'dept') {
+          populateTeachingAssignmentOptions('', day, hourNumber, 0);
+          if (assignmentSelect) assignmentSelect.value = '';
+          renderCourseAssignmentInfo('');
+        } else {
+          if (assignmentSelect) assignmentSelect.value = '';
+          renderCourseAssignmentInfo('');
+        }
       }
 
       const modal = new bootstrap.Modal(document.getElementById('slotModal'));
@@ -1340,6 +1498,12 @@ $days = Weekday::all();
     }
 
     async function saveSlot() {
+      const slotAddMode = String(document.getElementById('slotAddMode')?.value || 'dept').toLowerCase();
+      if (!editingEntryKey && slotAddMode === 'group') {
+        alert('Add From Group flow will be implemented in the next step.');
+        return;
+      }
+
       const hourNumber = Number(document.getElementById('selectedHour').value);
       const day = document.getElementById('selectedDay').value;
       const teachingAssignmentId = document.getElementById('modalTeachingAssignment').value;
@@ -1385,6 +1549,12 @@ $days = Weekday::all();
         allocation_group: assignment.allocation_group || null,
         allocation_group_label: assignment.allocation_group_label || null,
         room: assignment.room || null,
+        slot_active: hasActiveIdenticalEntry(day, hourNumber, getEntryIdentityKey({
+          subject_id: Number(assignment.course_id),
+          delivery_type: normalizeDeliveryType(assignment.delivery_type) || assignment.delivery_type || null,
+          allocation_group: assignment.allocation_group || null,
+          allocation_group_label: assignment.allocation_group_label || null,
+        }), editingEntryKey || '') ? 0 : 1,
       });
 
       if (editingEntryKey) {
@@ -1407,6 +1577,7 @@ $days = Weekday::all();
         timetableData.push(payload);
       }
 
+      normalizeSlotActivityForCell(day, hourNumber);
       editingEntryKey = null;
       renderTimetable();
       bootstrap.Modal.getInstance(document.getElementById('slotModal')).hide();
@@ -1613,8 +1784,7 @@ $days = Weekday::all();
       if (slotModal) {
         slotModal.addEventListener('hidden.bs.modal', function() {
           editingEntryKey = null;
-          const saveButton = document.getElementById('saveSlotBtn');
-          if (saveButton) saveButton.textContent = 'Save Slot';
+          setSlotModalMode('dept', false);
         });
       }
 

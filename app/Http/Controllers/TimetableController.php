@@ -989,6 +989,7 @@ class TimetableController extends Controller
                         'delivery_type' => $assignment ? ($assignment->delivery_type ?? null) : null,
                         'allocation_group' => $assignment ? ($assignment->allocation_group ?? null) : null,
                         'allocation_group_label' => $assignment ? ($assignment->allocation_group_label ?? null) : null,
+                        'slot_active' => $this->supportsRoutineIsActive() ? (int) ($routine->is_active ?? 1) : 1,
                     ];
                 }
             }
@@ -1358,6 +1359,7 @@ class TimetableController extends Controller
     {
         try {
             $timetable = $request->input('timetable', []);
+            $supportsRoutineIsActive = $this->supportsRoutineIsActive();
             $createdCount = 0;
             $updatedCount = 0;
             $restoredCount = 0;
@@ -1413,6 +1415,10 @@ class TimetableController extends Controller
                 ->where('is_active', 1)
                 ->get()
                 ->keyBy('id');
+
+            if ($supportsRoutineIsActive) {
+                $timetable = $this->normalizeIncomingTimetableSlotActivity($timetable, $teachingAssignments);
+            }
 
             $subjectCourseMap = SubjectCourseMaster::where('subject_id', $subjectId)
                 ->get(['id', 'course_master_id'])
@@ -1516,6 +1522,10 @@ class TimetableController extends Controller
                     'subject_course_id' => $subjectCourseId,
                     'teaching_assignment_id' => $teachingAssignmentId,
                 ];
+
+                if ($supportsRoutineIsActive) {
+                    $payload['is_active'] = (int) (!empty($slot['slot_active']) ? 1 : 0);
+                }
 
                 if ($this->supportsRoutineProgramType()) {
                     $payload['program_type'] = $programType;
@@ -1825,6 +1835,7 @@ class TimetableController extends Controller
             'draft_entries.*.teaching_assignment_id' => 'nullable|integer',
             'draft_entries.*.lecturehall_id' => 'nullable|integer',
             'draft_entries.*.shift_id' => 'nullable|integer',
+            'draft_entries.*.slot_active' => 'nullable|in:0,1',
         ]);
 
         $result = $conflictService->validate([
@@ -1874,6 +1885,69 @@ class TimetableController extends Controller
     private function supportsRoutineProgramType(): bool
     {
         return Schema::hasColumn('subject_has_routines', 'program_type');
+    }
+
+    private function supportsRoutineIsActive(): bool
+    {
+        return Schema::hasColumn('subject_has_routines', 'is_active');
+    }
+
+    private function normalizeIncomingTimetableSlotActivity(array $timetable, $teachingAssignments): array
+    {
+        $indexedGroups = [];
+
+        foreach ($timetable as $index => $slot) {
+            if (!is_array($slot)) {
+                continue;
+            }
+
+            $day = trim((string) ($slot['day_of_week'] ?? ''));
+            $hour = (int) ($slot['hour_number'] ?? 0);
+            if ($day === '' || $hour <= 0) {
+                continue;
+            }
+
+            $assignmentId = (int) ($slot['teaching_assignment_id'] ?? 0);
+            $assignment = $assignmentId > 0 ? ($teachingAssignments->get($assignmentId) ?? null) : null;
+
+            $courseId = (int) ($slot['subject_id'] ?? 0);
+            if ($courseId <= 0 && $assignment) {
+                $courseId = (int) ($assignment->course_id ?? 0);
+            }
+
+            $deliveryType = trim((string) ($slot['delivery_type'] ?? ($assignment->delivery_type ?? '')));
+            $allocationGroup = (int) ($slot['allocation_group'] ?? ($assignment->allocation_group ?? 0));
+
+            $identityKey = implode('|', [$day, $hour, $courseId, strtoupper($deliveryType), $allocationGroup]);
+            if (!isset($indexedGroups[$identityKey])) {
+                $indexedGroups[$identityKey] = [];
+            }
+
+            $indexedGroups[$identityKey][] = $index;
+            if (!array_key_exists('slot_active', $timetable[$index])) {
+                $timetable[$index]['slot_active'] = 1;
+            }
+        }
+
+        foreach ($indexedGroups as $groupIndexes) {
+            if (count($groupIndexes) <= 1) {
+                continue;
+            }
+
+            $activeIndexes = [];
+            foreach ($groupIndexes as $index) {
+                if ((int) ($timetable[$index]['slot_active'] ?? 1) === 1) {
+                    $activeIndexes[] = $index;
+                }
+            }
+
+            $winnerIndex = !empty($activeIndexes) ? $activeIndexes[0] : $groupIndexes[0];
+            foreach ($groupIndexes as $index) {
+                $timetable[$index]['slot_active'] = $index === $winnerIndex ? 1 : 0;
+            }
+        }
+
+        return $timetable;
     }
 
     private function supportsSubjectShiftIds(): bool

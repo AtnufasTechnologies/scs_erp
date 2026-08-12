@@ -22,7 +22,8 @@ class SubjectHasRoutine extends Model
         'subject_course_id',
         'teaching_allocation_id',
         'teaching_assignment_id',
-        'substitution_faculty_id'
+        'substitution_faculty_id',
+        'is_active'
     ];
 
     function weekdaymaster()

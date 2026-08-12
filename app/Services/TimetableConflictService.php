@@ -102,6 +102,10 @@ class TimetableConflictService
       ])
       ->when($ignoreRoutineId > 0, fn($q) => $q->where('id', '!=', $ignoreRoutineId))
       ->when(
+        Schema::hasColumn('subject_has_routines', 'is_active'),
+        fn($q) => $q->where('is_active', 1)
+      )
+      ->when(
         Schema::hasColumn('subject_has_routines', 'program_type'),
         fn($q) => $q->where('program_type', $programType)
       )
@@ -201,6 +205,10 @@ class TimetableConflictService
       ])
       ->where('weekday_id', $weekdayId)
       ->when($ignoreRoutineId > 0, fn($q) => $q->where('id', '!=', $ignoreRoutineId))
+      ->when(
+        Schema::hasColumn('subject_has_routines', 'is_active'),
+        fn($q) => $q->where('is_active', 1)
+      )
       ->get();
 
     foreach ($persistedFacultyRoutines as $routine) {
@@ -295,6 +303,10 @@ class TimetableConflictService
       ])
       ->where('weekday_id', $weekdayId)
       ->when($ignoreRoutineId > 0, fn($q) => $q->where('id', '!=', $ignoreRoutineId))
+      ->when(
+        Schema::hasColumn('subject_has_routines', 'is_active'),
+        fn($q) => $q->where('is_active', 1)
+      )
       ->get();
 
     $bookedFacultyIds = [];
@@ -430,6 +442,9 @@ class TimetableConflictService
         if ((int) ($routine->id ?? 0) === $ignoreRoutineId) {
           return false;
         }
+        if (!$this->isRoutineActive($routine)) {
+          return false;
+        }
         return (int) ($routine->teaching_assignment_id ?? 0) === $assignmentId;
       })
       ->count();
@@ -445,6 +460,10 @@ class TimetableConflictService
     $draftCount = collect($draftEntries)
       ->filter(function ($entry) use ($assignmentId, $ignoreRoutineId, $existingAssignmentByRoutineId) {
         if ((int) ($entry['routine_id'] ?? 0) === $ignoreRoutineId) {
+          return false;
+        }
+
+        if (!$this->isDraftEntryActive($entry)) {
           return false;
         }
 
@@ -679,6 +698,10 @@ class TimetableConflictService
 
   private function isRelevantDraftEntry(array $entry, int $weekdayId, int $ignoreRoutineId, int $shiftId = 0): bool
   {
+    if (!$this->isDraftEntryActive($entry)) {
+      return false;
+    }
+
     if ((int) ($entry['weekday_id'] ?? 0) !== $weekdayId) {
       return false;
     }
@@ -692,6 +715,24 @@ class TimetableConflictService
     }
 
     return (int) ($entry['hour_id'] ?? 0) > 0;
+  }
+
+  private function isRoutineActive(SubjectHasRoutine $routine): bool
+  {
+    if (!Schema::hasColumn('subject_has_routines', 'is_active')) {
+      return true;
+    }
+
+    return (int) ($routine->is_active ?? 1) === 1;
+  }
+
+  private function isDraftEntryActive(array $entry): bool
+  {
+    if (!array_key_exists('slot_active', $entry)) {
+      return true;
+    }
+
+    return (int) ($entry['slot_active'] ?? 1) === 1;
   }
 
   private function getDefaultShiftSlug(): string

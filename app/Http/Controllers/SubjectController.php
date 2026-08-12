@@ -4849,6 +4849,7 @@ class SubjectController extends Controller
             'co_faculty_ids.*' => 'integer|exists:faculties,id',
             'delivery_type' => 'nullable|string|max:100',
             'shift_id' => 'required|integer|exists:shift_masters,id',
+            'allocation_group_mode' => 'required|string|in:default,new',
             'status' => 'required|in:0,1',
             'room' => 'nullable|string|max:255',
             'remarks' => 'nullable|string',
@@ -4978,7 +4979,9 @@ class SubjectController extends Controller
             (int) $subject->id,
             (int) $validated['course_id'],
             (string) $resolvedDeliveryType,
-            (int) $validated['shift_id']
+            (int) $validated['shift_id'],
+            null,
+            (string) ($validated['allocation_group_mode'] ?? 'default')
         );
 
         $assignment = DB::transaction(function () use ($subject, $validated, $resolvedDeliveryType, $nextAllocationGroup, $primaryFacultyIds, $coFacultyIds, $canonicalPrimaryFacultyId) {
@@ -5040,6 +5043,7 @@ class SubjectController extends Controller
             'co_faculty_ids.*' => 'integer|exists:faculties,id',
             'delivery_type' => 'nullable|string|max:100',
             'shift_id' => 'required|integer|exists:shift_masters,id',
+            'allocation_group_mode' => 'required|string|in:default,new',
             'status' => 'required|in:0,1',
             'room' => 'nullable|string|max:255',
             'remarks' => 'nullable|string',
@@ -5172,13 +5176,15 @@ class SubjectController extends Controller
             (string) $assignment->delivery_type !== (string) $resolvedDeliveryType ||
             (int) ($assignment->shift_id ?? 0) !== (int) $validated['shift_id'];
 
-        if ($combinationChanged) {
+        $requestedGroupMode = (string) ($validated['allocation_group_mode'] ?? 'default');
+        if ($combinationChanged || $requestedGroupMode === 'new') {
             $assignment->allocation_group = $this->resolveTeachingAssignmentAllocationGroup(
                 (int) $assignment->subject_id,
                 (int) $validated['course_id'],
                 (string) $resolvedDeliveryType,
                 (int) $validated['shift_id'],
-                (int) $assignment->id
+                (int) $assignment->id,
+                $requestedGroupMode
             );
         }
 
@@ -5377,7 +5383,8 @@ class SubjectController extends Controller
         int $courseId,
         string $deliveryType,
         int $shiftId,
-        ?int $ignoreAssignmentId = null
+        ?int $ignoreAssignmentId = null,
+        string $mode = 'default'
     ): int {
         $baseQuery = TeachingAssignment::query()
             ->where('subject_id', $subjectId)
@@ -5388,12 +5395,23 @@ class SubjectController extends Controller
             $baseQuery->where('id', '!=', $ignoreAssignmentId);
         }
 
+        $normalizedMode = strtolower(trim($mode));
+        if (!in_array($normalizedMode, ['default', 'new'], true)) {
+            $normalizedMode = 'default';
+        }
+
         $sameShiftQuery = (clone $baseQuery)->where('shift_id', $shiftId);
         $sameShiftMaxGroup = (int) ($sameShiftQuery->max('allocation_group') ?? 0);
 
-        // Rule: If same course is added for same shift, create a new group.
-        if ($sameShiftMaxGroup > 0) {
-            return $sameShiftMaxGroup + 1;
+        if ($normalizedMode === 'new') {
+            $baseMaxGroup = (int) ((clone $baseQuery)->max('allocation_group') ?? 0);
+            $maxGroup = max($baseMaxGroup, $sameShiftMaxGroup);
+            return $maxGroup > 0 ? $maxGroup + 1 : 1;
+        }
+
+        $sameShiftGroup = (int) ((clone $sameShiftQuery)->orderBy('allocation_group')->value('allocation_group') ?? 0);
+        if ($sameShiftGroup > 0) {
+            return $sameShiftGroup;
         }
 
         // Rule: If shift is different, do not create a new group.
