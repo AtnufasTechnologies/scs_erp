@@ -667,7 +667,12 @@ class PrincipalController extends Controller
       $hasIsActiveColumn = Schema::hasColumn($curriculumTable, 'is_active');
       $hasDisplayOrderColumn = Schema::hasColumn($curriculumTable, 'display_order');
 
-      $curriculumQuery = ProgramWiseSemesterCourse::with('programinfo:id,course_code,course_title')
+      $curriculumQuery = ProgramWiseSemesterCourse::with([
+        'programinfo:id,course_code,course_title,course_type',
+        'programinfo.coursetypemaster:id,title',
+        'academicpathway:id,name',
+        'degreetrack:id,name',
+      ])
         ->whereIn('program_combo_refid', $combinationIds)
         ->orderBy('semester');
 
@@ -685,6 +690,8 @@ class PrincipalController extends Controller
         'semester',
         'course_type',
         'delivery_category',
+        'academic_pathway_id',
+        'degree_track_id',
       ]);
 
       $curriculumRowsByCombination = $curriculumRows->groupBy(function ($row) {
@@ -742,6 +749,8 @@ class PrincipalController extends Controller
         $curriculumCourses = $curriculumRows->map(function ($row) use ($subjectId, $assignmentsBySubjectCourse) {
           $courseId = (int) ($row->course_id ?? 0);
           $deliveryType = strtoupper(trim((string) ($row->delivery_category ?? $row->course_type ?? '-')));
+          $courseTypeFromRelation = trim((string) (optional(optional($row->programinfo)->coursetypemaster)->title ?? ''));
+          $courseTypeFallback = trim((string) ($row->course_type ?? '-'));
           $subjectCourseKey = $subjectId . '|' . $courseId;
           $matchingAssignments = collect($assignmentsBySubjectCourse->get($subjectCourseKey, collect()));
 
@@ -790,7 +799,9 @@ class PrincipalController extends Controller
             'semester' => (int) ($row->semester ?? 0),
             'course_code' => (string) (optional($row->programinfo)->course_code ?? '-'),
             'course_title' => (string) (optional($row->programinfo)->course_title ?? '-'),
-            'course_type' => (string) ($row->course_type ?? '-'),
+            'course_type' => (string) ($courseTypeFromRelation !== '' ? $courseTypeFromRelation : ($courseTypeFallback !== '' ? $courseTypeFallback : '-')),
+            'academic_pathway' => (string) (optional($row->academicpathway)->name ?? 'All Pathways'),
+            'degree_track' => (string) (optional($row->degreetrack)->name ?? 'All Tracks'),
             'delivery_type' => $deliveryType !== '' ? $deliveryType : '-',
             'assigned_faculty' => $assignedFaculty->isNotEmpty() ? $assignedFaculty->implode('; ') : 'Not assigned yet',
           ];

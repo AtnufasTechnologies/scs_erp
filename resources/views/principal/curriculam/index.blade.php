@@ -289,6 +289,7 @@
                       <th style="width: 160px;">Course Code</th>
                       <th>Course Title</th>
                       <th style="width: 170px;">Course Type</th>
+                      <th style="width: 260px;">Academic Pathway / Degree Track</th>
                       <th style="width: 190px;">Delivery Type</th>
                       <th style="width: 340px;">Assigned Faculty</th>
                     </tr>
@@ -300,6 +301,8 @@
                     ($course['course_code'] ?? '') . ' ' .
                     ($course['course_title'] ?? '') . ' ' .
                     ($course['course_type'] ?? '') . ' ' .
+                    ($course['academic_pathway'] ?? '') . ' ' .
+                    ($course['degree_track'] ?? '') . ' ' .
                     ($course['delivery_type'] ?? '') . ' ' .
                     ($course['assigned_faculty'] ?? '') . ' ' .
                     ($course['semester'] ?? '')
@@ -307,9 +310,13 @@
                     @endphp
                     <tr data-search="{{ $courseSearchText }}" data-assigned="{{ strtolower(trim((string) ($course['assigned_faculty'] ?? ''))) !== 'not assigned yet' ? '1' : '0' }}">
                       <td>{{ $course['semester'] > 0 ? $course['semester'] : '-' }}</td>
-                      <td>{{ $course['course_code'] }} <span class="badge badge-warning">{{ $course['course_code'] }}</span></td>
+                      <td>{{ $course['course_code'] }} </td>
                       <td>{{ $course['course_title'] }}</td>
-                      <td>{{ $course['course_type'] }}</td>
+                      <td><span class="badge bg-primary">{{ $course['course_type'] }}</span></td>
+                      <td>
+                        <span class="badge bg-light text-dark border">Pathway: {{ $course['academic_pathway'] ?? 'All Pathways' }}</span>
+                        <span class="badge bg-light text-dark border">Track: {{ $course['degree_track'] ?? 'All Tracks' }}</span>
+                      </td>
                       <td><span class="badge bg-light text-dark border">{{ $course['delivery_type'] }}</span></td>
                       <td>{{ $course['assigned_faculty'] }}</td>
                     </tr>
