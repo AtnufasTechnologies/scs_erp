@@ -11,6 +11,7 @@ use App\Models\Campus;
 use App\Models\CognitiveLevelMaster;
 use App\Models\CollegeBankAccount;
 use App\Models\Deanery;
+use App\Models\DeaneryDeptPivot;
 use App\Models\Department;
 use App\Models\DepartmentMaster;
 use App\Models\Faculty;
@@ -1997,23 +1998,158 @@ class AdminController extends Controller
             ])->latest()->get();
         }
 
-        $programs = MainProgram::with('campus')->get();
-        return view('admin.master.deanery', compact('deanery', 'programs'));
+        $programs = MainProgram::with('campus')->orderBy('name')->get();
+        $departments = Subject::all();
+        return view('admin.master.deanery', compact('deanery', 'programs', 'departments'));
     }
 
     function addDeanery(Request $request)
     {
         $request->validate([
-            'program_id' => 'required',
-            'title' => 'required'
+            'program_id' => 'required|integer|exists:main_programs,id',
+            'title' => 'required|string|max:255'
         ]);
 
+        $title = trim((string) $request->title);
+        $slugBase = Str::slug($title);
+        $slug = $slugBase;
+        $suffix = 1;
+
+        while (Deanery::where('slug', $slug)->exists()) {
+            $suffix++;
+            $slug = $slugBase . '-' . $suffix;
+        }
+
         $rec = new Deanery();
-        $rec->program_id = $request->program_id;
-        $rec->slug = Str::slug($request->title);
-        $rec->title = $request->title;
+        $rec->program_id = (int) $request->program_id;
+        $rec->slug = $slug;
+        $rec->title = $title;
         $rec->save();
-        return redirect()->back()->with('success', 'Done');
+        return redirect()->back()->with('success', 'Deanery created successfully.');
+    }
+
+    function updateDeanery(Request $request, $id)
+    {
+        $request->validate([
+            'program_id' => 'required|integer|exists:main_programs,id',
+            'title' => 'required|string|max:255',
+        ]);
+
+        $deanery = Deanery::findOrFail((int) $id);
+        $title = trim((string) $request->title);
+        $slugBase = Str::slug($title);
+        $slug = $slugBase;
+        $suffix = 1;
+
+        while (Deanery::where('id', '!=', (int) $deanery->id)->where('slug', $slug)->exists()) {
+            $suffix++;
+            $slug = $slugBase . '-' . $suffix;
+        }
+
+        $deanery->program_id = (int) $request->program_id;
+        $deanery->title = $title;
+        $deanery->slug = $slug;
+        $deanery->save();
+
+        return redirect()->back()->with('success', 'Deanery updated successfully.');
+    }
+
+    function deleteDeanery($id)
+    {
+        $deanery = Deanery::findOrFail((int) $id);
+
+        DB::transaction(function () use ($deanery) {
+            DeaneryDeptPivot::where('deanery_id', (int) $deanery->id)->delete();
+            $deanery->delete();
+        });
+
+        return redirect()->back()->with('success', 'Deanery deleted successfully.');
+    }
+
+    function addDeaneryDepartments(Request $request, $id)
+    {
+        $deanery = Deanery::findOrFail((int) $id);
+
+        $request->validate([
+            'dept_ids' => 'required|array|min:1',
+            'dept_ids.*' => 'integer|exists:department_masters,id',
+        ]);
+
+        $deptIds = collect($request->dept_ids)
+            ->map(fn($v) => (int) $v)
+            ->filter(fn($v) => $v > 0)
+            ->unique()
+            ->values();
+
+        $added = 0;
+        foreach ($deptIds as $deptId) {
+            $exists = DeaneryDeptPivot::where('deanery_id', (int) $deanery->id)
+                ->where('dept_id', (int) $deptId)
+                ->exists();
+
+            if ($exists) {
+                continue;
+            }
+
+            $pivot = new DeaneryDeptPivot();
+            $pivot->deanery_id = (int) $deanery->id;
+            $pivot->dept_id = (int) $deptId;
+            $pivot->save();
+            $added++;
+        }
+
+        if ($added === 0) {
+            return redirect()->back()->with('error', 'Selected subjects/departments are already mapped.');
+        }
+
+        return redirect()->back()->with('success', $added . ' subject/department mapping(s) added.');
+    }
+
+    function syncDeaneryDepartments(Request $request, $id)
+    {
+        $deanery = Deanery::findOrFail((int) $id);
+
+        $request->validate([
+            'dept_ids' => 'nullable|array',
+            'dept_ids.*' => 'integer|exists:department_masters,id',
+        ]);
+
+        $deptIds = collect($request->dept_ids ?? [])
+            ->map(fn($v) => (int) $v)
+            ->filter(fn($v) => $v > 0)
+            ->unique()
+            ->values();
+
+        DB::transaction(function () use ($deanery, $deptIds) {
+            DeaneryDeptPivot::where('deanery_id', (int) $deanery->id)
+                ->whereNotIn('dept_id', $deptIds->all())
+                ->delete();
+
+            foreach ($deptIds as $deptId) {
+                $exists = DeaneryDeptPivot::where('deanery_id', (int) $deanery->id)
+                    ->where('dept_id', (int) $deptId)
+                    ->exists();
+
+                if ($exists) {
+                    continue;
+                }
+
+                $pivot = new DeaneryDeptPivot();
+                $pivot->deanery_id = (int) $deanery->id;
+                $pivot->dept_id = (int) $deptId;
+                $pivot->save();
+            }
+        });
+
+        return redirect()->back()->with('success', 'Deanery subject/department mappings updated.');
+    }
+
+    function deleteDeaneryDepartment($id)
+    {
+        $pivot = DeaneryDeptPivot::findOrFail((int) $id);
+        $pivot->delete();
+
+        return redirect()->back()->with('success', 'Subject/department mapping removed.');
     }
 
     function academicDept()
