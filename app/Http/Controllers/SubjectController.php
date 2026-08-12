@@ -5530,6 +5530,12 @@ class SubjectController extends Controller
         $typesForCourse = $allowedTypes[$courseId] ?? [];
         $normalizedRequestedType = $this->normalizeDeliveryCategoryInput($requestedDeliveryType);
 
+        // Flexibility fallback: if curriculum has no mapped delivery type for this
+        // subject/course (e.g., no combination configured yet), allow COMMON.
+        if (empty($typesForCourse)) {
+            return $normalizedRequestedType ?: ProgramWiseSemesterCourse::DELIVERY_PROGRAMME_COMMON;
+        }
+
         if (count($typesForCourse) === 1) {
             return (string) $typesForCourse[0];
         }

@@ -297,11 +297,11 @@
       deliveryTypeSelect.innerHTML = '';
 
       if (options.length === 0) {
-        deliveryTypeSelect.appendChild(new Option('--No curriculum delivery type found--', ''));
-        deliveryTypeSelect.value = '';
+        deliveryTypeSelect.appendChild(new Option('COMMON', 'COMMON'));
+        deliveryTypeSelect.value = 'COMMON';
         if (deliveryTypeHelpText) {
-          deliveryTypeHelpText.textContent = 'No curriculum delivery type mapping found for this course.';
-          deliveryTypeHelpText.classList.add('text-danger');
+          deliveryTypeHelpText.textContent = 'No curriculum mapping found for this course. Using COMMON as default.';
+          deliveryTypeHelpText.classList.remove('text-danger');
         }
         return;
       }
