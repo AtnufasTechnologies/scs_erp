@@ -102,6 +102,9 @@ class LoginController extends Controller
                     case 'training-and-placement-officer':
                         //training and placement
                         return redirect()->route('tpo.training-placement.dashboard')->with('success', 'Login Success');
+                    case 'dean':
+                        //training and placement
+                        return redirect()->route('dean.office.dashboard')->with('success', 'Login Success');
                     default:
                         //for all Super Admin| Office assistane| Admin | IT CEll
                         return redirect('erp/admin/dashboard')->with('success', 'Login Success');

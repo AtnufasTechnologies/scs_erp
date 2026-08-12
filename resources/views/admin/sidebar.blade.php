@@ -68,11 +68,11 @@ $roleType = UserHasRole::where('user_id', $userId)->value('role_name');
         </li>
 
         <li>
-          <a href="{{url('erp/admin/master/deanery')}}">
+          <a href="{{route('deanery')}}">
             <div class="parent-icon">
               <i class="fas fa-building"></i>
             </div>
-            <div class="menu-title">Deneary</div>
+            <div class="menu-title">Deanery</div>
           </a>
         </li>
 
