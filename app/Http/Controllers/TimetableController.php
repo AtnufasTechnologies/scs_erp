@@ -1158,15 +1158,21 @@ class TimetableController extends Controller
                 ->whereIn('syllabus_id', $syllabusIds)
                 ->with([
                     'syllabus:id,batch_id,semester_id,program_type,course_id',
+                    'syllabus.coursemaster:id,course_code,course_title,course_type',
+                    'syllabus.coursemaster.coursetypemaster:id,title',
                     'syllabus.batchmaster:id,batch_name',
                     'syllabus.semestermaster:id,title',
                     'weekdaymaster:id,title',
                     'hourmaster:id,hour_no,name,start_time,end_time,shift_id',
                     'lecturehallmaster:id,title',
-                    'teachingAssignment:id,course_id,faculty_id,delivery_type,allocation_group',
+                    'teachingAssignment:id,course_id,faculty_id,delivery_type,allocation_group,room',
+                    'teachingAssignment.course:id,course_code,course_title,course_type',
+                    'teachingAssignment.course.coursetypemaster:id,title',
                     'teachingAssignment.primaryFacultyMembers:id,USER_CODE,FIRST_NAME,LAST_NAME',
                     'teachingAssignment.coFacultyMembers:id,USER_CODE,FIRST_NAME,LAST_NAME',
-                    'teachingAllocation:id,course_id,faculty_id,delivery_type,allocation_group',
+                    'teachingAllocation:id,course_id,faculty_id,delivery_type,allocation_group,room',
+                    'teachingAllocation.course:id,course_code,course_title,course_type',
+                    'teachingAllocation.course.coursetypemaster:id,title',
                     'teachingAllocation.primaryFacultyMembers:id,USER_CODE,FIRST_NAME,LAST_NAME',
                     'teachingAllocation.coFacultyMembers:id,USER_CODE,FIRST_NAME,LAST_NAME',
                 ])
@@ -1237,6 +1243,44 @@ class TimetableController extends Controller
             }
         }
 
+        $subjectGroupRows = TeachingGroupItem::query()
+            ->where('subject_id', $id)
+            ->with(['faculty:id,USER_CODE,FIRST_NAME,LAST_NAME'])
+            ->get();
+
+        $groupRoomMap = $subjectGroupRows
+            ->groupBy(fn($row) => (int) ($row->allocation_group_id ?? 0))
+            ->mapWithKeys(function ($rows, $groupId) {
+                $groupId = (int) $groupId;
+                if ($groupId <= 0) {
+                    return [];
+                }
+
+                $roomNo = trim((string) ($rows->first(fn($entry) => trim((string) ($entry->room_no ?? '')) !== '')?->room_no ?? ''));
+                return [$groupId => $roomNo !== '' ? $roomNo : null];
+            })
+            ->all();
+
+        $groupFacultyLabelMap = $subjectGroupRows
+            ->groupBy(fn($row) => (int) ($row->allocation_group_id ?? 0))
+            ->mapWithKeys(function ($rows, $groupId) {
+                $groupId = (int) $groupId;
+                if ($groupId <= 0) {
+                    return [];
+                }
+
+                $faculty = $rows->first(fn($entry) => (int) ($entry->faculty_id ?? 0) > 0)?->faculty;
+                if (!$faculty) {
+                    return [$groupId => '-'];
+                }
+
+                $fullName = trim((string) ($faculty->FIRST_NAME ?? '') . ' ' . (string) ($faculty->LAST_NAME ?? ''));
+                $facultyLabel = trim((string) ($faculty->USER_CODE ?? '-') . ' - ' . ($fullName !== '' ? $fullName : '-'));
+
+                return [$groupId => $facultyLabel !== '' ? $facultyLabel : '-'];
+            })
+            ->all();
+
         $fallbackFacultyIds = $routines
             ->map(function ($routine) {
                 $assignment = $routine->teachingAssignment ?: $routine->teachingAllocation;
@@ -1302,11 +1346,16 @@ class TimetableController extends Controller
 
             $assignment = $routine->teachingAssignment ?: $routine->teachingAllocation;
 
-            $courseLabel = trim((string) (
-                optional(optional($assignment)->course)->course_code
-                ? optional($assignment->course)->course_code . ' - ' . optional($assignment->course)->course_title
-                : (optional($syllabus->coursemaster)->course_code ? optional($syllabus->coursemaster)->course_code . ' - ' . optional($syllabus->coursemaster)->course_title : 'Course')
-            ));
+            $assignmentCourse = optional($assignment)->course;
+            $syllabusCourse = optional($syllabus)->coursemaster;
+            $courseTypeTitle = trim((string) (optional(optional($assignmentCourse)->coursetypemaster)->title ?? optional(optional($syllabusCourse)->coursetypemaster)->title ?? ''));
+            $courseCode = trim((string) (optional($assignmentCourse)->course_code ?? optional($syllabusCourse)->course_code ?? ''));
+            $courseTitle = trim((string) (optional($assignmentCourse)->course_title ?? optional($syllabusCourse)->course_title ?? ''));
+
+            $courseLabel = trim(collect([$courseTypeTitle, $courseCode, $courseTitle])->filter(fn($part) => $part !== '')->implode(' - '));
+            if ($courseLabel === '') {
+                $courseLabel = 'Course';
+            }
 
             $primaryFacultyLabels = collect($assignment?->primaryFacultyMembers ?? [])
                 ->map(fn($faculty) => trim((string) ($faculty->USER_CODE ?? '-') . ' - ' . (string) ($faculty->FIRST_NAME ?? '-') . ' ' . (string) ($faculty->LAST_NAME ?? '-')))
@@ -1324,14 +1373,45 @@ class TimetableController extends Controller
 
             $delivery = trim((string) ($assignment->delivery_type ?? ''));
             $allocation = trim((string) ($assignment->allocation_group_label ?? ''));
-            $room = trim((string) (optional($routine->lecturehallmaster)->title ?? '-'));
+            $assignmentRoom = trim((string) ($assignment->room ?? ''));
+            $lectureHallRoom = trim((string) (optional($routine->lecturehallmaster)->title ?? ''));
+
+            $groupId = (int) ($routine->teaching_group_id ?? 0);
+            $isGroupTeaching = $groupId > 0;
+
+            if ($isGroupTeaching) {
+                $groupAllocationLetter = $this->allocationGroupAlphabet($groupId);
+                $allocation = $groupAllocationLetter !== '' ? ('Group ' . $groupAllocationLetter) : ($allocation !== '' ? $allocation : '-');
+            }
+
+            $assignmentAllocationGroup = (int) ($assignment->allocation_group ?? 0);
+            if (!$isGroupTeaching && $allocation === '' && $assignmentAllocationGroup > 0) {
+                $allocation = 'Group ' . $this->allocationGroupAlphabet($assignmentAllocationGroup);
+            }
+
+            $groupRoom = $isGroupTeaching ? trim((string) ($groupRoomMap[$groupId] ?? '')) : '';
+            $room = $isGroupTeaching
+                ? ($groupRoom !== '' ? $groupRoom : ($lectureHallRoom !== '' ? $lectureHallRoom : ($assignmentRoom !== '' ? $assignmentRoom : '-')))
+                : ($lectureHallRoom !== '' ? $lectureHallRoom : ($assignmentRoom !== '' ? $assignmentRoom : '-'));
+
+            $facultyLabel = $primaryFacultyLabels->isNotEmpty() ? implode(', ', $primaryFacultyLabels->all()) : '-';
+            if ($isGroupTeaching) {
+                $facultyLabel = (string) ($groupFacultyLabelMap[$groupId] ?? $facultyLabel);
+            }
+
+            $dedupeKey = 'routine|' . (int) ($routine->id ?? 0);
 
             $groups[$groupKey]['entries'][$hourNo][$dayName][] = [
                 'course' => $courseLabel !== '' ? $courseLabel : 'Course',
-                'faculty' => $primaryFacultyLabels->isNotEmpty() ? implode(', ', $primaryFacultyLabels->all()) : '-',
+                'faculty' => $facultyLabel,
                 'delivery' => $delivery,
                 'allocation' => $allocation,
                 'room' => $room !== '' ? $room : '-',
+                'is_group_teaching' => $isGroupTeaching,
+                'slot_active' => $this->supportsRoutineSlotActive()
+                    ? (int) ($routine->slot_active ?? 1)
+                    : ($this->supportsRoutineIsActive() ? (int) ($routine->is_active ?? 1) : 1),
+                'dedupe_key' => $dedupeKey,
             ];
 
             $hourName = (string) ($routine->hourmaster->name ?? ('Hour ' . $hourNo));
@@ -1359,6 +1439,19 @@ class TimetableController extends Controller
                         'hour_no' => $hourNo,
                         'label' => 'Hour ' . $hourNo,
                     ]);
+                }
+
+                foreach ($group['entries'] as $hourNo => $byDay) {
+                    foreach ($byDay as $dayName => $slots) {
+                        $group['entries'][$hourNo][$dayName] = collect($slots)
+                            ->unique(fn($slot) => (string) ($slot['dedupe_key'] ?? md5(json_encode($slot))))
+                            ->map(function ($slot) {
+                                unset($slot['dedupe_key']);
+                                return $slot;
+                            })
+                            ->values()
+                            ->all();
+                    }
                 }
 
                 $group['hours'] = $hours->all();
@@ -1816,7 +1909,9 @@ class TimetableController extends Controller
                         'allocation_group' => $assignment ? ($assignment->allocation_group ?? null) : null,
                         'allocation_group_label' => $assignment ? ($assignment->allocation_group_label ?? null) : null,
                         'teaching_group_id' => $routineGroupId > 0 ? $routineGroupId : null,
-                        'slot_active' => $this->supportsRoutineIsActive() ? (int) ($routine->is_active ?? 1) : 1,
+                        'slot_active' => $this->supportsRoutineSlotActive()
+                            ? (int) ($routine->slot_active ?? 1)
+                            : ($this->supportsRoutineIsActive() ? (int) ($routine->is_active ?? 1) : 1),
                     ];
                 }
             }
@@ -2952,6 +3047,11 @@ class TimetableController extends Controller
     private function supportsRoutineIsActive(): bool
     {
         return Schema::hasColumn('subject_has_routines', 'is_active');
+    }
+
+    private function supportsRoutineSlotActive(): bool
+    {
+        return Schema::hasColumn('subject_has_routines', 'slot_active');
     }
 
     private function normalizeIncomingTimetableSlotActivity(array $timetable, $teachingAssignments): array
