@@ -9,7 +9,6 @@ use App\Models\ExtraClassAttendance;
 use App\Models\HourMaster;
 use App\Models\StudentAttendance;
 use App\Models\StudentCourseInfo;
-use App\Models\ProgramWiseSemesterCourse;
 use App\Models\ProgramCourseMaster;
 use App\Models\SyllabusHasFaculty;
 use App\Models\StudentMaster;
@@ -17,6 +16,7 @@ use App\Models\SubjectFacultyMaster;
 use App\Models\SubjectHasRoutine;
 use App\Models\SubjectHasSyllabus;
 use App\Models\ShiftMaster;
+use App\Services\AttendanceEligibilityService;
 use Carbon\Carbon;
 use Illuminate\Bus\Batch;
 use Illuminate\Http\Request;
@@ -29,6 +29,13 @@ use Illuminate\Support\Str;
 
 class AttendanceController extends Controller
 {
+  private AttendanceEligibilityService $attendanceEligibilityService;
+
+  public function __construct(AttendanceEligibilityService $attendanceEligibilityService)
+  {
+    $this->attendanceEligibilityService = $attendanceEligibilityService;
+  }
+
   private function generateUniqueQrCode(): string
   {
     do {
@@ -417,184 +424,20 @@ class AttendanceController extends Controller
     SubjectHasRoutine $routine,
     int $effectiveBatchId,
     int $effectiveSemesterId,
-    int $courseId
+    int $courseId,
+    bool $withProfile = false
   ) {
     $campusId = (int) ($record->subject->campus_id ?? 0);
-    $routineShift = strtolower(trim((string) ($routine->shift ?? 'common')));
-    $routineAllocationGroup = (int) (
-      $routine->teachingAssignment->allocation_group
-      ?? $routine->teachingAllocation->allocation_group
-      ?? 0
+
+    return $this->attendanceEligibilityService->getEligibleStudents(
+      $routine,
+      $courseId,
+      $effectiveSemesterId,
+      $effectiveBatchId,
+      $campusId,
+      (int) ($record->subject_id ?? 0),
+      $withProfile
     );
-
-    $baseQuery = DB::table('student_masters as sm')
-      ->join('student_course_infos as sci', 'sm.id', '=', 'sci.student_id')
-      ->join('student_program as sp', 'sm.new_program_id', '=', 'sp.id')
-      ->leftJoin('subject_has_student_progams as shp', function ($join) use ($record, $effectiveBatchId) {
-        $join->on('shp.student_program_id', '=', 'sm.new_program_id')
-          ->where('shp.subject_id', '=', (int) ($record->subject_id ?? 0))
-          ->where('shp.batch_id', '=', $effectiveBatchId);
-      })
-      ->select(
-        'sm.id',
-        'shp.id as program_combo_id'
-      )
-      ->where('sm.is_left', 0)
-      ->where('sm.is_deleted', 0)
-      ->where('sm.batch', $effectiveBatchId)
-      ->where('sci.course_id', $courseId)
-      ->where('sci.semester', $effectiveSemesterId)
-      ->where('sci.campus_id', $campusId)
-      ->where('sci.is_deleted', 0)
-      ->distinct();
-
-    if ($routineAllocationGroup > 0 && Schema::hasColumn('student_course_infos', 'allocation_group_id')) {
-      $baseQuery->where('sci.allocation_group_id', $routineAllocationGroup);
-    }
-
-    $students = (clone $baseQuery)
-      ->whereRaw('LOWER(COALESCE(sp.shift, ?)) = ?', ['common', $routineShift])
-      ->get();
-
-    if ($students->isNotEmpty() && Schema::hasTable('student_specializations')) {
-      $curriculumTable = (new ProgramWiseSemesterCourse())->getTable();
-      $comboIds = $students->pluck('program_combo_id')->filter(fn($v) => (int) $v > 0)->map(fn($v) => (int) $v)->unique()->values();
-
-      if ($comboIds->isNotEmpty() && Schema::hasColumn($curriculumTable, 'program_combo_refid')) {
-        $curriculumQuery = DB::table($curriculumTable)
-          ->whereIn('program_combo_refid', $comboIds->all())
-          ->where('course_id', (int) $courseId)
-          ->where('semester', (int) $effectiveSemesterId);
-
-        if (Schema::hasColumn($curriculumTable, 'is_active')) {
-          $curriculumQuery->where('is_active', 1);
-        }
-
-        if (Schema::hasColumn($curriculumTable, 'batch')) {
-          $curriculumQuery->where('batch', (int) $effectiveBatchId);
-        }
-
-        $curriculumRows = $curriculumQuery->get([
-          'program_combo_refid',
-          'specialization_mode',
-          'specialization_master_id',
-          'specialization_master_ids',
-        ]);
-
-        $requiredSpecIdsByCombo = [];
-        foreach ($curriculumRows as $row) {
-          $comboId = (int) ($row->program_combo_refid ?? 0);
-          if ($comboId <= 0) {
-            continue;
-          }
-
-          $mode = strtoupper(trim((string) ($row->specialization_mode ?? 'COMMON')));
-          $isCommon = in_array($mode, ['COMMON', 'PROGRAMME_COMMON', 'PROGRAM_COMMON', 'ALL'], true);
-          if ($isCommon) {
-            continue;
-          }
-
-          $specIds = [];
-          $singleSpecId = (int) ($row->specialization_master_id ?? 0);
-          if ($singleSpecId > 0) {
-            $specIds[] = $singleSpecId;
-          }
-
-          $rawIds = $row->specialization_master_ids;
-          if (is_string($rawIds) && trim($rawIds) !== '') {
-            $decoded = json_decode($rawIds, true);
-            if (is_array($decoded)) {
-              $rawIds = $decoded;
-            }
-          }
-
-          if (is_array($rawIds)) {
-            foreach ($rawIds as $rawId) {
-              $sid = (int) $rawId;
-              if ($sid > 0) {
-                $specIds[] = $sid;
-              }
-            }
-          }
-
-          if (!empty($specIds)) {
-            $existing = $requiredSpecIdsByCombo[$comboId] ?? [];
-            $requiredSpecIdsByCombo[$comboId] = array_values(array_unique(array_merge($existing, $specIds)));
-          }
-        }
-
-        if (!empty($requiredSpecIdsByCombo)) {
-          $studentIds = $students->pluck('id')->map(fn($v) => (int) $v)->unique()->values();
-
-          $studentSpecQuery = DB::table('student_specializations')
-            ->whereIn('student_id', $studentIds->all())
-            ->whereIn('subject_has_student_program_id', array_keys($requiredSpecIdsByCombo));
-
-          if (Schema::hasColumn('student_specializations', 'is_active')) {
-            $studentSpecQuery->where('is_active', 1);
-          }
-
-          if (Schema::hasColumn('student_specializations', 'deleted_at')) {
-            $studentSpecQuery->whereNull('deleted_at');
-          }
-
-          if (Schema::hasColumn('student_specializations', 'semester_id')) {
-            $studentSpecQuery->where(function ($query) use ($effectiveSemesterId) {
-              $query->whereNull('semester_id')->orWhere('semester_id', $effectiveSemesterId);
-            });
-          }
-
-          $studentSpecRows = $studentSpecQuery
-            ->select('student_id', 'subject_has_student_program_id', 'specialization_id')
-            ->orderByDesc('id')
-            ->get();
-
-          $studentSpecLookup = [];
-          foreach ($studentSpecRows as $specRow) {
-            $studentId = (int) ($specRow->student_id ?? 0);
-            $comboId = (int) ($specRow->subject_has_student_program_id ?? 0);
-            $specId = (int) ($specRow->specialization_id ?? 0);
-
-            if ($studentId <= 0 || $comboId <= 0 || $specId <= 0) {
-              continue;
-            }
-
-            if (!isset($studentSpecLookup[$studentId])) {
-              $studentSpecLookup[$studentId] = [];
-            }
-            if (!isset($studentSpecLookup[$studentId][$comboId])) {
-              $studentSpecLookup[$studentId][$comboId] = [];
-            }
-
-            $studentSpecLookup[$studentId][$comboId][] = $specId;
-          }
-
-          $students = $students->filter(function ($student) use ($requiredSpecIdsByCombo, $studentSpecLookup) {
-            $comboId = (int) ($student->program_combo_id ?? 0);
-
-            if ($comboId <= 0 || !isset($requiredSpecIdsByCombo[$comboId])) {
-              return true;
-            }
-
-            $required = $requiredSpecIdsByCombo[$comboId] ?? [];
-            if (empty($required)) {
-              return true;
-            }
-
-            $studentId = (int) ($student->id ?? 0);
-            $studentSpecs = $studentSpecLookup[$studentId][$comboId] ?? [];
-
-            if (empty($studentSpecs)) {
-              return false;
-            }
-
-            return !empty(array_intersect($required, array_map(fn($v) => (int) $v, $studentSpecs)));
-          })->values();
-        }
-      }
-    }
-
-    return $students;
   }
 
   public function finalizeQrAttendance(Request $request)
@@ -931,6 +774,8 @@ class AttendanceController extends Controller
         'syllabus.batchmaster:id,batch_name',
         'syllabus.semestermaster:id,title',
         'syllabus.courseLink.courseMaster:id,course_title,course_code',
+        'teachingAssignment:id,delivery_type',
+        'teachingAllocation:id,delivery_type',
       ])
       ->orderBy('syllabus_id')
       ->orderBy('shift')
@@ -1016,6 +861,8 @@ class AttendanceController extends Controller
         'syllabus.batchmaster:id,batch_name',
         'syllabus.semestermaster:id,title',
         'syllabus.courseLink.courseMaster:id,course_title,course_code',
+        'teachingAssignment:id,delivery_type',
+        'teachingAllocation:id,delivery_type',
       ])
       ->orderBy('syllabus_id')
       ->orderBy('shift')
@@ -1096,7 +943,10 @@ class AttendanceController extends Controller
       return back()->with('error', 'Invalid syllabus selected.');
     }
 
-    $routine = SubjectHasRoutine::with(['teachingAssignment:id,allocation_group', 'teachingAllocation:id,allocation_group'])->find($id);
+    $routine = SubjectHasRoutine::with([
+      'teachingAssignment:id,allocation_group,delivery_type',
+      'teachingAllocation:id,allocation_group,delivery_type'
+    ])->find($id);
     if (!$routine) {
       return back()->with('error', 'Invalid routine selected.');
     }
@@ -1117,189 +967,14 @@ class AttendanceController extends Controller
       return back()->with('error', 'Invalid batch/semester selected.');
     }
 
-    $routineAllocationGroup = (int) (
-      $routine->teachingAssignment->allocation_group
-      ?? $routine->teachingAllocation->allocation_group
-      ?? 0
+    $students = $this->getEligibleStudentsForRoutine(
+      $record,
+      $routine,
+      $effectiveBatchId,
+      $effectiveSemesterId,
+      (int) $course_id,
+      true
     );
-
-    $baseQuery = DB::table('student_masters as sm')
-      ->join('student_course_infos as sci', 'sm.id', '=', 'sci.student_id')
-      ->join('student_program as sp', 'sm.new_program_id', '=', 'sp.id')
-      ->leftJoin('subject_has_student_progams as shp', function ($join) use ($record, $effectiveBatchId) {
-        $join->on('shp.student_program_id', '=', 'sm.new_program_id')
-          ->where('shp.subject_id', '=', (int) ($record->subject_id ?? 0))
-          ->where('shp.batch_id', '=', $effectiveBatchId);
-      })
-      ->select(
-        'sm.id',
-        'sm.roll_no',
-        'sm.first_name',
-        'sm.last_name',
-        'sci.id as course_info_id',
-        'sp.shift as program_shift',
-        'sm.new_program_id',
-        'sci.allocation_group_id',
-        'shp.id as program_combo_id'
-      )
-      ->where('sm.is_left', 0)
-      ->where('sm.is_deleted', 0)
-      ->where('sm.batch', $effectiveBatchId)
-      ->where('sci.course_id', $course_id)
-      ->where('sci.semester', $effectiveSemesterId)
-      ->where('sci.campus_id', $campusId)
-      ->where('sci.is_deleted', 0)
-      ->distinct();
-
-    if ($routineAllocationGroup > 0 && Schema::hasColumn('student_course_infos', 'allocation_group_id')) {
-      $baseQuery->where('sci.allocation_group_id', $routineAllocationGroup);
-    }
-
-    // Strict shift matching by enrolled program shift.
-    $students = (clone $baseQuery)
-      ->whereRaw('LOWER(COALESCE(sp.shift, ?)) = ?', ['common', $routineShift])
-      ->get();
-
-    // Specialization-aware filtering: when the course is specialization-linked,
-    // show only students assigned to one of the required specializations.
-    if ($students->isNotEmpty() && Schema::hasTable('student_specializations')) {
-      $curriculumTable = (new ProgramWiseSemesterCourse())->getTable();
-      $comboIds = $students->pluck('program_combo_id')->filter(fn($v) => (int) $v > 0)->map(fn($v) => (int) $v)->unique()->values();
-
-      if ($comboIds->isNotEmpty() && Schema::hasColumn($curriculumTable, 'program_combo_refid')) {
-        $curriculumQuery = DB::table($curriculumTable)
-          ->whereIn('program_combo_refid', $comboIds->all())
-          ->where('course_id', (int) $course_id)
-          ->where('semester', (int) $effectiveSemesterId);
-
-        if (Schema::hasColumn($curriculumTable, 'is_active')) {
-          $curriculumQuery->where('is_active', 1);
-        }
-
-        if (Schema::hasColumn($curriculumTable, 'batch')) {
-          $curriculumQuery->where('batch', (int) $effectiveBatchId);
-        }
-
-        $curriculumRows = $curriculumQuery->get([
-          'program_combo_refid',
-          'specialization_mode',
-          'specialization_master_id',
-          'specialization_master_ids',
-        ]);
-
-        $requiredSpecIdsByCombo = [];
-        foreach ($curriculumRows as $row) {
-          $comboId = (int) ($row->program_combo_refid ?? 0);
-          if ($comboId <= 0) {
-            continue;
-          }
-
-          $mode = strtoupper(trim((string) ($row->specialization_mode ?? 'COMMON')));
-          $isCommon = in_array($mode, ['COMMON', 'PROGRAMME_COMMON', 'PROGRAM_COMMON', 'ALL'], true);
-          if ($isCommon) {
-            continue;
-          }
-
-          $specIds = [];
-          $singleSpecId = (int) ($row->specialization_master_id ?? 0);
-          if ($singleSpecId > 0) {
-            $specIds[] = $singleSpecId;
-          }
-
-          $rawIds = $row->specialization_master_ids;
-          if (is_string($rawIds) && trim($rawIds) !== '') {
-            $decoded = json_decode($rawIds, true);
-            if (is_array($decoded)) {
-              $rawIds = $decoded;
-            }
-          }
-
-          if (is_array($rawIds)) {
-            foreach ($rawIds as $rawId) {
-              $sid = (int) $rawId;
-              if ($sid > 0) {
-                $specIds[] = $sid;
-              }
-            }
-          }
-
-          if (!empty($specIds)) {
-            $existing = $requiredSpecIdsByCombo[$comboId] ?? [];
-            $requiredSpecIdsByCombo[$comboId] = array_values(array_unique(array_merge($existing, $specIds)));
-          }
-        }
-
-        if (!empty($requiredSpecIdsByCombo)) {
-          $studentIds = $students->pluck('id')->map(fn($v) => (int) $v)->unique()->values();
-
-          $studentSpecQuery = DB::table('student_specializations')
-            ->whereIn('student_id', $studentIds->all())
-            ->whereIn('subject_has_student_program_id', array_keys($requiredSpecIdsByCombo));
-
-          if (Schema::hasColumn('student_specializations', 'is_active')) {
-            $studentSpecQuery->where('is_active', 1);
-          }
-
-          if (Schema::hasColumn('student_specializations', 'deleted_at')) {
-            $studentSpecQuery->whereNull('deleted_at');
-          }
-
-          if (Schema::hasColumn('student_specializations', 'semester_id')) {
-            $studentSpecQuery->where(function ($query) use ($effectiveSemesterId) {
-              $query->whereNull('semester_id')->orWhere('semester_id', $effectiveSemesterId);
-            });
-          }
-
-          $studentSpecRows = $studentSpecQuery
-            ->select('student_id', 'subject_has_student_program_id', 'specialization_id')
-            ->orderByDesc('id')
-            ->get();
-
-          $studentSpecLookup = [];
-          foreach ($studentSpecRows as $specRow) {
-            $studentId = (int) ($specRow->student_id ?? 0);
-            $comboId = (int) ($specRow->subject_has_student_program_id ?? 0);
-            $specId = (int) ($specRow->specialization_id ?? 0);
-
-            if ($studentId <= 0 || $comboId <= 0 || $specId <= 0) {
-              continue;
-            }
-
-            if (!isset($studentSpecLookup[$studentId])) {
-              $studentSpecLookup[$studentId] = [];
-            }
-            if (!isset($studentSpecLookup[$studentId][$comboId])) {
-              $studentSpecLookup[$studentId][$comboId] = [];
-            }
-
-            $studentSpecLookup[$studentId][$comboId][] = $specId;
-          }
-
-          $students = $students->filter(function ($student) use ($requiredSpecIdsByCombo, $studentSpecLookup) {
-            $comboId = (int) ($student->program_combo_id ?? 0);
-
-            // If no specialization is required for this combo, keep student.
-            if ($comboId <= 0 || !isset($requiredSpecIdsByCombo[$comboId])) {
-              return true;
-            }
-
-            $required = $requiredSpecIdsByCombo[$comboId] ?? [];
-            if (empty($required)) {
-              return true;
-            }
-
-            $studentId = (int) ($student->id ?? 0);
-            $studentSpecs = $studentSpecLookup[$studentId][$comboId] ?? [];
-
-            if (empty($studentSpecs)) {
-              return false;
-            }
-
-            return !empty(array_intersect($required, array_map(fn($v) => (int) $v, $studentSpecs)));
-          })->values();
-        }
-      }
-    }
 
     $syllabusAssignment = SubjectHasSyllabus::with([
       'courseLink.courseMaster.coursetypemaster',

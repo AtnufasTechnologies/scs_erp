@@ -116,6 +116,7 @@
               </div>
 
               <div class="col-md-6 text-end d-flex align-items-center justify-content-end">
+                <span class="mb-3 btn-sm btn-secondary mx-2">Visible: <strong id="visibleCount">{{ $students->count() }}</strong></span>
                 <span class="mb-3 btn-sm  btn-success mx-2">Present: <strong id="presentCount">{{ $students->count() }}</strong></span>
                 <span class="mb-3 btn-sm btn-danger mx-2">Absent: <strong id="absentCount">0</strong></span>
                 <span class="mb-3 btn-sm btn-primary mx-2">Total: <strong id="totalCount">{{ $students->count() }}</strong></span>
@@ -127,46 +128,41 @@
               </div>
             </div>
 
-            <div class="table-responsive">
-              <table class="table table-hover">
-                <thead class="table-light sticky-top">
-                  <tr>
-                    <th width="5%">#</th>
-                    <th width="15%">Reg No</th>
-                    <th width="40%">Student Name</th>
-                    <th width="10%" class="text-center">Present</th>
-
-                  </tr>
-                </thead>
-                <tbody>
-                  @foreach($students as $index => $student)
-                  @php
-                  $existingStatus = $existingAttendance[$student->id]->status ?? 'present';
-                  $existingRemarks = $existingAttendance[$student->id]->remarks ?? '';
-                  @endphp
-                  <tr class="student-row" data-student-id="{{ $student->id }}">
-                    <td>{{ $index + 1 }}</td>
-                    <td><span class="badge bg-secondary text-uppercase">{{ $student->roll_no ?? 'N/A' }}</span></td>
-                    <td class="student-name">{{ $student->first_name }} {{ $student->last_name }}</td>
-                    <td class="text-center">
-                      <div class="form-check d-inline-block">
+            <div class="student-list-wrap">
+              <div class="student-list">
+                @foreach($students as $index => $student)
+                @php
+                $existingStatus = $existingAttendance[$student->id]->status ?? 'present';
+                $existingRemarks = $existingAttendance[$student->id]->remarks ?? '';
+                @endphp
+                <div class="student-row student-card"
+                  data-student-id="{{ $student->id }}"
+                  data-roll="{{ strtolower((string) ($student->roll_no ?? '')) }}"
+                  data-name="{{ strtolower(trim((string) (($student->first_name ?? '') . ' ' . ($student->last_name ?? '')))) }}">
+                  <div class="student-card-head">
+                    <div class="student-seq">{{ $index + 1 }}</div>
+                    <div class="student-meta">
+                      <p class="student-name mb-1">{{ $student->first_name }} {{ $student->last_name }}</p>
+                      <span class="badge bg-secondary text-uppercase">{{ $student->roll_no ?? 'N/A' }}</span>
+                    </div>
+                    <div class="present-toggle">
+                      <label class="present-label" for="present_{{ $student->id }}">Present</label>
+                      <div class="form-check form-switch m-0">
                         <input class="form-check-input status-checkbox" type="checkbox"
                           value="present"
                           id="present_{{ $student->id }}"
                           data-student="{{ $student->id }}"
                           {{ $existingStatus === 'present' ? 'checked' : '' }}>
-                        <label class="form-check-label" for="present_{{ $student->id }}"></label>
                       </div>
-                    </td>
+                    </div>
+                  </div>
 
-                    <!-- Hidden input to store the final status -->
-                    <input type="hidden" name="attendance[{{ $student->id }}]"
-                      id="status_{{ $student->id }}"
-                      value="{{ $existingStatus }}">
-                  </tr>
-                  @endforeach
-                </tbody>
-              </table>
+                  <input type="hidden" name="attendance[{{ $student->id }}]"
+                    id="status_{{ $student->id }}"
+                    value="{{ $existingStatus }}">
+                </div>
+                @endforeach
+              </div>
             </div>
 
 
@@ -203,7 +199,7 @@
     document.querySelectorAll('.status-checkbox').forEach(checkbox => {
       checkbox.addEventListener('change', function() {
         const studentId = this.dataset.student;
-        const row = this.closest('tr');
+        const row = this.closest('.student-row');
 
         if (this.checked) {
           // Checked means present
@@ -275,11 +271,11 @@
       let visibleStudents = 0;
 
       rows.forEach(row => {
-        const regNo = row.querySelector('td:nth-child(2)').textContent.toLowerCase();
-        const studentName = row.querySelector('.student-name').textContent.toLowerCase();
+        const regNo = row.dataset.roll || '';
+        const studentName = row.dataset.name || '';
 
         if (regNo.includes(searchTerm) || studentName.includes(searchTerm)) {
-          row.style.display = '';
+          row.style.display = 'block';
           visibleStudents++;
         } else {
           row.style.display = 'none';
@@ -359,16 +355,54 @@
 </script>
 
 <style>
-  .table-responsive {
+  .student-list-wrap {
     max-height: 60vh;
     overflow-y: auto;
   }
 
-  .sticky-top {
-    position: sticky;
-    top: 0;
-    z-index: 10;
-    background: white;
+  .student-list {
+    display: grid;
+    gap: 0.7rem;
+  }
+
+  .student-card {
+    border: 1px solid #d8dee7;
+    border-radius: 10px;
+    padding: 0.75rem 0.85rem;
+    background: #fff;
+    box-shadow: 0 3px 12px rgba(22, 36, 56, 0.06);
+  }
+
+  .student-card-head {
+    display: grid;
+    grid-template-columns: 34px minmax(0, 1fr) auto;
+    align-items: center;
+    gap: 0.75rem;
+  }
+
+  .student-seq {
+    width: 34px;
+    height: 34px;
+    border-radius: 50%;
+    background: #e9eff8;
+    color: #2a4467;
+    font-weight: 700;
+    font-size: 0.84rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .present-toggle {
+    display: flex;
+    align-items: center;
+    gap: 0.55rem;
+  }
+
+  .present-label {
+    font-size: 0.84rem;
+    font-weight: 600;
+    color: #19613c;
   }
 
   .student-row {
@@ -381,14 +415,6 @@
 
   .student-row.table-danger {
     background-color: #f8d7da !important;
-  }
-
-  .student-row.table-warning {
-    background-color: #fff3cd !important;
-  }
-
-  .student-row.table-info {
-    background-color: #cff4fc !important;
   }
 
   .form-check-input {
@@ -416,23 +442,6 @@
     font-weight: 500;
   }
 
-  .remarks-input {
-    border: 1px solid #dee2e6;
-  }
-
-  .remarks-input:focus {
-    border-color: #86b7fe;
-    box-shadow: 0 0 0 0.25rem rgba(13, 110, 253, 0.25);
-  }
-
-  thead th {
-    font-weight: 600;
-    text-transform: uppercase;
-    font-size: 0.85rem;
-    letter-spacing: 0.5px;
-  }
-
-  /* Search Box Styling */
   #studentSearch {
     border-left: none;
     font-size: 1rem;
@@ -458,12 +467,31 @@
     font-weight: 500;
   }
 
-  .table tbody tr {
-    transition: all 0.2s ease;
-  }
+  @media (max-width: 767.98px) {
+    .student-list-wrap {
+      max-height: none;
+      overflow: visible;
+    }
 
-  .table tbody tr[style*="display: none"] {
-    opacity: 0;
+    .student-card {
+      padding: 0.65rem 0.7rem;
+      border-radius: 8px;
+    }
+
+    .student-card-head {
+      grid-template-columns: 30px minmax(0, 1fr) auto;
+      gap: 0.6rem;
+    }
+
+    .student-seq {
+      width: 30px;
+      height: 30px;
+      font-size: 0.78rem;
+    }
+
+    .present-label {
+      font-size: 0.8rem;
+    }
   }
 </style>
 
