@@ -368,14 +368,27 @@ $days = Weekday::all();
           <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
         </div>
         <div class="modal-body">
-          <div class="mb-3">
-            <label class="form-label">Teaching Assignment</label>
-            <select class="dselect-example" id="modalTeachingAssignment" style="border-radius:0.5em;">
-              <option value="">Select Assignment</option>
-            </select>
-            <small class="text-muted" id="assignmentHint">Showing active rows from Teaching Assignments.</small>
+          <div id="deptAssignmentSection">
+            <div class="mb-3">
+              <label class="form-label">Teaching Assignment</label>
+              <select class="dselect-example" id="modalTeachingAssignment" style="border-radius:0.5em;">
+                <option value="">Select Assignment</option>
+              </select>
+              <small class="text-muted" id="assignmentHint">Showing active rows from Teaching Assignments.</small>
+            </div>
+            <div class="mb-3" id="courseAssignmentInfo" style="display:none;"></div>
           </div>
-          <div class="mb-3" id="courseAssignmentInfo" style="display:none;"></div>
+
+          <div id="groupAssignmentSection" style="display:none;">
+            <div class="mb-3">
+              <label class="form-label">Created Group</label>
+              <select class="form-select" id="modalGroupSelect" style="border-radius:0.5em;">
+                <option value="">Select Group</option>
+              </select>
+              <small class="text-muted" id="groupHint">Select a created teaching group.</small>
+            </div>
+            <div class="mb-0" id="groupAssignmentInfo" style="display:none;"></div>
+          </div>
         </div>
         <div class="modal-footer">
           <button type="button" class="btn btn-secondary" data-bs-dismiss="modal" style="border-radius:0.5em;">Close</button>
@@ -388,15 +401,15 @@ $days = Weekday::all();
   <input type="hidden" id="subjectIdInput" value="{{ $data->id }}">
   <input type="hidden" id="selectedHour" value="">
   <input type="hidden" id="selectedDay" value="">
+  <input type="hidden" id="slotAddMode" value="dept">
   <script id="teachingAssignmentListJson" type="application/json">
-    {
-      !!json_encode($teachingAssignmentList ?? []) !!
-    }
+    @json($teachingAssignmentList ?? [])
   </script>
   <script id="curriculumDeliveryJson" type="application/json">
-    {
-      !!json_encode($curriculumDeliveryRows ?? []) !!
-    }
+    @json($curriculumDeliveryRows ?? [])
+  </script>
+  <script id="createdTeachingGroupsJson" type="application/json">
+    @json($createdTeachingGroups ?? [])
   </script>
 
   <script>
@@ -417,6 +430,7 @@ $days = Weekday::all();
 
     let teachingAssignmentList = safeParseJsonScript('teachingAssignmentListJson', []);
     let curriculumDeliveryRows = safeParseJsonScript('curriculumDeliveryJson', []);
+    let createdTeachingGroups = safeParseJsonScript('createdTeachingGroupsJson', []);
     let teachingAssignments = [];
     let assignmentsByCourse = {};
     let assignmentsById = {};
@@ -510,6 +524,61 @@ $days = Weekday::all();
       alert(text);
     }
 
+    function showSuccessToast(message, title = 'Success') {
+      const text = String(message || 'Saved successfully.').trim();
+
+      if (typeof Swal !== 'undefined' && Swal && typeof Swal.fire === 'function') {
+        Swal.fire({
+          toast: true,
+          position: 'top-end',
+          icon: 'success',
+          title,
+          text,
+          showConfirmButton: false,
+          timer: 2200,
+          timerProgressBar: true,
+        });
+        return;
+      }
+
+      alert(text);
+    }
+
+    async function openSlotSourceChooser(hourNumber, day) {
+      openSubjectModal(hourNumber, day, null, 'dept');
+    }
+
+    function setSlotModalMode(mode = 'dept', isEdit = false) {
+      const normalizedMode = mode === 'group' ? 'group' : 'dept';
+      const modalTitle = document.getElementById('slotModalLabel');
+      const saveButton = document.getElementById('saveSlotBtn');
+      const modeInput = document.getElementById('slotAddMode');
+      const deptSection = document.getElementById('deptAssignmentSection');
+      const groupSection = document.getElementById('groupAssignmentSection');
+
+      if (modeInput) {
+        modeInput.value = normalizedMode;
+      }
+
+      if (normalizedMode === 'group' && !isEdit) {
+        if (modalTitle) modalTitle.textContent = 'Add Slot From Group';
+        if (deptSection) deptSection.style.display = 'none';
+        if (groupSection) groupSection.style.display = '';
+        if (saveButton) {
+          saveButton.style.display = '';
+          saveButton.textContent = 'Save Group Slot';
+        }
+      } else {
+        if (modalTitle) modalTitle.textContent = isEdit ? 'Update Course & Teacher' : 'Add Slot Item';
+        if (deptSection) deptSection.style.display = '';
+        if (groupSection) groupSection.style.display = 'none';
+        if (saveButton) {
+          saveButton.style.display = '';
+          saveButton.textContent = isEdit ? 'Update Slot' : 'Save Slot';
+        }
+      }
+    }
+
     function makeEntryKey(entry) {
       return entry.routine_id ? `r_${entry.routine_id}` : (entry.local_key || '');
     }
@@ -525,12 +594,186 @@ $days = Weekday::all();
       return timetableData.filter(t => Number(t.hour_number) === Number(hour) && t.day_of_week === day);
     }
 
+    function getEntryIdentityKey(entry) {
+      const courseId = Number(entry.subject_id || 0);
+      const delivery = normalizeDeliveryType(entry.delivery_type) || String(entry.delivery_type || '').trim().toUpperCase();
+      const groupNumber = Number(entry.allocation_group || 0);
+      const groupLabel = String(entry.allocation_group_label || '').trim().toUpperCase();
+      return [courseId, delivery, groupNumber, groupLabel].join('|');
+    }
+
+    function hasActiveIdenticalEntry(day, hourNumber, identityKey, excludeEntryKey = '') {
+      return timetableData.some((entry) => {
+        if (Number(entry.hour_number) !== Number(hourNumber) || entry.day_of_week !== day) {
+          return false;
+        }
+
+        if (excludeEntryKey && makeEntryKey(entry) === excludeEntryKey) {
+          return false;
+        }
+
+        if (getEntryIdentityKey(entry) !== identityKey) {
+          return false;
+        }
+
+        return Number(entry.slot_active ?? 1) === 1;
+      });
+    }
+
+    function normalizeSlotActivityForCell(day, hourNumber) {
+      const entries = timetableData.filter(entry => Number(entry.hour_number) === Number(hourNumber) && entry.day_of_week === day);
+      if (!entries.length) return;
+
+      const grouped = {};
+      entries.forEach((entry) => {
+        const key = getEntryIdentityKey(entry);
+        if (!grouped[key]) grouped[key] = [];
+        grouped[key].push(entry);
+      });
+
+      Object.values(grouped).forEach((groupEntries) => {
+        if (groupEntries.length <= 1) {
+          if (typeof groupEntries[0]?.slot_active === 'undefined') {
+            groupEntries[0].slot_active = 1;
+          }
+          return;
+        }
+
+        const activeEntries = groupEntries.filter(entry => Number(entry.slot_active ?? 1) === 1);
+        const chosen = activeEntries.length ? activeEntries[0] : groupEntries[0];
+        groupEntries.forEach((entry) => {
+          entry.slot_active = makeEntryKey(entry) === makeEntryKey(chosen) ? 1 : 0;
+        });
+      });
+    }
+
+    function collapseDuplicateGroupEntriesForCell(day, hourNumber) {
+      const sameCellEntries = timetableData
+        .filter(entry => Number(entry.hour_number) === Number(hourNumber) && entry.day_of_week === day);
+
+      if (!sameCellEntries.length) return;
+
+      const groupBuckets = {};
+      sameCellEntries.forEach((entry) => {
+        const groupId = Number(entry.teaching_group_id || 0);
+        if (groupId <= 0) return;
+        if (!groupBuckets[groupId]) groupBuckets[groupId] = [];
+        groupBuckets[groupId].push(entry);
+      });
+
+      const duplicateKeysToRemove = new Set();
+
+      Object.values(groupBuckets).forEach((groupEntries) => {
+        if (groupEntries.length <= 1) return;
+
+        const activeEntries = groupEntries.filter(entry => Number(entry.slot_active ?? 1) === 1);
+        const preferred = activeEntries.length ? activeEntries[0] : groupEntries[0];
+
+        groupEntries.forEach((entry) => {
+          const entryKey = makeEntryKey(entry);
+          if (entryKey !== makeEntryKey(preferred)) {
+            duplicateKeysToRemove.add(entryKey);
+          }
+        });
+      });
+
+      if (!duplicateKeysToRemove.size) return;
+
+      timetableData = timetableData.filter((entry) => {
+        const inSameCell = Number(entry.hour_number) === Number(hourNumber) && entry.day_of_week === day;
+        if (!inSameCell) return true;
+        const groupId = Number(entry.teaching_group_id || 0);
+        if (groupId <= 0) return true;
+        return !duplicateKeysToRemove.has(makeEntryKey(entry));
+      });
+    }
+
+    function setSlotEntryActive(hourNumber, day, entryKey) {
+      const selectedEntry = getEntryByKey(entryKey);
+      if (!selectedEntry) {
+        return;
+      }
+
+      const identityKey = getEntryIdentityKey(selectedEntry);
+      timetableData = timetableData.map((entry) => {
+        if (Number(entry.hour_number) !== Number(hourNumber) || entry.day_of_week !== day) {
+          return entry;
+        }
+
+        if (getEntryIdentityKey(entry) !== identityKey) {
+          return entry;
+        }
+
+        return {
+          ...entry,
+          slot_active: makeEntryKey(entry) === entryKey ? 1 : 0,
+        };
+      });
+
+      renderTimetable();
+    }
+
     function formatEntryMeta(entry) {
       const chunks = [];
       if (entry.delivery_type) chunks.push(entry.delivery_type);
       if (entry.allocation_group_label) chunks.push(entry.allocation_group_label);
       else if (entry.allocation_group) chunks.push(`Group ${entry.allocation_group}`);
       return chunks;
+    }
+
+    function getGroupFacultyName(entry) {
+      const teachingGroupId = Number(entry.teaching_group_id || 0);
+      const allocationGroupId = Number(entry.allocation_group || 0);
+
+      let mappedGroup = null;
+      if (teachingGroupId > 0) {
+        mappedGroup = getCreatedGroupById(teachingGroupId);
+      }
+
+      if (!mappedGroup && allocationGroupId > 0) {
+        mappedGroup = getCreatedGroupById(allocationGroupId);
+      }
+
+      const mappedFaculty = String(mappedGroup?.faculty_label || '').trim();
+      if (mappedFaculty) {
+        return mappedFaculty;
+      }
+
+      const fallbackPrimary = Array.isArray(entry.primary_faculty_names) && entry.primary_faculty_names.length ?
+        entry.primary_faculty_names.join(', ') :
+        (entry.teacher_name || 'Teacher');
+
+      return String(
+        entry.group_faculty_name ||
+        entry.teaching_group_faculty_name ||
+        entry.teaching_group_faculty_label ||
+        entry.group_teacher_name ||
+        fallbackPrimary
+      ).trim();
+    }
+
+    function getAllocationGroupCode(entry) {
+      const rawLabel = String(entry.allocation_group_label || '').trim();
+      if (rawLabel) {
+        const stripped = rawLabel.replace(/^group\s*/i, '').trim();
+        if (/^[a-z]$/i.test(stripped)) {
+          return stripped.toUpperCase();
+        }
+
+        const letterMatch = rawLabel.match(/\b([A-Z])\b/i);
+        if (letterMatch) {
+          return String(letterMatch[1] || '').toUpperCase();
+        }
+
+        return stripped;
+      }
+
+      const allocationGroup = Number(entry.allocation_group || 0);
+      if (allocationGroup > 0 && allocationGroup <= 26) {
+        return String.fromCharCode(64 + allocationGroup);
+      }
+
+      return allocationGroup > 0 ? String(allocationGroup) : '';
     }
 
     function getEntryByKey(entryKey) {
@@ -587,6 +830,7 @@ $days = Weekday::all();
           teaching_assignment_id: Number(entry.teaching_assignment_id || 0),
           lecturehall_id: Number(entry.lecturehall_id || 0),
           shift_id: getShiftIdBySlug(String(entry.shift || getActiveShift() || 'common')),
+          slot_active: Number(entry.slot_active ?? 1) === 1 ? 1 : 0,
         }));
     }
 
@@ -705,8 +949,6 @@ $days = Weekday::all();
       const delivery = normalizeDeliveryType(assignment.delivery_type) || assignment.delivery_type || '-';
       const roomText = assignment.room || '-';
       const groupText = assignment.allocation_group_label || (assignment.allocation_group ? `Group ${assignment.allocation_group}` : '-');
-      const coFacultyText = Array.isArray(assignment.co_faculty_label) && assignment.co_faculty_label.length ? assignment.co_faculty_label.join(', ') :
-        (Array.isArray(assignment.co_faculty_text) && assignment.co_faculty_text.length ? assignment.co_faculty_text.join(', ') : '-');
 
       infoBox.style.display = '';
       infoBox.innerHTML = `
@@ -715,7 +957,6 @@ $days = Weekday::all();
           <div class="row g-2" style="font-size:0.95rem;">
             <div class="col-12"><span class="fw-semibold">Course:</span> ${escapeHtml(assignment.course_label || '-')}</div>
             <div class="col-12"><span class="fw-semibold">Primary Faculty:</span> ${escapeHtml(assignment.faculty_label || '-')}</div>
-            <div class="col-12"><span class="fw-semibold">Co-Faculty:</span> ${escapeHtml(coFacultyText)}</div>
             <div class="col-md-6"><span class="fw-semibold">Delivery:</span> ${escapeHtml(delivery)}</div>
             <div class="col-md-6"><span class="fw-semibold">Room:</span> ${escapeHtml(roomText)}</div>
             <div class="col-12"><span class="fw-semibold">Allocation Group:</span> ${escapeHtml(groupText)}</div>
@@ -730,6 +971,106 @@ $days = Weekday::all();
 
     function renderQuickAssignmentInfo(assignmentId) {
       renderAssignmentInfo(assignmentId, 'quickAssignmentInfo');
+    }
+
+    function getCreatedGroupById(groupId) {
+      const id = Number(groupId || 0);
+      if (id <= 0) return null;
+      const rows = Array.isArray(createdTeachingGroups) ? createdTeachingGroups : [];
+      return rows.find((row) => Number(row.allocation_group_id || 0) === id) || null;
+    }
+
+    function populateGroupOptions(selectedGroupId = '') {
+      const groupSelect = document.getElementById('modalGroupSelect');
+      if (!groupSelect) return;
+
+      groupSelect.innerHTML = '<option value="">Select Group</option>';
+      const rows = Array.isArray(createdTeachingGroups) ? createdTeachingGroups : [];
+      rows.forEach((group) => {
+        const groupId = Number(group.allocation_group_id || 0);
+        if (groupId <= 0) return;
+
+        const option = document.createElement('option');
+        option.value = String(groupId);
+        option.textContent = `${group.group_identifier || ('TG-' + groupId)} | ${group.allocation_group_label || ('Group ' + groupId)}`;
+        groupSelect.appendChild(option);
+      });
+
+      if (selectedGroupId) {
+        groupSelect.value = String(selectedGroupId);
+      }
+    }
+
+    function populateGroupAssignmentOptions(selectedGroupId = '') {
+      const groupHint = document.getElementById('groupHint');
+      const groupInfo = document.getElementById('groupAssignmentInfo');
+
+      const groupId = Number(selectedGroupId || document.getElementById('modalGroupSelect')?.value || 0);
+      const selectedGroup = getCreatedGroupById(groupId);
+
+      if (groupHint) {
+        if (!selectedGroup) {
+          groupHint.textContent = 'Select a created teaching group.';
+        } else {
+          const faculty = String(selectedGroup.faculty_label || '-').trim();
+          const courses = Array.isArray(selectedGroup.courses) ? selectedGroup.courses.length : 0;
+          const roomNo = String(selectedGroup.room_no || '-').trim() || '-';
+          groupHint.textContent = `${selectedGroup.group_identifier || '-'} | Faculty: ${faculty} | Courses: ${courses} | Room: ${roomNo}`;
+        }
+      }
+
+      if (groupId <= 0) {
+        if (groupInfo) {
+          groupInfo.style.display = 'none';
+          groupInfo.innerHTML = '';
+        }
+        return;
+      }
+
+      if (groupInfo) {
+        const courseRows = Array.isArray(selectedGroup?.courses) ? selectedGroup.courses : [];
+        const courseHtml = courseRows.length ?
+          courseRows.map((course) => `<span class="badge bg-light text-dark border me-1 mb-1">${escapeHtml(String(course || '-'))}</span>`).join('') :
+          '<span class="text-muted">No attached courses</span>';
+
+        groupInfo.style.display = '';
+        groupInfo.innerHTML = `
+          <div class="border rounded p-2" style="background:#f8f9ff;">
+            <div class="fw-bold mb-2">Selected Group Details</div>
+            <div class="row g-2" style="font-size:0.95rem;">
+              <div class="col-12"><span class="fw-semibold">Group:</span> ${escapeHtml(String(selectedGroup?.group_identifier || '-'))} (${escapeHtml(String(selectedGroup?.allocation_group_label || '-'))})</div>
+              <div class="col-12"><span class="fw-semibold">Assigned Faculty:</span> ${escapeHtml(String(selectedGroup?.faculty_label || '-'))}</div>
+              <div class="col-12"><span class="fw-semibold">Room:</span> ${escapeHtml(String(selectedGroup?.room_no || '-'))}</div>
+              <div class="col-12"><span class="fw-semibold">Attached Courses:</span><div class="mt-1">${courseHtml}</div></div>
+            </div>
+          </div>
+        `;
+      }
+    }
+
+    function resolveGroupAssignment(selectedGroupId) {
+      const groupId = Number(selectedGroupId || 0);
+      if (groupId <= 0) return null;
+
+      const selectedGroup = getCreatedGroupById(groupId);
+      const preferredCourseIds = Array.isArray(selectedGroup?.course_rows) ?
+        selectedGroup.course_rows.map((row) => Number(row.course_id || 0)).filter((id) => id > 0) : [];
+      const groupFacultyId = Number(selectedGroup?.faculty_id || 0);
+
+      const candidates = teachingAssignments
+        .filter((assignment) => Number(assignment.allocation_group || 0) === groupId)
+        .filter((assignment) => {
+          if (!preferredCourseIds.length) return true;
+          return preferredCourseIds.includes(Number(assignment.course_id || 0));
+        })
+        .sort((a, b) => {
+          const aFacultyMatch = groupFacultyId > 0 && Number(a.faculty_id || 0) === groupFacultyId ? 1 : 0;
+          const bFacultyMatch = groupFacultyId > 0 && Number(b.faculty_id || 0) === groupFacultyId ? 1 : 0;
+          if (aFacultyMatch !== bFacultyMatch) return bFacultyMatch - aFacultyMatch;
+          return Number(a.id || 0) - Number(b.id || 0);
+        });
+
+      return candidates.length ? candidates[0] : null;
     }
 
     function initTeachingAssignmentLiveSearch() {
@@ -1030,8 +1371,15 @@ $days = Weekday::all();
         allocation_group: assignment.allocation_group || null,
         allocation_group_label: assignment.allocation_group_label || null,
         room: assignment.room || null,
+        slot_active: hasActiveIdenticalEntry(day, hourNumber, getEntryIdentityKey({
+          subject_id: Number(assignment.course_id),
+          delivery_type: normalizeDeliveryType(assignment.delivery_type) || assignment.delivery_type || null,
+          allocation_group: assignment.allocation_group || null,
+          allocation_group_label: assignment.allocation_group_label || null,
+        })) ? 0 : 1,
       }));
 
+      normalizeSlotActivityForCell(day, hourNumber);
       renderTimetable();
     }
 
@@ -1144,14 +1492,35 @@ $days = Weekday::all();
               const right = `${b.course_label || ''}|${b.faculty_label || ''}|${b.delivery_type || ''}`;
               return left.localeCompare(right);
             });
-          const availableRows = filterAvailableAssignments(rows);
 
-          if (!rows.length) {
+          // Keep remote (batch/semester scoped) rows, but also merge already-loaded
+          // subject assignments so valid faculty options are not hidden.
+          const mergedAssignmentsById = {};
+          rows.forEach((assignment) => {
+            mergedAssignmentsById[String(assignment.id)] = assignment;
+          });
+          teachingAssignments.forEach((assignment) => {
+            const key = String(assignment.id || '');
+            if (!key || mergedAssignmentsById[key]) return;
+            mergedAssignmentsById[key] = assignment;
+          });
+
+          const mergedRows = Object.values(mergedAssignmentsById)
+            .filter((row) => Number(row.id || 0) > 0)
+            .sort((a, b) => {
+              const left = `${a.course_label || ''}|${a.faculty_label || ''}|${a.delivery_type || ''}`;
+              const right = `${b.course_label || ''}|${b.faculty_label || ''}|${b.delivery_type || ''}`;
+              return left.localeCompare(right);
+            });
+
+          const availableRows = filterAvailableAssignments(mergedRows);
+
+          if (!mergedRows.length) {
             paintFallback();
             return;
           }
 
-          rows.forEach(assignment => {
+          mergedRows.forEach(assignment => {
             assignmentsById[String(assignment.id)] = assignment;
           });
 
@@ -1169,7 +1538,7 @@ $days = Weekday::all();
 
           if (assignmentHint) {
             assignmentHint.textContent = availableRows.length ?
-              `Showing available teaching assignments (${availableRows.length}/${rows.length} row(s)).` :
+              `Showing available teaching assignments (${availableRows.length}/${mergedRows.length} row(s)).` :
               'No available faculty for this slot.';
           }
 
@@ -1239,10 +1608,12 @@ $days = Weekday::all();
         `;
 
         days.forEach(day => {
+          collapseDuplicateGroupEntriesForCell(day, hour);
+          normalizeSlotActivityForCell(day, hour);
           const entries = getSlotEntries(hour, day);
           if (!entries.length) {
             tableBody += `
-              <td class="period-cell" style="cursor:pointer;padding:15px;" onclick="openSubjectModal(${hour}, '${day}')">
+              <td class="period-cell" style="cursor:pointer;padding:15px;" onclick="openSubjectModal(${hour}, '${day}', null, 'dept'); return false;">
                 <small class="text-muted"><i class="fas fa-plus-circle"></i> Add</small>
               </td>
             `;
@@ -1253,21 +1624,35 @@ $days = Weekday::all();
             const entryKey = makeEntryKey(entry);
             const entryMeta = formatEntryMeta(entry);
             const routineId = entry.routine_id ? Number(entry.routine_id) : 'null';
+            const isGroupTeaching = Number(entry.teaching_group_id || 0) > 0;
+            const groupBadgeHtml = isGroupTeaching ? '<span class="badge bg-warning text-dark ms-1">Group Teaching</span>' : '';
             const roomLabel = (entry.room && String(entry.room).trim() !== '') ? String(entry.room).trim() : '-';
             const primaryFacultyText = Array.isArray(entry.primary_faculty_names) && entry.primary_faculty_names.length ?
               entry.primary_faculty_names.join(', ') :
               (entry.teacher_name || 'Teacher');
-            const coFacultyText = Array.isArray(entry.co_faculty_names) && entry.co_faculty_names.length ?
-              entry.co_faculty_names.join(', ') : '-';
+            const groupFacultyText = getGroupFacultyName(entry);
+            const groupCode = getAllocationGroupCode(entry);
+            const groupCodeHtml = isGroupTeaching && groupCode ? `<span class="slot-chip slot-chip-group">Group ${escapeHtml(groupCode)}</span>` : '';
+            const visibleMeta = isGroupTeaching ? entryMeta.slice(0, 1) : entryMeta;
+            const identityKey = getEntryIdentityKey(entry);
+            const identicalCount = entries.filter(item => getEntryIdentityKey(item) === identityKey).length;
+            const isActive = Number(entry.slot_active ?? 1) === 1;
+            const activityHtml = identicalCount > 1 ?
+              `<div class="mt-1 d-flex flex-wrap align-items-center gap-1">
+                <span class="badge ${isActive ? 'bg-success' : 'bg-secondary'}">${isActive ? 'Active' : 'Inactive'}</span>
+                ${isActive ? '' : `<button class="btn btn-outline-success btn-sm" onclick="event.stopPropagation(); setSlotEntryActive(${hour}, '${day}', '${entryKey}'); return false;">Set Active</button>`}
+              </div>` :
+              `<div class="mt-1"><span class="badge bg-success">Active</span></div>`;
             return `
               <div class="slot-entry p-2 mb-2 text-start" style="font-size:12px;">
-                <div class="fw-bold">${escapeHtml(entry.subject_name || 'Course')}</div>
-                <div><i class="fas fa-user-tie"></i> <span class="fw-semibold">Primary:</span> ${escapeHtml(primaryFacultyText)}</div>
-                <div><i class="fas fa-user-friends"></i> <span class="fw-semibold">Co:</span> ${escapeHtml(coFacultyText)}</div>
+                <div class="fw-bold">${escapeHtml(entry.subject_name || 'Course')} ${groupBadgeHtml}</div>
+                <div><i class="fas fa-user-tie"></i> <span class="fw-semibold">${isGroupTeaching ? 'Group Faculty' : 'Primary'}:</span> ${escapeHtml(isGroupTeaching ? (groupFacultyText || '-') : primaryFacultyText)}</div>
                 <div><i class="fas fa-door-open"></i> Room: ${escapeHtml(roomLabel)}</div>
                 <div>
-                  ${entryMeta.map((meta, index) => `<span class="slot-chip ${index === 0 ? 'slot-chip-delivery' : 'slot-chip-group'}">${escapeHtml(meta)}</span>`).join('')}
+                  ${groupCodeHtml}
+                  ${visibleMeta.map((meta, index) => `<span class="slot-chip ${index === 0 ? 'slot-chip-delivery' : 'slot-chip-group'}">${escapeHtml(meta)}</span>`).join('')}
                 </div>
+                ${activityHtml}
                 <div class="mt-1 d-flex gap-1">
                   <button class="btn btn-outline-primary btn-sm" onclick="event.stopPropagation(); openSubjectModal(${hour}, '${day}', '${entryKey}'); return false;"><i class="fas fa-edit"></i></button>
                   <button class="btn btn-outline-danger btn-sm" onclick="event.stopPropagation(); removeSlot(event, ${routineId}, ${hour}, '${day}', '${entryKey}'); return false;"><i class="fas fa-times"></i></button>
@@ -1280,7 +1665,7 @@ $days = Weekday::all();
             <td class="period-cell filled" style="vertical-align:top;">
               <div class="d-flex justify-content-between align-items-center mb-2">
                 <small class="fw-bold text-muted">${entries.length} item(s)</small>
-                <button class="btn btn-success btn-sm" onclick="openSubjectModal(${hour}, '${day}'); return false;"><i class="fas fa-plus"></i></button>
+                <button class="btn btn-success btn-sm" onclick="openSubjectModal(${hour}, '${day}', null, 'dept'); return false;"><i class="fas fa-plus"></i></button>
               </div>
               ${rows}
             </td>
@@ -1314,25 +1699,31 @@ $days = Weekday::all();
       `;
     }
 
-    function openSubjectModal(hourNumber, day, entryKey = null) {
+    function openSubjectModal(hourNumber, day, entryKey = null, addMode = 'dept') {
       document.getElementById('selectedHour').value = hourNumber;
       document.getElementById('selectedDay').value = day;
       editingEntryKey = entryKey;
 
       const assignmentSelect = document.getElementById('modalTeachingAssignment');
-      const saveButton = document.getElementById('saveSlotBtn');
 
       if (entryKey) {
         const entry = getEntryByKey(entryKey);
         if (entry) {
+          setSlotModalMode('dept', true);
           populateTeachingAssignmentOptions(entry.teaching_assignment_id, day, hourNumber, Number(entry.routine_id || 0));
-          if (saveButton) saveButton.textContent = 'Update Slot';
         }
       } else {
-        populateTeachingAssignmentOptions('', day, hourNumber, 0);
-        if (assignmentSelect) assignmentSelect.value = '';
-        renderCourseAssignmentInfo('');
-        if (saveButton) saveButton.textContent = 'Save Slot';
+        setSlotModalMode(addMode, false);
+        if (addMode === 'dept') {
+          populateTeachingAssignmentOptions('', day, hourNumber, 0);
+          if (assignmentSelect) assignmentSelect.value = '';
+          renderCourseAssignmentInfo('');
+        } else {
+          populateGroupOptions('');
+          populateGroupAssignmentOptions('');
+          if (assignmentSelect) assignmentSelect.value = '';
+          renderCourseAssignmentInfo('');
+        }
       }
 
       const modal = new bootstrap.Modal(document.getElementById('slotModal'));
@@ -1340,16 +1731,53 @@ $days = Weekday::all();
     }
 
     async function saveSlot() {
+      const slotAddMode = String(document.getElementById('slotAddMode')?.value || 'dept').toLowerCase();
       const hourNumber = Number(document.getElementById('selectedHour').value);
       const day = document.getElementById('selectedDay').value;
-      const teachingAssignmentId = document.getElementById('modalTeachingAssignment').value;
+      const groupSelect = document.getElementById('modalGroupSelect');
+      let teachingAssignmentId = document.getElementById('modalTeachingAssignment').value;
+      let selectedGroupIdForPayload = 0;
+
+      if (!editingEntryKey && slotAddMode === 'group') {
+        const selectedGroupId = Number(groupSelect?.value || 0);
+        if (selectedGroupId <= 0) {
+          alert('Please select a created group.');
+          return;
+        }
+
+        selectedGroupIdForPayload = selectedGroupId;
+        const resolvedAssignment = resolveGroupAssignment(selectedGroupId);
+        if (!resolvedAssignment) {
+          alert('No teaching assignment mapped to this group yet.');
+          return;
+        }
+
+        teachingAssignmentId = String(resolvedAssignment.id || '');
+      }
+
       if (!teachingAssignmentId) return alert('Please select a teaching assignment');
 
       const assignment = assignmentsById[String(teachingAssignmentId)];
       if (!assignment) return alert('Selected teaching assignment is invalid.');
 
+      const selectedGroupMeta = selectedGroupIdForPayload > 0 ? getCreatedGroupById(selectedGroupIdForPayload) : null;
+      const effectiveRoom = slotAddMode === 'group' ?
+        (selectedGroupMeta?.room_no || null) :
+        (assignment.room || null);
+      const effectiveTeacherId = slotAddMode === 'group' ?
+        (Number(selectedGroupMeta?.faculty_id || 0) || Number(assignment.faculty_id || 0)) :
+        Number(assignment.faculty_id || 0);
+      const effectiveTeacherLabel = slotAddMode === 'group' ?
+        (selectedGroupMeta?.faculty_label || assignment.faculty_label || 'Teacher') :
+        (assignment.faculty_label || 'Teacher');
+      const effectiveSubjectLabel = slotAddMode === 'group' ?
+        (selectedGroupMeta?.group_identifier || selectedGroupMeta?.allocation_group_label || 'Group Slot') :
+        (assignment.course_label || 'Course');
+
       const currentEntry = editingEntryKey ? getEntryByKey(editingEntryKey) : null;
       const ignoreRoutineId = Number(currentEntry?.routine_id || 0);
+      const inheritedGroupId = Number(currentEntry?.teaching_group_id || 0);
+      const effectiveTeachingGroupId = selectedGroupIdForPayload > 0 ? selectedGroupIdForPayload : (inheritedGroupId > 0 ? inheritedGroupId : 0);
 
       try {
         const conflictResult = await validateTimetableConflictBeforeAdd({
@@ -1375,16 +1803,23 @@ $days = Weekday::all();
         day_of_week: day,
         subject_id: Number(assignment.course_id),
         teaching_assignment_id: Number(teachingAssignmentId),
-        teacher_id: Number(assignment.faculty_id),
-        subject_name: assignment.course_label || 'Course',
-        teacher_name: assignment.faculty_label || 'Teacher',
-        primary_faculty_names: Array.isArray(assignment.primary_faculty_text) && assignment.primary_faculty_text.length ? assignment.primary_faculty_text : [assignment.faculty_label || 'Teacher'],
+        teaching_group_id: effectiveTeachingGroupId > 0 ? effectiveTeachingGroupId : null,
+        teacher_id: effectiveTeacherId,
+        subject_name: effectiveSubjectLabel,
+        teacher_name: effectiveTeacherLabel,
+        primary_faculty_names: slotAddMode === 'group' ? [effectiveTeacherLabel] : (Array.isArray(assignment.primary_faculty_text) && assignment.primary_faculty_text.length ? assignment.primary_faculty_text : [assignment.faculty_label || 'Teacher']),
         co_faculty_names: Array.isArray(assignment.co_faculty_names) ? assignment.co_faculty_names : [],
         co_faculty_ids: Array.isArray(assignment.co_faculty_ids) ? assignment.co_faculty_ids : [],
         delivery_type: normalizeDeliveryType(assignment.delivery_type) || assignment.delivery_type || null,
         allocation_group: assignment.allocation_group || null,
         allocation_group_label: assignment.allocation_group_label || null,
-        room: assignment.room || null,
+        room: effectiveRoom,
+        slot_active: hasActiveIdenticalEntry(day, hourNumber, getEntryIdentityKey({
+          subject_id: Number(assignment.course_id),
+          delivery_type: normalizeDeliveryType(assignment.delivery_type) || assignment.delivery_type || null,
+          allocation_group: assignment.allocation_group || null,
+          allocation_group_label: assignment.allocation_group_label || null,
+        }), editingEntryKey || '') ? 0 : 1,
       });
 
       if (editingEntryKey) {
@@ -1401,12 +1836,14 @@ $days = Weekday::all();
         const duplicate = timetableData.find(entry =>
           Number(entry.hour_number) === hourNumber &&
           entry.day_of_week === day &&
-          Number(entry.teaching_assignment_id || 0) === Number(teachingAssignmentId)
+          Number(entry.teaching_assignment_id || 0) === Number(teachingAssignmentId) &&
+          Number(entry.teaching_group_id || 0) === effectiveTeachingGroupId
         );
         if (duplicate) return alert('This teacher assignment is already added in the selected slot.');
         timetableData.push(payload);
       }
 
+      normalizeSlotActivityForCell(day, hourNumber);
       editingEntryKey = null;
       renderTimetable();
       bootstrap.Modal.getInstance(document.getElementById('slotModal')).hide();
@@ -1490,7 +1927,7 @@ $days = Weekday::all();
         .then(response => response.json())
         .then(response => {
           if (response.success) {
-            alert('Timetable saved successfully!');
+            showSuccessToast(response.message || 'Timetable saved successfully.', 'Timetable Saved');
             loadTimetable();
           } else {
             alert('Error: ' + (response.message || 'Unknown error'));
@@ -1607,14 +2044,22 @@ $days = Weekday::all();
         });
       }
 
+      const modalGroupSelect = document.getElementById('modalGroupSelect');
+      if (modalGroupSelect) {
+        modalGroupSelect.addEventListener('change', function() {
+          populateGroupAssignmentOptions(this.value);
+        });
+      }
+
       initTeachingAssignmentLiveSearch();
+      populateGroupOptions('');
+      populateGroupAssignmentOptions('');
 
       const slotModal = document.getElementById('slotModal');
       if (slotModal) {
         slotModal.addEventListener('hidden.bs.modal', function() {
           editingEntryKey = null;
-          const saveButton = document.getElementById('saveSlotBtn');
-          if (saveButton) saveButton.textContent = 'Save Slot';
+          setSlotModalMode('dept', false);
         });
       }
 

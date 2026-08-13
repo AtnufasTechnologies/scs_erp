@@ -3,7 +3,7 @@
 
 <style>
   .tt-history-shell {
-    background: linear-gradient(180deg, #f4f7fb 0%, #ffffff 55%);
+    background: linear-gradient(180deg, #f3f0ff 0%, #ffffff 55%);
     min-height: 100vh;
     padding-bottom: 24px;
   }
@@ -19,28 +19,52 @@
   }
 
   .tt-history-card {
-    border: 1px solid #dbe5f1;
+    border: none;
     border-radius: 12px;
-    box-shadow: 0 8px 18px rgba(15, 39, 65, 0.08);
+    box-shadow: 0 2px 12px #5740b433;
     overflow: hidden;
     margin-bottom: 16px;
   }
 
   .tt-history-card .card-header {
-    background: linear-gradient(135deg, #1f4e79 0%, #2f6da4 100%);
+    background: linear-gradient(135deg, #5740b4 0%, #8931f6 100%);
     color: #fff;
+  }
+
+  .tt-history-table {
+    margin-bottom: 0;
   }
 
   .tt-history-table th,
   .tt-history-table td {
+    border: 1px solid #eee;
+    padding: 0.75rem;
+    text-align: center;
     vertical-align: top;
     min-width: 160px;
+    transition: background 0.2s;
+  }
+
+  .tt-history-table th {
+    background: linear-gradient(90deg, #f3e9ff 0%, #e9f0ff 100%);
+    color: #5740b4;
+    font-weight: 600;
+    letter-spacing: 0.04em;
+  }
+
+  .tt-history-table tr:hover td {
+    background: #f7f7fa;
+  }
+
+  .tt-period-cell {
+    vertical-align: top;
   }
 
   .tt-slot {
-    border: 1px solid #e2e8f0;
+    text-align: left;
+    border: 1px solid #d9d2ff;
     border-radius: 8px;
-    background: #f8fbff;
+    background: #faf8ff;
     padding: 8px;
     margin-bottom: 8px;
     font-size: 12px;
@@ -51,9 +75,31 @@
   }
 
   .tt-meta {
-    color: #5b6f87;
+    display: inline-block;
+    padding: 0.2rem 0.5rem;
+    border-radius: 999px;
     font-size: 11px;
-    margin-top: 4px;
+    font-weight: 600;
+    margin-right: 0.25rem;
+    margin-top: 0.2rem;
+  }
+
+  .tt-chip-delivery {
+    background: #efe7ff;
+    color: #4c2f9d;
+  }
+
+  .tt-chip-group {
+    background: #e7fff4;
+    color: #1d7f52;
+  }
+
+  .tt-cell-count {
+    font-weight: 700;
+    color: #6c757d;
+    margin-bottom: 8px;
+    text-align: left;
+    font-size: 12px;
   }
 </style>
 
@@ -86,8 +132,8 @@
       </div>
       <div class="card-body p-0">
         <div class="table-responsive">
-          <table class="table table-bordered mb-0 tt-history-table">
-            <thead class="table-light">
+          <table class="table tt-history-table align-middle">
+            <thead>
               <tr>
                 <th style="width: 220px;">Hour</th>
                 @foreach($group['days'] as $day)
@@ -98,23 +144,42 @@
             <tbody>
               @foreach($group['hours'] as $hour)
               <tr>
-                <th class="bg-light">{{ $hour['label'] }}</th>
+                <th>{{ $hour['label'] }}</th>
                 @foreach($group['days'] as $day)
                 @php
                 $slots = $group['entries'][$hour['hour_no']][$day] ?? [];
                 @endphp
-                <td>
+                <td class="tt-period-cell">
                   @if(empty($slots))
                   <span class="text-muted small">-</span>
                   @else
+                  <div class="tt-cell-count">{{ count($slots) }} item(s)</div>
                   @foreach($slots as $slot)
                   <div class="tt-slot">
-                    <div class="fw-semibold">{{ $slot['course'] ?? '-' }}</div>
-                    <div>{{ $slot['faculty'] ?? '-' }}</div>
-                    <div class="tt-meta">
-                      <span>Delivery: {{ $slot['delivery'] ?: '-' }}</span>
-                      <span class="ms-2">Group: {{ $slot['allocation'] ?: '-' }}</span>
-                      <span class="ms-2">Room: {{ $slot['room'] ?: '-' }}</span>
+                    <div class="fw-semibold">
+                      {{ $slot['course'] ?? '-' }}
+                      @if(!empty($slot['is_group_teaching']))
+                      <span class="badge bg-warning text-dark ms-1">Group Teaching</span>
+                      @endif
+                    </div>
+                    <div>
+                      <i class="fas fa-user-tie"></i>
+                      <span class="fw-semibold">{{ !empty($slot['is_group_teaching']) ? 'Group Faculty' : 'Primary' }}:</span>
+                      {{ $slot['faculty'] ?? '-' }}
+                    </div>
+                    <div><i class="fas fa-door-open"></i> Room: {{ $slot['room'] ?: '-' }}</div>
+                    <div class="mt-1">
+                      @if(!empty($slot['delivery']))
+                      <span class="tt-meta tt-chip-delivery">{{ $slot['delivery'] }}</span>
+                      @endif
+                      @if(!empty($slot['allocation']))
+                      <span class="tt-meta tt-chip-group">{{ $slot['allocation'] }}</span>
+                      @endif
+                    </div>
+                    <div class="mt-1">
+                      <span class="badge {{ (int) ($slot['slot_active'] ?? 1) === 1 ? 'bg-success' : 'bg-secondary' }}">
+                        {{ (int) ($slot['slot_active'] ?? 1) === 1 ? 'Active' : 'Inactive' }}
+                      </span>
                     </div>
                   </div>
                   @endforeach

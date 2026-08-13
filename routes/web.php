@@ -894,6 +894,11 @@ Route::group(['prefix' => '/erp'], function () {
 
         //timetable
         Route::get('timetable/{id}/view', [TimetableController::class, 'history'])->name('department.timetable.history');
+        Route::get('teaching-group-builder/{subjectId}/courses', [TimetableController::class, 'getDeaneryCourses'])->name('department.timetable.group-courses');
+        Route::post('teaching-group-builder/{subjectId}/save-group', [TimetableController::class, 'storeTeachingGroup'])->name('department.timetable.group-builder.save');
+        Route::post('teaching-group-builder/{subjectId}/assign-faculty', [TimetableController::class, 'assignTeachingGroupFaculty'])->name('department.timetable.group-builder.assign-faculty');
+        Route::post('teaching-group-builder/{subjectId}/delete-group', [TimetableController::class, 'deleteTeachingGroup'])->name('department.timetable.group-builder.delete-group');
+        Route::get('teaching-group-builder/{subjectId}/{slug}', [TimetableController::class, 'teachingGroupBuilder'])->name('department.timetable.group-builder');
         Route::get('timetable/{id}/{slug}', [TimetableController::class, 'index'])->name('department.timetable');
         Route::get('timetable/{subjectId}/{batchId}/{semesterId}', [TimetableController::class, 'editSemesterTimetable'])->name('department.timetable.edit');
         Route::get('timetable-hours', [TimetableController::class, 'getTeachingHoursByShift'])->name('department.timetable.hours');
@@ -957,6 +962,7 @@ Route::group(['prefix' => '/erp'], function () {
 
         Route::get('curriculam-builder/{id}/published-courses', [SubjectController::class, 'publishedSyllabusCoursesForCurriculum'])->name('program.wise.semester.curriculam.builder.published-courses');
         Route::post('store-curriculam-mapping', [SubjectController::class, 'storeProgramSemesterCoursesMapping'])->name('store.curriculam.mapping');
+        Route::post('curriculam-builder/{id}/repair-sync', [SubjectController::class, 'repairProgramSemesterCoursesSync'])->name('curriculam.mapping.repair-sync');
         Route::post('update.program.semster.courses.mapping/{id}', [SubjectController::class, 'updateProgramSemesterCoursesMapping'])->name('update.program.semster.courses.mapping');
         Route::post('update.program.semster.courses.order', [SubjectController::class, 'updateProgramSemesterCoursesOrder'])->name('update.program.semster.courses.order');
         Route::delete('program-semester-course-mapping/{id}', [SubjectController::class, 'deleteProgramSemesterCourseMapping'])->name('delete.program.semster.courses.mapping');

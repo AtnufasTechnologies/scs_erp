@@ -1,9 +1,14 @@
 @include('includes.header')
 @include('includes.dept-sidebar')
 <div class="main-content">
-  <h4 class="text-capitalize">{{$subject->title}} - Teaching Assignment</h4>
+  <div class="d-flex flex-wrap justify-content-between align-items-center gap-2">
+    <h4 class="text-capitalize mb-0">{{$subject->title}} - Teaching Assignment</h4>
+    <a href="{{ route('department.timetable.group-builder', [$subject->id, $subject->slug ?? 'group-builder']) }}" class="btn btn-warning btn-sm">
+      <i class="fa fa-object-group me-1"></i>Teaching Groups
+    </a>
+  </div>
 
-  <div class="card mt-3 mb-3 border-0 shadow-sm">
+  <!-- <div class="card mt-3 mb-3 border-0 shadow-sm">
     <div class="card-body d-flex flex-wrap justify-content-between align-items-center gap-2">
       <div>
         <h6 class="mb-1">Primary Faculty Mode</h6>
@@ -24,7 +29,8 @@
         @endif
       </form>
     </div>
-  </div>
+  </div> -->
+
 
   <div class="toast-container position-fixed top-0 end-0 p-3" style="z-index: 1080;">
     <div id="teachingAssignmentToast" class="toast align-items-center text-white bg-success border-0" role="alert" aria-live="assertive" aria-atomic="true">
@@ -148,18 +154,27 @@
           </div>
 
           <div class="col-lg-3">
+            <label class="form-label fw-semibold">Group Choice <span class="text-danger">*</span></label>
+            <select name="allocation_group_mode" class="form-control" required>
+              <option value="default" selected>Default Group</option>
+              <option value="new">New Group</option>
+            </select>
+            <small class="text-muted d-block mt-1">Default keeps same group for same course/delivery/shift. New creates a new group.</small>
+          </div>
+
+          <div class="col-lg-3">
             <label class="form-label fw-semibold">Room Allocation</label>
             <input type="text" name="room" class="form-control" placeholder="Room no / Lab">
           </div>
 
-          <div class="col-lg-12">
-            <label class="form-label fw-semibold">Remarks</label>
-            <textarea name="remarks" class="form-control" rows="2" placeholder="Optional notes"></textarea>
+          <div class="col-lg-3">
+            <label class="form-label fw-semibold">Notes</label>
+            <input type="text" name="remarks" class="form-control" placeholder="Optional notes">
           </div>
 
           <div class="col-lg-12 d-flex gap-2 justify-content-end pt-1">
             <button type="button" class="btn btn-light border" id="teachingAssignmentCancelBtn" style="display:none;">Cancel Edit</button>
-            <button type="submit" class="btn btn-primary" id="teachingAssignmentSubmitBtn">Save Assignment</button>
+            <button type="submit" class="btn btn-success" id="teachingAssignmentSubmitBtn">Save Assignment</button>
           </div>
         </div>
       </form>
@@ -167,8 +182,16 @@
   </div>
 
   <div class="card mt-4">
-    <div class="card-header">
+    <div class="card-header d-flex flex-wrap justify-content-between align-items-center gap-2">
       <h5 class="mb-0">Teaching Assignments</h5>
+      <div style="min-width: 260px; width: 100%; max-width: 360px;">
+        <input
+          type="text"
+          id="teachingAssignmentTableSearch"
+          class="form-control form-control-sm"
+          placeholder="Search by course, faculty, delivery, shift, room, remarks..."
+          aria-label="Search teaching assignments">
+      </div>
     </div>
     <div class="card-body p-0">
       <div class="table-responsive">
@@ -185,7 +208,8 @@
               <th>Status</th>
               <th>Room</th>
               <th>Remarks</th>
-              <th>Action</th>
+              <th>Edit</th>
+              <th>Delete</th>
             </tr>
           </thead>
           <tbody id="teachingAssignmentTableBody">
@@ -232,14 +256,17 @@
                   data-primary_faculty_ids='@json((($assignment->primaryFacultyMembers ?? collect())->isNotEmpty() ? ($assignment->primaryFacultyMembers ?? collect())->pluck("id") : collect([(int) ($assignment->faculty_id ?? 0)]))->map(fn($id) => (int) $id)->filter(fn($id) => $id > 0)->values()->all())'
                   data-co_faculty_ids='@json(($assignment->coFacultyMembers ?? collect())->pluck("id")->map(fn($id) => (int) $id)->values()->all())'
                   data-delivery_type="{{ $assignment->delivery_type }}"
+                  data-allocation_group="{{ (int) ($assignment->allocation_group ?? 1) }}"
                   data-shift_id="{{ (int) ($assignment->shift_id ?? 0) }}"
                   data-status="{{ $assignment->is_active }}"
                   data-room="{{ $assignment->room }}"
-                  data-remarks="{{ $assignment->remarks }}">Edit</button>
+                  data-remarks="{{ $assignment->remarks }}"><i class="fa fa-edit"></i></button>
+              </td>
+              <td>
                 <form action="{{ route('department.teaching.assignment.delete', $assignment->id) }}" method="post" onsubmit="return confirm('Delete this assignment?');" style="display:inline-block;">
                   @csrf
                   @method('DELETE')
-                  <button type="submit" class="btn btn-sm btn-danger">Delete</button>
+                  <button type="submit" class="btn btn-sm btn-danger"><i class="fa fa-trash"></i></button>
                 </form>
               </td>
             </tr>
@@ -279,6 +306,7 @@
     const deliveryTypeHelpText = document.getElementById('deliveryTypeHelpText');
     const primaryFacultyMultiSelect = form.querySelector('[name="primary_faculty_ids[]"]');
     const primaryFacultySingleSelect = form.querySelector('[name="faculty_id"]');
+    const tableSearchInput = document.getElementById('teachingAssignmentTableSearch');
 
     function deliveryTypeLabel(type) {
       const normalized = String(type || '').trim().toUpperCase().replace(/[_-]+/g, ' ');
@@ -349,12 +377,57 @@
 
     function renumberRows() {
       const rows = tableBody.querySelectorAll('tr[id^="assignment-row-"]');
+      let visibleIndex = 1;
+
       rows.forEach((row, index) => {
+        if (row.style.display === 'none') {
+          return;
+        }
+
         const firstCell = row.querySelector('td');
         if (firstCell) {
-          firstCell.textContent = index + 1;
+          firstCell.textContent = visibleIndex;
+          visibleIndex += 1;
         }
       });
+    }
+
+    function applyTableFilter() {
+      const query = (tableSearchInput?.value || '').toLowerCase().trim();
+      const rows = Array.from(tableBody.querySelectorAll('tr[id^="assignment-row-"]'));
+      const serverEmptyRow = document.getElementById('teachingAssignmentEmptyRow');
+      let searchEmptyRow = document.getElementById('teachingAssignmentSearchEmptyRow');
+      let visibleCount = 0;
+
+      rows.forEach((row) => {
+        const rowText = (row.textContent || '').toLowerCase();
+        const isMatch = query === '' || rowText.includes(query);
+        row.style.display = isMatch ? '' : 'none';
+        if (isMatch) {
+          visibleCount += 1;
+        }
+      });
+
+      if (serverEmptyRow) {
+        if (rows.length === 0 && query === '') {
+          serverEmptyRow.style.display = '';
+        } else {
+          serverEmptyRow.style.display = 'none';
+        }
+      }
+
+      if (rows.length > 0 && visibleCount === 0) {
+        if (!searchEmptyRow) {
+          searchEmptyRow = document.createElement('tr');
+          searchEmptyRow.id = 'teachingAssignmentSearchEmptyRow';
+          searchEmptyRow.innerHTML = '<td colspan="11" class="text-center">No matching teaching assignments found.</td>';
+          tableBody.appendChild(searchEmptyRow);
+        }
+      } else if (searchEmptyRow) {
+        searchEmptyRow.remove();
+      }
+
+      renumberRows();
     }
 
     function getStatusBadge(status) {
@@ -400,6 +473,7 @@
               data-primary_faculty_ids='${escapeHtml(JSON.stringify(Array.isArray(assignment.primary_faculty_ids) ? assignment.primary_faculty_ids : []))}'
               data-co_faculty_ids='${escapeHtml(JSON.stringify(Array.isArray(assignment.co_faculty_ids) ? assignment.co_faculty_ids : []))}'
               data-delivery_type="${escapeHtml(assignment.delivery_type || '')}"
+              data-allocation_group="${Number(assignment.allocation_group || 1)}"
               data-shift_id="${assignment.shift_id || ''}"
               data-status="${assignment.is_active}"
               data-room="${safeRoomData}"
@@ -497,7 +571,7 @@
           updateDeleteFormAction(affectedRow, assignment.id);
         }
 
-        renumberRows();
+        applyTableFilter();
         showToast(payload.message || 'Saved successfully.', 'success');
         resetInlineForm();
       } catch (error) {
@@ -557,6 +631,7 @@
       }
       form.querySelector('[name="shift_id"]').value = editButton.dataset.shift_id || '';
       form.querySelector('[name="status"]').value = editButton.dataset.status || '1';
+      form.querySelector('[name="allocation_group_mode"]').value = 'default';
       form.querySelector('[name="room"]').value = editButton.dataset.room || '';
       form.querySelector('[name="remarks"]').value = editButton.dataset.remarks || '';
 
@@ -580,7 +655,12 @@
       setDeliveryOptionsForCourse(this.value);
     });
 
+    if (tableSearchInput) {
+      tableSearchInput.addEventListener('input', applyTableFilter);
+    }
+
     setDeliveryOptionsForCourse(courseSelect.value);
+    applyTableFilter();
     form.addEventListener('submit', submitForm);
   })();
 </script>
