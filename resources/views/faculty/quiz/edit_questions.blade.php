@@ -1,5 +1,26 @@
 @include('includes.header')
 
+@php
+use Illuminate\Support\Facades\Storage;
+
+$cloudDisk = config('filesystems.cloud', 's3');
+$resolveImageUrl = function ($path) use ($cloudDisk) {
+if (!$path) {
+return null;
+}
+
+if (str_starts_with($path, 'http://') || str_starts_with($path, 'https://')) {
+return $path;
+}
+
+try {
+return Storage::disk($cloudDisk)->url($path);
+} catch (\Throwable $e) {
+return asset('storage/' . ltrim((string) $path, '/'));
+}
+};
+@endphp
+
 <style>
   :root {
     --quiz-accent: #0f4c81;
@@ -96,11 +117,127 @@
 
       <div class="card shadow-sm border-0">
         <div class="card-header bg-white py-3">
-          <h6 class="mb-0 fw-bold text-uppercase" style="font-size:0.9rem; color: var(--quiz-accent);">Append Questions To Quiz</h6>
+          <h6 class="mb-0 fw-bold text-uppercase" style="font-size:0.9rem; color: var(--quiz-accent);">Edit Existing + Add New Questions</h6>
         </div>
         <div class="card-body">
           <form method="POST" action="{{ route('faculty.fa1.questions.store', $quiz->id) }}" enctype="multipart/form-data">
             @csrf
+
+            <div class="toolbar d-flex justify-content-between align-items-center mb-3">
+              <h6 class="fw-bold mb-0">Quiz Behavior</h6>
+              <small class="text-muted">Both are optional and can be changed anytime.</small>
+            </div>
+
+            <div class="row g-2 mb-4">
+              <div class="col-md-6">
+                <input type="hidden" name="shuffle_questions" value="0">
+                <div class="form-check">
+                  <input
+                    class="form-check-input"
+                    type="checkbox"
+                    name="shuffle_questions"
+                    id="shuffle_questions"
+                    value="1"
+                    @checked(old('shuffle_questions', $quiz->shuffle_questions))>
+                  <label class="form-check-label" for="shuffle_questions">Shuffle Questions (optional)</label>
+                </div>
+              </div>
+              <div class="col-md-6">
+                <input type="hidden" name="shuffle_options" value="0">
+                <div class="form-check">
+                  <input
+                    class="form-check-input"
+                    type="checkbox"
+                    name="shuffle_options"
+                    id="shuffle_options"
+                    value="1"
+                    @checked(old('shuffle_options', $quiz->shuffle_options))>
+                  <label class="form-check-label" for="shuffle_options">Shuffle Options (optional)</label>
+                </div>
+              </div>
+            </div>
+
+            <hr class="my-4">
+
+            <div class="toolbar d-flex justify-content-between align-items-center mb-3">
+              <h6 class="fw-bold mb-0">Existing Questions (Editable)</h6>
+              <small class="text-muted">Update text, replace images, or change correct answers.</small>
+            </div>
+
+            @forelse($quiz->questions as $qIndex => $question)
+            @php
+            $correctIndex = $question->options->search(function ($option) {
+            return (bool) $option->is_correct;
+            });
+            $correctIndex = $correctIndex === false ? 0 : (int) $correctIndex;
+            @endphp
+            <div class="card question-card mb-3">
+              <div class="card-body">
+                <input type="hidden" name="existing_questions[{{ $qIndex }}][id]" value="{{ $question->id }}">
+
+                <div class="d-flex justify-content-between align-items-center mb-2">
+                  <h6 class="mb-0">Existing Question {{ $qIndex + 1 }}</h6>
+                  <span class="badge bg-light text-dark border">Position: {{ $question->position ?? ($qIndex + 1) }}</span>
+                </div>
+
+                <div class="mb-2">
+                  <label class="form-label">Question Text</label>
+                  <textarea class="form-control" name="existing_questions[{{ $qIndex }}][question_text]" required>{{ old("existing_questions.$qIndex.question_text", $question->question_text) }}</textarea>
+                </div>
+
+                <div class="mb-2">
+                  <label class="form-label">Replace Question Image (optional)</label>
+                  <input type="file" class="form-control" name="existing_questions[{{ $qIndex }}][question_image]" accept="image/*">
+                </div>
+
+                @if(!empty($question->question_image))
+                <div class="mb-2">
+                  <img src="{{ $resolveImageUrl($question->question_image) }}" alt="Question image" style="max-height:120px; max-width:100%; border-radius:6px; border:1px solid #dde6f1;">
+                </div>
+                <div class="form-check mb-3">
+                  <input class="form-check-input" type="checkbox" name="existing_questions[{{ $qIndex }}][remove_question_image]" id="remove_question_image_{{ $qIndex }}" value="1">
+                  <label class="form-check-label" for="remove_question_image_{{ $qIndex }}">Remove current question image</label>
+                </div>
+                @endif
+
+                <div class="row g-2">
+                  @foreach($question->options as $oIndex => $option)
+                  <div class="col-md-6">
+                    <input type="hidden" name="existing_questions[{{ $qIndex }}][options][{{ $oIndex }}][id]" value="{{ $option->id }}">
+                    <label class="form-label">Option {{ $oIndex + 1 }}</label>
+                    <input type="text" class="form-control" name="existing_questions[{{ $qIndex }}][options][{{ $oIndex }}][option_text]" value="{{ old("existing_questions.$qIndex.options.$oIndex.option_text", $option->option_text) }}" required>
+
+                    <label class="form-label mt-2">Replace Option {{ $oIndex + 1 }} Image (optional)</label>
+                    <input type="file" class="form-control" name="existing_questions[{{ $qIndex }}][options][{{ $oIndex }}][option_image]" accept="image/*">
+
+                    @if(!empty($option->option_image))
+                    <div class="mt-2">
+                      <img src="{{ $resolveImageUrl($option->option_image) }}" alt="Option image" style="max-height:90px; max-width:100%; border-radius:6px; border:1px solid #dde6f1;">
+                    </div>
+                    <div class="form-check mt-1">
+                      <input class="form-check-input" type="checkbox" name="existing_questions[{{ $qIndex }}][options][{{ $oIndex }}][remove_option_image]" id="remove_option_image_{{ $qIndex }}_{{ $oIndex }}" value="1">
+                      <label class="form-check-label" for="remove_option_image_{{ $qIndex }}_{{ $oIndex }}">Remove current option image</label>
+                    </div>
+                    @endif
+                  </div>
+                  @endforeach
+                </div>
+
+                <div class="mt-2">
+                  <label class="form-label">Correct Option</label>
+                  <select class="form-select" name="existing_questions[{{ $qIndex }}][correct_option]" required>
+                    @foreach($question->options as $oIndex => $option)
+                    <option value="{{ $oIndex }}" @selected((int) old("existing_questions.$qIndex.correct_option", $correctIndex)===(int) $oIndex)>
+                      Option {{ $oIndex + 1 }}
+                    </option>
+                    @endforeach
+                  </select>
+                </div>
+              </div>
+            </div>
+            @empty
+            <div class="alert alert-info">No existing questions found in this quiz.</div>
+            @endforelse
 
             <div class="mb-3">
               <label class="form-label fw-bold">Bulk Upload Questions (Excel/CSV)</label>
@@ -119,14 +256,14 @@
             <hr class="my-4">
 
             <div class="toolbar d-flex justify-content-between align-items-center mb-3">
-              <h6 class="fw-bold mb-0">Manual Questions (MCQ)</h6>
+              <h6 class="fw-bold mb-0">Add New Questions (MCQ)</h6>
               <button type="button" class="btn btn-sm btn-primary" id="addQuestionBtn">Add Question</button>
             </div>
 
             <div id="questionsWrapper"></div>
 
             <div class="mt-3 d-flex justify-content-end">
-              <button type="submit" class="btn btn-success">Save Questions</button>
+              <button type="submit" class="btn btn-success">Save Quiz Changes</button>
             </div>
           </form>
         </div>
@@ -192,7 +329,6 @@
     }
 
     addQuestionBtn.addEventListener('click', addQuestionBlock);
-    addQuestionBlock();
   })();
 </script>
 

@@ -1,5 +1,26 @@
 @include('includes.header')
 
+@php
+use Illuminate\Support\Facades\Storage;
+
+$cloudDisk = config('filesystems.cloud', 's3');
+$resolveImageUrl = function ($path) use ($cloudDisk) {
+if (!$path) {
+return null;
+}
+
+if (str_starts_with($path, 'http://') || str_starts_with($path, 'https://')) {
+return $path;
+}
+
+try {
+return Storage::disk($cloudDisk)->url($path);
+} catch (\Throwable $e) {
+return asset('storage/' . ltrim((string) $path, '/'));
+}
+};
+@endphp
+
 <style>
   :root {
     --quiz-accent: #0f4c81;
@@ -94,7 +115,7 @@
 
           @if(!empty($question->question_image))
           <div class="mb-2">
-            <img src="{{ $question->question_image }}" alt="Question image" style="max-height:180px; max-width:100%; border-radius:6px; border:1px solid #dde6f1;">
+            <img src="{{ $resolveImageUrl($question->question_image) }}" alt="Question image" style="max-height:180px; max-width:100%; border-radius:6px; border:1px solid #dde6f1;">
           </div>
           @endif
 
@@ -113,7 +134,7 @@
 
               @if(!empty($option->option_image))
               <div class="mt-2">
-                <img src="{{ $option->option_image }}" alt="Option image" style="max-height:140px; max-width:100%; border-radius:6px; border:1px solid #dde6f1;">
+                <img src="{{ $resolveImageUrl($option->option_image) }}" alt="Option image" style="max-height:140px; max-width:100%; border-radius:6px; border:1px solid #dde6f1;">
               </div>
               @endif
             </div>

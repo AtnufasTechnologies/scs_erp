@@ -132,6 +132,8 @@ class QuizController extends Controller
         'subject:id,title',
         'batchmaster:id,batch_name',
         'semestermaster:id,title',
+        'questions:id,quiz_id,question_text,question_image,position',
+        'questions.options:id,quiz_question_id,option_text,option_image,is_correct,position',
       ])
       ->withCount('questions')
       ->firstOrFail();
@@ -143,9 +145,26 @@ class QuizController extends Controller
   {
     $quiz = Quiz::where('id', $id)
       ->where('created_by', Auth::id())
+      ->with([
+        'questions:id,quiz_id,question_text,question_image,position',
+        'questions.options:id,quiz_question_id,option_text,option_image,is_correct,position',
+      ])
       ->firstOrFail();
 
     $request->validate([
+      'shuffle_questions' => 'nullable|boolean',
+      'shuffle_options' => 'nullable|boolean',
+      'existing_questions' => 'nullable|array',
+      'existing_questions.*.id' => 'required_with:existing_questions|integer',
+      'existing_questions.*.question_text' => 'required_with:existing_questions|string',
+      'existing_questions.*.question_image' => 'nullable|image|mimes:jpg,jpeg,png,webp|max:4096',
+      'existing_questions.*.remove_question_image' => 'nullable|boolean',
+      'existing_questions.*.options' => 'required_with:existing_questions|array|min:2',
+      'existing_questions.*.options.*.id' => 'required_with:existing_questions|integer',
+      'existing_questions.*.options.*.option_text' => 'required_with:existing_questions|string',
+      'existing_questions.*.options.*.option_image' => 'nullable|image|mimes:jpg,jpeg,png,webp|max:4096',
+      'existing_questions.*.options.*.remove_option_image' => 'nullable|boolean',
+      'existing_questions.*.correct_option' => 'required_with:existing_questions|integer|min:0',
       'questions' => 'nullable|array|min:1',
       'questions.*.question_text' => 'required_with:questions|string',
       'questions.*.question_image' => 'nullable|image|mimes:jpg,jpeg,png,webp|max:4096',
@@ -155,6 +174,13 @@ class QuizController extends Controller
       'questions.*.correct_option' => 'required_with:questions|integer|min:0',
       'bulk_questions_file' => 'nullable|file|mimes:xlsx,xls,csv|max:5120',
     ]);
+
+    $existingQuestionsInput = collect($request->input('existing_questions', []))
+      ->filter(function ($question) {
+        return !empty($question['id']);
+      })
+      ->values()
+      ->all();
 
     $manualQuestions = collect($request->input('questions', []))
       ->filter(function ($question) {
@@ -176,10 +202,18 @@ class QuizController extends Controller
 
     $allQuestions = array_values(array_merge($manualQuestions, $bulkQuestions));
 
-    if (count($allQuestions) < 1) {
+    if (count($existingQuestionsInput) < 1 && count($allQuestions) < 1) {
       return redirect()->back()
-        ->with('error', 'Please add at least one question manually or upload a valid Excel file.')
+        ->with('error', 'Please edit at least one existing question or add/upload new questions.')
         ->withInput();
+    }
+
+    foreach ($existingQuestionsInput as $question) {
+      $correctOptionIndex = (int) ($question['correct_option'] ?? -1);
+      $options = $question['options'] ?? [];
+      if (!array_key_exists($correctOptionIndex, $options)) {
+        return redirect()->back()->with('error', 'Invalid correct option selected for one or more existing questions.')->withInput();
+      }
     }
 
     foreach ($allQuestions as $question) {
@@ -189,7 +223,65 @@ class QuizController extends Controller
       }
     }
 
-    DB::transaction(function () use ($request, $quiz, $allQuestions) {
+    DB::transaction(function () use ($request, $quiz, $existingQuestionsInput, $allQuestions) {
+      $quiz->update([
+        'shuffle_questions' => $request->boolean('shuffle_questions'),
+        'shuffle_options' => $request->boolean('shuffle_options'),
+      ]);
+
+      $existingQuestions = $quiz->questions->keyBy('id');
+
+      foreach ($existingQuestionsInput as $qIndex => $questionData) {
+        $questionId = (int) $questionData['id'];
+        $question = $existingQuestions->get($questionId);
+        if (!$question) {
+          continue;
+        }
+
+        $questionPayload = [
+          'question_text' => trim((string) ($questionData['question_text'] ?? '')),
+        ];
+
+        if ($request->hasFile("existing_questions.$qIndex.question_image")) {
+          $questionPayload['question_image'] = StaticController::s3_image_uploader(
+            $request->file("existing_questions.$qIndex.question_image"),
+            'quiz/questions'
+          );
+        } elseif ((int) ($questionData['remove_question_image'] ?? 0) === 1) {
+          $questionPayload['question_image'] = null;
+        }
+
+        $question->update($questionPayload);
+
+        $questionOptions = $question->options->keyBy('id');
+        $correctOptionIndex = (int) ($questionData['correct_option'] ?? 0);
+
+        foreach (($questionData['options'] ?? []) as $optionIndex => $optionData) {
+          $optionId = (int) ($optionData['id'] ?? 0);
+          $option = $questionOptions->get($optionId);
+          if (!$option) {
+            continue;
+          }
+
+          $optionPayload = [
+            'option_text' => trim((string) ($optionData['option_text'] ?? '')),
+            'is_correct' => $correctOptionIndex === (int) $optionIndex,
+            'position' => ((int) $optionIndex) + 1,
+          ];
+
+          if ($request->hasFile("existing_questions.$qIndex.options.$optionIndex.option_image")) {
+            $optionPayload['option_image'] = StaticController::s3_image_uploader(
+              $request->file("existing_questions.$qIndex.options.$optionIndex.option_image"),
+              'quiz/options'
+            );
+          } elseif ((int) ($optionData['remove_option_image'] ?? 0) === 1) {
+            $optionPayload['option_image'] = null;
+          }
+
+          $option->update($optionPayload);
+        }
+      }
+
       $nextPosition = ((int) QuizQuestion::where('quiz_id', $quiz->id)->max('position')) + 1;
 
       foreach ($allQuestions as $index => $questionData) {
@@ -227,8 +319,8 @@ class QuizController extends Controller
       }
     });
 
-    return redirect()->route('faculty.fa1.results', $quiz->id)
-      ->with('success', 'Questions added to quiz successfully.');
+    return redirect()->route('faculty.fa1.questions.edit', $quiz->id)
+      ->with('success', 'Quiz updated successfully. Existing questions edited and new questions added.');
   }
 
   public function downloadBulkTemplate()
