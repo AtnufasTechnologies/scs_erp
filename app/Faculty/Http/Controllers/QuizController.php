@@ -76,6 +76,24 @@ class QuizController extends Controller
     return view('faculty.quiz.my_quizzes', compact('quizzes'));
   }
 
+  public function review($id)
+  {
+    $quiz = Quiz::where('id', $id)
+      ->where('created_by', Auth::id())
+      ->with([
+        'course:id,course_title,course_code',
+        'subject:id,title',
+        'ciaComponent:id,name',
+        'batchmaster:id,batch_name',
+        'semestermaster:id,title',
+        'questions:id,quiz_id,question_text,question_image,position',
+        'questions.options:id,quiz_question_id,option_text,option_image,is_correct,position',
+      ])
+      ->firstOrFail();
+
+    return view('faculty.quiz.review', compact('quiz'));
+  }
+
   public function updateTiming(Request $request, $id)
   {
     $quiz = Quiz::where('id', $id)
@@ -103,6 +121,114 @@ class QuizController extends Controller
 
     return redirect()->route('faculty.fa1.my-quizzes')
       ->with('success', 'Quiz timing reset successfully.');
+  }
+
+  public function editQuestions($id)
+  {
+    $quiz = Quiz::where('id', $id)
+      ->where('created_by', Auth::id())
+      ->with([
+        'course:id,course_title,course_code',
+        'subject:id,title',
+        'batchmaster:id,batch_name',
+        'semestermaster:id,title',
+      ])
+      ->withCount('questions')
+      ->firstOrFail();
+
+    return view('faculty.quiz.edit_questions', compact('quiz'));
+  }
+
+  public function storeQuestions(Request $request, $id)
+  {
+    $quiz = Quiz::where('id', $id)
+      ->where('created_by', Auth::id())
+      ->firstOrFail();
+
+    $request->validate([
+      'questions' => 'nullable|array|min:1',
+      'questions.*.question_text' => 'required_with:questions|string',
+      'questions.*.question_image' => 'nullable|image|mimes:jpg,jpeg,png,webp|max:4096',
+      'questions.*.options' => 'required_with:questions|array|min:2',
+      'questions.*.options.*' => 'required_with:questions|string',
+      'questions.*.option_images.*' => 'nullable|image|mimes:jpg,jpeg,png,webp|max:4096',
+      'questions.*.correct_option' => 'required_with:questions|integer|min:0',
+      'bulk_questions_file' => 'nullable|file|mimes:xlsx,xls,csv|max:5120',
+    ]);
+
+    $manualQuestions = collect($request->input('questions', []))
+      ->filter(function ($question) {
+        return !empty(trim((string) ($question['question_text'] ?? '')));
+      })
+      ->values()
+      ->all();
+
+    $bulkQuestions = [];
+    if ($request->hasFile('bulk_questions_file')) {
+      try {
+        $bulkQuestions = $this->parseBulkQuestionsFile($request->file('bulk_questions_file'));
+      } catch (\Throwable $e) {
+        return redirect()->back()
+          ->with('error', 'Bulk question upload failed: ' . $e->getMessage())
+          ->withInput();
+      }
+    }
+
+    $allQuestions = array_values(array_merge($manualQuestions, $bulkQuestions));
+
+    if (count($allQuestions) < 1) {
+      return redirect()->back()
+        ->with('error', 'Please add at least one question manually or upload a valid Excel file.')
+        ->withInput();
+    }
+
+    foreach ($allQuestions as $question) {
+      $correctOptionIndex = (int) $question['correct_option'];
+      if (!array_key_exists($correctOptionIndex, $question['options'])) {
+        return redirect()->back()->with('error', 'Invalid correct option selected for one or more questions.')->withInput();
+      }
+    }
+
+    DB::transaction(function () use ($request, $quiz, $allQuestions) {
+      $nextPosition = ((int) QuizQuestion::where('quiz_id', $quiz->id)->max('position')) + 1;
+
+      foreach ($allQuestions as $index => $questionData) {
+        $questionImagePath = null;
+        if ($request->hasFile("questions.$index.question_image")) {
+          $questionImagePath = StaticController::s3_image_uploader(
+            $request->file("questions.$index.question_image"),
+            'quiz/questions'
+          );
+        }
+
+        $question = QuizQuestion::create([
+          'quiz_id' => $quiz->id,
+          'question_text' => $questionData['question_text'],
+          'question_image' => $questionImagePath,
+          'position' => $nextPosition++,
+        ]);
+
+        foreach ($questionData['options'] as $optionIndex => $optionText) {
+          $optionImagePath = null;
+          if ($request->hasFile("questions.$index.option_images.$optionIndex")) {
+            $optionImagePath = StaticController::s3_image_uploader(
+              $request->file("questions.$index.option_images.$optionIndex"),
+              'quiz/options'
+            );
+          }
+
+          $question->options()->create([
+            'option_text' => $optionText,
+            'option_image' => $optionImagePath,
+            'is_correct' => ((int) $questionData['correct_option']) === $optionIndex,
+            'position' => $optionIndex + 1,
+          ]);
+        }
+      }
+    });
+
+    return redirect()->route('faculty.fa1.results', $quiz->id)
+      ->with('success', 'Questions added to quiz successfully.');
   }
 
   public function downloadBulkTemplate()

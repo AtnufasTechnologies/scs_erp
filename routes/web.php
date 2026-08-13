@@ -1089,6 +1089,9 @@ Route::group(['prefix' => '/erp'], function () {
         Route::get('fa1/my-quizzes', [FacultyQuizController::class, 'myQuizzes'])->name('faculty.fa1.my-quizzes');
         Route::get('fa1/bulk-template/download', [FacultyQuizController::class, 'downloadBulkTemplate'])->name('faculty.fa1.bulk-template.download');
         Route::post('fa1', [FacultyQuizController::class, 'store'])->name('faculty.fa1.store');
+        Route::get('fa1/{id}/review', [FacultyQuizController::class, 'review'])->name('faculty.fa1.review');
+        Route::get('fa1/{id}/questions/edit', [FacultyQuizController::class, 'editQuestions'])->name('faculty.fa1.questions.edit');
+        Route::post('fa1/{id}/questions', [FacultyQuizController::class, 'storeQuestions'])->name('faculty.fa1.questions.store');
         Route::put('fa1/{id}/timing', [FacultyQuizController::class, 'updateTiming'])->name('faculty.fa1.timing.update');
         Route::get('fa1/{id}/results', [FacultyQuizController::class, 'results'])->name('faculty.fa1.results');
         Route::post('fa1/{id}/allow-attempts', [FacultyQuizController::class, 'allowAttempts'])->name('faculty.fa1.allow-attempts');
