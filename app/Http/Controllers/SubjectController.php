@@ -165,6 +165,7 @@ class SubjectController extends Controller
         foreach ($batches as $batch) {
             $studentCount = \App\Models\StudentMaster::where('department', $subjectId)
                 ->where('batch', $batch->id)
+                ->when(Schema::hasColumn('student_masters', 'is_left'), fn($query) => $query->where('is_left', 0))
                 ->count();
             $batchWiseStudents[] = [
                 'batch_name' => $batch->batch_name,
@@ -468,7 +469,8 @@ class SubjectController extends Controller
             ->with(['studentprograminfo', 'batchmaster', 'shiftmaster'])
             ->where('batch_id', $activeBatch)
             ->withCount(['studentmaster' => function ($query) use ($activeBatch) {
-                $query->where('batch', $activeBatch);
+                $query->where('batch', $activeBatch)
+                    ->when(Schema::hasColumn('student_masters', 'is_left'), fn($inner) => $inner->where('is_left', 0));
             }])
             ->get();
 
@@ -522,6 +524,7 @@ class SubjectController extends Controller
 
         $programIds = StudentMaster::where('batch', $activeBatch)
             ->where('campus_id', $subject->campus_id)
+            ->when(Schema::hasColumn('student_masters', 'is_left'), fn($query) => $query->where('is_left', 0))
             ->whereNotNull('new_program_id')
             ->distinct()
             ->pluck('new_program_id')
@@ -611,6 +614,7 @@ class SubjectController extends Controller
         // for selected batch + campus where new_program_id is present.
         $enrolledProgramIds = StudentMaster::where('batch', (int) $request->batch_id)
             ->where('campus_id', $campusId)
+            ->when(Schema::hasColumn('student_masters', 'is_left'), fn($query) => $query->where('is_left', 0))
             ->whereNotNull('new_program_id')
             ->distinct()
             ->pluck('new_program_id')
@@ -678,7 +682,8 @@ class SubjectController extends Controller
 
         $enrolledCount = SubjectHasStudentProgam::where('id', $combination->id)
             ->withCount(['studentmaster' => function ($query) use ($activeBatch) {
-                $query->where('batch', $activeBatch);
+                $query->where('batch', $activeBatch)
+                    ->when(Schema::hasColumn('student_masters', 'is_left'), fn($inner) => $inner->where('is_left', 0));
             }])
             ->value('studentmaster_count');
 
@@ -4007,6 +4012,8 @@ class SubjectController extends Controller
             }
         }
 
+        $syncSummary = $this->syncCompulsoryStudentCourseMappings($combination, $semester);
+
         $message = 'Curriculum mapping saved.';
         if ($createdCount > 0 && $updatedCount > 0) {
             $message = 'Curriculum mapping created and updated.';
@@ -4014,9 +4021,60 @@ class SubjectController extends Controller
             $message = 'Curriculum mapping updated.';
         }
 
+        if (($syncSummary['created'] ?? 0) > 0 || ($syncSummary['restored'] ?? 0) > 0) {
+            $message .= ' Student-course sync completed (' . (int) ($syncSummary['created'] ?? 0) . ' mapped, ' . (int) ($syncSummary['restored'] ?? 0) . ' restored).';
+        }
+
         return $respond(true, $message, 200, [
             'created' => $createdCount,
             'updated' => $updatedCount,
+            'sync' => $syncSummary,
+        ]);
+    }
+
+    public function repairProgramSemesterCoursesSync(Request $request, int $combinationId)
+    {
+        $isJsonRequest = $request->expectsJson() || $request->ajax();
+        $respond = function (bool $status, string $message, int $httpCode = 200, array $extra = []) use ($isJsonRequest) {
+            if ($isJsonRequest) {
+                return response()->json(array_merge([
+                    'status' => $status,
+                    'message' => $message,
+                ], $extra), $httpCode);
+            }
+
+            return redirect()->back()->with($status ? 'success' : 'error', $message);
+        };
+
+        $request->validate([
+            'semester' => 'nullable|integer|exists:semesters,id',
+        ]);
+
+        $combination = SubjectHasStudentProgam::with([
+            'batchmaster:id,batch_name',
+            'studentprograminfo:id,code,name',
+        ])->find($combinationId);
+
+        if (!$combination) {
+            return $respond(false, 'Program mapping not found.', 404);
+        }
+
+        $integratedContext = $this->getIntegratedSublayerContextForCombination($combination);
+        if ((bool) ($integratedContext['is_integrated'] ?? false)) {
+            return $respond(false, 'Repair sync is disabled for integrated programs. Use configured sublayer programs.', 422);
+        }
+
+        $semesterId = $request->filled('semester') ? (int) $request->semester : null;
+        $syncSummary = $this->syncCompulsoryStudentCourseMappings($combination, $semesterId);
+
+        $scopeLabel = $semesterId ? ('semester ' . $semesterId) : 'all semesters';
+        $message = 'Student-course sync repaired for ' . $scopeLabel . '. '
+            . ((int) ($syncSummary['created'] ?? 0)) . ' mapped, '
+            . ((int) ($syncSummary['restored'] ?? 0)) . ' restored, '
+            . ((int) ($syncSummary['existing'] ?? 0)) . ' already synced.';
+
+        return $respond(true, $message, 200, [
+            'sync' => $syncSummary,
         ]);
     }
 
@@ -4083,6 +4141,7 @@ class SubjectController extends Controller
         ]);
 
         $mapping = ProgramWiseSemesterCourse::findOrFail($id);
+        $previousSemester = (int) ($mapping->semester ?? 0);
         $courseType = strtoupper((string) $request->course_type);
         $academicPathwayId = $request->filled('academic_pathway_id') ? (int) $request->academic_pathway_id : null;
         $degreeTrackId = $request->filled('degree_track_id') ? (int) $request->degree_track_id : null;
@@ -4214,6 +4273,11 @@ class SubjectController extends Controller
             $mapping->is_active = $request->has('is_active');
         }
         $mapping->save();
+
+        $this->syncCompulsoryStudentCourseMappings($combination, (int) $mapping->semester);
+        if ($previousSemester > 0 && $previousSemester !== (int) $mapping->semester) {
+            $this->syncCompulsoryStudentCourseMappings($combination, $previousSemester);
+        }
 
         return redirect()->back()->with('success', 'Mapping updated successfully.');
     }
@@ -4635,13 +4699,23 @@ class SubjectController extends Controller
         }
 
         foreach ($students as $student) {
-            $alreadyEnrolled = StudentCourseInfo::where('student_id', $student->id)
+            $existingEnrollment = StudentCourseInfo::withTrashed()
+                ->where('student_id', $student->id)
                 ->where('course_id', $mapping->course_id)
                 ->where('semester', $mapping->semester)
                 ->where('academic_year', $academicYear)
-                ->exists();
+                ->first();
 
-            if ($alreadyEnrolled) {
+            if ($existingEnrollment) {
+                if (method_exists($existingEnrollment, 'trashed') && $existingEnrollment->trashed()) {
+                    $existingEnrollment->restore();
+                }
+
+                if (Schema::hasColumn('student_course_infos', 'is_active') && (int) ($existingEnrollment->is_active ?? 0) !== 1) {
+                    $existingEnrollment->is_active = 1;
+                    $existingEnrollment->save();
+                }
+
                 continue;
             }
 
@@ -4682,12 +4756,115 @@ class SubjectController extends Controller
 
     private function getEligibleStudentsForCombination(SubjectHasStudentProgam $combination)
     {
-        return StudentMaster::where('new_program_id', $combination->student_program_id)
+        $query = StudentMaster::where('new_program_id', $combination->student_program_id)
             ->where('batch', $combination->batch_id)
-            ->where('campus_id', $combination->campus_id)
             ->where('is_deleted', 0)
-            ->where('is_left', 0)
-            ->get(['id', 'campus_id']);
+            ->where('is_left', 0);
+
+        $combinationCampusId = (int) ($combination->campus_id ?? 0);
+        if ($combinationCampusId > 0 && Schema::hasColumn('student_masters', 'campus_id')) {
+            $query->where('campus_id', $combinationCampusId);
+        }
+
+        return $query->get(['id', 'campus_id']);
+    }
+
+    private function syncCompulsoryStudentCourseMappings(SubjectHasStudentProgam $combination, ?int $semesterId = null): array
+    {
+        $academicYear = (string) optional($combination->batchmaster)->batch_name;
+        if ($academicYear === '') {
+            $academicYear = (string) date('Y');
+        }
+
+        $eligibleStudents = $this->getEligibleStudentsForCombination($combination);
+        if ($eligibleStudents->isEmpty()) {
+            return [
+                'mappings' => 0,
+                'eligible_students' => 0,
+                'created' => 0,
+                'restored' => 0,
+                'existing' => 0,
+            ];
+        }
+
+        $mappingQuery = ProgramWiseSemesterCourse::where('program_combo_refid', (int) $combination->id)
+            ->where('course_type', ProgramWiseSemesterCourse::TYPE_AUTO);
+
+        if ($semesterId !== null && $semesterId > 0) {
+            $mappingQuery->where('semester', $semesterId);
+        }
+
+        $curriculumTable = $this->getCurriculumEngineTable();
+        if (Schema::hasColumn($curriculumTable, 'is_active')) {
+            $mappingQuery->where('is_active', 1);
+        }
+
+        $mappings = $mappingQuery
+            ->get(['id', 'course_id', 'semester'])
+            ->filter(fn($mapping) => (int) ($mapping->course_id ?? 0) > 0 && (int) ($mapping->semester ?? 0) > 0)
+            ->values();
+
+        if ($mappings->isEmpty()) {
+            return [
+                'mappings' => 0,
+                'eligible_students' => (int) $eligibleStudents->count(),
+                'created' => 0,
+                'restored' => 0,
+                'existing' => 0,
+            ];
+        }
+
+        $created = 0;
+        $restored = 0;
+        $existing = 0;
+
+        foreach ($mappings as $mapping) {
+            foreach ($eligibleStudents as $student) {
+                $enrollment = StudentCourseInfo::withTrashed()
+                    ->where('student_id', (int) $student->id)
+                    ->where('course_id', (int) $mapping->course_id)
+                    ->where('semester', (int) $mapping->semester)
+                    ->where('academic_year', $academicYear)
+                    ->first();
+
+                if ($enrollment) {
+                    if (method_exists($enrollment, 'trashed') && $enrollment->trashed()) {
+                        $enrollment->restore();
+                        $restored++;
+                    } else {
+                        $existing++;
+                    }
+
+                    if (Schema::hasColumn('student_course_infos', 'is_active') && (int) ($enrollment->is_active ?? 0) !== 1) {
+                        $enrollment->is_active = 1;
+                        $enrollment->save();
+                    }
+
+                    continue;
+                }
+
+                StudentCourseInfo::create([
+                    'student_id' => (int) $student->id,
+                    'course_id' => (int) $mapping->course_id,
+                    'semester' => (int) $mapping->semester,
+                    'campus_id' => (int) ($student->campus_id ?? 0),
+                    'is_active' => 1,
+                    'academic_year' => $academicYear,
+                    'course_status' => 'EN',
+                    'is_elective' => 0,
+                ]);
+
+                $created++;
+            }
+        }
+
+        return [
+            'mappings' => (int) $mappings->count(),
+            'eligible_students' => (int) $eligibleStudents->count(),
+            'created' => $created,
+            'restored' => $restored,
+            'existing' => $existing,
+        ];
     }
 
     private function getMappingDeletionImpact(ProgramWiseSemesterCourse $mapping, ?SubjectHasStudentProgam $combination): array

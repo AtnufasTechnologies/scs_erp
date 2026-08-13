@@ -388,6 +388,16 @@ $typeLabelMap = [
             <button type="submit" class="btn btn-success w-100">Save Selected Courses</button>
           </div>
 
+          <div class="col-lg-3">
+            <button
+              type="button"
+              class="btn btn-outline-primary w-100"
+              id="repairSyncBtn"
+              data-endpoint="{{ route('curriculam.mapping.repair-sync', [$data->id]) }}">
+              Repair Student-Course Sync
+            </button>
+          </div>
+
           <div class="col-12 mt-3">
             <h6 class="mb-2">
               All Offered Courses (Published Syllabus) - Semester <span id="generatedSemesterLabel">{{ $selectedSemester > 0 ? $selectedSemester : '-' }}</span>
@@ -771,6 +781,7 @@ $typeLabelMap = [
     const generatedSemesterLabel = document.getElementById('generatedSemesterLabel');
     const mappingSemesterInput = document.getElementById('mappingSemesterInput');
     const mappingForm = document.getElementById('curriculumMappingForm');
+    const repairSyncBtn = document.getElementById('repairSyncBtn');
     const mappingFeedback = document.getElementById('curriculumMappingFeedback');
     const toastElement = document.getElementById('curriculumToast');
     const toastBodyElement = document.getElementById('curriculumToastBody');
@@ -1109,6 +1120,62 @@ $typeLabelMap = [
             submitBtn.disabled = false;
             submitBtn.textContent = originalBtnText;
           }
+        }
+      });
+    }
+
+    if (repairSyncBtn) {
+      repairSyncBtn.addEventListener('click', async function() {
+        if (!confirm('Repair student-course sync now? This will map missing compulsory course enrollments for eligible students.')) {
+          return;
+        }
+
+        const endpoint = String(repairSyncBtn.dataset.endpoint || '').trim();
+        if (endpoint === '') {
+          setMappingFeedback('error', 'Repair endpoint is missing.');
+          return;
+        }
+
+        const semesterValue = Number(mappingSemesterInput?.value || 0);
+        const submitBody = new FormData();
+        if (semesterValue > 0) {
+          submitBody.append('semester', String(semesterValue));
+        }
+
+        const originalText = repairSyncBtn.textContent;
+        repairSyncBtn.disabled = true;
+        repairSyncBtn.textContent = 'Repairing...';
+        setMappingFeedback('info', 'Repairing student-course sync...');
+
+        try {
+          const response = await fetch(endpoint, {
+            method: 'POST',
+            headers: {
+              'X-CSRF-TOKEN': token,
+              'X-Requested-With': 'XMLHttpRequest',
+              'Accept': 'application/json'
+            },
+            body: submitBody
+          });
+
+          const data = await response.json().catch(() => ({}));
+          if (!response.ok || !data.status) {
+            let message = data.message || 'Unable to repair student-course sync.';
+            if (response.status === 422 && data.errors) {
+              message = Object.values(data.errors).flat().join(' ');
+            }
+            throw new Error(message);
+          }
+
+          setMappingFeedback('success', data.message || 'Student-course sync repaired.');
+          setTimeout(() => {
+            window.location.reload();
+          }, 700);
+        } catch (error) {
+          setMappingFeedback('error', error.message || 'Unable to repair student-course sync.');
+        } finally {
+          repairSyncBtn.disabled = false;
+          repairSyncBtn.textContent = originalText;
         }
       });
     }

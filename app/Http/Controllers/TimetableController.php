@@ -19,11 +19,15 @@ use App\Models\SubjectHasRoutine;
 use App\Models\SubjectHasSemester;
 use App\Models\SubjectHasSyllabus;
 use App\Models\SubjectHasStudentProgam;
+use App\Models\StudentMaster;
+use App\Models\TeachingGroupItem;
 use App\Models\TeachingAssignment;
 use App\Models\ShiftMaster;
 use App\Models\Weekday;
 use Illuminate\Http\Request;
+use Illuminate\Database\Eloquent\SoftDeletingScope;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 use Maatwebsite\Excel\Facades\Excel;
 use App\Exports\SubstitutionHistoryExport;
@@ -339,6 +343,55 @@ class TimetableController extends Controller
         $batches = BatchMaster::latest()->get();
         $lectureHalls = LectureHallMaster::orderBy('title')->get(['id', 'title']);
 
+        $createdTeachingGroups = TeachingGroupItem::query()
+            ->where('subject_id', $id)
+            ->with([
+                'course:id,course_code,course_title',
+                'faculty:id,USER_CODE,FIRST_NAME,LAST_NAME',
+            ])
+            ->orderBy('allocation_group_id')
+            ->orderBy('course_id')
+            ->get()
+            ->groupBy(fn($item) => (int) ($item->allocation_group_id ?? 0))
+            ->map(function ($items, $allocationGroupId) use ($id) {
+                $allocationGroupId = (int) $allocationGroupId;
+                if ($allocationGroupId <= 0) {
+                    return null;
+                }
+
+                $faculty = $items->first(fn($entry) => (int) ($entry->faculty_id ?? 0) > 0)?->faculty;
+                $facultyName = trim((string) ($faculty->FIRST_NAME ?? '') . ' ' . (string) ($faculty->LAST_NAME ?? ''));
+                $facultyLabel = $faculty
+                    ? trim((string) ($faculty->USER_CODE ?? '-') . ' - ' . ($facultyName !== '' ? $facultyName : '-'))
+                    : '-';
+
+                $courseLabels = $items
+                    ->map(fn($item) => trim((string) ($item->course->course_code ?? '-') . ' - ' . (string) ($item->course->course_title ?? '-')))
+                    ->filter()
+                    ->values()
+                    ->all();
+
+                return [
+                    'allocation_group_id' => $allocationGroupId,
+                    'group_identifier' => 'TG-' . str_pad((string) $id, 3, '0', STR_PAD_LEFT) . '-' . str_pad((string) $allocationGroupId, 4, '0', STR_PAD_LEFT),
+                    'allocation_group_label' => 'Group ' . $this->allocationGroupAlphabet($allocationGroupId),
+                    'faculty_id' => (int) ($faculty->id ?? 0),
+                    'faculty_label' => $facultyLabel,
+                    'room_no' => trim((string) ($items->first()->room_no ?? '')),
+                    'course_rows' => $items->map(function ($item) {
+                        return [
+                            'course_id' => (int) ($item->course_id ?? 0),
+                            'course_label' => trim((string) ($item->course->course_code ?? '-') . ' - ' . (string) ($item->course->course_title ?? '-')),
+                            'batch_id' => (int) ($item->batch_id ?? 0),
+                            'semester_id' => (int) ($item->semester_id ?? 0),
+                        ];
+                    })->values()->all(),
+                    'courses' => $courseLabels,
+                ];
+            })
+            ->filter()
+            ->values();
+
         return view('admin.subject.timetable', [
             'data' => $data,
             'subjectSemesters' => $subjectSemesters,
@@ -354,6 +407,7 @@ class TimetableController extends Controller
             'facultyDeliveryTypes' => $facultyDeliveryTypes,
             'teachingAssignmentOptions' => $teachingAssignmentOptions,
             'teachingAssignmentList' => $teachingAssignmentList,
+            'createdTeachingGroups' => $createdTeachingGroups,
             'subjectUsesShifts' => $subjectUsesShifts,
             'shiftOptions' => $shiftOptions,
         ]);
@@ -363,9 +417,18 @@ class TimetableController extends Controller
     {
         $subject = Subject::query()->findOrFail($subjectId);
 
+        $subjectDeptId = (int) ($subject->id ?? 0);
         $subjectMainDeptId = (int) ($subject->main_dept_id ?? 0);
-        $deaneryIds = collect();
-        if ($subjectMainDeptId > 0) {
+        $subjectDeaneryIds = DeaneryDeptPivot::query()
+            ->where('dept_id', $subjectDeptId)
+            ->pluck('deanery_id')
+            ->map(fn($value) => (int) $value)
+            ->filter(fn($value) => $value > 0)
+            ->unique()
+            ->values();
+
+        $deaneryIds = $subjectDeaneryIds;
+        if ($deaneryIds->isEmpty() && $subjectMainDeptId > 0) {
             $deaneryIds = DeaneryDeptPivot::query()
                 ->where('dept_id', $subjectMainDeptId)
                 ->pluck('deanery_id')
@@ -377,7 +440,7 @@ class TimetableController extends Controller
 
         $deaneriesQuery = Deanery::query()
             ->with([
-                'deanerydeptpivot.department:id,name',
+                'deanerydeptpivot.department',
                 'program:id,name,campus_id',
                 'program.campus:id,name',
             ])
@@ -388,13 +451,211 @@ class TimetableController extends Controller
         }
 
         $deaneries = $deaneriesQuery->get();
+        $selectedDeaneryId = (int) ($subjectDeaneryIds->first() ?? $deaneries->first()->id ?? 0);
+
+        $departments = collect();
+        if ($selectedDeaneryId > 0) {
+            $selectedDeanery = $deaneries->firstWhere('id', $selectedDeaneryId);
+            $departments = collect($selectedDeanery?->deanerydeptpivot ?? [])
+                ->map(fn($pivot) => $pivot->department)
+                ->filter()
+                ->unique('id')
+                ->sortBy(function ($department) {
+                    return strtolower(trim((string) ($department->title ?? $department->subject_title ?? '')));
+                })
+                ->values();
+        }
+
+        $deaneryDeptSubjectIds = $departments
+            ->pluck('id')
+            ->map(fn($value) => (int) $value)
+            ->filter(fn($value) => $value > 0)
+            ->unique()
+            ->values();
+
+        $deaneryFacultyIds = collect();
+        if ($deaneryDeptSubjectIds->isNotEmpty()) {
+            $deaneryFacultyIds = SubjectFacultyMaster::query()
+                ->whereIn('subject_id', $deaneryDeptSubjectIds->all())
+                ->pluck('faculty_id')
+                ->map(fn($value) => (int) $value)
+                ->filter(fn($value) => $value > 0)
+                ->unique()
+                ->values();
+        }
+
+        $facultyByDeptMap = collect();
+        if ($deaneryDeptSubjectIds->isNotEmpty()) {
+            $facultyByDeptMap = SubjectFacultyMaster::query()
+                ->whereIn('subject_id', $deaneryDeptSubjectIds->all())
+                ->get(['subject_id', 'faculty_id'])
+                ->groupBy(fn($row) => (int) ($row->subject_id ?? 0))
+                ->map(function ($rows) {
+                    return $rows->pluck('faculty_id')
+                        ->map(fn($value) => (int) $value)
+                        ->filter(fn($value) => $value > 0)
+                        ->unique()
+                        ->values();
+                });
+        }
+
+        $facultyOptions = Faculty::query()
+            ->when($deaneryFacultyIds->isNotEmpty(), fn($query) => $query->whereIn('id', $deaneryFacultyIds->all()))
+            ->when($deaneryFacultyIds->isEmpty(), fn($query) => $query->whereRaw('1 = 0'))
+            ->orderBy('FIRST_NAME')
+            ->orderBy('LAST_NAME')
+            ->get(['id', 'USER_CODE', 'FIRST_NAME', 'LAST_NAME'])
+            ->map(function ($faculty) {
+                $name = trim((string) ($faculty->FIRST_NAME ?? '') . ' ' . (string) ($faculty->LAST_NAME ?? ''));
+                return [
+                    'id' => (int) $faculty->id,
+                    'label' => trim((string) ($faculty->USER_CODE ?? '-') . ' - ' . ($name !== '' ? $name : '-')),
+                ];
+            })
+            ->values();
+
+        $facultyOptionsByDept = $facultyByDeptMap
+            ->map(function ($facultyIds) use ($facultyOptions) {
+                $idSet = collect($facultyIds)->map(fn($id) => (int) $id)->unique();
+                return $facultyOptions
+                    ->filter(fn($row) => $idSet->contains((int) ($row['id'] ?? 0)))
+                    ->values();
+            })
+            ->mapWithKeys(fn($rows, $deptId) => [(string) ((int) $deptId) => $rows->all()])
+            ->all();
+
+        $createdGroupItems = TeachingGroupItem::query()
+            ->where('subject_id', $subjectId)
+            ->with([
+                'course:id,course_code,course_title',
+                'faculty:id,USER_CODE,FIRST_NAME,LAST_NAME',
+            ])
+            ->orderBy('allocation_group_id')
+            ->orderBy('course_id')
+            ->get();
+
+        $batchNameMap = BatchMaster::query()
+            ->get(['id', 'batch_name'])
+            ->mapWithKeys(fn($row) => [(int) $row->id => (string) ($row->batch_name ?? '')]);
+        $semesterTitleMap = Semester::query()
+            ->get(['id', 'title'])
+            ->mapWithKeys(fn($row) => [(int) $row->id => (string) ($row->title ?? '')]);
+
+        $programIds = $createdGroupItems->pluck('student_program_id')
+            ->map(fn($value) => (int) $value)
+            ->filter(fn($value) => $value > 0)
+            ->unique()
+            ->values();
+        $batchIds = $createdGroupItems->pluck('batch_id')
+            ->map(fn($value) => (int) $value)
+            ->filter(fn($value) => $value > 0)
+            ->unique()
+            ->values();
+
+        $studentCountMap = collect();
+        if ($programIds->isNotEmpty() && $batchIds->isNotEmpty()) {
+            $studentTable = (new StudentMaster())->getTable();
+            $studentCountMap = StudentMaster::query()
+                ->whereIn('new_program_id', $programIds->all())
+                ->whereIn('batch', $batchIds->all())
+                ->when(Schema::hasColumn($studentTable, 'is_left'), function ($q) {
+                    $q->where(function ($inner) {
+                        $inner->whereNull('is_left')
+                            ->orWhere('is_left', 0);
+                    });
+                })
+                ->selectRaw('new_program_id as student_program_id, batch, COUNT(*) as total_students')
+                ->groupBy('new_program_id', 'batch')
+                ->get()
+                ->mapWithKeys(function ($row) {
+                    $key = ((int) ($row->student_program_id ?? 0)) . '|' . ((int) ($row->batch ?? 0));
+                    return [$key => (int) ($row->total_students ?? 0)];
+                });
+        }
+
+        $createdGroupRows = $createdGroupItems
+            ->groupBy(fn($item) => (int) ($item->allocation_group_id ?? 0))
+            ->map(function ($items, $allocationGroupId) use ($subjectId, $studentCountMap, $batchNameMap, $semesterTitleMap) {
+                $allocationGroupId = (int) $allocationGroupId;
+                if ($allocationGroupId <= 0) {
+                    return null;
+                }
+
+                $faculty = $items->first(fn($entry) => (int) ($entry->faculty_id ?? 0) > 0)?->faculty;
+                $facultyName = trim((string) ($faculty->FIRST_NAME ?? '') . ' ' . (string) ($faculty->LAST_NAME ?? ''));
+                $facultyLabel = $faculty
+                    ? trim((string) ($faculty->USER_CODE ?? '-') . ' - ' . ($facultyName !== '' ? $facultyName : '-'))
+                    : '-';
+
+                $courseLabels = $items
+                    ->map(fn($item) => trim((string) ($item->course->course_code ?? '-') . ' - ' . (string) ($item->course->course_title ?? '-')))
+                    ->filter()
+                    ->unique()
+                    ->values()
+                    ->all();
+
+                $courseRows = $items
+                    ->map(function ($item) use ($batchNameMap, $semesterTitleMap) {
+                        $batchId = (int) ($item->batch_id ?? 0);
+                        $semesterId = (int) ($item->semester_id ?? 0);
+                        return [
+                            'course_label' => trim((string) ($item->course->course_code ?? '-') . ' - ' . (string) ($item->course->course_title ?? '-')),
+                            'batch_name' => (string) ($batchNameMap->get($batchId, $batchId > 0 ? (string) $batchId : '-')),
+                            'semester_title' => (string) ($semesterTitleMap->get($semesterId, $semesterId > 0 ? (string) $semesterId : '-')),
+                        ];
+                    })
+                    ->filter(fn($row) => !empty($row['course_label']))
+                    ->unique(fn($row) => ($row['course_label'] ?? '') . '|' . ($row['batch_name'] ?? '') . '|' . ($row['semester_title'] ?? ''))
+                    ->values()
+                    ->all();
+
+                $studentKeys = $items
+                    ->map(function ($item) {
+                        $programId = (int) ($item->student_program_id ?? 0);
+                        $batchId = (int) ($item->batch_id ?? 0);
+                        return $programId > 0 && $batchId > 0 ? ($programId . '|' . $batchId) : null;
+                    })
+                    ->filter()
+                    ->unique()
+                    ->values();
+
+                $groupStudentsCount = $studentKeys
+                    ->reduce(fn($sum, $key) => $sum + (int) ($studentCountMap->get($key, 0)), 0);
+
+                $deptIds = $items
+                    ->pluck('offering_dept_id')
+                    ->map(fn($value) => (int) $value)
+                    ->filter(fn($value) => $value > 0)
+                    ->unique()
+                    ->values()
+                    ->all();
+
+                return [
+                    'allocation_group_id' => $allocationGroupId,
+                    'group_identifier' => 'TG-' . str_pad((string) $subjectId, 3, '0', STR_PAD_LEFT) . '-' . str_pad((string) $allocationGroupId, 4, '0', STR_PAD_LEFT),
+                    'allocation_group_label' => 'Group ' . $this->allocationGroupAlphabet($allocationGroupId),
+                    'faculty_id' => (int) ($faculty->id ?? 0),
+                    'faculty_label' => $facultyLabel,
+                    'room_no' => trim((string) ($items->first(fn($entry) => trim((string) ($entry->room_no ?? '')) !== '')?->room_no ?? '')),
+                    'course_labels' => $courseLabels,
+                    'course_rows' => $courseRows,
+                    'dept_ids' => $deptIds,
+                    'group_students_count' => (int) $groupStudentsCount,
+                ];
+            })
+            ->filter()
+            ->values();
 
         return view('admin.subject.teaching-group-builder', [
             'subject' => $subject,
             'deaneries' => $deaneries,
-            'selectedDeaneryId' => (int) ($deaneries->first()->id ?? 0),
+            'selectedDeaneryId' => $selectedDeaneryId,
+            'departments' => $departments,
             'batchOptions' => BatchMaster::query()->orderByDesc('id')->get(['id', 'batch_name']),
             'semesterOptions' => Semester::query()->orderBy('title')->get(['id', 'title']),
+            'facultyOptions' => $facultyOptions,
+            'facultyOptionsByDept' => $facultyOptionsByDept,
+            'createdGroupRows' => $createdGroupRows,
         ]);
     }
 
@@ -410,6 +671,7 @@ class TimetableController extends Controller
 
         $validated = $request->validate([
             'deanery_id' => 'required|integer|exists:deaneries,id',
+            'dept_id' => 'nullable|integer|exists:subjects,id',
             'batch_id' => 'nullable|integer|exists:batch_masters,id',
             'semester_id' => 'nullable|integer|exists:semesters,id',
             'program_type' => 'nullable|string|in:UG,PG',
@@ -417,6 +679,7 @@ class TimetableController extends Controller
         ]);
 
         $deaneryId = (int) $validated['deanery_id'];
+        $selectedDeptId = (int) ($validated['dept_id'] ?? 0);
         $deptIds = DeaneryDeptPivot::query()
             ->where('deanery_id', $deaneryId)
             ->pluck('dept_id')
@@ -433,8 +696,25 @@ class TimetableController extends Controller
             ]);
         }
 
-        $deanerySubjectIds = Subject::query()
-            ->whereIn('main_dept_id', $deptIds->all())
+        if ($selectedDeptId > 0 && !$deptIds->contains($selectedDeptId)) {
+            return response()->json([
+                'success' => false,
+                'rows' => [],
+                'message' => 'Selected department is not mapped to the chosen deanery.',
+            ], 422);
+        }
+
+        $subjectTable = (new Subject())->getTable();
+        $deanerySubjectIdsQuery = Subject::query();
+
+        if (Schema::hasColumn($subjectTable, 'main_dept_id')) {
+            $deanerySubjectIdsQuery->whereIn('main_dept_id', $deptIds->all());
+        } else {
+            // Legacy schemas map deanery departments directly by subject ids.
+            $deanerySubjectIdsQuery->whereIn('id', $deptIds->all());
+        }
+
+        $deanerySubjectIds = $deanerySubjectIdsQuery
             ->pluck('id')
             ->map(fn($value) => (int) $value)
             ->filter(fn($value) => $value > 0)
@@ -453,18 +733,46 @@ class TimetableController extends Controller
         $courseTable = (new ProgramCourseMaster())->getTable();
 
         $query = ProgramWiseSemesterCourse::query()
+            ->withoutGlobalScope(SoftDeletingScope::class)
             ->from($curriculumTable . ' as ce')
             ->join($courseTable . ' as pcm', 'pcm.id', '=', 'ce.course_id')
             ->leftJoin('subject_has_student_progams as shsp', 'shsp.id', '=', 'ce.program_combo_refid')
+            ->leftJoin('student_program as sp', 'sp.id', '=', 'shsp.student_program_id')
             ->leftJoin('subjects as sub', 'sub.id', '=', 'ce.offering_dept')
-            ->whereIn('ce.offering_dept', $deanerySubjectIds->all())
+            ->leftJoin('subjects as combo_sub', 'combo_sub.id', '=', 'shsp.subject_id')
+            ->leftJoin('batch_masters as bm', 'bm.id', '=', 'ce.batch')
+            ->where(function ($scope) use ($selectedDeptId, $deanerySubjectIds, $deptIds) {
+                if ($selectedDeptId > 0) {
+                    $scope->where('ce.offering_dept', $selectedDeptId)
+                        ->orWhere(function ($inner) use ($selectedDeptId) {
+                            $inner->whereNull('ce.offering_dept')
+                                ->where('shsp.subject_id', $selectedDeptId);
+                        });
+
+                    return;
+                }
+
+                $scope->whereIn('ce.offering_dept', $deanerySubjectIds->all())
+                    ->orWhere(function ($inner) use ($deptIds) {
+                        $inner->whereNull('ce.offering_dept')
+                            ->whereIn('shsp.subject_id', $deptIds->all());
+                    });
+            })
             ->when(Schema::hasColumn($curriculumTable, 'deleted_at'), fn($q) => $q->whereNull('ce.deleted_at'))
             ->when(Schema::hasColumn($curriculumTable, 'is_active'), fn($q) => $q->where('ce.is_active', 1))
             ->when(Schema::hasColumn($courseTable, 'deleted_at'), fn($q) => $q->whereNull('pcm.deleted_at'))
             ->when(!empty($validated['batch_id']), fn($q) => $q->where('ce.batch', (int) $validated['batch_id']))
             ->when(!empty($validated['semester_id']), fn($q) => $q->where('ce.semester', (int) $validated['semester_id']))
             ->when(!empty($validated['program_type']), function ($q) use ($validated) {
-                $q->whereRaw("UPPER(TRIM(COALESCE(shsp.program_type, ''))) = ?", [strtoupper((string) $validated['program_type'])]);
+                $selectedProgramType = strtoupper(trim((string) $validated['program_type']));
+                $q->whereRaw(
+                    "CASE
+                        WHEN UPPER(TRIM(COALESCE(shsp.program_type, 'UG'))) LIKE 'UG%' THEN 'UG'
+                        WHEN UPPER(TRIM(COALESCE(shsp.program_type, 'UG'))) LIKE 'PG%' THEN 'PG'
+                        ELSE UPPER(TRIM(COALESCE(shsp.program_type, 'UG')))
+                    END = ?",
+                    [$selectedProgramType]
+                );
             })
             ->when(!empty($validated['search']), function ($q) use ($validated) {
                 $keyword = trim((string) $validated['search']);
@@ -472,6 +780,7 @@ class TimetableController extends Controller
                     $inner->where('pcm.course_code', 'LIKE', '%' . $keyword . '%')
                         ->orWhere('pcm.course_title', 'LIKE', '%' . $keyword . '%')
                         ->orWhere('sub.title', 'LIKE', '%' . $keyword . '%')
+                        ->orWhere('combo_sub.title', 'LIKE', '%' . $keyword . '%')
                         ->orWhere('ce.delivery_category', 'LIKE', '%' . $keyword . '%');
                 });
             })
@@ -481,18 +790,63 @@ class TimetableController extends Controller
                 'pcm.course_code',
                 'pcm.course_title',
                 'ce.batch',
+                'bm.batch_name',
                 'ce.semester',
                 'ce.delivery_category',
                 'ce.course_type',
                 'ce.offering_dept',
                 'sub.title as offering_dept_name',
+                'combo_sub.title as combo_subject_name',
                 'shsp.program_type',
+                'shsp.student_program_id',
+                'shsp.total_seats as combo_total_seats',
+                'sp.code as student_program_code',
             ])
             ->orderBy('pcm.course_code')
             ->orderBy('ce.batch')
             ->orderBy('ce.semester');
 
-        $rows = $query->get()->map(function ($row) {
+        $resultRows = $query->get();
+
+        $programIds = $resultRows->pluck('student_program_id')
+            ->map(fn($value) => (int) $value)
+            ->filter(fn($value) => $value > 0)
+            ->unique()
+            ->values();
+        $batchIds = $resultRows->pluck('batch')
+            ->map(fn($value) => (int) $value)
+            ->filter(fn($value) => $value > 0)
+            ->unique()
+            ->values();
+
+        $studentCountMap = collect();
+        if ($programIds->isNotEmpty() && $batchIds->isNotEmpty()) {
+            $studentTable = (new StudentMaster())->getTable();
+
+            $studentCountMap = StudentMaster::query()
+                ->whereIn('new_program_id', $programIds->all())
+                ->whereIn('batch', $batchIds->all())
+                ->when(Schema::hasColumn($studentTable, 'is_left'), function ($q) {
+                    $q->where(function ($inner) {
+                        $inner->whereNull('is_left')
+                            ->orWhere('is_left', 0);
+                    });
+                })
+                ->selectRaw('new_program_id as student_program_id, batch, COUNT(*) as total_students')
+                ->groupBy('new_program_id', 'batch')
+                ->get()
+                ->mapWithKeys(function ($row) {
+                    $key = ((int) ($row->student_program_id ?? 0)) . '|' . ((int) ($row->batch ?? 0));
+                    return [$key => (int) ($row->total_students ?? 0)];
+                });
+        }
+
+        $rows = $resultRows->map(function ($row) use ($studentCountMap) {
+            $programId = (int) ($row->student_program_id ?? 0);
+            $batchId = (int) ($row->batch ?? 0);
+            $countKey = $programId . '|' . $batchId;
+            $enrolledStudentCount = (int) ($studentCountMap->get($countKey, -1));
+
             return [
                 'curriculum_row_id' => (int) ($row->curriculum_row_id ?? 0),
                 'course_id' => (int) ($row->course_id ?? 0),
@@ -500,12 +854,18 @@ class TimetableController extends Controller
                 'course_title' => (string) ($row->course_title ?? '-'),
                 'course_label' => trim((string) ($row->course_code ?? '-') . ' - ' . (string) ($row->course_title ?? '-')),
                 'batch' => (int) ($row->batch ?? 0),
+                'batch_name' => (string) ($row->batch_name ?? ''),
                 'semester' => (int) ($row->semester ?? 0),
                 'program_type' => strtoupper(trim((string) ($row->program_type ?? ''))),
                 'delivery_type' => (string) ($row->delivery_category ?? ''),
                 'course_type' => (string) ($row->course_type ?? ''),
                 'offering_dept_id' => (int) ($row->offering_dept ?? 0),
-                'offering_dept_name' => (string) ($row->offering_dept_name ?? '-'),
+                'offering_dept_name' => (string) ($row->offering_dept_name ?? $row->combo_subject_name ?? '-'),
+                'student_program_id' => $programId,
+                'student_program_code' => strtoupper(trim((string) ($row->student_program_code ?? ''))),
+                'student_count' => $enrolledStudentCount >= 0
+                    ? $enrolledStudentCount
+                    : max(0, (int) ($row->combo_total_seats ?? 0)),
             ];
         })->values();
 
@@ -516,6 +876,228 @@ class TimetableController extends Controller
                 'count' => $rows->count(),
                 'deanery_subject_count' => $deanerySubjectIds->count(),
                 'deanery_department_count' => $deptIds->count(),
+            ],
+        ]);
+    }
+
+    public function storeTeachingGroup(Request $request, int $subjectId)
+    {
+        $subject = Subject::query()->find($subjectId);
+        if (!$subject) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Subject not found.',
+            ], 404);
+        }
+
+        $validated = $request->validate([
+            'group_rows' => 'required|array|min:1',
+            'group_rows.*.curriculum_row_id' => 'nullable|integer|min:1',
+            'group_rows.*.course_id' => 'required|integer|min:1',
+            'group_rows.*.batch' => 'required|integer|min:1',
+            'group_rows.*.semester' => 'required|integer|min:1',
+            'group_rows.*.student_program_id' => 'nullable|integer|min:1',
+            'group_rows.*.delivery_type' => 'nullable|string|max:120',
+            'group_rows.*.program_type' => 'nullable|string|in:UG,PG',
+            'group_rows.*.offering_dept_id' => 'nullable|integer|min:1',
+        ]);
+
+        $groupRows = collect($validated['group_rows'] ?? [])
+            ->map(function ($row) {
+                return [
+                    'curriculum_row_id' => (int) ($row['curriculum_row_id'] ?? 0),
+                    'course_id' => (int) ($row['course_id'] ?? 0),
+                    'batch_id' => (int) ($row['batch'] ?? 0),
+                    'semester_id' => (int) ($row['semester'] ?? 0),
+                    'student_program_id' => !empty($row['student_program_id']) ? (int) $row['student_program_id'] : null,
+                    'delivery_type' => isset($row['delivery_type']) ? trim((string) $row['delivery_type']) : null,
+                    'program_type' => isset($row['program_type']) ? strtoupper(trim((string) $row['program_type'])) : null,
+                    'offering_dept_id' => !empty($row['offering_dept_id']) ? (int) $row['offering_dept_id'] : null,
+                ];
+            })
+            ->filter(fn($row) => $row['course_id'] > 0 && $row['batch_id'] > 0 && $row['semester_id'] > 0)
+            ->values();
+
+        if ($groupRows->isEmpty()) {
+            return response()->json([
+                'success' => false,
+                'message' => 'No valid group rows were provided.',
+            ], 422);
+        }
+
+        $allocationGroup = ((int) TeachingGroupItem::withTrashed()
+            ->where('subject_id', $subjectId)
+            ->max('allocation_group_id')) + 1;
+
+        if ($allocationGroup <= 0) {
+            $allocationGroup = 1;
+        }
+
+        $createdCount = 0;
+
+        DB::transaction(function () use ($groupRows, $subjectId, $allocationGroup, &$createdCount) {
+            foreach ($groupRows as $row) {
+                $record = TeachingGroupItem::withTrashed()->updateOrCreate(
+                    [
+                        'subject_id' => $subjectId,
+                        'allocation_group_id' => $allocationGroup,
+                        'course_id' => $row['course_id'],
+                        'batch_id' => $row['batch_id'],
+                        'semester_id' => $row['semester_id'],
+                        'student_program_id' => $row['student_program_id'],
+                    ],
+                    [
+                        'curriculum_row_id' => $row['curriculum_row_id'] > 0 ? $row['curriculum_row_id'] : null,
+                        'program_type' => $row['program_type'],
+                        'delivery_type' => $row['delivery_type'],
+                        'offering_dept_id' => $row['offering_dept_id'],
+                        'created_by' => (int) (Auth::id() ?? 0),
+                    ]
+                );
+
+                if (method_exists($record, 'trashed') && $record->trashed()) {
+                    $record->restore();
+                }
+
+                if ($record->wasRecentlyCreated) {
+                    $createdCount++;
+                }
+            }
+        });
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Teaching group created successfully.',
+            'meta' => [
+                'allocation_group' => $allocationGroup,
+                'created_group_items' => $groupRows->count(),
+                'updated_student_course_rows' => 0,
+            ],
+        ]);
+    }
+
+    public function assignTeachingGroupFaculty(Request $request, int $subjectId)
+    {
+        $subject = Subject::query()->find($subjectId);
+        if (!$subject) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Subject not found.',
+            ], 404);
+        }
+
+        $validated = $request->validate([
+            'groups' => 'required|array|min:1',
+            'groups.*.allocation_group_id' => 'required|integer|min:1',
+            'groups.*.faculty_id' => 'required|integer|min:1|exists:faculties,id',
+            'groups.*.room_no' => 'nullable|string|max:80',
+        ]);
+
+        $groups = collect($validated['groups'] ?? [])
+            ->map(function ($row) {
+                return [
+                    'allocation_group_id' => (int) ($row['allocation_group_id'] ?? 0),
+                    'faculty_id' => (int) ($row['faculty_id'] ?? 0),
+                    'room_no' => isset($row['room_no']) ? trim((string) $row['room_no']) : null,
+                ];
+            })
+            ->filter(fn($row) => $row['allocation_group_id'] > 0 && $row['faculty_id'] > 0)
+            ->values();
+
+        if ($groups->isEmpty()) {
+            return response()->json([
+                'success' => false,
+                'message' => 'No valid faculty mappings were provided.',
+            ], 422);
+        }
+
+        $updatedRows = 0;
+        $assignmentSynced = 0;
+
+        DB::transaction(function () use ($groups, $subjectId, &$updatedRows, &$assignmentSynced) {
+            foreach ($groups as $group) {
+                $affected = TeachingGroupItem::query()
+                    ->where('subject_id', $subjectId)
+                    ->where('allocation_group_id', $group['allocation_group_id'])
+                    ->update([
+                        'faculty_id' => $group['faculty_id'],
+                        'room_no' => $group['room_no'],
+                    ]);
+
+                $updatedRows += (int) $affected;
+
+                $courseIds = TeachingGroupItem::query()
+                    ->where('subject_id', $subjectId)
+                    ->where('allocation_group_id', $group['allocation_group_id'])
+                    ->pluck('course_id')
+                    ->map(fn($id) => (int) $id)
+                    ->filter(fn($id) => $id > 0)
+                    ->unique()
+                    ->values();
+
+                if ($courseIds->isEmpty()) {
+                    continue;
+                }
+
+                foreach ($courseIds as $courseId) {
+                    $syncCount = TeachingAssignment::query()
+                        ->where('subject_id', $subjectId)
+                        ->where('course_id', $courseId)
+                        ->where('allocation_group', $group['allocation_group_id'])
+                        ->update([
+                            'faculty_id' => $group['faculty_id'],
+                            'room' => $group['room_no'],
+                        ]);
+
+                    $assignmentSynced += (int) $syncCount;
+                }
+            }
+        });
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Faculty mapping saved successfully.',
+            'meta' => [
+                'updated' => $updatedRows,
+                'assignment_synced' => $assignmentSynced,
+            ],
+        ]);
+    }
+
+    public function deleteTeachingGroup(Request $request, int $subjectId)
+    {
+        $subject = Subject::query()->find($subjectId);
+        if (!$subject) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Subject not found.',
+            ], 404);
+        }
+
+        $validated = $request->validate([
+            'allocation_group_id' => 'required|integer|min:1',
+        ]);
+
+        $allocationGroupId = (int) $validated['allocation_group_id'];
+
+        $deleted = TeachingGroupItem::query()
+            ->where('subject_id', $subjectId)
+            ->where('allocation_group_id', $allocationGroupId)
+            ->delete();
+
+        if ((int) $deleted <= 0) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Teaching group not found or already deleted.',
+            ], 404);
+        }
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Teaching group deleted successfully.',
+            'meta' => [
+                'allocation_group_id' => $allocationGroupId,
+                'deleted_rows' => (int) $deleted,
             ],
         ]);
     }
@@ -981,7 +1563,56 @@ class TimetableController extends Controller
                 ->get();
 
             $weekdays = [1 => 'Monday', 2 => 'Tuesday', 3 => 'Wednesday', 4 => 'Thursday', 5 => 'Friday', 6 => 'Saturday'];
+            $supportsTeachingGroupId = Schema::hasColumn('subject_has_routines', 'teaching_group_id');
             $timetableData = [];
+
+            $groupRoomById = collect();
+            $groupMetaById = collect();
+            if ($supportsTeachingGroupId) {
+                $groupRoomById = TeachingGroupItem::query()
+                    ->where('subject_id', (int) $subjectId)
+                    ->where('batch_id', (int) $batchId)
+                    ->where('semester_id', (int) $semesterId)
+                    ->whereNotNull('allocation_group_id')
+                    ->whereRaw("TRIM(COALESCE(room_no, '')) <> ''")
+                    ->orderBy('id')
+                    ->get(['allocation_group_id', 'room_no'])
+                    ->groupBy(fn($row) => (int) ($row->allocation_group_id ?? 0))
+                    ->map(function ($rows) {
+                        $room = trim((string) ($rows->first()->room_no ?? ''));
+                        return $room !== '' ? $room : null;
+                    });
+
+                $groupMetaById = TeachingGroupItem::query()
+                    ->where('subject_id', (int) $subjectId)
+                    ->where('batch_id', (int) $batchId)
+                    ->where('semester_id', (int) $semesterId)
+                    ->whereNotNull('allocation_group_id')
+                    ->with(['faculty:id,USER_CODE,FIRST_NAME,LAST_NAME'])
+                    ->orderBy('allocation_group_id')
+                    ->orderBy('id')
+                    ->get()
+                    ->groupBy(fn($row) => (int) ($row->allocation_group_id ?? 0))
+                    ->map(function ($rows, $allocationGroupId) use ($subjectId) {
+                        $allocationGroupId = (int) $allocationGroupId;
+                        if ($allocationGroupId <= 0) {
+                            return null;
+                        }
+
+                        $faculty = $rows->first(fn($entry) => (int) ($entry->faculty_id ?? 0) > 0)?->faculty;
+                        $facultyName = trim((string) ($faculty->FIRST_NAME ?? '') . ' ' . (string) ($faculty->LAST_NAME ?? ''));
+                        $facultyLabel = $faculty
+                            ? trim((string) ($faculty->USER_CODE ?? '-') . ' - ' . ($facultyName !== '' ? $facultyName : '-'))
+                            : '-';
+
+                        return [
+                            'group_identifier' => 'TG-' . str_pad((string) $subjectId, 3, '0', STR_PAD_LEFT) . '-' . str_pad((string) $allocationGroupId, 4, '0', STR_PAD_LEFT),
+                            'allocation_group_label' => 'Group ' . $this->allocationGroupAlphabet($allocationGroupId),
+                            'faculty_label' => $facultyLabel,
+                        ];
+                    })
+                    ->filter();
+            }
 
             $teachingAssignments = TeachingAssignment::with([
                 'course.coursetypemaster:id,title',
@@ -1110,6 +1741,17 @@ class TimetableController extends Controller
                         }
                     }
 
+                    $routineGroupId = $supportsTeachingGroupId ? (int) ($routine->teaching_group_id ?? 0) : 0;
+
+                    $assignmentRoom = trim((string) ($assignment->room ?? ''));
+                    $lectureHallRoom = trim((string) (optional($routine->lecturehallmaster)->title ?? ''));
+                    $groupRoom = $routineGroupId > 0 ? trim((string) ($groupRoomById->get($routineGroupId) ?? '')) : '';
+                    $room = $routineGroupId > 0
+                        ? ($groupRoom !== '' ? $groupRoom : ($lectureHallRoom !== '' ? $lectureHallRoom : '-'))
+                        : ($lectureHallRoom !== '' ? $lectureHallRoom : ($assignmentRoom !== '' ? $assignmentRoom : '-'));
+
+                    $groupMeta = $routineGroupId > 0 ? $groupMetaById->get($routineGroupId) : null;
+
                     $coFacultyNames = collect($assignment?->coFacultyMembers ?? [])
                         ->map(fn($faculty) => trim((string) ($faculty->FIRST_NAME ?? '') . ' ' . (string) ($faculty->LAST_NAME ?? '')))
                         ->filter()
@@ -1134,6 +1776,13 @@ class TimetableController extends Controller
                         }
                     }
 
+                    $subjectName = $groupMeta
+                        ? trim((string) ($groupMeta['group_identifier'] ?? $groupMeta['allocation_group_label'] ?? 'Group Slot'))
+                        : ($courseName ?: ($syllabus->subject->subject_title ?? $syllabus->subject->title ?? 'Subject'));
+                    $teacherName = $groupMeta
+                        ? trim((string) ($groupMeta['faculty_label'] ?? '-'))
+                        : (!empty($primaryFacultyNames) ? implode(', ', $primaryFacultyNames) : ($facultyName ?: 'Teacher'));
+
                     $timetableData[] = [
                         'routine_id' => $routine->id, // Include routine ID for direct deletion
                         'hour_number' => $routine->hour_id,
@@ -1143,15 +1792,17 @@ class TimetableController extends Controller
                         'subject_id' => $lookupCourseId ?: $syllabus->subject_id, // Return proper course id
                         'teacher_id' => $facultyId,
                         'teaching_assignment_id' => $routineAssignmentId ?: null,
-                        'subject_name' => $courseName ?: ($syllabus->subject->subject_title ?? $syllabus->subject->title ?? 'Subject'),
-                        'teacher_name' => !empty($primaryFacultyNames) ? implode(', ', $primaryFacultyNames) : ($facultyName ?: 'Teacher'),
+                        'subject_name' => $subjectName,
+                        'teacher_name' => $teacherName,
                         'primary_faculty_names' => $primaryFacultyNames,
                         'co_faculty_names' => $coFacultyNames,
                         'lecturehall_id' => (int) ($routine->lecturehall_id ?? 0),
                         'lecturehall_name' => (string) (optional($routine->lecturehallmaster)->title ?? ''),
+                        'room' => $room,
                         'delivery_type' => $assignment ? ($assignment->delivery_type ?? null) : null,
                         'allocation_group' => $assignment ? ($assignment->allocation_group ?? null) : null,
                         'allocation_group_label' => $assignment ? ($assignment->allocation_group_label ?? null) : null,
+                        'teaching_group_id' => $routineGroupId > 0 ? $routineGroupId : null,
                         'slot_active' => $this->supportsRoutineIsActive() ? (int) ($routine->is_active ?? 1) : 1,
                     ];
                 }
@@ -1322,6 +1973,22 @@ class TimetableController extends Controller
             })
             ->values()
             ->all();
+    }
+
+    private function allocationGroupAlphabet(int $groupNumber): string
+    {
+        if ($groupNumber <= 0) {
+            return '-';
+        }
+
+        $result = '';
+        while ($groupNumber > 0) {
+            $groupNumber--;
+            $result = chr(65 + ($groupNumber % 26)) . $result;
+            $groupNumber = intdiv($groupNumber, 26);
+        }
+
+        return $result;
     }
 
     function deleteRoutineSlot($routineId)
@@ -1523,6 +2190,7 @@ class TimetableController extends Controller
         try {
             $timetable = $request->input('timetable', []);
             $supportsRoutineIsActive = $this->supportsRoutineIsActive();
+            $supportsTeachingGroupId = Schema::hasColumn('subject_has_routines', 'teaching_group_id');
             $createdCount = 0;
             $updatedCount = 0;
             $restoredCount = 0;
@@ -1560,12 +2228,14 @@ class TimetableController extends Controller
             $existingByKey = [];
             foreach ($existingRoutines as $routine) {
                 $courseMasterId = (int) (optional($syllabusById->get($routine->syllabus_id))->course_id ?? 0);
+                $routineTeachingGroupId = $supportsTeachingGroupId ? (int) ($routine->teaching_group_id ?? 0) : 0;
                 $key = implode('|', [
                     (int) $routine->weekday_id,
                     (int) $routine->hour_id,
                     $courseMasterId,
                     (int) ($routine->faculty_id ?? 0),
                     (int) ($routine->teaching_allocation_id ?? $routine->teaching_assignment_id ?? 0),
+                    $routineTeachingGroupId,
                 ]);
 
                 if (!isset($existingByKey[$key])) {
@@ -1598,6 +2268,7 @@ class TimetableController extends Controller
                 $dayName = $slot['day_of_week'];
                 $hourNumber = (int)$slot['hour_number'];
                 $teachingAssignmentId = !empty($slot['teaching_assignment_id']) ? (int) $slot['teaching_assignment_id'] : null;
+                $slotTeachingGroupId = $supportsTeachingGroupId && !empty($slot['teaching_group_id']) ? (int) $slot['teaching_group_id'] : 0;
                 $assignment = $teachingAssignmentId ? ($teachingAssignments[$teachingAssignmentId] ?? null) : null;
 
                 $courseMasterId = (int) ($slot['subject_id'] ?? 0);
@@ -1623,6 +2294,7 @@ class TimetableController extends Controller
                     $courseMasterId,
                     $facultyId ?: 0,
                     $teachingAssignmentId ?: 0,
+                    $slotTeachingGroupId,
                 ]);
 
                 if (isset($seenSlots[$slotKey])) {
@@ -1653,6 +2325,7 @@ class TimetableController extends Controller
                     $courseMasterId,
                     (int) ($facultyId ?: 0),
                     (int) ($teachingAssignmentId ?: 0),
+                    $slotTeachingGroupId,
                 ]);
 
                 $routine = null;
@@ -1685,6 +2358,10 @@ class TimetableController extends Controller
                     'subject_course_id' => $subjectCourseId,
                     'teaching_assignment_id' => $teachingAssignmentId,
                 ];
+
+                if ($supportsTeachingGroupId) {
+                    $payload['teaching_group_id'] = !empty($slot['teaching_group_id']) ? (int) $slot['teaching_group_id'] : null;
+                }
 
                 if ($supportsRoutineIsActive) {
                     $payload['is_active'] = (int) (!empty($slot['slot_active']) ? 1 : 0);
