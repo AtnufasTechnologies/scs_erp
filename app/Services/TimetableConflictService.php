@@ -106,6 +106,10 @@ class TimetableConflictService
         fn($q) => $q->where('is_active', 1)
       )
       ->when(
+        Schema::hasColumn('subject_has_routines', 'slot_active'),
+        fn($q) => $q->where('slot_active', 1)
+      )
+      ->when(
         Schema::hasColumn('subject_has_routines', 'program_type'),
         fn($q) => $q->where('program_type', $programType)
       )
@@ -179,6 +183,13 @@ class TimetableConflictService
 
   public function checkFacultyConflict(TeachingAssignment $incomingAssignment, HourMaster $incomingHour, $existingRoutines, array $draftEntries, int $weekdayId, int $ignoreRoutineId, int $shiftId): array
   {
+    if (!$this->isFacultyTimeAwarenessEnabled()) {
+      return [
+        'success' => true,
+        'message' => 'Faculty time-awareness conflict check is disabled.',
+      ];
+    }
+
     $incomingFacultyId = (int) ($incomingAssignment->faculty_id ?? 0);
     $incomingFacultyIds = $this->extractAssignmentFacultyIds($incomingAssignment);
 
@@ -208,6 +219,10 @@ class TimetableConflictService
       ->when(
         Schema::hasColumn('subject_has_routines', 'is_active'),
         fn($q) => $q->where('is_active', 1)
+      )
+      ->when(
+        Schema::hasColumn('subject_has_routines', 'slot_active'),
+        fn($q) => $q->where('slot_active', 1)
       )
       ->get();
 
@@ -273,6 +288,14 @@ class TimetableConflictService
 
   public function getFacultyConflictsForSlot(int $weekdayId, int $hourInput, string $shift, int $ignoreRoutineId = 0): array
   {
+    if (!$this->isFacultyTimeAwarenessEnabled()) {
+      return [
+        'success' => true,
+        'message' => 'Faculty time-awareness conflict check is disabled.',
+        'booked_faculties' => [],
+      ];
+    }
+
     $shiftId = $this->resolveShiftId($shift);
     if ($shiftId <= 0 || $weekdayId <= 0 || $hourInput <= 0) {
       return [
@@ -306,6 +329,10 @@ class TimetableConflictService
       ->when(
         Schema::hasColumn('subject_has_routines', 'is_active'),
         fn($q) => $q->where('is_active', 1)
+      )
+      ->when(
+        Schema::hasColumn('subject_has_routines', 'slot_active'),
+        fn($q) => $q->where('slot_active', 1)
       )
       ->get();
 
@@ -719,11 +746,13 @@ class TimetableConflictService
 
   private function isRoutineActive(SubjectHasRoutine $routine): bool
   {
-    if (!Schema::hasColumn('subject_has_routines', 'is_active')) {
-      return true;
-    }
+    $isRowActive = !Schema::hasColumn('subject_has_routines', 'is_active')
+      || (int) ($routine->is_active ?? 1) === 1;
 
-    return (int) ($routine->is_active ?? 1) === 1;
+    $isSlotActive = !Schema::hasColumn('subject_has_routines', 'slot_active')
+      || (int) ($routine->slot_active ?? 1) === 1;
+
+    return $isRowActive && $isSlotActive;
   }
 
   private function isDraftEntryActive(array $entry): bool
@@ -744,5 +773,10 @@ class TimetableConflictService
 
     $fallback = ShiftMaster::query()->orderBy('sort_order')->value('slug');
     return !empty($fallback) ? (string) $fallback : 'common';
+  }
+
+  private function isFacultyTimeAwarenessEnabled(): bool
+  {
+    return (bool) config('timetable.faculty_time_awareness', false);
   }
 }

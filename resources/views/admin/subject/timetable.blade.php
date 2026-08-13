@@ -524,6 +524,26 @@ $days = Weekday::all();
       alert(text);
     }
 
+    function showSuccessToast(message, title = 'Success') {
+      const text = String(message || 'Saved successfully.').trim();
+
+      if (typeof Swal !== 'undefined' && Swal && typeof Swal.fire === 'function') {
+        Swal.fire({
+          toast: true,
+          position: 'top-end',
+          icon: 'success',
+          title,
+          text,
+          showConfirmButton: false,
+          timer: 2200,
+          timerProgressBar: true,
+        });
+        return;
+      }
+
+      alert(text);
+    }
+
     async function openSlotSourceChooser(hourNumber, day) {
       openSubjectModal(hourNumber, day, null, 'dept');
     }
@@ -624,6 +644,47 @@ $days = Weekday::all();
         groupEntries.forEach((entry) => {
           entry.slot_active = makeEntryKey(entry) === makeEntryKey(chosen) ? 1 : 0;
         });
+      });
+    }
+
+    function collapseDuplicateGroupEntriesForCell(day, hourNumber) {
+      const sameCellEntries = timetableData
+        .filter(entry => Number(entry.hour_number) === Number(hourNumber) && entry.day_of_week === day);
+
+      if (!sameCellEntries.length) return;
+
+      const groupBuckets = {};
+      sameCellEntries.forEach((entry) => {
+        const groupId = Number(entry.teaching_group_id || 0);
+        if (groupId <= 0) return;
+        if (!groupBuckets[groupId]) groupBuckets[groupId] = [];
+        groupBuckets[groupId].push(entry);
+      });
+
+      const duplicateKeysToRemove = new Set();
+
+      Object.values(groupBuckets).forEach((groupEntries) => {
+        if (groupEntries.length <= 1) return;
+
+        const activeEntries = groupEntries.filter(entry => Number(entry.slot_active ?? 1) === 1);
+        const preferred = activeEntries.length ? activeEntries[0] : groupEntries[0];
+
+        groupEntries.forEach((entry) => {
+          const entryKey = makeEntryKey(entry);
+          if (entryKey !== makeEntryKey(preferred)) {
+            duplicateKeysToRemove.add(entryKey);
+          }
+        });
+      });
+
+      if (!duplicateKeysToRemove.size) return;
+
+      timetableData = timetableData.filter((entry) => {
+        const inSameCell = Number(entry.hour_number) === Number(hourNumber) && entry.day_of_week === day;
+        if (!inSameCell) return true;
+        const groupId = Number(entry.teaching_group_id || 0);
+        if (groupId <= 0) return true;
+        return !duplicateKeysToRemove.has(makeEntryKey(entry));
       });
     }
 
@@ -1431,14 +1492,35 @@ $days = Weekday::all();
               const right = `${b.course_label || ''}|${b.faculty_label || ''}|${b.delivery_type || ''}`;
               return left.localeCompare(right);
             });
-          const availableRows = filterAvailableAssignments(rows);
 
-          if (!rows.length) {
+          // Keep remote (batch/semester scoped) rows, but also merge already-loaded
+          // subject assignments so valid faculty options are not hidden.
+          const mergedAssignmentsById = {};
+          rows.forEach((assignment) => {
+            mergedAssignmentsById[String(assignment.id)] = assignment;
+          });
+          teachingAssignments.forEach((assignment) => {
+            const key = String(assignment.id || '');
+            if (!key || mergedAssignmentsById[key]) return;
+            mergedAssignmentsById[key] = assignment;
+          });
+
+          const mergedRows = Object.values(mergedAssignmentsById)
+            .filter((row) => Number(row.id || 0) > 0)
+            .sort((a, b) => {
+              const left = `${a.course_label || ''}|${a.faculty_label || ''}|${a.delivery_type || ''}`;
+              const right = `${b.course_label || ''}|${b.faculty_label || ''}|${b.delivery_type || ''}`;
+              return left.localeCompare(right);
+            });
+
+          const availableRows = filterAvailableAssignments(mergedRows);
+
+          if (!mergedRows.length) {
             paintFallback();
             return;
           }
 
-          rows.forEach(assignment => {
+          mergedRows.forEach(assignment => {
             assignmentsById[String(assignment.id)] = assignment;
           });
 
@@ -1456,7 +1538,7 @@ $days = Weekday::all();
 
           if (assignmentHint) {
             assignmentHint.textContent = availableRows.length ?
-              `Showing available teaching assignments (${availableRows.length}/${rows.length} row(s)).` :
+              `Showing available teaching assignments (${availableRows.length}/${mergedRows.length} row(s)).` :
               'No available faculty for this slot.';
           }
 
@@ -1526,6 +1608,7 @@ $days = Weekday::all();
         `;
 
         days.forEach(day => {
+          collapseDuplicateGroupEntriesForCell(day, hour);
           normalizeSlotActivityForCell(day, hour);
           const entries = getSlotEntries(hour, day);
           if (!entries.length) {
@@ -1844,47 +1927,7 @@ $days = Weekday::all();
         .then(response => response.json())
         .then(response => {
           if (response.success) {
-            const meta = response.meta || {};
-            const created = Number(meta.created || 0);
-            const updated = Number(meta.updated || 0);
-            const restored = Number(meta.restored || 0);
-            const archived = Number(meta.archived || 0);
-            const affectedSlots = Array.isArray(meta.affected_slots) ? meta.affected_slots : [];
-            const affectedCount = Number(meta.affected_slots_count || affectedSlots.length || 0);
-
-            const previewLines = affectedSlots
-              .slice(0, 20)
-              .map((slot) => {
-                const operation = String(slot.operation || 'updated').toUpperCase();
-                const day = String(slot.day || '-');
-                const hour = Number(slot.hour || 0);
-                const batch = Number(slot.batch_id || 0);
-                const semester = Number(slot.semester_id || 0);
-                const program = String(slot.program_type || 'UG').toUpperCase();
-                const courseId = Number(slot.course_id || 0);
-                const groupId = Number(slot.teaching_group_id || 0);
-                const groupText = groupId > 0 ? ` | Group ${groupId}` : '';
-                return `${operation}: ${day} H${hour} | B${batch} S${semester} ${program} | C${courseId}${groupText}`;
-              });
-
-            const moreCount = affectedSlots.length > previewLines.length ? (affectedSlots.length - previewLines.length) : 0;
-            const summaryLines = [
-              response.message || 'Timetable saved successfully.',
-              `Created: ${created}, Updated: ${updated}, Restored: ${restored}, Archived: ${archived}`,
-              `Affected slots: ${affectedCount}`,
-            ];
-
-            if (previewLines.length) {
-              summaryLines.push('');
-              summaryLines.push('Affected slot preview:');
-              summaryLines.push(...previewLines);
-            }
-
-            if (moreCount > 0) {
-              summaryLines.push(`...and ${moreCount} more slot(s).`);
-            }
-
-            alert(summaryLines.join('\n'));
+            showSuccessToast(response.message || 'Timetable saved successfully.', 'Timetable Saved');
             loadTimetable();
           } else {
             alert('Error: ' + (response.message || 'Unknown error'));
