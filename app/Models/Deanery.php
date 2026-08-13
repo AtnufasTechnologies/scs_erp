@@ -9,13 +9,25 @@ class Deanery extends Model
 {
     use HasFactory;
 
-    function campus(){
-        return $this->belongsTo(Campus::class,'id','campus_id');
+    protected $fillable = [
+        'title',
+        'slug',
+        'campus_id',
+        'program_id',
+    ];
+
+    function campus()
+    {
+        return $this->belongsTo(Campus::class, 'campus_id', 'id');
     }
-     function program(){
-        return $this->hasOne(MainProgram::class,'id','program_id');
+
+    function program()
+    {
+        return $this->belongsTo(MainProgram::class, 'program_id', 'id');
     }
-     function deanerydeptpivot(){
-        return $this->hasMany(DeaneryDeptPivot::class,'deanery_id','id');
+
+    function deanerydeptpivot()
+    {
+        return $this->hasMany(DeaneryDeptPivot::class, 'deanery_id', 'id');
     }
 }

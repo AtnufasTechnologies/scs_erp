@@ -83,6 +83,7 @@ use App\Http\Controllers\Dean\MentoringDashboardController as DeanMentoringDashb
 use App\Http\Controllers\Dean\ReportsController as DeanReportsController;
 use App\Http\Controllers\Dean\Student360Controller as DeanStudent360Controller;
 use App\Http\Controllers\Dean\StudentCouncilController as DeanStudentCouncilController;
+use App\Http\Controllers\DeanOffice\DashboardController as DeanOfficeDashboardController;
 use App\Models\Department;
 use App\Models\User;
 use App\Models\UserType;
@@ -237,8 +238,13 @@ Route::group(['prefix' => '/erp'], function () {
             Route::post('religion', [AdminController::class, 'addReligionMaster']);
             Route::get('del-religion/{id}', [AdminController::class, 'delReligion']);
 
-            Route::get('deanery', [AdminController::class, 'deanery']);
+            Route::get('deanery', [AdminController::class, 'deanery'])->name('deanery');
             Route::post('deanery', [AdminController::class, 'addDeanery']);
+            Route::post('deanery/{id}/update', [AdminController::class, 'updateDeanery'])->name('deanery.update');
+            Route::get('deanery/{id}/delete', [AdminController::class, 'deleteDeanery'])->name('deanery.delete');
+            Route::post('deanery/{id}/departments', [AdminController::class, 'addDeaneryDepartments'])->name('deanery.departments.store');
+            Route::post('deanery/{id}/departments/sync', [AdminController::class, 'syncDeaneryDepartments'])->name('deanery.departments.sync');
+            Route::get('deanery/departments/{id}/delete', [AdminController::class, 'deleteDeaneryDepartment'])->name('deanery.departments.delete');
 
             Route::get('academic-dept', [AdminController::class, 'academicDept']);
             Route::post('academic-dept', [AdminController::class, 'addAcademicDept']);
@@ -1283,6 +1289,35 @@ Route::group(['prefix' => '/erp'], function () {
 
         // Report
         Route::get('events/{event}/report', [EventCoordinatorController::class, 'report'])->name('event-coordinator.report');
+    });
+
+    // ========================================================
+    // Dean Office Module (separate from Dean Student Affairs)
+    Route::group(['prefix' => '/dean-office', 'middleware' => ['check.dean.access']], function () {
+        Route::get('dashboard', [DeanOfficeDashboardController::class, 'index'])->name('dean.office.dashboard');
+
+        Route::post('annual-plan', [DeanOfficeDashboardController::class, 'storeAnnualPlan'])->name('dean.office.annual-plan.store');
+        Route::delete('annual-plan/{id}', [DeanOfficeDashboardController::class, 'destroyAnnualPlan'])->name('dean.office.annual-plan.delete');
+
+        Route::post('weekly-progress', [DeanOfficeDashboardController::class, 'storeWeeklyProgress'])->name('dean.office.weekly-progress.store');
+        Route::delete('weekly-progress/{id}', [DeanOfficeDashboardController::class, 'destroyWeeklyProgress'])->name('dean.office.weekly-progress.delete');
+
+        Route::post('lesson-tracker', [DeanOfficeDashboardController::class, 'storeLessonTracker'])->name('dean.office.lesson-tracker.store');
+        Route::delete('lesson-tracker/{id}', [DeanOfficeDashboardController::class, 'destroyLessonTracker'])->name('dean.office.lesson-tracker.delete');
+
+        Route::post('scorecard', [DeanOfficeDashboardController::class, 'storeScorecard'])->name('dean.office.scorecard.store');
+        Route::delete('scorecard/{id}', [DeanOfficeDashboardController::class, 'destroyScorecard'])->name('dean.office.scorecard.delete');
+
+        Route::post('tasks', [DeanOfficeDashboardController::class, 'storeTask'])->name('dean.office.tasks.store');
+        Route::delete('tasks/{id}', [DeanOfficeDashboardController::class, 'destroyTask'])->name('dean.office.tasks.delete');
+
+        Route::post('comparative-report', [DeanOfficeDashboardController::class, 'upsertComparative'])->name('dean.office.comparative.upsert');
+        Route::post('hod360-followup', [DeanOfficeDashboardController::class, 'upsertHod360Followup'])->name('dean.office.hod360.followup.upsert');
+        Route::get('department-activities', [DeanOfficeDashboardController::class, 'departmentActivities'])->name('dean.office.department.activities');
+
+        Route::get('events/overview', [DeanOfficeDashboardController::class, 'eventsOverview'])->name('dean.office.events.overview');
+        Route::get('events/calendar', [DeanOfficeDashboardController::class, 'eventsCalendar'])->name('dean.office.events.calendar');
+        Route::get('events/feature-board', [DeanOfficeDashboardController::class, 'eventsFeatureBoard'])->name('dean.office.events.features');
     });
 
     // ========================================================
