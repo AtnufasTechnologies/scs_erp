@@ -53,11 +53,15 @@ use Carbon\Carbon;
                   <option value="" selected disabled>My Subjects</option>
                   @foreach($syllabusAssignments as $item)
                   <option value="{{ $item->syllabus->courseLink->courseMaster->id}}" {{ (string) request('course_filter') === (string) ($item->syllabus->courseLink->courseMaster->id ?? '') ? 'selected' : '' }}>
+                    @php
+                    $deliveryType = trim((string) ($item->teachingAssignment->delivery_type ?? $item->teachingAllocation->delivery_type ?? 'Regular'));
+                    @endphp
                     {{ $item->syllabus->courseLink->courseMaster->course_title ?? 'N/A' }}
                     ({{ $item->syllabus->courseLink->courseMaster->course_code ?? 'N/A' }})
                     - {{ $item->syllabus->semestermaster->title ?? 'N/A' }}
                     | Batch: {{ $item->syllabus->batchmaster->batch_name ?? 'N/A' }}
                     | Shift: {{ ucfirst($item->shift ?? 'common') }}
+                    | Delivery: {{ $deliveryType }}
                   </option>
                   @endforeach
                 </select>

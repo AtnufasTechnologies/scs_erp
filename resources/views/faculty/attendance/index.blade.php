@@ -45,6 +45,38 @@
       </div>
       @endif
 
+      <style>
+        .attendance-card {
+          border: 1px solid #dbe6f2;
+          border-radius: 14px;
+          box-shadow: 0 10px 24px rgba(15, 23, 42, 0.06);
+        }
+
+        .attendance-card .card-header {
+          background: linear-gradient(120deg, #f7fbff 0%, #edf5ff 100%);
+          border-bottom: 1px solid #dbe6f2;
+          letter-spacing: 0.02em;
+        }
+
+        .subject-meta {
+          border: 1px dashed #c5d6e9;
+          border-radius: 10px;
+          background: #f8fbff;
+          padding: 10px 12px;
+        }
+
+        .subject-meta .k {
+          color: #64748b;
+          font-size: 0.78rem;
+          margin-right: 8px;
+        }
+
+        .subject-meta .v {
+          color: #0f172a;
+          font-weight: 600;
+        }
+      </style>
+
       @if($syllabusAssignments->isEmpty())
       <div class="alert alert-info">
         <i class="fa fa-info-circle me-2"></i>No subjects assigned to you yet.
@@ -52,7 +84,7 @@
       @else
       <div class="row">
         <div class="col-lg-6 col-md-10 mx-auto">
-          <div class="card shadow-sm">
+          <div class="card attendance-card">
             <div class="card-header fw-bold"> <i class="fal fa-qrcode"></i> QR BASED (AUTO SYSTEM )</div>
             <div class="card-body p-4 js-attendance-config-card">
               <!-- Subject Selection Dropdown -->
@@ -63,21 +95,31 @@
                 <select class="form-select js-subject-select" id="subjectSelectQr">
                   <option value="" selected disabled>Choose a subject...</option>
                   @foreach($syllabusAssignments as $item)
+                  @php
+                  $deliveryType = trim((string) ($item->teachingAssignment->delivery_type ?? $item->teachingAllocation->delivery_type ?? 'Regular'));
+                  @endphp
                   <option value="{{ $item->id }}"
                     data-semester-id="{{ $item->syllabus->semester_id ?? '' }}"
                     data-batch-id="{{ $item->syllabus->batch_id ?? '' }}"
                     data-batch-name="{{ $item->syllabus->batchmaster->batch_name ?? '' }}"
                     data-syllabus-id="{{ $item->syllabus->id ?? '' }}"
                     data-course-id="{{ $item->syllabus->courseLink->courseMaster->id ?? '' }}"
-                    data-shift="{{ strtolower($item->shift ?? 'common') }}">
+                    data-shift="{{ strtolower($item->shift ?? 'common') }}"
+                    data-delivery-type="{{ $deliveryType }}">
                     {{ $item->syllabus->courseLink->courseMaster->course_title ?? 'N/A' }}
                     ({{ $item->syllabus->courseLink->courseMaster->course_code ?? 'N/A' }})
                     - {{ $item->syllabus->semestermaster->title ?? 'N/A' }}
                     | Batch: {{ $item->syllabus->batchmaster->batch_name ?? 'N/A' }}
                     | Shift: {{ ucfirst($item->shift ?? 'common') }}
+                    | Delivery: {{ $deliveryType }}
                   </option>
                   @endforeach
                 </select>
+              </div>
+
+              <div class="subject-meta mb-3 js-subject-meta">
+                <span class="k">Delivery Type</span>
+                <span class="v">Select a subject to view</span>
               </div>
 
 
@@ -121,7 +163,7 @@
         </div>
 
         <div class="col-lg-6 col-md-10 mx-auto">
-          <div class="card shadow-sm">
+          <div class="card attendance-card">
             <div class="card-header fw-bold"><i class="far fa-clipboard-list-check"></i> MANUAL RECORDER</div>
             <div class="card-body p-4 js-attendance-config-card">
               <!-- Subject Selection Dropdown -->
@@ -133,21 +175,31 @@
                 <select class="form-select js-subject-select" id="subjectSelectManual">
                   <option value="" selected disabled>Choose a subject...</option>
                   @foreach($syllabusAssignments as $item)
+                  @php
+                  $deliveryType = trim((string) ($item->teachingAssignment->delivery_type ?? $item->teachingAllocation->delivery_type ?? 'Regular'));
+                  @endphp
                   <option value="{{ $item->id }}"
                     data-semester-id="{{ $item->syllabus->semester_id ?? '' }}"
                     data-batch-id="{{ $item->syllabus->batch_id ?? '' }}"
                     data-batch-name="{{ $item->syllabus->batchmaster->batch_name ?? '' }}"
                     data-syllabus-id="{{ $item->syllabus->id ?? '' }}"
                     data-course-id="{{ $item->syllabus->courseLink->courseMaster->id ?? '' }}"
-                    data-shift="{{ strtolower($item->shift ?? 'common') }}">
+                    data-shift="{{ strtolower($item->shift ?? 'common') }}"
+                    data-delivery-type="{{ $deliveryType }}">
                     {{ $item->syllabus->courseLink->courseMaster->course_title ?? 'N/A' }}
                     ({{ $item->syllabus->courseLink->courseMaster->course_code ?? 'N/A' }})
                     - {{ $item->syllabus->semestermaster->title ?? 'N/A' }}
                     | Batch: {{ $item->syllabus->batchmaster->batch_name ?? 'N/A' }}
                     | Shift: {{ ucfirst($item->shift ?? 'common') }}
+                    | Delivery: {{ $deliveryType }}
                   </option>
                   @endforeach
                 </select>
+              </div>
+
+              <div class="subject-meta mb-3 js-subject-meta">
+                <span class="k">Delivery Type</span>
+                <span class="v">Select a subject to view</span>
               </div>
 
 
@@ -399,6 +451,7 @@
 
     function wireAttendanceCard(card) {
       const subjectSelect = card.querySelector('.js-subject-select');
+      const subjectMeta = card.querySelector('.js-subject-meta .v');
       const hourSelect = card.querySelector('.js-hour-select');
       const attendanceDate = card.querySelector('.js-attendance-date');
       const attendanceTypeSelect = card.querySelector('.js-attendance-type');
@@ -411,6 +464,14 @@
 
       function checkEnableButton() {
         btnLoadStudents.disabled = !(subjectSelect.value && hourSelect.value && attendanceDate.value);
+      }
+
+      function updateDeliveryMeta() {
+        if (!subjectMeta) {
+          return;
+        }
+        const selectedOption = subjectSelect.options[subjectSelect.selectedIndex];
+        subjectMeta.textContent = selectedOption?.dataset?.deliveryType || 'Select a subject to view';
       }
 
       async function loadHoursForSelectedSubject() {
@@ -462,11 +523,13 @@
 
       subjectSelect.addEventListener('change', function() {
         loadHoursForSelectedSubject();
+        updateDeliveryMeta();
         checkEnableButton();
       });
 
       hourSelect.addEventListener('change', checkEnableButton);
       attendanceDate.addEventListener('change', checkEnableButton);
+      updateDeliveryMeta();
 
       attendanceDate.addEventListener('input', function() {
         const selectedDate = new Date(this.value);
