@@ -4,7 +4,7 @@
 
   <main class="page-content">
     <div class="container-fluid py-3">
-      <div class="card border-0 shadow-lg mb-4" style="background: linear-gradient(120deg, #0f766e 0%, #1d4ed8 100%);">
+      <div class="card border-0 shadow-lg mb-4" style="background: linear-gradient(120deg, #bfe6f1 0%, #1d4ed8 100%);">
         <div class="card-body text-white py-4">
           <h3 class="mb-1">Mentoring Monitor</h3>
           <p class="mb-0 opacity-75">Principal view-only panel for mentoring sessions, enrollments, and attendance trends.</p>

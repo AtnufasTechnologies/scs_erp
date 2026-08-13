@@ -32,7 +32,9 @@ use App\Models\NationalityMaster;
 use App\Models\BloodGroupMaster;
 use App\Models\ProgramCourseMaster;
 use App\Models\Subject;
+use App\Models\SubjectCourseMaster;
 use App\Models\CoHasCso;
+use App\Models\SubjectFacultyMaster;
 use App\Models\SyllabusManager;
 use App\Models\ExamSystem\ExamStudent;
 use App\Models\ExamSystem\Result;
@@ -48,6 +50,12 @@ use App\Models\SpecializationMaster;
 use App\Models\ShiftMaster;
 use App\Models\StudentProgram;
 use App\Models\SubjectHasStudentProgam;
+use App\Models\TeachingAssignment;
+use App\Models\EcEvent;
+use App\Models\EcProgram;
+use App\Models\EcFacultyDuty;
+use App\Models\EcFundTransaction;
+use App\Models\EcSponsor;
 use App\Services\StudentTimetableService;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
@@ -218,7 +226,7 @@ class PrincipalController extends Controller
       ->get(['id', 'subject_id', 'name'])
       ->groupBy('subject_id');
 
-    $allShifts = ShiftMaster::where('is_active', 1)->get(['id', 'title'])->keyBy('id');
+    $allShifts = ShiftMaster::orderBy('sort_order')->get(['id', 'title'])->keyBy('id');
 
     $subjectsOverview = $subjectsList->map(function ($subject) use ($allSpecializations, $allShifts) {
       $shiftIds = $subject->shift_ids;
@@ -242,6 +250,94 @@ class PrincipalController extends Controller
       return $subject;
     });
 
+    $departmentsQuery = DepartmentMaster::with('campusmaster:id,name')->orderBy('campus_id')->orderBy('name');
+    if ($isVicePrincipal && $vpCampusId) {
+      $departmentsQuery->where('campus_id', $vpCampusId);
+    }
+    $departments = $departmentsQuery->get(['id', 'name', 'campus_id']);
+
+    $departmentIds = $departments->pluck('id')->map(fn($id) => (int) $id)->filter(fn($id) => $id > 0)->values();
+    $facultyByDepartment = collect();
+    $shiftsByDepartment = collect();
+
+    if ($departmentIds->isNotEmpty()) {
+      $departmentFacultyLinks = SubjectFacultyMaster::with('faculty.hrDesignation:id,name')
+        ->whereIn('subject_id', $departmentIds)
+        ->get(['id', 'subject_id', 'faculty_id', 'access_id']);
+
+      $facultyByDepartment = $departmentFacultyLinks->groupBy('subject_id')->map(function ($links) {
+        return collect($links)->map(function ($link) {
+          return $link->faculty;
+        })->filter(function ($faculty) {
+          return $faculty && ((int) ($faculty->IS_LEFT ?? 0) === 0);
+        })->values();
+      });
+
+      $departmentSubjects = $departments->keyBy('id');
+
+      $shiftsByDepartment = $departmentSubjects->map(function ($subject) use ($allShifts) {
+        $shiftIds = collect();
+
+        $subjectShiftIds = $subject->shift_ids;
+        if (is_string($subjectShiftIds)) {
+          $subjectShiftIds = json_decode($subjectShiftIds, true) ?? [];
+        }
+
+        $shiftIds = $shiftIds->merge(array_filter((array) $subjectShiftIds, fn($id) => (int) $id > 0));
+
+        $shiftTitles = $shiftIds->unique()->values()->map(function ($shiftId) use ($allShifts) {
+          return (string) (optional($allShifts->get((int) $shiftId))->title ?? 'Common');
+        })->filter()->values();
+
+        return $shiftTitles->isNotEmpty() ? $shiftTitles : collect(['Common']);
+      });
+    }
+
+    $departmentSummaries = $departments->map(function ($department) use ($facultyByDepartment, $shiftsByDepartment) {
+      $departmentFaculties = collect($facultyByDepartment->get($department->id, collect()));
+
+      $incharge = $departmentFaculties->first(function ($faculty) {
+        $searchText = strtolower(trim((string) ($faculty->designation ?? '') . ' ' . (string) (optional($faculty->hrDesignation)->name ?? '') . ' ' . (string) ($faculty->responsibility ?? '')));
+        return str_contains($searchText, 'incharge') || str_contains($searchText, 'hod') || str_contains($searchText, 'head');
+      }) ?: $departmentFaculties->first();
+
+      $facultyList = $departmentFaculties->map(function ($faculty) {
+        $nameParts = array_filter([
+          trim((string) ($faculty->FIRST_NAME ?? '')),
+          trim((string) ($faculty->MIDDLE_NAME ?? '')),
+          trim((string) ($faculty->LAST_NAME ?? '')),
+        ]);
+
+        return [
+          'name' => trim(implode(' ', $nameParts)) ?: 'Unnamed',
+          'code' => (string) ($faculty->USER_CODE ?? ''),
+          'designation' => (string) (optional($faculty->hrDesignation)->name ?? ($faculty->designation ?? '')),
+        ];
+      })->values();
+
+      return (object) [
+        'id' => (int) $department->id,
+        'name' => (string) ($department->title ?? '-'),
+        'code' => (string) ($department->code ?? ''),
+        'campus_name' => (string) (optional($department->campusmaster)->name ?? '-'),
+        'incharge_name' => $incharge ? trim((string) implode(' ', array_filter([
+          $incharge->FIRST_NAME ?? '',
+          $incharge->MIDDLE_NAME ?? '',
+          $incharge->LAST_NAME ?? '',
+        ]))) : 'Not assigned',
+        'incharge_designation' => $incharge ? (string) (optional($incharge->hrDesignation)->name ?? ($incharge->designation ?? '')) : '',
+        'applicable_shifts' => collect($shiftsByDepartment->get($department->id, collect()))->values()->all(),
+        'faculties' => $facultyList,
+      ];
+    })->values();
+
+    $hoursByShift = HourMaster::with('shiftmaster:id,title')
+      ->where('status', 1)
+      ->orderBy('shift_id')
+      ->orderBy('hour_no')
+      ->get(['id', 'shift_id', 'hour_no', 'name', 'start_time', 'end_time', 'is_teaching', 'status'])
+      ->groupBy('shift_id');
+
     return view('principal.dashboard', compact(
       'campuses',
       'studentStats',
@@ -256,8 +352,697 @@ class PrincipalController extends Controller
       'totalDepartments',
       'totalPrograms',
       'programsOverview',
-      'subjectsOverview'
+      'subjectsOverview',
+      'departmentSummaries',
+      'hoursByShift',
+      'allShifts'
     ));
+  }
+
+  /**
+   * Principal academic departments listing with shift, incharge, and faculty drilldown.
+   */
+  public function subjects(Request $request)
+  {
+    $campuses = Campus::orderBy('name')->get(['id', 'name']);
+
+    $userRole = auth()->user()->userroletype->role_name ?? null;
+    $isVicePrincipal = $userRole === 'vice-principal';
+    $vpCampusId = null;
+
+    if ($isVicePrincipal) {
+      $vpCampusId = (int) UserCampusSetting::where('user_id', auth()->id())->value('campus_id');
+    }
+
+    $departmentsQuery = Subject::with('campusmaster:id,name')->orderBy('campus_id')->orderBy('title');
+    if ($isVicePrincipal && $vpCampusId) {
+      $departmentsQuery->where('campus_id', $vpCampusId);
+    }
+
+    $departments = $departmentsQuery->get(['id', 'campus_id', 'code', 'title', 'has_shift_delivery', 'shift_ids']);
+    $departmentIds = $departments->pluck('id')->map(fn($id) => (int) $id)->filter(fn($id) => $id > 0)->values();
+
+    $allShifts = ShiftMaster::orderBy('sort_order')->get(['id', 'title'])->keyBy('id');
+
+    $facultyByDepartment = collect();
+    $shiftsByDepartment = collect();
+
+    if ($departmentIds->isNotEmpty()) {
+      $departmentFacultyLinks = SubjectFacultyMaster::with('faculty.hrDesignation:id,name')
+        ->whereIn('subject_id', $departmentIds)
+        ->get(['id', 'subject_id', 'faculty_id', 'access_id']);
+
+      $facultyByDepartment = $departmentFacultyLinks->groupBy('subject_id')->map(function ($links) {
+        return collect($links)->map(function ($link) {
+          return $link->faculty;
+        })->filter(function ($faculty) {
+          return $faculty && ((int) ($faculty->IS_LEFT ?? 0) === 0);
+        })->values();
+      });
+
+      $shiftsByDepartment = $departments->keyBy('id')->map(function ($subject) use ($allShifts) {
+        $shiftIds = collect();
+        $subjectShiftIds = $subject->shift_ids;
+
+        if (is_string($subjectShiftIds)) {
+          $subjectShiftIds = json_decode($subjectShiftIds, true) ?? [];
+        }
+
+        $shiftIds = $shiftIds->merge(array_filter((array) $subjectShiftIds, fn($id) => (int) $id > 0));
+
+        $shiftTitles = $shiftIds->unique()->values()->map(function ($shiftId) use ($allShifts) {
+          return (string) (optional($allShifts->get((int) $shiftId))->title ?? 'Common');
+        })->filter()->values();
+
+        return $shiftTitles->isNotEmpty() ? $shiftTitles : collect(['Common']);
+      });
+    }
+
+    $departmentSummaries = $departments->map(function ($department) use ($facultyByDepartment, $shiftsByDepartment) {
+      $departmentFaculties = collect($facultyByDepartment->get($department->id, collect()));
+
+      $incharge = $departmentFaculties->first(function ($faculty) {
+        $searchText = strtolower(trim((string) ($faculty->designation ?? '') . ' ' . (string) (optional($faculty->hrDesignation)->name ?? '') . ' ' . (string) ($faculty->responsibility ?? '')));
+        return str_contains($searchText, 'incharge') || str_contains($searchText, 'hod') || str_contains($searchText, 'head');
+      }) ?: $departmentFaculties->first();
+
+      $facultyList = $departmentFaculties->map(function ($faculty) {
+        $nameParts = array_filter([
+          trim((string) ($faculty->FIRST_NAME ?? '')),
+          trim((string) ($faculty->MIDDLE_NAME ?? '')),
+          trim((string) ($faculty->LAST_NAME ?? '')),
+        ]);
+
+        return [
+          'name' => trim(implode(' ', $nameParts)) ?: 'Unnamed',
+          'code' => (string) ($faculty->USER_CODE ?? ''),
+          'designation' => (string) (optional($faculty->hrDesignation)->name ?? ($faculty->designation ?? '')),
+        ];
+      })->values();
+
+      return (object) [
+        'id' => (int) $department->id,
+        'name' => (string) ($department->title ?? '-'),
+        'code' => (string) ($department->code ?? ''),
+        'campus_name' => (string) (optional($department->campusmaster)->name ?? '-'),
+        'incharge_name' => $incharge ? trim((string) implode(' ', array_filter([
+          $incharge->FIRST_NAME ?? '',
+          $incharge->MIDDLE_NAME ?? '',
+          $incharge->LAST_NAME ?? '',
+        ]))) : 'Not assigned',
+        'incharge_designation' => $incharge ? (string) (optional($incharge->hrDesignation)->name ?? ($incharge->designation ?? '')) : '',
+        'applicable_shifts' => collect($shiftsByDepartment->get($department->id, collect()))->values()->all(),
+        'faculties' => $facultyList,
+      ];
+    })->values();
+
+    return view('principal.subjects.index', [
+      'campuses' => $campuses,
+      'departmentSummaries' => $departmentSummaries,
+      'isVicePrincipal' => $isVicePrincipal,
+    ]);
+  }
+
+  /**
+   * Principal view of Event Controller work and progress.
+   */
+  public function eventControllerWork(Request $request)
+  {
+    $status = trim((string) $request->query('status', ''));
+    $validStatuses = ['draft', 'active', 'completed', 'cancelled'];
+    if (!in_array($status, $validStatuses, true)) {
+      $status = '';
+    }
+
+    $eventsQuery = EcEvent::withCount(['programs', 'facultyDuties', 'sponsors'])
+      ->with('creator:id,name')
+      ->orderByDesc('start_date')
+      ->orderByDesc('id');
+
+    if ($status !== '') {
+      $eventsQuery->where('status', $status);
+    }
+
+    $events = $eventsQuery->paginate(12)->withQueryString();
+
+    $summary = [
+      'total_events' => EcEvent::count(),
+      'active_events' => EcEvent::where('status', 'active')->count(),
+      'completed_events' => EcEvent::where('status', 'completed')->count(),
+      'total_programs' => EcProgram::count(),
+      'upcoming_programs' => EcProgram::whereDate('program_date', '>=', today())
+        ->where('status', 'upcoming')
+        ->count(),
+      'total_faculty_duties' => EcFacultyDuty::count(),
+      'total_budget' => (float) EcEvent::sum('total_budget'),
+      'total_income' => (float) EcFundTransaction::where('type', 'income')->sum('amount'),
+      'total_expense' => (float) EcFundTransaction::where('type', 'expense')->sum('amount'),
+      'sponsorship_received' => (float) EcSponsor::where('status', 'received')->sum('received_amount'),
+    ];
+
+    $recentPrograms = EcProgram::with('event:id,title')
+      ->orderByDesc('program_date')
+      ->orderByDesc('id')
+      ->limit(8)
+      ->get(['id', 'event_id', 'name', 'program_date', 'venue', 'status', 'registration_fee']);
+
+    $recentDuties = EcFacultyDuty::with([
+      'event:id,title',
+      'program:id,name',
+      'faculty:id,FIRST_NAME,LAST_NAME,USER_CODE',
+    ])
+      ->orderByDesc('id')
+      ->limit(10)
+      ->get(['id', 'event_id', 'program_id', 'faculty_id', 'duty_title', 'status']);
+
+    return view('principal.events.index', [
+      'events' => $events,
+      'summary' => $summary,
+      'recentPrograms' => $recentPrograms,
+      'recentDuties' => $recentDuties,
+      'selectedStatus' => $status,
+      'validStatuses' => $validStatuses,
+    ]);
+  }
+
+  /**
+   * Program-wise curriculum overview for principal/vice-principal.
+   */
+  public function curriculamProgramWise(Request $request)
+  {
+    $campuses = Campus::orderBy('name')->get(['id', 'name']);
+    $batches = BatchMaster::orderByDesc('id')->get(['id', 'batch_name']);
+
+    $userRole = auth()->user()->userroletype->role_name ?? null;
+    $isVicePrincipal = $userRole === 'vice-principal';
+
+    $selectedCampusId = (int) $request->query('campus_id', 0);
+    $selectedBatchId = (int) $request->query('batch_id', 0);
+    $selectedSubjectId = (int) $request->query('subject_id', 0);
+
+    if ($isVicePrincipal) {
+      $vpCampusId = (int) UserCampusSetting::where('user_id', auth()->id())->value('campus_id');
+      if ($vpCampusId > 0) {
+        $selectedCampusId = $vpCampusId;
+      }
+    }
+
+    $integratedProgramIds = collect();
+    if (Schema::hasTable('integrated_program_sublayer_settings')) {
+      $integratedProgramIds = DB::table('integrated_program_sublayer_settings')
+        ->where('is_active', 1)
+        ->pluck('student_program_id')
+        ->map(fn($id) => (int) $id)
+        ->filter(fn($id) => $id > 0)
+        ->unique()
+        ->values();
+    }
+
+    $combinationQuery = SubjectHasStudentProgam::with([
+      'batchmaster:id,batch_name',
+      'subjectmaster:id,title,code',
+      'studentprograminfo:id,code,name,campus_id,program_type',
+      'studentprograminfo.campusmaster:id,name',
+      'studentprograminfo.programtypemaster:id,name',
+    ])
+      ->orderBy('student_program_id')
+      ->orderBy('batch_id');
+
+    if ($selectedCampusId > 0) {
+      $combinationQuery->where('campus_id', $selectedCampusId);
+    }
+
+    if ($selectedBatchId > 0) {
+      $combinationQuery->where('batch_id', $selectedBatchId);
+    }
+
+    if ($integratedProgramIds->isNotEmpty()) {
+      $combinationQuery->whereNotIn('student_program_id', $integratedProgramIds->all());
+    }
+
+    $subjectFilterIds = SubjectHasStudentProgam::query()
+      ->when($selectedCampusId > 0, fn($query) => $query->where('campus_id', $selectedCampusId))
+      ->when($selectedBatchId > 0, fn($query) => $query->where('batch_id', $selectedBatchId))
+      ->when($integratedProgramIds->isNotEmpty(), fn($query) => $query->whereNotIn('student_program_id', $integratedProgramIds->all()))
+      ->pluck('subject_id')
+      ->map(fn($id) => (int) $id)
+      ->filter(fn($id) => $id > 0)
+      ->unique()
+      ->values();
+
+    $subjects = Subject::query()
+      ->when($subjectFilterIds->isNotEmpty(), fn($query) => $query->whereIn('id', $subjectFilterIds->all()))
+      ->orderBy('title')
+      ->get(['id', 'title', 'code']);
+
+    if ($selectedSubjectId > 0) {
+      $combinationQuery->where('subject_id', $selectedSubjectId);
+    }
+
+    $combinations = $combinationQuery->get([
+      'id',
+      'student_program_id',
+      'subject_id',
+      'batch_id',
+      'campus_id',
+      'program_type',
+    ]);
+
+    $combinationIds = $combinations->pluck('id')->map(fn($id) => (int) $id)->filter(fn($id) => $id > 0)->values();
+    $subjectIds = $combinations->pluck('subject_id')->map(fn($id) => (int) $id)->filter(fn($id) => $id > 0)->unique()->values();
+
+    $programIds = $combinations->pluck('student_program_id')->map(fn($id) => (int) $id)->filter(fn($id) => $id > 0)->unique()->values();
+    $batchIds = $combinations->pluck('batch_id')->map(fn($id) => (int) $id)->filter(fn($id) => $id > 0)->unique()->values();
+
+    $enrolledProgramBatchKeyMap = collect();
+    if ($programIds->isNotEmpty() && $batchIds->isNotEmpty()) {
+      $enrolledStudentsQuery = StudentMaster::query()
+        ->whereIn('new_program_id', $programIds->all())
+        ->whereIn('batch', $batchIds->all());
+
+      if ($selectedCampusId > 0 && Schema::hasColumn((new StudentMaster())->getTable(), 'campus_id')) {
+        $enrolledStudentsQuery->where('campus_id', $selectedCampusId);
+      }
+
+      $enrolledProgramBatchKeyMap = $enrolledStudentsQuery
+        ->get(['new_program_id', 'batch'])
+        ->map(function ($student) {
+          return (int) ($student->new_program_id ?? 0) . '|' . (int) ($student->batch ?? 0);
+        })
+        ->filter()
+        ->unique()
+        ->flip();
+    }
+
+    $enrolledCombinations = $combinations->filter(function ($combination) use ($enrolledProgramBatchKeyMap) {
+      if ($enrolledProgramBatchKeyMap->isEmpty()) {
+        return false;
+      }
+
+      $key = (int) ($combination->student_program_id ?? 0) . '|' . (int) ($combination->batch_id ?? 0);
+      return $enrolledProgramBatchKeyMap->has($key);
+    })->values();
+
+    $batchWiseCombinationCounts = $enrolledCombinations
+      ->groupBy(fn($combination) => (int) ($combination->batch_id ?? 0))
+      ->map(function ($batchCombinations) {
+        $batchCombinations = collect($batchCombinations)->values();
+        $firstCombination = $batchCombinations->first();
+
+        return (object) [
+          'batch_id' => (int) ($firstCombination->batch_id ?? 0),
+          'batch_name' => (string) (optional($firstCombination?->batchmaster)->batch_name ?? '-'),
+          'combination_count' => $batchCombinations->count(),
+          'department_count' => $batchCombinations->pluck('subject_id')->map(fn($id) => (int) $id)->filter(fn($id) => $id > 0)->unique()->count(),
+        ];
+      })
+      ->sortBy('batch_id')
+      ->values();
+
+    $curriculumRowsByCombination = collect();
+    $assignmentsBySubjectCourse = collect();
+
+    if ($combinationIds->isNotEmpty()) {
+      $curriculumTable = (new ProgramWiseSemesterCourse())->getTable();
+      $hasIsActiveColumn = Schema::hasColumn($curriculumTable, 'is_active');
+      $hasDisplayOrderColumn = Schema::hasColumn($curriculumTable, 'display_order');
+
+      $curriculumQuery = ProgramWiseSemesterCourse::with([
+        'programinfo:id,course_code,course_title,course_type',
+        'programinfo.coursetypemaster:id,title',
+        'academicpathway:id,name',
+        'degreetrack:id,name',
+      ])
+        ->whereIn('program_combo_refid', $combinationIds)
+        ->orderBy('semester');
+
+      if ($hasDisplayOrderColumn) {
+        $curriculumQuery->orderBy('display_order');
+      }
+
+      if ($hasIsActiveColumn) {
+        $curriculumQuery->where('is_active', 1);
+      }
+
+      $curriculumRows = $curriculumQuery->get([
+        'program_combo_refid',
+        'course_id',
+        'semester',
+        'course_type',
+        'delivery_category',
+        'academic_pathway_id',
+        'degree_track_id',
+      ]);
+
+      $curriculumRowsByCombination = $curriculumRows->groupBy(function ($row) {
+        return (int) ($row->program_combo_refid ?? 0);
+      });
+
+      $courseIds = $curriculumRows->pluck('course_id')
+        ->map(fn($id) => (int) $id)
+        ->filter(fn($id) => $id > 0)
+        ->unique()
+        ->values();
+
+      if ($courseIds->isNotEmpty()) {
+        $teachingAssignmentQuery = TeachingAssignment::with([
+          'faculty:id,USER_CODE,FIRST_NAME,LAST_NAME',
+          'coFacultyMembers:id,USER_CODE,FIRST_NAME,LAST_NAME',
+        ])
+          ->whereIn('course_id', $courseIds)
+          ->when($subjectIds->isNotEmpty(), function ($query) use ($subjectIds) {
+            $query->whereIn('subject_id', $subjectIds);
+          });
+
+        $teachingAssignmentTable = (new TeachingAssignment())->getTable();
+        if (Schema::hasColumn($teachingAssignmentTable, 'is_active')) {
+          $teachingAssignmentQuery->where('is_active', 1);
+        }
+
+        $teachingAssignments = $teachingAssignmentQuery->get([
+          'id',
+          'subject_id',
+          'course_id',
+          'faculty_id',
+          'delivery_type',
+          'allocation_group',
+          'is_active',
+        ]);
+
+        $assignmentsBySubjectCourse = $teachingAssignments->groupBy(function ($assignment) {
+          return (int) ($assignment->subject_id ?? 0) . '|' . (int) ($assignment->course_id ?? 0);
+        });
+      }
+    }
+
+    $combinationsByProgram = $combinations->groupBy('student_program_id');
+
+    $programRows = $combinationsByProgram->map(function ($programCombinations) use ($curriculumRowsByCombination, $assignmentsBySubjectCourse) {
+      $programCombinations = collect($programCombinations)->values();
+      $firstCombination = $programCombinations->first();
+      $programInfo = $firstCombination ? $firstCombination->studentprograminfo : null;
+
+      $combinationDetails = $programCombinations->map(function ($combination) use ($curriculumRowsByCombination, $assignmentsBySubjectCourse) {
+        $subjectId = (int) ($combination->subject_id ?? 0);
+        $curriculumRows = collect($curriculumRowsByCombination->get((int) $combination->id, collect()));
+
+        $curriculumCourses = $curriculumRows->map(function ($row) use ($subjectId, $assignmentsBySubjectCourse) {
+          $courseId = (int) ($row->course_id ?? 0);
+          $deliveryType = strtoupper(trim((string) ($row->delivery_category ?? $row->course_type ?? '-')));
+          $courseTypeFromRelation = trim((string) (optional(optional($row->programinfo)->coursetypemaster)->title ?? ''));
+          $courseTypeFallback = trim((string) ($row->course_type ?? '-'));
+          $subjectCourseKey = $subjectId . '|' . $courseId;
+          $matchingAssignments = collect($assignmentsBySubjectCourse->get($subjectCourseKey, collect()));
+
+          $normalizedDeliveryType = preg_replace('/[^A-Z0-9]/', '', $deliveryType);
+          if ($matchingAssignments->isNotEmpty() && $normalizedDeliveryType !== '') {
+            $deliveryMatchedAssignments = $matchingAssignments->filter(function ($assignment) use ($normalizedDeliveryType) {
+              $assignmentDelivery = strtoupper(trim((string) ($assignment->delivery_type ?? '')));
+              $normalizedAssignmentDelivery = preg_replace('/[^A-Z0-9]/', '', $assignmentDelivery);
+              return $normalizedAssignmentDelivery === $normalizedDeliveryType;
+            });
+
+            if ($deliveryMatchedAssignments->isNotEmpty()) {
+              $matchingAssignments = $deliveryMatchedAssignments;
+            }
+          }
+
+          $assignedFaculty = $matchingAssignments->map(function ($assignment) {
+            $primaryName = trim((string) (optional($assignment->faculty)->FIRST_NAME ?? '') . ' ' . (string) (optional($assignment->faculty)->LAST_NAME ?? ''));
+            $primaryCode = trim((string) (optional($assignment->faculty)->USER_CODE ?? ''));
+            $primaryLabel = trim(($primaryCode !== '' ? $primaryCode . ' - ' : '') . $primaryName);
+
+            $coFacultyLabels = collect($assignment->coFacultyMembers ?? [])
+              ->map(function ($faculty) {
+                $name = trim((string) ($faculty->FIRST_NAME ?? '') . ' ' . (string) ($faculty->LAST_NAME ?? ''));
+                $code = trim((string) ($faculty->USER_CODE ?? ''));
+                return trim(($code !== '' ? $code . ' - ' : '') . $name);
+              })
+              ->filter()
+              ->values();
+
+            if ($primaryLabel === '' && $coFacultyLabels->isEmpty()) {
+              return 'Not assigned yet';
+            }
+
+            if ($coFacultyLabels->isEmpty()) {
+              return $primaryLabel;
+            }
+
+            return ($primaryLabel !== '' ? $primaryLabel : 'Primary not set') . ' | Co: ' . $coFacultyLabels->implode(', ');
+          })
+            ->filter()
+            ->unique()
+            ->values();
+
+          return [
+            'semester' => (int) ($row->semester ?? 0),
+            'course_code' => (string) (optional($row->programinfo)->course_code ?? '-'),
+            'course_title' => (string) (optional($row->programinfo)->course_title ?? '-'),
+            'course_type' => (string) ($courseTypeFromRelation !== '' ? $courseTypeFromRelation : ($courseTypeFallback !== '' ? $courseTypeFallback : '-')),
+            'academic_pathway' => (string) (optional($row->academicpathway)->name ?? 'All Pathways'),
+            'degree_track' => (string) (optional($row->degreetrack)->name ?? 'All Tracks'),
+            'delivery_type' => $deliveryType !== '' ? $deliveryType : '-',
+            'assigned_faculty' => $assignedFaculty->isNotEmpty() ? $assignedFaculty->implode('; ') : 'Not assigned yet',
+          ];
+        })
+          ->sortBy([
+            ['semester', 'asc'],
+            ['course_code', 'asc'],
+          ])
+          ->values();
+
+        return (object) [
+          'combination_id' => (int) $combination->id,
+          'batch_name' => (string) (optional($combination->batchmaster)->batch_name ?? '-'),
+          'subject_code' => (string) (optional($combination->subjectmaster)->code ?? ''),
+          'subject_name' => (string) (optional($combination->subjectmaster)->title ?? '-'),
+          'program_type' => (string) ($combination->program_type ?? ''),
+          'curriculum_courses' => $curriculumCourses,
+          'curriculum_count' => $curriculumCourses->count(),
+        ];
+      })->values();
+
+      return (object) [
+        'program_id' => (int) ($firstCombination->student_program_id ?? 0),
+        'program_code' => (string) (optional($programInfo)->code ?? '-'),
+        'program_name' => (string) (optional($programInfo)->name ?? '-'),
+        'campus_name' => (string) (optional(optional($programInfo)->campusmaster)->name ?? '-'),
+        'program_type_name' => (string) (optional(optional($programInfo)->programtypemaster)->name ?? strtoupper((string) ($firstCombination->program_type ?? ''))),
+        'combinations' => $combinationDetails,
+        'combination_count' => $combinationDetails->count(),
+        'curriculum_count' => $combinationDetails->sum('curriculum_count'),
+      ];
+    })->filter(function ($row) {
+      return $row->combination_count > 0;
+    })->values();
+
+    $combinationsWithCurriculum = $curriculumRowsByCombination
+      ->filter(fn($rows) => collect($rows)->isNotEmpty())
+      ->count();
+
+    $totalCombinations = $combinations->count();
+    $curriculumSummary = (object) [
+      'total_departments' => $subjectIds->count(),
+      'total_combinations' => $totalCombinations,
+      'combinations_with_curriculum' => $combinationsWithCurriculum,
+      'combinations_without_curriculum' => max(0, $totalCombinations - $combinationsWithCurriculum),
+      'curriculum_source_table' => Schema::hasTable('curriculam_engine') ? 'curriculam_engine' : 'program_wise_semester_courses',
+      'curriculum_records_found' => $curriculumRowsByCombination->flatten(1)->count() > 0,
+    ];
+
+    return view('principal.curriculam.index', [
+      'campuses' => $campuses,
+      'batches' => $batches,
+      'subjects' => $subjects,
+      'selectedCampusId' => $selectedCampusId,
+      'selectedBatchId' => $selectedBatchId,
+      'selectedSubjectId' => $selectedSubjectId,
+      'programRows' => $programRows,
+      'isVicePrincipal' => $isVicePrincipal,
+      'batchWiseCombinationCounts' => $batchWiseCombinationCounts,
+      'curriculumSummary' => $curriculumSummary,
+      'integratedProgramsExcluded' => $integratedProgramIds->isNotEmpty(),
+      'integratedProgramCount' => $integratedProgramIds->count(),
+    ]);
+  }
+
+  /**
+   * Defaulter list for program combinations with no curriculum created.
+   */
+  public function curriculamDefaulters(Request $request)
+  {
+    $campuses = Campus::orderBy('name')->get(['id', 'name']);
+    $batches = BatchMaster::orderByDesc('id')->get(['id', 'batch_name']);
+
+    $userRole = auth()->user()->userroletype->role_name ?? null;
+    $isVicePrincipal = $userRole === 'vice-principal';
+
+    $selectedCampusId = (int) $request->query('campus_id', 0);
+    $selectedBatchId = (int) $request->query('batch_id', 0);
+    $selectedSubjectId = (int) $request->query('subject_id', 0);
+
+    if ($isVicePrincipal) {
+      $vpCampusId = (int) UserCampusSetting::where('user_id', auth()->id())->value('campus_id');
+      if ($vpCampusId > 0) {
+        $selectedCampusId = $vpCampusId;
+      }
+    }
+
+    $integratedProgramIds = collect();
+    if (Schema::hasTable('integrated_program_sublayer_settings')) {
+      $integratedProgramIds = DB::table('integrated_program_sublayer_settings')
+        ->where('is_active', 1)
+        ->pluck('student_program_id')
+        ->map(fn($id) => (int) $id)
+        ->filter(fn($id) => $id > 0)
+        ->unique()
+        ->values();
+    }
+
+    $combinationQuery = SubjectHasStudentProgam::with([
+      'batchmaster:id,batch_name',
+      'subjectmaster:id,title,code',
+      'studentprograminfo:id,code,name,campus_id,program_type',
+      'studentprograminfo.campusmaster:id,name',
+      'studentprograminfo.programtypemaster:id,name',
+    ]);
+
+    if ($selectedCampusId > 0) {
+      $combinationQuery->where('campus_id', $selectedCampusId);
+    }
+
+    if ($selectedBatchId > 0) {
+      $combinationQuery->where('batch_id', $selectedBatchId);
+    }
+
+    if ($integratedProgramIds->isNotEmpty()) {
+      $combinationQuery->whereNotIn('student_program_id', $integratedProgramIds->all());
+    }
+
+    $subjectFilterIds = SubjectHasStudentProgam::query()
+      ->when($selectedCampusId > 0, fn($query) => $query->where('campus_id', $selectedCampusId))
+      ->when($selectedBatchId > 0, fn($query) => $query->where('batch_id', $selectedBatchId))
+      ->when($integratedProgramIds->isNotEmpty(), fn($query) => $query->whereNotIn('student_program_id', $integratedProgramIds->all()))
+      ->pluck('subject_id')
+      ->map(fn($id) => (int) $id)
+      ->filter(fn($id) => $id > 0)
+      ->unique()
+      ->values();
+
+    $subjects = Subject::query()
+      ->when($subjectFilterIds->isNotEmpty(), fn($query) => $query->whereIn('id', $subjectFilterIds->all()))
+      ->orderBy('title')
+      ->get(['id', 'title', 'code']);
+
+    if ($selectedSubjectId > 0) {
+      $combinationQuery->where('subject_id', $selectedSubjectId);
+    }
+
+    $combinations = $combinationQuery
+      ->orderBy('student_program_id')
+      ->orderBy('batch_id')
+      ->get(['id', 'student_program_id', 'subject_id', 'batch_id', 'campus_id', 'program_type']);
+
+    $programIds = $combinations->pluck('student_program_id')->map(fn($id) => (int) $id)->filter(fn($id) => $id > 0)->unique()->values();
+    $batchIds = $combinations->pluck('batch_id')->map(fn($id) => (int) $id)->filter(fn($id) => $id > 0)->unique()->values();
+
+    $enrolledProgramBatchKeyMap = collect();
+    if ($programIds->isNotEmpty() && $batchIds->isNotEmpty()) {
+      $enrolledStudentsQuery = StudentMaster::query()
+        ->whereIn('new_program_id', $programIds->all())
+        ->whereIn('batch', $batchIds->all());
+
+      if ($selectedCampusId > 0 && Schema::hasColumn((new StudentMaster())->getTable(), 'campus_id')) {
+        $enrolledStudentsQuery->where('campus_id', $selectedCampusId);
+      }
+
+      $enrolledProgramBatchKeyMap = $enrolledStudentsQuery
+        ->get(['new_program_id', 'batch'])
+        ->map(function ($student) {
+          return (int) ($student->new_program_id ?? 0) . '|' . (int) ($student->batch ?? 0);
+        })
+        ->filter()
+        ->unique()
+        ->flip();
+    }
+
+    $combinations = $combinations->filter(function ($combination) use ($enrolledProgramBatchKeyMap) {
+      if ($enrolledProgramBatchKeyMap->isEmpty()) {
+        return false;
+      }
+
+      $key = (int) ($combination->student_program_id ?? 0) . '|' . (int) ($combination->batch_id ?? 0);
+      return $enrolledProgramBatchKeyMap->has($key);
+    })->values();
+
+    $combinationIds = $combinations->pluck('id')->map(fn($id) => (int) $id)->filter(fn($id) => $id > 0)->values();
+    $subjectIds = $combinations->pluck('subject_id')->map(fn($id) => (int) $id)->filter(fn($id) => $id > 0)->unique()->values();
+
+    $curriculumCounts = collect();
+    $curriculumRowsByCombination = collect();
+    if ($combinationIds->isNotEmpty()) {
+      $curriculumTable = (new ProgramWiseSemesterCourse())->getTable();
+      $curriculumQuery = ProgramWiseSemesterCourse::with('programinfo:id,course_code,course_title')->whereIn('program_combo_refid', $combinationIds);
+
+      if (Schema::hasColumn($curriculumTable, 'is_active')) {
+        $curriculumQuery->where('is_active', 1);
+      }
+
+      $curriculumRows = $curriculumQuery
+        ->get(['program_combo_refid', 'course_id', 'semester', 'course_type', 'delivery_category'])
+        ->sortBy([
+          ['semester', 'asc'],
+          ['course_id', 'asc'],
+        ])
+        ->values();
+
+      $curriculumRowsByCombination = $curriculumRows->groupBy(function ($row) {
+        return (int) ($row->program_combo_refid ?? 0);
+      });
+
+      $curriculumCounts = $curriculumRows->groupBy('program_combo_refid')->map->count();
+    }
+
+    $defaulters = $combinations->filter(function ($combination) use ($curriculumCounts) {
+      return (int) ($curriculumCounts[$combination->id] ?? 0) <= 0;
+    })->unique(function ($combination) {
+      return implode('|', [
+        (int) ($combination->student_program_id ?? 0),
+        (int) ($combination->subject_id ?? 0),
+        (int) ($combination->batch_id ?? 0),
+        (int) ($combination->campus_id ?? 0),
+        strtoupper(trim((string) ($combination->program_type ?? ''))),
+      ]);
+    })->map(function ($combination) {
+      $programInfo = $combination->studentprograminfo;
+      $subject = $combination->subjectmaster;
+
+      return (object) [
+        'combination_id' => (int) $combination->id,
+        'program_name' => (string) (optional($programInfo)->name ?? '-'),
+        'program_code' => (string) (optional($programInfo)->code ?? '-'),
+        'subject_name' => (string) (optional($subject)->title ?? '-'),
+        'subject_code' => (string) (optional($subject)->code ?? ''),
+        'batch_name' => (string) (optional($combination->batchmaster)->batch_name ?? '-'),
+        'campus_name' => (string) (optional(optional($programInfo)->campusmaster)->name ?? '-'),
+        'program_type_name' => (string) (optional(optional($programInfo)->programtypemaster)->name ?? strtoupper((string) ($combination->program_type ?? ''))),
+      ];
+    })->values();
+
+    return view('principal.curriculam.defaulters', [
+      'campuses' => $campuses,
+      'batches' => $batches,
+      'subjects' => $subjects,
+      'selectedCampusId' => $selectedCampusId,
+      'selectedBatchId' => $selectedBatchId,
+      'selectedSubjectId' => $selectedSubjectId,
+      'programRows' => $defaulters,
+      'isVicePrincipal' => $isVicePrincipal,
+      'totalDefaulters' => $defaulters->count(),
+      'integratedProgramsExcluded' => $integratedProgramIds->isNotEmpty(),
+      'integratedProgramCount' => $integratedProgramIds->count(),
+    ]);
   }
 
   /**
@@ -946,6 +1731,67 @@ class PrincipalController extends Controller
     $selectedSemester = $request->semester_id;
     $selectedAcademicYear = $request->academic_year;
 
+    $syllabiWithDeclaration = $syllabi->filter(function ($syl) {
+      return (bool) (optional($syl->courseLink)->co_cso_not_applicable ?? false);
+    })->values();
+
+    $declaredUniqueCourses = $syllabiWithDeclaration
+      ->groupBy(function ($syl) {
+        return (int) ($syl->subject_id ?? 0) . '|' . (int) ($syl->course_id ?? 0);
+      })
+      ->map(function ($items) {
+        return collect($items)->first();
+      })
+      ->values();
+
+    $declaredTotal = $declaredUniqueCourses->count();
+    $totalUniqueCourses = $syllabi
+      ->groupBy(function ($syl) {
+        return (int) ($syl->subject_id ?? 0) . '|' . (int) ($syl->course_id ?? 0);
+      })
+      ->count();
+
+    $declarationRate = $totalUniqueCourses > 0
+      ? round(($declaredTotal / $totalUniqueCourses) * 100, 1)
+      : 0;
+
+    $declarationReasons = $declaredUniqueCourses
+      ->map(function ($syl) {
+        $reason = trim((string) (optional($syl->courseLink)->co_cso_not_applicable_note ?? ''));
+        return $reason !== '' ? $reason : 'No reason provided';
+      })
+      ->groupBy(fn($reason) => $reason)
+      ->map(fn($items, $reason) => [
+        'reason' => (string) $reason,
+        'count' => collect($items)->count(),
+      ])
+      ->values()
+      ->sortByDesc('count')
+      ->values();
+
+    $declaredWithReason = $declaredUniqueCourses->filter(function ($syl) {
+      return trim((string) (optional($syl->courseLink)->co_cso_not_applicable_note ?? '')) !== '';
+    })->count();
+
+    $declaredWithoutReason = max(0, $declaredTotal - $declaredWithReason);
+
+    $declarationByDepartment = $declaredUniqueCourses
+      ->groupBy(function ($syl) {
+        return (int) ($syl->subject_id ?? 0);
+      })
+      ->map(function ($items, $subjectId) {
+        $items = collect($items)->values();
+        $first = $items->first();
+        return [
+          'subject_id' => (int) $subjectId,
+          'subject_name' => (string) (optional($first?->subject)->title ?? '-'),
+          'count' => $items->count(),
+        ];
+      })
+      ->values()
+      ->sortByDesc('count')
+      ->values();
+
     return view('principal.courses.index', compact(
       'syllabi',
       'campuses',
@@ -955,7 +1801,14 @@ class PrincipalController extends Controller
       'selectedCampus',
       'selectedDepartment',
       'selectedSemester',
-      'selectedAcademicYear'
+      'selectedAcademicYear',
+      'declaredTotal',
+      'totalUniqueCourses',
+      'declarationRate',
+      'declarationReasons',
+      'declaredWithReason',
+      'declaredWithoutReason',
+      'declarationByDepartment'
     ));
   }
 

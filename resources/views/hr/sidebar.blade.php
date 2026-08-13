@@ -120,12 +120,6 @@
       </a>
     </li>
     <li>
-      <a href="{{ route('hr.api-scores.create') }}">
-        <div class="parent-icon"><i class="fas fa-plus-circle"></i></div>
-        <div class="menu-title">Add API Score</div>
-      </a>
-    </li>
-    <li>
       <a href="{{ route('hr.api-scores.reports') }}">
         <div class="parent-icon"><i class="fas fa-chart-line"></i></div>
         <div class="menu-title">API Reports</div>
@@ -135,6 +129,18 @@
       <a href="{{ route('hr.api-scores.academic-years') }}">
         <div class="parent-icon"><i class="fas fa-calendar"></i></div>
         <div class="menu-title">Academic Years</div>
+      </a>
+    </li>
+    <li>
+      <a href="{{ route('hr.api-metrix.index') }}">
+        <div class="parent-icon"><i class="fas fa-sliders-h"></i></div>
+        <div class="menu-title">API Metrix Categories</div>
+      </a>
+    </li>
+    <li>
+      <a href="{{ route('hr.api-metrix.create') }}">
+        <div class="parent-icon"><i class="fas fa-plus-square"></i></div>
+        <div class="menu-title">Create API Metrix</div>
       </a>
     </li>
 

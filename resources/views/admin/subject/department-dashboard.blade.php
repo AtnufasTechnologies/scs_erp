@@ -12,6 +12,8 @@ use App\Models\SubjectHasRoutine;
 use App\Models\SpecializationMaster;
 use App\Models\ShiftMaster;
 use App\Models\Campus;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
 
 
 $batches = BatchMaster::latest()->get();
@@ -51,6 +53,17 @@ if (!empty($deptFacultyIds)) {
     ->pluck('faculty_id')
     ->map(fn($id) => (int) $id)
     ->all();
+}
+
+$integratedProgramIds = collect();
+if (Schema::hasTable('integrated_program_sublayer_settings')) {
+  $integratedProgramIds = DB::table('integrated_program_sublayer_settings')
+    ->where('is_active', 1)
+    ->pluck('student_program_id')
+    ->map(fn($id) => (int) $id)
+    ->filter(fn($id) => $id > 0)
+    ->unique()
+    ->values();
 }
 ?>
 @include('includes.header')
@@ -274,6 +287,11 @@ if (!empty($deptFacultyIds)) {
                 <a href="{{ route('department.timetable', [$data->id,$data->title]) }}" style="color: white; text-decoration: none;">Scheduler</a>
               </div>
               <div style="opacity: 0.9; font-size: 13px;">Manager →</div>
+              <div style="margin-top: 6px; font-size: 13px;">
+                <a href="{{ route('department.timetable.history', [$data->id]) }}" style="color: #fff3a3; text-decoration: none; font-weight: 700;">
+                  <i class="fa fa-history me-1"></i>Full History View
+                </a>
+              </div>
             </div>
             <div style="width: 56px; height: 56px; background: rgba(255, 255, 255, 0.2); border-radius: 14px; display: flex; align-items: center; justify-content: center;">
               <i class="fas fa-calendar-alt" style="font-size: 28px;"></i>
@@ -421,6 +439,7 @@ if (!empty($deptFacultyIds)) {
         @php
         $selectedSpecializationIds = collect($combination->specialization_ids ?? [])->map(fn($id) => (int) $id)->all();
         $connectedSpecializations = $specializations->whereIn('id', $selectedSpecializationIds);
+        $isIntegratedCombination = $integratedProgramIds->contains((int) ($combination->student_program_id ?? 0));
         @endphp
         <div class="col-12 col-md-6 col-xl-4">
           <div class="h-100" style="border: 1px solid #e5e7eb; border-radius: 16px; overflow: hidden; background: #fff; box-shadow: 0 10px 25px rgba(15, 23, 42, 0.06);">
@@ -435,7 +454,9 @@ if (!empty($deptFacultyIds)) {
             <div style="padding: 16px;">
               <div class="d-flex justify-content-between align-items-start gap-2 mb-3">
                 <div>
-                  <a href="{{ route('department.show.student.list', ['program_id' => $combination->studentprograminfo->id, 'slug' => $combination->studentprograminfo->name, 'batch_id' => $combination->batchmaster->id]) }}" style="font-size: 16px; font-weight: 700; color: #111827; text-decoration: none;">
+                  <a href="{{ $isIntegratedCombination
+                    ? route('department.integrated.program.student.mappings', ['combinationId' => $combination->id])
+                    : route('department.show.student.list', ['program_id' => $combination->studentprograminfo->id, 'slug' => $combination->studentprograminfo->name, 'batch_id' => $combination->batchmaster->id]) }}" style="font-size: 16px; font-weight: 700; color: #111827; text-decoration: none;">
                     {{ $combination->studentprograminfo->name ?? '-' }}
                   </a>
                   <div style="font-size: 12px; color: #6b7280; margin-top: 4px;">{{ $combination->batchmaster->batch_name ?? '-' }} | {{ $combination->shift ?? '-' }}</div>
@@ -467,23 +488,31 @@ if (!empty($deptFacultyIds)) {
               <div class="mb-3">
                 <div class="d-flex align-items-center justify-content-between mb-2">
                   <div style="font-size: 12px; color: #6b7280; font-weight: 600;">Specializations</div>
+                  @if(!$isIntegratedCombination)
                   <button type="button" class="btn btn-success btn-sm" data-bs-toggle="modal" data-bs-target="#addSpecialization{{ $combination->id }}" title="Connect Specializations">
                     <i class="fa fa-plus-circle"></i>
                   </button>
+                  @endif
                 </div>
                 <div class="d-flex align-items-center gap-2 flex-wrap">
+                  @if($isIntegratedCombination)
+                  <span class="badge badge-info">Managed in sublayer programs</span>
+                  @else
                   @forelse($connectedSpecializations as $specialization)
                   <span class="badge badge-warning">{{ $specialization->name }}</span>
                   @empty
                   <span class="badge badge-dark">No specialization</span>
                   @endforelse
+                  @endif
                 </div>
               </div>
 
               <div class="d-flex align-items-center gap-2 flex-wrap">
+                @if(!$isIntegratedCombination)
                 <a href="{{ route('curriculam.builder.engine', [$combination->id, $combination->studentprograminfo->code]) }}" class="btn btn-sm btn-dark">
                   <i class="fas fa-drafting-compass me-1"></i>Curriculam Engine
                 </a>
+                @endif
 
                 <button type="button" class="btn btn-sm btn-primary" data-bs-toggle="modal" data-bs-target="#edit{{ $combination->id }}">
                   <i class="fa fa-edit me-1"></i>Edit
@@ -501,6 +530,7 @@ if (!empty($deptFacultyIds)) {
           </div>
         </div>
 
+        @if(!$isIntegratedCombination)
         <div class="modal fade" id="addSpecialization{{ $combination->id }}" tabindex="-1" aria-labelledby="addSpecializationLabel{{ $combination->id }}" aria-hidden="true">
           <div class="modal-dialog">
             <div class="modal-content">
@@ -529,6 +559,7 @@ if (!empty($deptFacultyIds)) {
             </div>
           </div>
         </div>
+        @endif
 
         <div class="modal fade" id="edit{{ $combination->id }}" tabindex="-1" aria-labelledby="editModalLabel{{ $combination->id }}" aria-hidden="true">
           <div class="modal-dialog">

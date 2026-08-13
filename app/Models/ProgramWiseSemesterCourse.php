@@ -70,6 +70,16 @@ class ProgramWiseSemesterCourse extends Model
         return $this->hasOne(ProgramCourseMaster::class, 'id', 'course_id');
     }
 
+    function academicpathway()
+    {
+        return $this->hasOne(AcademicPathwayMaster::class, 'id', 'academic_pathway_id');
+    }
+
+    function degreetrack()
+    {
+        return $this->hasOne(DegreeTrackMaster::class, 'id', 'degree_track_id');
+    }
+
     function specializationmaster()
     {
         return $this->hasOne(SpecializationMaster::class, 'id', 'specialization_master_id');

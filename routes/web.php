@@ -7,6 +7,7 @@ use App\Faculty\Http\Controllers\WorkDiaryController as WorkDiaryController;
 use App\Faculty\Http\Controllers\FacultyLeaveController;
 use App\Faculty\Http\Controllers\InternalMarksController;
 use App\Faculty\Http\Controllers\MentorshipController;
+use App\Faculty\Http\Controllers\QuizController as FacultyQuizController;
 use App\Faculty\Http\Controllers\PayrollController as FacultyPayrollController;
 use App\Faculty\Http\Controllers\RequestApplicationController as FacultyRequestApplicationController;
 use App\Http\Controllers\AccessController;
@@ -42,6 +43,7 @@ use App\Http\Controllers\StudentResultController;
 use App\Http\Controllers\InvigilationDutyController;
 use App\Http\Controllers\LoginController;
 use App\Http\Controllers\StudentAuthController;
+use App\Http\Controllers\StudentQuizController;
 use App\Http\Controllers\ModerationDutyController;
 use App\Http\Controllers\PaymentBatchController;
 use App\Http\Controllers\PrincipalController;
@@ -60,6 +62,7 @@ use App\Http\Controllers\HrPayMatrixController;
 use App\Http\Controllers\HrPayrollController;
 use App\Http\Controllers\HrDesignationController;
 use App\Http\Controllers\HrGradeLevelController;
+use App\Http\Controllers\HrApiMetrixController;
 use App\Http\Controllers\Hr\ApiScoreController;
 use App\Http\Controllers\SyllabusPdfController;
 use App\Http\Controllers\SubjectController;
@@ -68,6 +71,7 @@ use App\Http\Controllers\StudentAttendanceScanController;
 use App\Http\Controllers\TestController;
 use App\Http\Controllers\TimetableController;
 use App\Http\Controllers\ITCellController;
+use App\Http\Controllers\TrainingPlacementController;
 use App\Http\Controllers\Dean\AttendanceMonitoringController as DeanAttendanceMonitoringController;
 use App\Http\Controllers\Dean\AttendanceRegularizationController as DeanAttendanceRegularizationController;
 use App\Http\Controllers\Dean\ClubsController as DeanClubsController;
@@ -79,6 +83,7 @@ use App\Http\Controllers\Dean\MentoringDashboardController as DeanMentoringDashb
 use App\Http\Controllers\Dean\ReportsController as DeanReportsController;
 use App\Http\Controllers\Dean\Student360Controller as DeanStudent360Controller;
 use App\Http\Controllers\Dean\StudentCouncilController as DeanStudentCouncilController;
+use App\Http\Controllers\DeanOffice\DashboardController as DeanOfficeDashboardController;
 use App\Models\Department;
 use App\Models\User;
 use App\Models\UserType;
@@ -124,6 +129,8 @@ Route::group(['prefix' => '/erp'], function () {
         Route::get('student-search', [AdminController::class, 'searchStudents'])->name('admin.student.search');
         Route::get('faculty-master', [AdminController::class, 'facultyMaster']);
         Route::get('{id}/std-profile/{rollno}', [AdminController::class, 'stdprofile'])->name('admin.student.profile');
+        Route::get('student/subjects/by-campus', [AdminController::class, 'fetchSubjectsByCampus'])->name('admin.student.subjects-by-campus');
+        Route::get('student/enrolled-programs/by-batch-subject', [AdminController::class, 'fetchEnrolledProgramsByBatchAndSubject'])->name('admin.student.enrolled-programs');
         Route::put('{id}/std-update', [AdminController::class, 'stdUpdate'])->name('admin.student.update');
         Route::post('{studentId}/courses', [AdminController::class, 'stdCourseStore'])->name('admin.student.courses.store');
         Route::put('{studentId}/courses/{sciId}', [AdminController::class, 'stdCourseUpdate'])->name('admin.student.courses.update');
@@ -141,14 +148,23 @@ Route::group(['prefix' => '/erp'], function () {
         Route::get('annual-promotion-logs/{id}', [ITCellController::class, 'annualStudentPromotionLogs'])->name('annual.student.promotionlogs');
         Route::get('itcell/pathway-mapper', [ITCellController::class, 'studentPathwayMapper'])->name('itcell.pathway.mapper');
         Route::post('itcell/pathway-mapper/bulk-update', [ITCellController::class, 'studentPathwayMapperBulkUpdate'])->name('itcell.pathway.mapper.bulk-update');
+        Route::get('itcell/student-mdc-selection', [ITCellController::class, 'studentMdcSelectionIndex'])->name('itcell.student-mdc-selection.index');
+        Route::get('itcell/student-mdc-selection/export', [ITCellController::class, 'studentMdcSelectionExport'])->name('itcell.student-mdc-selection.export');
+        Route::post('itcell/student-mdc-selection', [ITCellController::class, 'studentMdcSelectionStore'])->name('itcell.student-mdc-selection.store');
         Route::get('itcell/lateral-entry', [ITCellController::class, 'lateralEntryIndex'])->name('itcell.lateral-entry.index');
         Route::get('itcell/lateral-entry/programs', [ITCellController::class, 'getProgramsForLateralEntry'])->name('itcell.lateral-entry.programs');
         Route::get('itcell/lateral-entry/application-data', [ITCellController::class, 'getLateralEntryApplicationData'])->name('itcell.lateral-entry.application-data');
         Route::post('itcell/lateral-entry', [ITCellController::class, 'storeLateralEntry'])->name('itcell.lateral-entry.store');
         Route::get('itcell/lateral-entry/audit', [ITCellController::class, 'lateralEntryAudit'])->name('itcell.lateral-entry.audit');
         Route::get('itcell/student-campus-transfer', [ITCellController::class, 'studentCampusTransferIndex'])->name('itcell.student-campus-transfer.index');
-        Route::get('itcell/student-campus-transfer/programs', [ITCellController::class, 'getStudentTransferPrograms'])->name('itcell.student-campus-transfer.programs');
+        Route::get('itcell/student-campus-transfer/programs', [ITCellController::class, 'getStudentCampusTransferPrograms'])->name('itcell.student-campus-transfer.programs');
         Route::post('itcell/student-campus-transfer', [ITCellController::class, 'storeStudentCampusTransfer'])->name('itcell.student-campus-transfer.store');
+        Route::get('itcell/integrated-program-sublayers', [ITCellController::class, 'integratedProgramSublayersIndex'])->name('itcell.integrated-sublayer-settings.index');
+        Route::post('itcell/integrated-program-sublayers', [ITCellController::class, 'integratedProgramSublayersStore'])->name('itcell.integrated-sublayer-settings.store');
+        Route::put('itcell/integrated-program-sublayers/{id}', [ITCellController::class, 'integratedProgramSublayersUpdate'])->name('itcell.integrated-sublayer-settings.update');
+        Route::post('itcell/integrated-program-sublayers/{id}/toggle', [ITCellController::class, 'integratedProgramSublayersToggle'])->name('itcell.integrated-sublayer-settings.toggle');
+        Route::get('itcell/integrated-student-shift', [ITCellController::class, 'integratedStudentShiftIndex'])->name('itcell.integrated-student-shift.index');
+        Route::post('itcell/integrated-student-shift', [ITCellController::class, 'integratedStudentShiftStore'])->name('itcell.integrated-student-shift.store');
         Route::post('itcell-generate-librarycode', [ITCellController::class, 'generateLibraryCode'])->name('itcell.generate.librarycode');
         Route::post('itcell-generate-excel-studentdata', [ITCellController::class, 'generateExcelStudentData'])->name('itcell.generate.excel.studentdata');
 
@@ -222,8 +238,13 @@ Route::group(['prefix' => '/erp'], function () {
             Route::post('religion', [AdminController::class, 'addReligionMaster']);
             Route::get('del-religion/{id}', [AdminController::class, 'delReligion']);
 
-            Route::get('deanery', [AdminController::class, 'deanery']);
+            Route::get('deanery', [AdminController::class, 'deanery'])->name('deanery');
             Route::post('deanery', [AdminController::class, 'addDeanery']);
+            Route::post('deanery/{id}/update', [AdminController::class, 'updateDeanery'])->name('deanery.update');
+            Route::get('deanery/{id}/delete', [AdminController::class, 'deleteDeanery'])->name('deanery.delete');
+            Route::post('deanery/{id}/departments', [AdminController::class, 'addDeaneryDepartments'])->name('deanery.departments.store');
+            Route::post('deanery/{id}/departments/sync', [AdminController::class, 'syncDeaneryDepartments'])->name('deanery.departments.sync');
+            Route::get('deanery/departments/{id}/delete', [AdminController::class, 'deleteDeaneryDepartment'])->name('deanery.departments.delete');
 
             Route::get('academic-dept', [AdminController::class, 'academicDept']);
             Route::post('academic-dept', [AdminController::class, 'addAcademicDept']);
@@ -236,8 +257,12 @@ Route::group(['prefix' => '/erp'], function () {
 
             Route::get('student-program-master', [AdminController::class, 'studentProgramMaster'])->name('itcell.student-program-master');
             Route::post('student-program-type/multi-update', [AdminController::class, 'studentProgramTypeMultiUpdate'])->name('itcell.student-program-type.multi.update');
-            Route::get('bulk-student-course-enrollment', [AdminController::class, 'bulkStudentCourseEnrollment'])->name('bulk.student.course.enrollment');
-            Route::post('bulk-student-course-enrollment', [AdminController::class, 'bulkStudentCourseEnrollmentStore'])->name('bulk.student.course.enrollment.store');
+            Route::get('bulk-rollno-reconfiguration', [AdminController::class, 'bulkStudentCourseEnrollment'])->name('itcell.bulk.rollno.reconfigure');
+            Route::post('bulk-rollno-reconfiguration', [AdminController::class, 'bulkStudentCourseEnrollmentStore'])->name('itcell.bulk.rollno.reconfigure.store');
+            Route::get('bulk-rollno-reconfiguration/program-students/{combinationId}', [AdminController::class, 'bulkRollNoProgramStudents'])->name('itcell.bulk.rollno.reconfigure.program-students');
+            // Legacy URL support
+            Route::get('bulk-student-course-enrollment', [AdminController::class, 'bulkStudentCourseEnrollment']);
+            Route::post('bulk-student-course-enrollment', [AdminController::class, 'bulkStudentCourseEnrollmentStore']);
 
             Route::get('semester-engine', [AdminController::class, 'semesterEngine'])->name('itcell.semester.engine');
             Route::post('semester-engine', [AdminController::class, 'semesterEngineStore'])->name('itcell.semester.engine.store');
@@ -777,6 +802,19 @@ Route::group(['prefix' => '/erp'], function () {
         Route::get('transaction-success/{id}/download-pdf', [FeePaymentController::class, 'downloadInvoice']);
     });
 
+    Route::group(['prefix' => 'online-exam'], function () {
+        // FA1 Online Exam Portal Routes
+        Route::get('fa1/access', [StudentQuizController::class, 'accessPage'])->name('student.fa1.access');
+        Route::post('fa1/access/verify', [StudentQuizController::class, 'verifyAccess'])->name('student.fa1.access.verify');
+        Route::get('fa1/logout', [StudentQuizController::class, 'logout'])->name('student.fa1.logout');
+        Route::get('fa1', [StudentQuizController::class, 'index'])->name('student.fa1.index');
+        Route::get('fa1/{id}/lobby', [StudentQuizController::class, 'lobby'])->name('student.fa1.lobby');
+        Route::post('fa1/{id}/start', [StudentQuizController::class, 'start'])->name('student.fa1.start');
+        Route::get('fa1/{id}', [StudentQuizController::class, 'show'])->name('student.fa1.show');
+        Route::post('fa1/{id}/save-answer', [StudentQuizController::class, 'saveAnswer'])->name('student.fa1.save-answer');
+        Route::post('fa1/{id}/submit', [StudentQuizController::class, 'submit'])->name('student.fa1.submit');
+    });
+
     //admission
     Route::group(['prefix' => 'admission'], function () {
         Route::get('registration', [AdmissionController::class, 'index']);
@@ -855,6 +893,7 @@ Route::group(['prefix' => '/erp'], function () {
         // Faculty Timetable
 
         //timetable
+        Route::get('timetable/{id}/view', [TimetableController::class, 'history'])->name('department.timetable.history');
         Route::get('timetable/{id}/{slug}', [TimetableController::class, 'index'])->name('department.timetable');
         Route::get('timetable/{subjectId}/{batchId}/{semesterId}', [TimetableController::class, 'editSemesterTimetable'])->name('department.timetable.edit');
         Route::get('timetable-hours', [TimetableController::class, 'getTeachingHoursByShift'])->name('department.timetable.hours');
@@ -886,6 +925,7 @@ Route::group(['prefix' => '/erp'], function () {
         Route::post('faculty-access', [AccessController::class, 'grantFacultyAccess'])->name('department.faculty.grant-access');
         Route::get('faculty-access-revoke/{id}', [AccessController::class, 'revokeFacultyAccess'])->name('department.faculty.revoke-access');
         Route::get('show-student-list', [SubjectController::class, 'showStudentList'])->name('department.show.student.list');
+        Route::get('integrated-program-student-mappings/{combinationId}', [SubjectController::class, 'integratedProgramStudentMappings'])->name('department.integrated.program.student.mappings');
         Route::get('all-students', [SubjectController::class, 'allStudents'])->name('department.all.students');
         Route::get('student-profile', [SubjectController::class, 'studentProfile'])->name('department.student.profile');
         Route::get('faculty-list/{subjectId}/{slug}', [SubjectController::class, 'deptFacultyList'])->name('department.faculty.list');
@@ -923,6 +963,7 @@ Route::group(['prefix' => '/erp'], function () {
 
         //Teaching Assignment
         Route::get('teaching-assignment/{id}/{slug}', [SubjectController::class, 'teachingAssignment'])->name('department.teaching.assignment');
+        Route::post('teaching-assignment/{id}/toggle-multi-primary', [SubjectController::class, 'toggleTeachingAssignmentMultiPrimaryMode'])->name('department.teaching.assignment.toggle-multi-primary');
         Route::post('teaching-assignment/{subjectId}', [SubjectController::class, 'storeTeachingAssignment'])->name('department.teaching.assignment.store');
         Route::put('teaching-assignment/{id}', [SubjectController::class, 'updateTeachingAssignment'])->name('department.teaching.assignment.update');
         Route::delete('teaching-assignment/{id}', [SubjectController::class, 'deleteTeachingAssignment'])->name('department.teaching.assignment.delete');
@@ -1045,6 +1086,15 @@ Route::group(['prefix' => '/erp'], function () {
         Route::get('internal-marks/enter', [InternalMarksController::class, 'enter'])->name('faculty.internal-marks.enter');
         Route::post('internal-marks', [InternalMarksController::class, 'store'])->name('faculty.internal-marks.store');
         Route::get('internal-marks/view', [InternalMarksController::class, 'view'])->name('faculty.internal-marks.view');
+
+        // Moodle-style Quiz Routes
+        Route::get('fa1', [FacultyQuizController::class, 'index'])->name('faculty.fa1.index');
+        Route::get('fa1/my-quizzes', [FacultyQuizController::class, 'myQuizzes'])->name('faculty.fa1.my-quizzes');
+        Route::get('fa1/bulk-template/download', [FacultyQuizController::class, 'downloadBulkTemplate'])->name('faculty.fa1.bulk-template.download');
+        Route::post('fa1', [FacultyQuizController::class, 'store'])->name('faculty.fa1.store');
+        Route::put('fa1/{id}/timing', [FacultyQuizController::class, 'updateTiming'])->name('faculty.fa1.timing.update');
+        Route::get('fa1/{id}/results', [FacultyQuizController::class, 'results'])->name('faculty.fa1.results');
+        Route::post('fa1/{id}/allow-attempts', [FacultyQuizController::class, 'allowAttempts'])->name('faculty.fa1.allow-attempts');
     });
 
 
@@ -1155,6 +1205,7 @@ Route::group(['prefix' => '/erp'], function () {
     Route::group(['prefix' => '/principal',], function () {
         Route::get('dashboard', [PrincipalController::class, 'dashboard'])->name('principal.dashboard');
         Route::get('students', [PrincipalController::class, 'students'])->name('principal.students.index');
+        Route::get('subjects', [PrincipalController::class, 'subjects'])->name('principal.subjects.index');
         Route::get('{id}/student-profile/{rollno}', [PrincipalController::class, 'studentProfile'])->name('principal.student.profile');
         Route::get('faculty', [PrincipalController::class, 'faculty'])->name('principal.faculty.index');
         Route::get('faculty/{id}', [PrincipalController::class, 'facultyDetail'])->name('principal.faculty.detail');
@@ -1162,6 +1213,8 @@ Route::group(['prefix' => '/erp'], function () {
         Route::get('faculty/{id}/work-diary', [PrincipalController::class, 'facultyWorkDiary'])->name('principal.faculty.work-diary');
         Route::get('courses', [PrincipalController::class, 'courses'])->name('principal.courses.index');
         Route::get('courses/{id}', [PrincipalController::class, 'courseDetail'])->name('principal.courses.detail');
+        Route::get('curriculam', [PrincipalController::class, 'curriculamProgramWise'])->name('principal.curriculam.index');
+        Route::get('curriculam/defaulters', [PrincipalController::class, 'curriculamDefaulters'])->name('principal.curriculam.defaulters');
         Route::get('syllabus', [PrincipalController::class, 'subjectSyllabus'])->name('principal.syllabus.index');
         Route::get('syllabus/{id}', [PrincipalController::class, 'subjectSyllabusDetail'])->name('principal.syllabus.detail');
         Route::get('classes', [PrincipalController::class, 'classes'])->name('principal.classes.index');
@@ -1183,6 +1236,9 @@ Route::group(['prefix' => '/erp'], function () {
         Route::get('work-diary', [PrincipalController::class, 'workDiaryOverview'])->name('principal.work-diary.overview');
         Route::post('work-diary/{id}/approve', [PrincipalController::class, 'approveWorkDiary'])->name('principal.work-diary.approve');
         Route::post('work-diary/bulk-approve', [PrincipalController::class, 'bulkApproveWorkDiary'])->name('principal.work-diary.bulk-approve');
+        Route::get('event-controller-work', [PrincipalController::class, 'eventControllerWork'])->name('principal.events.work');
+        Route::get('tpo-events', [TrainingPlacementController::class, 'principalEventsIndex'])->name('principal.tpo-events.index');
+        Route::post('tpo-events/{event}/approval', [TrainingPlacementController::class, 'principalApproveEvent'])->name('principal.tpo-events.approval');
 
         // Student Affairs Monitoring (view-only)
         Route::get('monitoring/mentoring', [PrincipalMonitoringController::class, 'mentoring'])->name('principal.monitoring.mentoring');
@@ -1234,6 +1290,35 @@ Route::group(['prefix' => '/erp'], function () {
 
         // Report
         Route::get('events/{event}/report', [EventCoordinatorController::class, 'report'])->name('event-coordinator.report');
+    });
+
+    // ========================================================
+    // Dean Office Module (separate from Dean Student Affairs)
+    Route::group(['prefix' => '/dean-office', 'middleware' => ['check.dean.access']], function () {
+        Route::get('dashboard', [DeanOfficeDashboardController::class, 'index'])->name('dean.office.dashboard');
+
+        Route::post('annual-plan', [DeanOfficeDashboardController::class, 'storeAnnualPlan'])->name('dean.office.annual-plan.store');
+        Route::delete('annual-plan/{id}', [DeanOfficeDashboardController::class, 'destroyAnnualPlan'])->name('dean.office.annual-plan.delete');
+
+        Route::post('weekly-progress', [DeanOfficeDashboardController::class, 'storeWeeklyProgress'])->name('dean.office.weekly-progress.store');
+        Route::delete('weekly-progress/{id}', [DeanOfficeDashboardController::class, 'destroyWeeklyProgress'])->name('dean.office.weekly-progress.delete');
+
+        Route::post('lesson-tracker', [DeanOfficeDashboardController::class, 'storeLessonTracker'])->name('dean.office.lesson-tracker.store');
+        Route::delete('lesson-tracker/{id}', [DeanOfficeDashboardController::class, 'destroyLessonTracker'])->name('dean.office.lesson-tracker.delete');
+
+        Route::post('scorecard', [DeanOfficeDashboardController::class, 'storeScorecard'])->name('dean.office.scorecard.store');
+        Route::delete('scorecard/{id}', [DeanOfficeDashboardController::class, 'destroyScorecard'])->name('dean.office.scorecard.delete');
+
+        Route::post('tasks', [DeanOfficeDashboardController::class, 'storeTask'])->name('dean.office.tasks.store');
+        Route::delete('tasks/{id}', [DeanOfficeDashboardController::class, 'destroyTask'])->name('dean.office.tasks.delete');
+
+        Route::post('comparative-report', [DeanOfficeDashboardController::class, 'upsertComparative'])->name('dean.office.comparative.upsert');
+        Route::post('hod360-followup', [DeanOfficeDashboardController::class, 'upsertHod360Followup'])->name('dean.office.hod360.followup.upsert');
+        Route::get('department-activities', [DeanOfficeDashboardController::class, 'departmentActivities'])->name('dean.office.department.activities');
+
+        Route::get('events/overview', [DeanOfficeDashboardController::class, 'eventsOverview'])->name('dean.office.events.overview');
+        Route::get('events/calendar', [DeanOfficeDashboardController::class, 'eventsCalendar'])->name('dean.office.events.calendar');
+        Route::get('events/feature-board', [DeanOfficeDashboardController::class, 'eventsFeatureBoard'])->name('dean.office.events.features');
     });
 
     // ========================================================
@@ -1393,6 +1478,15 @@ Route::group(['prefix' => '/erp'], function () {
 
         // API Score Reports
         Route::get('api-scores/reports/analytics', [ApiScoreController::class, 'reports'])->name('hr.api-scores.reports');
+
+        // API Metrix Category Master
+        Route::get('api-metrix', [HrApiMetrixController::class, 'index'])->name('hr.api-metrix.index');
+        Route::get('api-metrix/create', [HrApiMetrixController::class, 'create'])->name('hr.api-metrix.create');
+        Route::post('api-metrix', [HrApiMetrixController::class, 'store'])->name('hr.api-metrix.store');
+        Route::get('api-metrix/{id}', [HrApiMetrixController::class, 'show'])->name('hr.api-metrix.show');
+        Route::get('api-metrix/{id}/edit', [HrApiMetrixController::class, 'edit'])->name('hr.api-metrix.edit');
+        Route::put('api-metrix/{id}', [HrApiMetrixController::class, 'update'])->name('hr.api-metrix.update');
+        Route::delete('api-metrix/{id}', [HrApiMetrixController::class, 'destroy'])->name('hr.api-metrix.destroy');
     });
 
     // Public Vacancy Routes (for website)
@@ -1400,6 +1494,31 @@ Route::group(['prefix' => '/erp'], function () {
     Route::get('careers/{id}', [HrVacancyController::class, 'publicShow'])->name('vacancies.public.show');
     Route::get('careers/{id}/apply', [HrVacancyController::class, 'publicApplyForm'])->name('vacancies.public.apply-form');
     Route::post('careers/{id}/apply', [HrVacancyController::class, 'publicApply'])->name('vacancies.public.apply');
+
+    // ========================================================
+    // Training and Placement Office Module
+    Route::group(['prefix' => '/tpo'], function () {
+        Route::get('dashboard', [TrainingPlacementController::class, 'dashboard'])->name('tpo.training-placement.dashboard');
+        Route::get('training-placement', [TrainingPlacementController::class, 'index'])->name('tpo.training-placement.index');
+        Route::get('training-placement/placement', [TrainingPlacementController::class, 'placementIndex'])->name('tpo.training-placement.placement.index');
+        Route::get('training-placement/events', [TrainingPlacementController::class, 'eventsIndex'])->name('tpo.training-placement.events.index');
+        Route::get('training-placement/analytics', [TrainingPlacementController::class, 'analytics'])->name('tpo.training-placement.analytics');
+        Route::post('training-placement/training', [TrainingPlacementController::class, 'storeTraining'])->name('tpo.training-placement.training.store');
+        Route::put('training-placement/training/{training}', [TrainingPlacementController::class, 'updateTraining'])->name('tpo.training-placement.training.update');
+        Route::delete('training-placement/training/{training}', [TrainingPlacementController::class, 'destroyTraining'])->name('tpo.training-placement.training.destroy');
+        Route::post('training-placement/training/{training}/resources', [TrainingPlacementController::class, 'storeResource'])->name('tpo.training-placement.resource.store');
+        Route::delete('training-placement/resources/{resource}', [TrainingPlacementController::class, 'destroyResource'])->name('tpo.training-placement.resource.destroy');
+        Route::post('training-placement/training/{training}/survey-questions', [TrainingPlacementController::class, 'storeSurveyQuestion'])->name('tpo.training-placement.survey-question.store');
+        Route::delete('training-placement/survey-questions/{question}', [TrainingPlacementController::class, 'destroySurveyQuestion'])->name('tpo.training-placement.survey-question.destroy');
+        Route::get('training-placement/training/{training}/attempt', [TrainingPlacementController::class, 'attempt'])->name('tpo.training-placement.attempt');
+        Route::post('training-placement/training/{training}/attempt', [TrainingPlacementController::class, 'submitAttempt'])->name('tpo.training-placement.attempt.submit');
+        Route::post('training-placement/placement', [TrainingPlacementController::class, 'storePlacement'])->name('tpo.training-placement.placement.store');
+        Route::put('training-placement/placement/{placement}', [TrainingPlacementController::class, 'updatePlacement'])->name('tpo.training-placement.placement.update');
+        Route::delete('training-placement/placement/{placement}', [TrainingPlacementController::class, 'destroyPlacement'])->name('tpo.training-placement.placement.destroy');
+        Route::post('training-placement/events', [TrainingPlacementController::class, 'storeEvent'])->name('tpo.training-placement.events.store');
+        Route::put('training-placement/events/{event}', [TrainingPlacementController::class, 'updateEvent'])->name('tpo.training-placement.events.update');
+        Route::delete('training-placement/events/{event}', [TrainingPlacementController::class, 'destroyEvent'])->name('tpo.training-placement.events.destroy');
+    });
 
 
     //Testing route

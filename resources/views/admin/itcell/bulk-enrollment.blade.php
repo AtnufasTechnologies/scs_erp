@@ -89,20 +89,17 @@
 @php
 $selectedBatchId = (int) ($selectedBatchId ?? request('batch_id', 0));
 $oldProgramIds = collect(old('program_combination_ids', []))->map(fn($id) => (int) $id)->toArray();
-$rollnoAction = old('rollno_action', 'dont_reconfigure');
-$programRowsCollection = collect($programRows ?? [])->sortByDesc(fn($row) => (int) ($row->curriculum_done ?? 0))->values();
+$programRowsCollection = collect($programRows ?? [])->values();
 $totalProgramCount = $programRowsCollection->count();
-$doneProgramCount = $programRowsCollection->where('curriculum_done', true)->count();
-$pendingProgramCount = $totalProgramCount - $doneProgramCount;
-$donePercentage = $totalProgramCount > 0 ? round(($doneProgramCount / $totalProgramCount) * 100) : 0;
+$totalStudentsCount = (int) $programRowsCollection->sum(fn($row) => (int) ($row->students_count ?? 0));
 @endphp
 
 <div class="main-content bulk-wrap">
   <div class="container-fluid">
     <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3">
       <div class="alert alert-info">
-        <h4 class="mb-1">Bulk Course Enrollment</h4>
-        <p class="text-muted mb-0">Select batch, choose curriculum-ready programs, and enroll COMPULSORY curriculum courses in one run.</p>
+        <h4 class="mb-1">Bulk Roll Number Reconfiguration</h4>
+        <p class="text-muted mb-0">Select batch, choose program combinations, and reconfigure student roll numbers in one run.</p>
         <div class="col-lg-3">
           <form action="{{ route('bulk.student.course.enrollment') }}" method="GET" class="row g-3 align-items-end mb-3" id="batchFilterForm">
             <div class="input-group">
@@ -136,19 +133,13 @@ $donePercentage = $totalProgramCount > 0 ? round(($doneProgramCount / $totalProg
 
     @if($selectedBatchId > 0)
     <div class="bulk-card p-3 mb-3">
-      <div class="mini-title mb-2">Curriculam Analytics</div>
+      <div class="mini-title mb-2">Selection Summary</div>
       <div class="row g-2">
-        <div class="col-md-3">
+        <div class="col-md-6">
           <div class="stat-pill">Total Programs: <strong>{{ $totalProgramCount }}</strong></div>
         </div>
-        <div class="col-md-3">
-          <div class="stat-pill">Curriculam Done: <strong>{{ $doneProgramCount }}</strong></div>
-        </div>
-        <div class="col-md-3">
-          <div class="stat-pill">Curriculam Pending: <strong>{{ $pendingProgramCount }}</strong></div>
-        </div>
-        <div class="col-md-3">
-          <div class="stat-pill">Done Rate: <strong>{{ $donePercentage }}%</strong></div>
+        <div class="col-md-6">
+          <div class="stat-pill">Total Students: <strong>{{ $totalStudentsCount }}</strong></div>
         </div>
       </div>
     </div>
@@ -160,31 +151,19 @@ $donePercentage = $totalProgramCount > 0 ? round(($doneProgramCount / $totalProg
       <div class="bulk-card p-3 mb-3">
 
         <div class="row g-3 align-items-end mb-3">
-          <div class="col-lg-4">
+          <div class="col-lg-8">
 
             <div class="">
               <label lass="form-label">Search</label>
               <input type="text" id="programSearchInput" class="form-control" placeholder="Program code, name or campus">
             </div>
           </div>
-          <div class="col-lg-4">
-            <label class="form-label">Roll No Handling
-            </label>
-            <select class="form-control" name="rollno_action" required>
-              <option value="dont_reconfigure" {{ $rollnoAction === 'dont_reconfigure' ? 'selected' : '' }}>Dont Reconfigure RollNo</option>
-              <option value="reconfigure" {{ $rollnoAction === 'reconfigure' ? 'selected' : '' }}>ReConfigure RollNo</option>
-            </select>
-            @error('rollno_action')
-            <span class="text-danger small">{{ $message }}</span>
-            @enderror
-          </div>
-
           <div class="col-lg-4 text-lg-end">
-            <button type="submit" class="btn btn-success w-100" id="enrollNowBtn">EnrollNow</button>
+            <button type="submit" class="btn btn-success w-100" id="reconfigureBtn">Reconfigure Roll Numbers</button>
           </div>
         </div>
         <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-2">
-          <div class="mini-title mb-0">Programs In Selected Batch <span class="small text-muted mt-2">Only programs with AUTO curriculum can be selected and processed.</span></div>
+          <div class="mini-title mb-0">Programs In Selected Batch <span class="small text-muted mt-2">Select one or more program combinations to reconfigure roll numbers.</span></div>
           <div class="count-pill">Visible Rows: <span id="visibleRowsCount">{{ $totalProgramCount }}</span></div>
         </div>
 
@@ -204,26 +183,22 @@ $donePercentage = $totalProgramCount > 0 ? round(($doneProgramCount / $totalProg
 
                 <th style="width: 180px;">Campus</th>
                 <th style="width: 140px;">Students</th>
-                <th style="width: 150px;">COMPULSORY Courses</th>
-                <th style="width: 170px;">Curriculum Status</th>
               </tr>
             </thead>
             <tbody id="programRowsBody">
               @foreach($programRowsCollection as $row)
               @php
-              $isDisabled = !$row->curriculum_done;
               $isChecked = in_array((int) $row->combination_id, $oldProgramIds, true);
               $searchText = strtolower(trim(($row->program_code ?? '') . ' ' . ($row->program_name ?? '') . ' ' . ($row->campus_name ?? '')));
               @endphp
-              <tr class="{{ $isDisabled ? 'program-row-disabled' : '' }}" data-search="{{ $searchText }}">
+              <tr data-search="{{ $searchText }}">
                 <td>
                   <input
                     type="checkbox"
                     class="program-checkbox"
                     name="program_combination_ids[]"
                     value="{{ (int) $row->combination_id }}"
-                    {{ $isChecked ? 'checked' : '' }}
-                    {{ $isDisabled ? 'disabled' : '' }}>
+                    {{ $isChecked ? 'checked' : '' }}>
                 </td>
                 <td>
                   <strong>{{ $row->program_code }}</strong>
@@ -234,18 +209,10 @@ $donePercentage = $totalProgramCount > 0 ? round(($doneProgramCount / $totalProg
                 </td>
                 <td>{{ $row->campus_name }}</td>
                 <td>{{ $row->students_count }}</td>
-                <td>{{ $row->auto_courses_count }}</td>
-                <td>
-                  @if($row->curriculum_done)
-                  <span class="status-badge badge-ready">Curriculum Done</span>
-                  @else
-                  <span class="status-badge badge-pending">Curriculum Pending</span>
-                  @endif
-                </td>
               </tr>
               @endforeach
               <tr id="noProgramSearchResult" style="display: none;">
-                <td colspan="6" class="text-center text-muted">No matching programs found.</td>
+                <td colspan="4" class="text-center text-muted">No matching programs found.</td>
               </tr>
             </tbody>
           </table>
@@ -279,16 +246,16 @@ $donePercentage = $totalProgramCount > 0 ? round(($doneProgramCount / $totalProg
 
     const selectAll = document.getElementById('selectAllPrograms');
     const programCheckboxes = Array.from(document.querySelectorAll('.program-checkbox:not(:disabled)'));
-    const enrollBtn = document.getElementById('enrollNowBtn');
+    const reconfigureBtn = document.getElementById('reconfigureBtn');
     const searchInput = document.getElementById('programSearchInput');
     const rowBody = document.getElementById('programRowsBody');
     const noResultRow = document.getElementById('noProgramSearchResult');
     const visibleRowsCount = document.getElementById('visibleRowsCount');
 
     function syncEnrollButtonState() {
-      if (!enrollBtn) return;
+      if (!reconfigureBtn) return;
       const anyChecked = programCheckboxes.some((cb) => cb.checked);
-      enrollBtn.disabled = !anyChecked;
+      reconfigureBtn.disabled = !anyChecked;
     }
 
     function syncSelectAllState() {

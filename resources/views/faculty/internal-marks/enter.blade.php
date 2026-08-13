@@ -44,6 +44,8 @@
               <h5 class="fw-bold mb-1">{{ $course->course_title ?? 'N/A' }} {{ $course->course_code ? '('.$course->course_code.')' : '' }}</h5>
               <p class="text-muted mb-0">
                 <span class="badge bg-success me-1">Semester: {{ $semester }}</span>
+                <span class="badge bg-secondary me-1">Batch: {{ $syllabusAssignment->batchmaster->batch_name ?? 'N/A' }}</span>
+                <span class="badge bg-primary me-1">Component: {{ $component->name ?? 'N/A' }}</span>
                 @if($academicYear)
                 <span class="badge bg-info me-1">Year: {{ $academicYear }}</span>
                 @endif
@@ -73,7 +75,11 @@
             @csrf
             <input type="hidden" name="course_id" value="{{ $course->id }}">
             <input type="hidden" name="semester" value="{{ $semester }}">
+            <input type="hidden" name="batch_id" value="{{ $batchId ?? '' }}">
+            <input type="hidden" name="component_id" value="{{ $componentId }}">
             <input type="hidden" name="academic_year" value="{{ $academicYear }}">
+            <input type="hidden" name="rec_id" value="{{ $routineId }}">
+            <input type="hidden" name="syllabus_id" value="{{ $syllabusId }}">
 
             @if($students->count() > 0)
             <div class="table-responsive">

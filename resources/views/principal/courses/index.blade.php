@@ -26,6 +26,34 @@
           </div>
         </div>
       </div>
+
+      <div class="col-md-3">
+        <div class="card border-0 shadow-sm">
+          <div class="card-body text-center">
+            <div class="fs-2 fw-bold text-danger">{{ (int) ($declaredTotal ?? 0) }}</div>
+            <div class="text-muted small">CO/CSO Not Applicable</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="col-md-3">
+        <div class="card border-0 shadow-sm">
+          <div class="card-body text-center">
+            <div class="fs-2 fw-bold text-secondary">{{ (int) ($declaredWithReason ?? 0) }}</div>
+            <div class="text-muted small">Declared With Reason</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="col-md-3">
+        <div class="card border-0 shadow-sm">
+          <div class="card-body text-center">
+            <div class="fs-2 fw-bold text-dark">{{ (float) ($declarationRate ?? 0) }}%</div>
+            <div class="text-muted small">Declaration Coverage</div>
+          </div>
+        </div>
+      </div>
+
       <div class="col-md-3">
         <div class="card border-0 shadow-sm">
           <div class="card-body text-center">
@@ -54,6 +82,67 @@
         </div>
       </div>
     </div>
+
+    @if((int) ($declaredTotal ?? 0) > 0)
+    <div class="row mt-3 g-3">
+      <div class="col-12 col-lg-7">
+        <div class="card border-0 shadow-sm h-100">
+          <div class="card-header bg-white">
+            <h6 class="mb-0">CO/CSO Not Applicable - Reason Analytics</h6>
+          </div>
+          <div class="card-body p-0">
+            <div class="table-responsive">
+              <table class="table table-sm table-striped align-middle mb-0">
+                <thead class="table-light">
+                  <tr>
+                    <th style="width:80px;">#</th>
+                    <th>Reason</th>
+                    <th style="width:130px;">Courses</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  @foreach(($declarationReasons ?? collect()) as $idx => $reasonRow)
+                  <tr>
+                    <td>{{ $idx + 1 }}</td>
+                    <td>{{ $reasonRow['reason'] ?? '-' }}</td>
+                    <td><span class="badge bg-danger">{{ (int) ($reasonRow['count'] ?? 0) }}</span></td>
+                  </tr>
+                  @endforeach
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="col-12 col-lg-5">
+        <div class="card border-0 shadow-sm h-100">
+          <div class="card-header bg-white">
+            <h6 class="mb-0">Department-wise Declared Courses</h6>
+          </div>
+          <div class="card-body p-0">
+            <div class="table-responsive">
+              <table class="table table-sm table-striped align-middle mb-0">
+                <thead class="table-light">
+                  <tr>
+                    <th>Department</th>
+                    <th style="width:120px;">Count</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  @foreach(($declarationByDepartment ?? collect()) as $departmentRow)
+                  <tr>
+                    <td>{{ $departmentRow['subject_name'] ?? '-' }}</td>
+                    <td><span class="badge bg-secondary">{{ (int) ($departmentRow['count'] ?? 0) }}</span></td>
+                  </tr>
+                  @endforeach
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    @endif
 
     <div class=" mt-3">
       <div class="card-header d-flex align-items-center justify-content-between flex-wrap gap-2">
@@ -100,8 +189,19 @@
                     <span class="badge bg-dark">{{ $syl->course_code }}</span>
                     <span class="badge bg-secondary">{{ $syl->course_type_name }}</span>
                   </div>
+                  @if((int) (optional($syl->courseLink)->co_cso_not_applicable ?? 0) === 1)
+                  <div class="mb-2">
+                    <span class="badge bg-danger">CO/CSO Not Applicable</span>
+                  </div>
+                  @endif
                   <h5 class="fw-bold mb-1">{{ $syl->course_title_pcm }}</h5>
                   <div class="mb-2 text-muted small">{{ $syl->subject ? $syl->subject->title : '-' }}</div>
+                  @if((int) (optional($syl->courseLink)->co_cso_not_applicable ?? 0) === 1)
+                  <div class="mb-2 small">
+                    <span class="text-muted">Reason:</span>
+                    <span class="text-dark">{{ trim((string) (optional($syl->courseLink)->co_cso_not_applicable_note ?? '')) !== '' ? optional($syl->courseLink)->co_cso_not_applicable_note : 'No reason provided' }}</span>
+                  </div>
+                  @endif
                   <div class="mb-2">
                     <span class="badge bg-light text-dark me-1">Batch: {{ $syl->batchmaster ? $syl->batchmaster->batch_name : '-' }}</span>
                     <span class="badge bg-light text-dark me-1">Semester: {{ $syl->semestermaster ? $syl->semestermaster->title : '-' }}</span>

@@ -4,9 +4,11 @@ use Illuminate\Support\Facades\Auth;
 use App\Models\StudentMaster;
 use App\Models\UserHasRole;
 
-$stdId = Auth::user()->student_id;
-$student = StudentMaster::find($stdId);
-$rolename = UserHasRole::where('user_id', Auth::id())->value('role_name');
+$authUser = Auth::user();
+$stdId = $authUser?->student_id;
+$student = $stdId ? StudentMaster::find($stdId) : null;
+$rolename = $authUser ? UserHasRole::where('user_id', $authUser->id)->value('role_name') : null;
+$studentGender = (int) ($student?->GENDER ?? $student?->gender ?? 0);
 ?>
 
 <!--start sidebar -->
@@ -288,7 +290,7 @@ $rolename = UserHasRole::where('user_id', Auth::id())->value('role_name');
         <li class="nav-item dropdown dropdown-user-setting">
           <a class="nav-link dropdown-toggle dropdown-toggle-nocaret" href="javascript:;" data-bs-toggle="dropdown">
             <div class="user-setting">
-              @if($student->GENDER == 1)
+              @if($studentGender === 1)
               <img src="{{ asset('admin/images/male.png')}}" class="user-img" alt="">
               @else
               <img src="{{ asset('admin/images/female.png')}}" class="user-img" alt="">
@@ -299,14 +301,14 @@ $rolename = UserHasRole::where('user_id', Auth::id())->value('role_name');
             <li>
               <a class="dropdown-item" href="javascript:;">
                 <div class="d-flex flex-row align-items-center gap-2">
-                  @if($student->GENDER == 1)
+                  @if($studentGender === 1)
                   <img src="{{ asset('admin/images/male.png')}}" alt="" class="rounded-circle" width="54" height="54">
                   @else
                   <img src="{{ asset('admin/images/female.png')}}" alt="" class="rounded-circle" width="54" height="54">
                   @endif
                   <div class="">
-                    <h6 class="mb-0 dropdown-user-name">{{$student->first_name}}</h6>
-                    <small class="mb-0 dropdown-user-designation text-secondary">{{$rolename}}</small>
+                    <h6 class="mb-0 dropdown-user-name">{{ $student?->first_name ?? 'Student' }}</h6>
+                    <small class="mb-0 dropdown-user-designation text-secondary">{{ $rolename ?? 'User' }}</small>
                   </div>
                 </div>
               </a>

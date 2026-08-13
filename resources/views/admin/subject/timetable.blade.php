@@ -243,15 +243,9 @@ $days = Weekday::all();
           <span class="fw-bold text-white text-capitalize">{{ $data->code ?? '-' }} - {{ $data->title ?? '-' }} / TimeTable Management</span>
         </a>
         <div class="d-flex">
-          @if(StaticController::fetchUserRole() == 'dept-admin-erp')
-          <a href="{{ route('department.dashboard') }}" class="btn btn-light btn-sm fw-bold ms-auto" style="box-shadow:0 2px 8px #5740b433;">
-            <i class="fa fa-step-backward me-1"></i> back
+          <a href="{{ route('department.timetable.history', [$data->id]) }}" class="btn btn-success btn-sm fw-bold me-2" style="box-shadow:0 2px 8px rgba(0,0,0,0.15);">
+            <i class="fa fa-history me-1"></i> View Timetable
           </a>
-          @else
-          <a href="{{ url('erp/admin/master/view-subject?id='.$data->id.'/slug='.$data->slug) }}" class="btn btn-light btn-sm fw-bold ms-auto" style="box-shadow:0 2px 8px #5740b433;">
-            <i class="fa fa-step-backward me-1"></i> back
-          </a>
-          @endif
         </div>
     </nav>
 
@@ -459,6 +453,7 @@ $days = Weekday::all();
           course_id: item.course_id,
           faculty_id: item.faculty_id,
           primary_faculty_ids: Array.isArray(item.primary_faculty_ids) ? item.primary_faculty_ids : [],
+          primary_faculty_text: Array.isArray(item.primary_faculty_text) ? item.primary_faculty_text : [],
           co_faculty_ids: Array.isArray(item.co_faculty_ids) ? item.co_faculty_ids : [],
           co_faculty_text: Array.isArray(item.co_faculty_text) ? item.co_faculty_text : [],
           delivery_type: item.delivery_type,
@@ -719,7 +714,7 @@ $days = Weekday::all();
           <div class="fw-bold mb-2">Selected Teaching Assignment</div>
           <div class="row g-2" style="font-size:0.95rem;">
             <div class="col-12"><span class="fw-semibold">Course:</span> ${escapeHtml(assignment.course_label || '-')}</div>
-            <div class="col-12"><span class="fw-semibold">Faculty:</span> ${escapeHtml(assignment.faculty_label || '-')}</div>
+            <div class="col-12"><span class="fw-semibold">Primary Faculty:</span> ${escapeHtml(assignment.faculty_label || '-')}</div>
             <div class="col-12"><span class="fw-semibold">Co-Faculty:</span> ${escapeHtml(coFacultyText)}</div>
             <div class="col-md-6"><span class="fw-semibold">Delivery:</span> ${escapeHtml(delivery)}</div>
             <div class="col-md-6"><span class="fw-semibold">Room:</span> ${escapeHtml(roomText)}</div>
@@ -905,6 +900,7 @@ $days = Weekday::all();
               course_id: Number(row.course_id || 0),
               faculty_id: Number(row.faculty_id || 0),
               primary_faculty_ids: Array.isArray(row.primary_faculty_ids) ? row.primary_faculty_ids.map((id) => Number(id || 0)).filter((id) => id > 0) : [],
+              primary_faculty_text: Array.isArray(row.primary_faculty_text) ? row.primary_faculty_text : [],
               co_faculty_ids: Array.isArray(row.co_faculty_ids) ? row.co_faculty_ids.map((id) => Number(id || 0)).filter((id) => id > 0) : [],
               co_faculty_names: Array.isArray(row.co_faculty_names) ? row.co_faculty_names : [],
               co_faculty_label: Array.isArray(row.co_faculty_label) ? row.co_faculty_label : [],
@@ -1026,12 +1022,8 @@ $days = Weekday::all();
         teaching_assignment_id: Number(teachingAssignmentId),
         teacher_id: Number(assignment.faculty_id),
         subject_name: assignment.course_label || 'Course',
-        teacher_name: (() => {
-          const primary = assignment.faculty_label || 'Teacher';
-          const coFaculty = Array.isArray(assignment.co_faculty_label) && assignment.co_faculty_label.length ? assignment.co_faculty_label :
-            (Array.isArray(assignment.co_faculty_text) ? assignment.co_faculty_text : []);
-          return coFaculty.length ? `${primary} (Co-Faculty: ${coFaculty.join(', ')})` : primary;
-        })(),
+        teacher_name: assignment.faculty_label || 'Teacher',
+        primary_faculty_names: Array.isArray(assignment.primary_faculty_text) && assignment.primary_faculty_text.length ? assignment.primary_faculty_text : [assignment.faculty_label || 'Teacher'],
         co_faculty_names: Array.isArray(assignment.co_faculty_names) ? assignment.co_faculty_names : [],
         co_faculty_ids: Array.isArray(assignment.co_faculty_ids) ? assignment.co_faculty_ids : [],
         delivery_type: normalizeDeliveryType(assignment.delivery_type) || assignment.delivery_type || null,
@@ -1134,6 +1126,7 @@ $days = Weekday::all();
               course_id: Number(row.course_id || 0),
               faculty_id: Number(row.faculty_id || 0),
               primary_faculty_ids: Array.isArray(row.primary_faculty_ids) ? row.primary_faculty_ids.map((id) => Number(id || 0)).filter((id) => id > 0) : [],
+              primary_faculty_text: Array.isArray(row.primary_faculty_text) ? row.primary_faculty_text : [],
               co_faculty_ids: Array.isArray(row.co_faculty_ids) ? row.co_faculty_ids.map((id) => Number(id || 0)).filter((id) => id > 0) : [],
               co_faculty_names: Array.isArray(row.co_faculty_names) ? row.co_faculty_names : [],
               co_faculty_label: Array.isArray(row.co_faculty_label) ? row.co_faculty_label : [],
@@ -1261,15 +1254,16 @@ $days = Weekday::all();
             const entryMeta = formatEntryMeta(entry);
             const routineId = entry.routine_id ? Number(entry.routine_id) : 'null';
             const roomLabel = (entry.room && String(entry.room).trim() !== '') ? String(entry.room).trim() : '-';
-            const coFacultyNames = Array.isArray(entry.co_faculty_names) ? entry.co_faculty_names.filter((name) => String(name || '').trim() !== '') : [];
-            const coFacultyLine = coFacultyNames.length ?
-              `<div><i class="fas fa-users"></i> Co-Faculty: ${escapeHtml(coFacultyNames.join(', '))}</div>` :
-              '';
+            const primaryFacultyText = Array.isArray(entry.primary_faculty_names) && entry.primary_faculty_names.length ?
+              entry.primary_faculty_names.join(', ') :
+              (entry.teacher_name || 'Teacher');
+            const coFacultyText = Array.isArray(entry.co_faculty_names) && entry.co_faculty_names.length ?
+              entry.co_faculty_names.join(', ') : '-';
             return `
               <div class="slot-entry p-2 mb-2 text-start" style="font-size:12px;">
                 <div class="fw-bold">${escapeHtml(entry.subject_name || 'Course')}</div>
-                <div><i class="fas fa-user"></i> ${escapeHtml(entry.teacher_name || 'Teacher')}</div>
-                ${coFacultyLine}
+                <div><i class="fas fa-user-tie"></i> <span class="fw-semibold">Primary:</span> ${escapeHtml(primaryFacultyText)}</div>
+                <div><i class="fas fa-user-friends"></i> <span class="fw-semibold">Co:</span> ${escapeHtml(coFacultyText)}</div>
                 <div><i class="fas fa-door-open"></i> Room: ${escapeHtml(roomLabel)}</div>
                 <div>
                   ${entryMeta.map((meta, index) => `<span class="slot-chip ${index === 0 ? 'slot-chip-delivery' : 'slot-chip-group'}">${escapeHtml(meta)}</span>`).join('')}
@@ -1383,12 +1377,8 @@ $days = Weekday::all();
         teaching_assignment_id: Number(teachingAssignmentId),
         teacher_id: Number(assignment.faculty_id),
         subject_name: assignment.course_label || 'Course',
-        teacher_name: (() => {
-          const primary = assignment.faculty_label || 'Teacher';
-          const coFaculty = Array.isArray(assignment.co_faculty_label) && assignment.co_faculty_label.length ? assignment.co_faculty_label :
-            (Array.isArray(assignment.co_faculty_text) ? assignment.co_faculty_text : []);
-          return coFaculty.length ? `${primary} (Co-Faculty: ${coFaculty.join(', ')})` : primary;
-        })(),
+        teacher_name: assignment.faculty_label || 'Teacher',
+        primary_faculty_names: Array.isArray(assignment.primary_faculty_text) && assignment.primary_faculty_text.length ? assignment.primary_faculty_text : [assignment.faculty_label || 'Teacher'],
         co_faculty_names: Array.isArray(assignment.co_faculty_names) ? assignment.co_faculty_names : [],
         co_faculty_ids: Array.isArray(assignment.co_faculty_ids) ? assignment.co_faculty_ids : [],
         delivery_type: normalizeDeliveryType(assignment.delivery_type) || assignment.delivery_type || null,

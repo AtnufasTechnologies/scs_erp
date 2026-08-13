@@ -915,7 +915,7 @@ $userRole = StaticController::fetchUserRole($userId);
                     <i class="fas fa-sitemap"></i>
                     {{ $slot['delivery_type'] ?? 'COMMON' }}
                     &nbsp;|&nbsp;
-                    Group {{ !is_null($slot['group'] ?? null) ? $slot['group'] : '—' }}
+                    {{ $slot['group_label'] ?? (!is_null($slot['group'] ?? null) ? 'Group '.$slot['group'] : 'Group —') }}
                   </div>
                   <div class="sp-slot-meta">
                     <i class="fas fa-door-open"></i>

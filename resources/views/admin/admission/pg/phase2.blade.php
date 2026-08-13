@@ -135,7 +135,7 @@ $selectedList = Qs::selectedApplicants('PG');
 
 
             @if($userRoleType == 'admission-incharge')
-            @if($item->registrationmaster->is_enrolled == 0)
+            @if($item->registrationmaster->is_enrolled == 0 || empty($rollNo))
             <div class="mb-3">
               <label for="enroll_status{{ $item->id }}" class="form-label">Enrollment Status <b>(Warning : Use Carefully)</b> <br>
                 <small class="text-danger">*This will Auto Add Applicant

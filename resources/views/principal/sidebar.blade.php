@@ -45,85 +45,13 @@ $pendingLeaveCount = $pendingLeaveQuery->count();
       </a>
     </li>
 
+    <li class="menu-label">Students</li>
     <li>
       <a href="{{ route('principal.students.index') }}">
         <div class="parent-icon">
           <i class="fas fa-user-graduate"></i>
         </div>
         <div class="menu-title">Students</div>
-      </a>
-    </li>
-
-    <li>
-      <a href="javascript:;" class="has-arrow">
-        <div class="parent-icon">
-          <i class="fas fa-chalkboard-teacher"></i>
-        </div>
-        <div class="menu-title">Faculty</div>
-      </a>
-      <ul>
-        <li>
-          <a href="{{ route('principal.faculty.index') }}">
-            <i class="bx bx-radio-circle"></i>All Faculty
-          </a>
-        </li>
-      </ul>
-    </li>
-
-    <li>
-      <a href="{{ route('principal.courses.index') }}">
-        <div class="parent-icon">
-          <i class="fas fa-book-open"></i>
-        </div>
-        <div class="menu-title">Courses & CSO</div>
-      </a>
-    </li>
-
-    <li>
-      <a href="{{ route('principal.syllabus.index') }}">
-        <div class="parent-icon">
-          <i class="fas fa-scroll"></i>
-        </div>
-        <div class="menu-title">Subject Syllabus</div>
-      </a>
-    </li>
-
-    <li>
-      <a href="{{ route('principal.classes.index') }}">
-        <div class="parent-icon">
-          <i class="fas fa-clock"></i>
-        </div>
-        <div class="menu-title">Classes (Hour-wise)</div>
-      </a>
-    </li>
-
-    <li>
-      <a href="{{ route('principal.work-diary.overview') }}">
-        <div class="parent-icon">
-          <i class="fas fa-book"></i>
-        </div>
-        <div class="menu-title">Work Diary</div>
-      </a>
-    </li>
-
-    <li>
-      <a href="{{ route('principal.leaves.index') }}">
-        <div class="parent-icon">
-          <i class="fas fa-calendar-check"></i>
-          @if($pendingLeaveCount > 0)
-          <span class="badge bg-danger rounded-pill" style="position: absolute; top: -5px; right: -5px; font-size: 10px;">{{ $pendingLeaveCount }}</span>
-          @endif
-        </div>
-        <div class="menu-title">Leave Management</div>
-      </a>
-    </li>
-
-    <li>
-      <a href="{{ route('principal.admissions.index') }}">
-        <div class="parent-icon">
-          <i class="fas fa-file-alt"></i>
-        </div>
-        <div class="menu-title">Admissions</div>
       </a>
     </li>
 
@@ -153,38 +81,112 @@ $pendingLeaveCount = $pendingLeaveQuery->count();
       </ul>
     </li>
 
+    <li class="menu-label">Faculty</li>
     <li>
       <a href="javascript:;" class="has-arrow">
         <div class="parent-icon">
-          <i class="fas fa-rupee-sign"></i>
+          <i class="fas fa-chalkboard-teacher"></i>
         </div>
-        <div class="menu-title">Fees</div>
+        <div class="menu-title">Faculty</div>
       </a>
       <ul>
         <li>
-          <a href="{{ route('principal.fees.index') }}">
-            <i class="bx bx-radio-circle"></i>Student Fees
+          <a href="{{ route('principal.faculty.index') }}">
+            <i class="bx bx-radio-circle"></i>All Faculty
           </a>
         </li>
+        @if(StaticController::isPrincipal())
         <li>
-          <a href="{{ route('principal.fees.defaulters') }}">
-            <i class="bx bx-radio-circle"></i>Fee Defaulters
+          <a href="{{ route('principal.vp.index') }}">
+            <i class="bx bx-radio-circle"></i>VP Management
+          </a>
+        </li>
+        @endif
+        <li>
+          <a href="{{ route('principal.leaves.index') }}">
+            <i class="bx bx-radio-circle"></i>Leave Management
           </a>
         </li>
       </ul>
     </li>
 
-    @if(StaticController::isPrincipal())
+    <li class="menu-label">Academics</li>
     <li>
-      <a href="{{ route('principal.vp.index') }}">
+      <a href="{{ route('principal.courses.index') }}">
         <div class="parent-icon">
-          <i class="fas fa-user-shield"></i>
+          <i class="fas fa-book-open"></i>
         </div>
-        <div class="menu-title">VP Management</div>
+        <div class="menu-title">Courses & CSO</div>
       </a>
     </li>
-    @endif
 
+    <li>
+      <a href="{{ route('principal.subjects.index') }}">
+        <div class="parent-icon">
+          <i class="fas fa-layer-group"></i>
+        </div>
+        <div class="menu-title">Academic Departments</div>
+      </a>
+    </li>
+
+    <li>
+      <a href="{{ route('principal.syllabus.index') }}">
+        <div class="parent-icon">
+          <i class="fas fa-scroll"></i>
+        </div>
+        <div class="menu-title">Subject Syllabus</div>
+      </a>
+    </li>
+    <li>
+      <a href="{{ route('principal.curriculam.index') }}">
+        <div class="parent-icon">
+          <i class="fas fa-drafting-compass"></i>
+        </div>
+        <div class="menu-title">Curriculam</div>
+      </a>
+    </li>
+
+    <li>
+      <a href="{{ route('principal.curriculam.defaulters') }}">
+        <div class="parent-icon">
+          <i class="fas fa-exclamation-triangle"></i>
+        </div>
+        <div class="menu-title">Curriculam Defaulters</div>
+      </a>
+    </li>
+    <li>
+      <a href="{{ route('principal.classes.index') }}">
+        <div class="parent-icon">
+          <i class="fas fa-clock"></i>
+        </div>
+        <div class="menu-title">Classes (Hour-wise)</div>
+      </a>
+    </li>
+
+    <li>
+      <a href="{{ route('principal.work-diary.overview') }}">
+        <div class="parent-icon">
+          <i class="fas fa-book"></i>
+        </div>
+        <div class="menu-title">Work Diary</div>
+      </a>
+    </li>
+    <li>
+      <a href="{{ route('principal.events.work') }}">
+        <div class="parent-icon">
+          <i class="fas fa-calendar-check"></i>
+        </div>
+        <div class="menu-title">Event Controller Logs</div>
+      </a>
+    </li>
+    <li>
+      <a href="{{ route('principal.tpo-events.index') }}">
+        <div class="parent-icon">
+          <i class="fas fa-user-check"></i>
+        </div>
+        <div class="menu-title">TPO Event Approvals</div>
+      </a>
+    </li>
     <li>
       <a href="javascript:;" class="has-arrow">
         <div class="parent-icon">
@@ -213,6 +215,46 @@ $pendingLeaveCount = $pendingLeaveQuery->count();
         </div>
         <div class="menu-title">API Score Reports</div>
       </a>
+    </li>
+
+    <li class="menu-label">Admissions</li>
+    <li>
+      <a href="{{ route('principal.admissions.index') }}">
+        <div class="parent-icon">
+          <i class="fas fa-file-alt"></i>
+        </div>
+        <div class="menu-title">Admissions</div>
+      </a>
+    </li>
+    <li>
+      <a href="{{ route('itcell.admission.combination-master') }}">
+        <div class="parent-icon">
+          <i class="fas fa-file-alt"></i>
+        </div>
+        <div class="menu-title">Admission Programs</div>
+      </a>
+    </li>
+
+    <li class="menu-label">Accounts</li>
+    <li>
+      <a href="javascript:;" class="has-arrow">
+        <div class="parent-icon">
+          <i class="fas fa-rupee-sign"></i>
+        </div>
+        <div class="menu-title">Fees</div>
+      </a>
+      <ul>
+        <li>
+          <a href="{{ route('principal.fees.index') }}">
+            <i class="bx bx-radio-circle"></i>Student Fees
+          </a>
+        </li>
+        <li>
+          <a href="{{ route('principal.fees.defaulters') }}">
+            <i class="bx bx-radio-circle"></i>Fee Defaulters
+          </a>
+        </li>
+      </ul>
     </li>
 
     <!-- logout -->

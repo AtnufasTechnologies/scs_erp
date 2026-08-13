@@ -11,6 +11,7 @@ use App\Models\Campus;
 use App\Models\CognitiveLevelMaster;
 use App\Models\CollegeBankAccount;
 use App\Models\Deanery;
+use App\Models\DeaneryDeptPivot;
 use App\Models\Department;
 use App\Models\DepartmentMaster;
 use App\Models\Faculty;
@@ -384,6 +385,19 @@ class AdminController extends Controller
                 ->get();
         }
 
+        $subjects = Subject::where('campus_id', (int) $data->campus_id)
+            ->orderBy('title')
+            ->get(['id', 'title', 'code', 'campus_id']);
+
+        $availablePrograms = collect();
+        if (!empty($data->batch) && !empty($data->campus_id) && !empty($data->academic_dept_id)) {
+            $availablePrograms = $this->getEnrolledProgramsByBatchCampusAndSubject(
+                (int) $data->batch,
+                (int) $data->campus_id,
+                (int) $data->academic_dept_id
+            );
+        }
+
         return view('admin.master.student-profile', [
             'data'               => $data,
             'studentCourses'     => $studentCourses,
@@ -399,7 +413,8 @@ class AdminController extends Controller
             'examResults'        => $examResults,
             'examStudent'        => $examStudent,
             'batches'            => BatchMaster::orderBy('batch_name')->get(),
-            'departments'        => DepartmentMaster::orderBy('name')->get(),
+            'subjects'           => $subjects,
+            'availablePrograms'  => $availablePrograms,
             'campuses'           => Campus::orderBy('name')->get(),
             'religions'          => ReligionMaster::orderBy('name')->get(),
             'nationalities'      => NationalityMaster::orderBy('name')->get(),
@@ -864,7 +879,8 @@ class AdminController extends Controller
             'guardian_mobile_no'    => 'nullable|string|max:15',
             'fr_occupation'         => 'nullable|string|max:150',
             'mr_occupation'         => 'nullable|string|max:150',
-            'department'            => 'nullable|integer|exists:department_masters,id',
+            'academic_dept_id'      => 'nullable|integer|exists:subjects,id',
+            'new_program_id'        => 'nullable|integer|exists:student_program,id',
             'batch'                 => 'nullable|integer|exists:batch_masters,id',
             'campus_id'             => 'nullable|integer|exists:campuses,id',
             'roll_no'               => 'nullable|string|max:50',
@@ -874,6 +890,7 @@ class AdminController extends Controller
             'admission_date'        => 'nullable|date',
             'graduation_year'       => 'nullable|integer',
             'status'                => 'nullable|string|max:50',
+            'mark_left_deactivate'  => 'nullable|boolean',
             'nationality'           => 'nullable|integer|exists:nationality_masters,id',
             'religion'              => 'nullable|integer|exists:religion_masters,id',
             'community'             => 'nullable|string|max:100',
@@ -905,10 +922,118 @@ class AdminController extends Controller
             ]);
         }
 
+        if ($request->boolean('mark_left_deactivate')) {
+            $validated['status'] = 'left';
+        }
+
         $student->update($validated);
+
+        if ($request->boolean('mark_left_deactivate')) {
+            if (Schema::hasColumn($student->getTable(), 'is_active')) {
+                $student->is_active = 0;
+                $student->save();
+            }
+
+            User::where('roll_no', $student->roll_no)->update([
+                'status' => 'INACTIVE',
+            ]);
+        }
 
         return redirect()->route('admin.student.profile', ['id' => $id, 'rollno' => $student->roll_no])
             ->with('success', 'Student details updated successfully.');
+    }
+
+    function fetchEnrolledProgramsByBatchAndSubject(Request $request)
+    {
+        $request->validate([
+            'batch_id' => 'required|integer|exists:batch_masters,id',
+            'campus_id' => 'required|integer|exists:campuses,id',
+            'subject_id' => 'required|integer|exists:subjects,id',
+        ]);
+
+        $programs = $this->getEnrolledProgramsByBatchCampusAndSubject(
+            (int) $request->batch_id,
+            (int) $request->campus_id,
+            (int) $request->subject_id
+        );
+
+        return response()->json([
+            'success' => true,
+            'programs' => $programs,
+        ]);
+    }
+
+    function fetchSubjectsByCampus(Request $request)
+    {
+        $request->validate([
+            'campus_id' => 'required|integer|exists:campuses,id',
+        ]);
+
+        $subjects = Subject::where('campus_id', (int) $request->campus_id)
+            ->orderBy('title')
+            ->get(['id', 'title', 'code', 'campus_id']);
+
+        return response()->json([
+            'success' => true,
+            'subjects' => $subjects,
+        ]);
+    }
+
+    private function getEnrolledProgramsByBatchCampusAndSubject(int $batchId, int $campusId, int $subjectId)
+    {
+        $subject = Subject::find($subjectId);
+        if (!$subject || (int) $subject->campus_id !== $campusId) {
+            return collect();
+        }
+
+        // Restrict by combinations configured for selected subject + batch (+ campus when available).
+        $combinationQuery = SubjectHasStudentProgam::where('subject_id', $subjectId)
+            ->where('batch_id', $batchId);
+
+        if (Schema::hasColumn((new SubjectHasStudentProgam())->getTable(), 'campus_id')) {
+            $combinationQuery->where('campus_id', $campusId);
+        }
+
+        $subjectProgramIds = $combinationQuery
+            ->pluck('student_program_id')
+            ->map(fn($id) => (int) $id)
+            ->filter()
+            ->unique()
+            ->values()
+            ->all();
+
+        if (empty($subjectProgramIds)) {
+            return collect();
+        }
+
+        // Keep only programs where students are actually enrolled for this batch + campus.
+        $enrolledProgramIds = StudentMaster::where('batch', $batchId)
+            ->where('campus_id', $campusId)
+            ->whereIn('new_program_id', $subjectProgramIds)
+            ->whereNotNull('new_program_id')
+            ->distinct()
+            ->pluck('new_program_id')
+            ->map(fn($id) => (int) $id)
+            ->toArray();
+
+        if (empty($enrolledProgramIds)) {
+            return collect();
+        }
+
+        return StudentProgram::query()
+            ->where('campus_id', $campusId)
+            ->whereIn('id', $enrolledProgramIds)
+            ->orderBy('name')
+            ->get(['id', 'code', 'name', 'program_type'])
+            ->map(function ($program) {
+                return [
+                    'id' => (int) $program->id,
+                    'code' => (string) ($program->code ?? ''),
+                    'name' => (string) ($program->name ?? ''),
+                    'program_type' => (string) ($program->program_type ?? ''),
+                ];
+            })
+            ->values();
     }
 
     // ── Student Course CRUD ──────────────────────────────────────────────
@@ -1046,16 +1171,24 @@ class AdminController extends Controller
                 ->orderByDesc('id')
                 ->get();
 
-            $programRows = $combinations->map(function ($combination) {
+            $uniqueCombinations = $combinations
+                ->groupBy(function ($combination) {
+                    return (int) $combination->batch_id . '|'
+                        . (int) $combination->student_program_id . '|'
+                        . (int) $combination->campus_id . '|'
+                        . strtoupper(trim((string) ($combination->program_type ?? '')));
+                })
+                ->map(function ($group) {
+                    return $group->sortByDesc('id')->first();
+                })
+                ->values();
+
+            $programRows = $uniqueCombinations->map(function ($combination) {
                 $studentsCount = StudentMaster::where('new_program_id', $combination->student_program_id)
                     ->where('batch', $combination->batch_id)
                     ->where('campus_id', $combination->campus_id)
                     ->where('is_deleted', 0)
                     ->where('is_left', 0)
-                    ->count();
-
-                $autoCoursesCount = ProgramWiseSemesterCourse::where('program_combo_refid', $combination->id)
-                    ->where('course_type', ProgramWiseSemesterCourse::TYPE_AUTO)
                     ->count();
 
                 return (object) [
@@ -1065,13 +1198,17 @@ class AdminController extends Controller
                     'program_type' => strtoupper((string) ($combination->program_type ?? '')),
                     'campus_name' => (string) optional($combination->campusmaster)->name,
                     'students_count' => (int) $studentsCount,
-                    'auto_courses_count' => (int) $autoCoursesCount,
-                    'curriculum_done' => $autoCoursesCount > 0,
                 ];
-            });
+            })
+                ->sortBy([
+                    ['program_code', 'asc'],
+                    ['program_type', 'asc'],
+                    ['campus_name', 'asc'],
+                ])
+                ->values();
         }
 
-        return view('admin.itcell.bulk-enrollment', [
+        return view('admin.itcell.bulk-rollno-reconfiguration', [
             'batches' => $batches,
             'selectedBatchId' => $selectedBatchId,
             'programRows' => $programRows,
@@ -1084,7 +1221,6 @@ class AdminController extends Controller
             'batch_id' => 'required|integer|exists:batch_masters,id',
             'program_combination_ids' => 'required|array|min:1',
             'program_combination_ids.*' => 'integer|exists:subject_has_student_progams,id',
-            'rollno_action' => 'required|in:reconfigure,dont_reconfigure',
         ]);
 
         $batchId = (int) $request->batch_id;
@@ -1092,7 +1228,6 @@ class AdminController extends Controller
             ->map(fn($id) => (int) $id)
             ->unique()
             ->values();
-        $rollnoAction = (string) $request->rollno_action;
 
         $batch = BatchMaster::findOrFail($batchId);
         $batchName = (string) ($batch->batch_name ?? date('Y'));
@@ -1102,230 +1237,226 @@ class AdminController extends Controller
         ])
             ->where('batch_id', $batchId)
             ->whereIn('id', $combinationIds)
+            ->orderByDesc('id')
             ->get();
 
+        $combinations = $combinations
+            ->unique(function ($combination) {
+                return (int) $combination->batch_id . '|'
+                    . (int) $combination->student_program_id . '|'
+                    . (int) $combination->campus_id . '|'
+                    . strtoupper(trim((string) ($combination->program_type ?? '')));
+            })
+            ->values();
+
         if ($combinations->isEmpty()) {
-            return redirect()->route('bulk.student.course.enrollment', [
+            return redirect()->route('itcell.bulk.rollno.reconfigure', [
                 'batch_id' => $batchId,
             ])->with('error', 'No valid program combinations selected for this batch.');
         }
 
-        $now = now();
         $totalStudentsProcessed = 0;
-        $totalNewEnrollments = 0;
-        $totalSkippedEnrollments = 0;
-        $skippedPrograms = [];
+        $totalProgramsProcessed = 0;
+        $rollNoUpdates = [];
 
         DB::transaction(function () use (
             $combinations,
             $batchName,
-            $rollnoAction,
-            $now,
             &$totalStudentsProcessed,
-            &$totalNewEnrollments,
-            &$totalSkippedEnrollments,
-            &$skippedPrograms
+            &$totalProgramsProcessed,
+            &$rollNoUpdates
         ) {
             foreach ($combinations as $combination) {
-                $curriculumMappings = ProgramWiseSemesterCourse::where('program_combo_refid', $combination->id)
-                    ->whereIn('course_type', [
-                        ProgramWiseSemesterCourse::TYPE_AUTO,
-                        ProgramWiseSemesterCourse::TYPE_STUDENT_CHOICE,
-                        'COMPULSORY',
-                        'ELECTIVE',
-                    ])
-                    ->get([
-                        'course_id',
-                        'semester',
-                        'course_type',
-                        'specialization_master_id',
-                        'specialization_master_ids',
-                    ])
-                    ->unique(fn($row) => ((int) $row->course_id) . '_' . ((int) $row->semester) . '_' . strtoupper((string) ($row->course_type ?? '')))
-                    ->values();
-
-                if ($curriculumMappings->isEmpty()) {
-                    $skippedPrograms[] = trim((optional($combination->studentprograminfo)->code ?? '') . ' - ' . (optional($combination->studentprograminfo)->name ?? 'Program'));
-                    continue;
-                }
-
                 $students = StudentMaster::where('new_program_id', $combination->student_program_id)
                     ->where('batch', $combination->batch_id)
                     ->where('campus_id', $combination->campus_id)
                     ->where('is_deleted', 0)
                     ->where('is_left', 0)
+                    ->when(
+                        Schema::hasColumn((new StudentMaster())->getTable(), 'is_integrated_program_origin'),
+                        fn($query) => $query->where('is_integrated_program_origin', 0)
+                    )
                     ->orderBy('id')
-                    ->get(['id', 'campus_id', 'roll_no', 'new_program_id', 'batch', 'campus_id']);
+                    ->get(['id', 'roll_no']);
 
                 if ($students->isEmpty()) {
                     continue;
                 }
 
-                if ($rollnoAction === 'reconfigure') {
-                    $this->bulkReconfigureRollNo($students, $combination, $batchName);
-                }
-
-                $studentIds = $students->pluck('id')->all();
-                $academicYear = $batchName;
-
-                $programSpecializationIds = collect($combination->specialization_ids ?? [])
-                    ->map(fn($id) => (int) $id)
-                    ->filter(fn($id) => $id > 0)
-                    ->unique()
-                    ->values();
-
-                $studentSpecializationByStudentSemester = [];
-                $hasStudentSpecializations = false;
-                if (Schema::hasTable('student_specializations')) {
-                    $specializationRows = DB::table('student_specializations')
-                        ->whereIn('student_id', $studentIds)
-                        ->where('subject_has_student_program_id', (int) $combination->id)
-                        ->whereNull('deleted_at')
-                        ->where('is_active', 1)
-                        ->orderByDesc('id')
-                        ->get(['student_id', 'specialization_id', 'semester_id']);
-
-                    $hasStudentSpecializations = $specializationRows->isNotEmpty();
-
-                    foreach ($specializationRows as $row) {
-                        $studentId = (int) ($row->student_id ?? 0);
-                        $specializationId = (int) ($row->specialization_id ?? 0);
-                        $semesterId = (int) ($row->semester_id ?? 0);
-
-                        if ($studentId <= 0 || $specializationId <= 0) {
-                            continue;
-                        }
-
-                        if (!isset($studentSpecializationByStudentSemester[$studentId])) {
-                            $studentSpecializationByStudentSemester[$studentId] = [];
-                        }
-
-                        // Keep first row due to desc id ordering (latest record wins).
-                        if (!isset($studentSpecializationByStudentSemester[$studentId][$semesterId])) {
-                            $studentSpecializationByStudentSemester[$studentId][$semesterId] = $specializationId;
-                        }
-                    }
-                }
-
-                $programHasSpecializations = $programSpecializationIds->isNotEmpty() || $hasStudentSpecializations;
-
-                $normalizedMappings = $curriculumMappings->map(function ($row) {
-                    $type = strtoupper((string) ($row->course_type ?? ''));
-                    $specIds = collect($row->specialization_master_ids ?? [])
-                        ->map(fn($id) => (int) $id)
-                        ->filter(fn($id) => $id > 0)
-                        ->values();
-
-                    $singleSpec = (int) ($row->specialization_master_id ?? 0);
-                    if ($singleSpec > 0 && !$specIds->contains($singleSpec)) {
-                        $specIds->push($singleSpec);
-                    }
-
-                    return (object) [
-                        'course_id' => (int) ($row->course_id ?? 0),
-                        'semester' => (int) ($row->semester ?? 0),
-                        'course_type' => $type,
-                        'is_elective' => in_array($type, [ProgramWiseSemesterCourse::TYPE_STUDENT_CHOICE, 'ELECTIVE'], true) ? 1 : 0,
-                        'specialization_ids' => $specIds->unique()->values()->all(),
-                    ];
-                })->filter(fn($row) => $row->course_id > 0 && $row->semester > 0)->values();
-
-                $existingEnrollments = StudentCourseInfo::whereIn('student_id', $studentIds)
-                    ->where('academic_year', $academicYear)
-                    ->where('is_deleted', 0)
-                    ->where(function ($query) use ($normalizedMappings) {
-                        foreach ($normalizedMappings as $map) {
-                            $query->orWhere(function ($q) use ($map) {
-                                $q->where('course_id', (int) $map->course_id)
-                                    ->where('semester', (int) $map->semester);
-                            });
-                        }
-                    })
-                    ->get(['student_id', 'course_id', 'semester'])
-                    ->mapWithKeys(fn($row) => [((int) $row->student_id) . '_' . ((int) $row->course_id) . '_' . ((int) $row->semester) => true]);
-
-                $insertRows = [];
-
-                $studentSpecForSemester = function (int $studentId, int $semester) use ($studentSpecializationByStudentSemester): int {
-                    $rows = $studentSpecializationByStudentSemester[$studentId] ?? [];
-                    if (isset($rows[$semester]) && (int) $rows[$semester] > 0) {
-                        return (int) $rows[$semester];
-                    }
-                    if (isset($rows[0]) && (int) $rows[0] > 0) {
-                        return (int) $rows[0];
-                    }
-                    return 0;
-                };
-
-                foreach ($students as $student) {
-                    foreach ($normalizedMappings as $map) {
-                        $courseId = (int) $map->course_id;
-                        $semester = (int) $map->semester;
-
-                        $mappingSpecIds = collect($map->specialization_ids ?? [])
-                            ->map(fn($id) => (int) $id)
-                            ->filter(fn($id) => $id > 0)
-                            ->values();
-
-                        // If curriculum row is specialization-specific and the program has specializations,
-                        // enroll only matching students by specialization_id.
-                        if ($programHasSpecializations && $mappingSpecIds->isNotEmpty()) {
-                            $studentSpecId = $studentSpecForSemester((int) $student->id, $semester);
-                            if ($studentSpecId <= 0 || !$mappingSpecIds->contains($studentSpecId)) {
-                                continue;
-                            }
-                        }
-
-                        $key = ((int) $student->id) . '_' . $courseId . '_' . $semester;
-
-                        if (isset($existingEnrollments[$key])) {
-                            $totalSkippedEnrollments++;
-                            continue;
-                        }
-
-                        $insertRows[] = [
-                            'student_id' => (int) $student->id,
-                            'course_id' => $courseId,
-                            'semester' => $semester,
-                            'campus_id' => (int) $student->campus_id,
-                            'is_active' => 1,
-                            'academic_year' => $academicYear,
-                            'is_elective' => (int) ($map->is_elective ?? 0),
-                            'created_at' => $now,
-                            'updated_at' => $now,
-                        ];
-
-                        $totalNewEnrollments++;
-
-                        if (count($insertRows) >= 1000) {
-                            DB::table('student_course_infos')->insert($insertRows);
-                            $insertRows = [];
-                        }
-                    }
-                }
-
-                if (!empty($insertRows)) {
-                    DB::table('student_course_infos')->insert($insertRows);
+                $programRollUpdates = $this->bulkReconfigureRollNo($students, $combination, $batchName);
+                if (!empty($programRollUpdates)) {
+                    $rollNoUpdates = array_merge($rollNoUpdates, $programRollUpdates);
                 }
 
                 $totalStudentsProcessed += $students->count();
+                $totalProgramsProcessed++;
             }
         });
 
-        $message = $totalStudentsProcessed . ' student(s) processed. '
-            . $totalNewEnrollments . ' enrollment(s) added. '
-            . $totalSkippedEnrollments . ' already enrolled (skipped).';
+        $message = $totalProgramsProcessed . ' program(s) processed. '
+            . $totalStudentsProcessed . ' student roll number(s) reconfigured.';
 
-        if (!empty($skippedPrograms)) {
-            $message .= ' Skipped (no AUTO curriculum): ' . implode(', ', $skippedPrograms) . '.';
-        }
+        $totalRollUpdates = count($rollNoUpdates);
+        $maxVisibleUpdates = 400;
+        $visibleRollUpdates = array_slice($rollNoUpdates, 0, $maxVisibleUpdates);
+        $truncatedUpdates = max(0, $totalRollUpdates - count($visibleRollUpdates));
 
-        return redirect()->route('bulk.student.course.enrollment', [
+        return redirect()->route('itcell.bulk.rollno.reconfigure', [
             'batch_id' => $batchId,
-        ])->with('success', $message);
+        ])
+            ->with('success', $message)
+            ->with('rollno_updates', $visibleRollUpdates)
+            ->with('rollno_updates_total', $totalRollUpdates)
+            ->with('rollno_updates_truncated', $truncatedUpdates);
     }
 
-    private function bulkReconfigureRollNo($students, SubjectHasStudentProgam $combination, string $batchName): void
+    function bulkRollNoProgramStudents(Request $request, $combinationId)
+    {
+        $combinationId = (int) $combinationId;
+        if ($combinationId <= 0) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Invalid program combination.',
+            ], 422);
+        }
+
+        $combination = SubjectHasStudentProgam::with([
+            'studentprograminfo:id,code,name',
+            'campusmaster:id,name',
+        ])->find($combinationId);
+
+        if (!$combination) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Program combination not found.',
+            ], 404);
+        }
+
+        $queryBatchId = (int) $request->query('batch_id', 0);
+        if ($queryBatchId > 0 && $queryBatchId !== (int) $combination->batch_id) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Program does not belong to selected batch.',
+            ], 422);
+        }
+
+        $batchName = (string) optional(BatchMaster::find((int) $combination->batch_id))->batch_name;
+        if ($batchName === '') {
+            $batchName = (string) date('Y');
+        }
+
+        $programCode = strtoupper((string) optional($combination->studentprograminfo)->code);
+        if ($programCode === '') {
+            $programCode = 'PRG';
+        }
+
+        $batchToken = strtoupper((string) preg_replace('/[^A-Za-z0-9]/', '', $batchName));
+        if ($batchToken === '') {
+            $batchToken = (string) date('Y');
+        }
+
+        $programTypeToken = $this->resolveRollProgramTypePrefix($combination->program_type ?? null);
+        $campusToken = ((int) $combination->campus_id) === 1 ? 'SO' : 'SL';
+        $prefix = $programTypeToken . $campusToken . $batchToken . $programCode;
+
+        $studentTable = (new StudentMaster())->getTable();
+        $nameCandidateColumns = [
+            'student_name',
+            'name',
+            'first_name',
+            'middle_name',
+            'last_name',
+            'FIRST_NAME',
+            'MIDDLE_NAME',
+            'LAST_NAME',
+        ];
+
+        $existingNameColumns = collect($nameCandidateColumns)
+            ->filter(fn($column) => Schema::hasColumn($studentTable, $column))
+            ->values()
+            ->all();
+
+        $studentSelectColumns = array_merge(['id', 'roll_no'], $existingNameColumns);
+
+        $students = StudentMaster::query()
+            ->where('new_program_id', (int) $combination->student_program_id)
+            ->where('batch', (int) $combination->batch_id)
+            ->where('campus_id', (int) $combination->campus_id)
+            ->where('is_deleted', 0)
+            ->where('is_left', 0)
+            ->when(
+                Schema::hasColumn($studentTable, 'is_integrated_program_origin'),
+                fn($query) => $query->where('is_integrated_program_origin', 0)
+            )
+            ->orderBy('id')
+            ->get($studentSelectColumns);
+
+        $counter = 1;
+        $rows = $students->map(function ($student) use ($prefix, &$counter) {
+            $previewRollNo = $prefix . str_pad((string) $counter, 3, '0', STR_PAD_LEFT);
+            $fullName = trim((string) ($student->student_name ?? ''));
+            if ($fullName === '') {
+                $fullName = trim((string) ($student->first_name ?? '') . ' ' . (string) ($student->middle_name ?? '') . ' ' . (string) ($student->last_name ?? ''));
+            }
+            if ($fullName === '') {
+                $fullName = trim((string) ($student->name ?? ''));
+            }
+            if ($fullName === '') {
+                $fullName = trim((string) ($student->FIRST_NAME ?? '') . ' ' . (string) ($student->MIDDLE_NAME ?? '') . ' ' . (string) ($student->LAST_NAME ?? ''));
+            }
+
+            $counter++;
+
+            return [
+                'student_id' => (int) ($student->id ?? 0),
+                'student_name' => $fullName !== '' ? $fullName : '-',
+                'current_roll_no' => (string) ($student->roll_no ?? ''),
+                'preview_roll_no' => $previewRollNo,
+                'needs_change' => ((string) ($student->roll_no ?? '')) !== $previewRollNo,
+            ];
+        })->values();
+
+        return response()->json([
+            'success' => true,
+            'program' => [
+                'combination_id' => (int) $combination->id,
+                'program_code' => (string) optional($combination->studentprograminfo)->code,
+                'program_name' => (string) optional($combination->studentprograminfo)->name,
+                'campus_name' => (string) optional($combination->campusmaster)->name,
+                'batch_id' => (int) $combination->batch_id,
+                'batch_name' => $batchName,
+            ],
+            'total_students' => $rows->count(),
+            'students' => $rows,
+        ]);
+    }
+
+    private function resolveRollProgramTypePrefix($programType): string
+    {
+        $normalized = strtoupper(trim((string) $programType));
+
+        if ($normalized === 'UG' || $normalized === 'U' || str_starts_with($normalized, 'UG')) {
+            return 'U';
+        }
+
+        if ($normalized === 'PG' || $normalized === 'P' || str_starts_with($normalized, 'PG')) {
+            return 'P';
+        }
+
+        if (ctype_digit($normalized)) {
+            $programTypeId = (int) $normalized;
+            if ($programTypeId === 1) {
+                return 'U';
+            }
+            if ($programTypeId === 2) {
+                return 'P';
+            }
+        }
+
+        return '';
+    }
+
+    private function bulkReconfigureRollNo($students, SubjectHasStudentProgam $combination, string $batchName): array
     {
         $programCode = strtoupper((string) optional($combination->studentprograminfo)->code);
         if ($programCode === '') {
@@ -1337,15 +1468,29 @@ class AdminController extends Controller
             $batchToken = (string) date('Y');
         }
 
+        $programTypeToken = $this->resolveRollProgramTypePrefix($combination->program_type ?? null);
         $campusToken = ((int) $combination->campus_id) === 1 ? 'SO' : 'SL';
-        $prefix = $campusToken . $batchToken . $programCode;
+        $prefix = $programTypeToken . $campusToken . $batchToken . $programCode;
 
+        $updates = [];
         $counter = 1;
         foreach ($students as $student) {
             $rollNo = $prefix . str_pad((string) $counter, 3, '0', STR_PAD_LEFT);
+            $oldRollNo = (string) ($student->roll_no ?? '');
             StudentMaster::where('id', (int) $student->id)->update(['roll_no' => $rollNo]);
+
+            $updates[] = [
+                'student_id' => (int) $student->id,
+                'old_roll_no' => $oldRollNo,
+                'new_roll_no' => $rollNo,
+                'program_code' => (string) optional($combination->studentprograminfo)->code,
+                'program_name' => (string) optional($combination->studentprograminfo)->name,
+                'campus_name' => (string) optional($combination->campusmaster)->name,
+            ];
             $counter++;
         }
+
+        return $updates;
     }
 
     /**
@@ -1837,39 +1982,206 @@ class AdminController extends Controller
 
     function deanery(Request $request)
     {
-
+        $campusId = (int) $request->get('campus', 0);
         if (!empty($request->campus)) {
-            $campus_id = $request->campus;
             $deanery = Deanery::with([
+                'campus:id,name',
                 'program.campus',
-                'deanerydeptpivot.department:id,name'
-            ])->whereHas('program.campus', function ($q) use ($campus_id) {
-                $q->where('id', $campus_id);
-            })->latest()->get();
+                'deanerydeptpivot.department:id,title,code'
+            ])->where('campus_id', $campusId)->latest()->get();
         } else {
             $deanery = Deanery::with([
+                'campus:id,name',
                 'program.campus',
-                'deanerydeptpivot.department:id,name'
+                'deanerydeptpivot.department:id,title,code'
             ])->latest()->get();
         }
 
-        $programs = MainProgram::with('campus')->get();
-        return view('admin.master.deanery', compact('deanery', 'programs'));
+        $programs = MainProgram::with('campus')->orderBy('name')->get();
+        $campuses = Campus::orderBy('name')->get(['id', 'name']);
+        $departments = Subject::all();
+        return view('admin.master.deanery', compact('deanery', 'programs', 'departments', 'campuses'));
     }
 
     function addDeanery(Request $request)
     {
         $request->validate([
-            'program_id' => 'required',
-            'title' => 'required'
+            'campus_id' => 'required|integer|exists:campuses,id',
+            'program_id' => 'nullable|integer|exists:main_programs,id',
+            'title' => 'required|string|max:255'
         ]);
 
+        $title = trim((string) $request->title);
+        $slugBase = Str::slug($title);
+        $slug = $slugBase;
+        $suffix = 1;
+
+        while (Deanery::where('slug', $slug)->exists()) {
+            $suffix++;
+            $slug = $slugBase . '-' . $suffix;
+        }
+
         $rec = new Deanery();
-        $rec->program_id = $request->program_id;
-        $rec->slug = Str::slug($request->title);
-        $rec->title = $request->title;
+        $rec->campus_id = (int) $request->campus_id;
+        $rec->program_id = !empty($request->program_id) ? (int) $request->program_id : null;
+        $rec->slug = $slug;
+        $rec->title = $title;
         $rec->save();
-        return redirect()->back()->with('success', 'Done');
+        return redirect()->back()->with('success', 'Deanery created successfully.');
+    }
+
+    function updateDeanery(Request $request, $id)
+    {
+        $request->validate([
+            'campus_id' => 'required|integer|exists:campuses,id',
+            'program_id' => 'nullable|integer|exists:main_programs,id',
+            'title' => 'required|string|max:255',
+        ]);
+
+        $deanery = Deanery::findOrFail((int) $id);
+        $title = trim((string) $request->title);
+        $slugBase = Str::slug($title);
+        $slug = $slugBase;
+        $suffix = 1;
+
+        while (Deanery::where('id', '!=', (int) $deanery->id)->where('slug', $slug)->exists()) {
+            $suffix++;
+            $slug = $slugBase . '-' . $suffix;
+        }
+
+        $deanery->campus_id = (int) $request->campus_id;
+        $deanery->program_id = !empty($request->program_id) ? (int) $request->program_id : null;
+        $deanery->title = $title;
+        $deanery->slug = $slug;
+        $deanery->save();
+
+        return redirect()->back()->with('success', 'Deanery updated successfully.');
+    }
+
+    function deleteDeanery($id)
+    {
+        $deanery = Deanery::findOrFail((int) $id);
+
+        DB::transaction(function () use ($deanery) {
+            DeaneryDeptPivot::where('deanery_id', (int) $deanery->id)->delete();
+            $deanery->delete();
+        });
+
+        return redirect()->back()->with('success', 'Deanery deleted successfully.');
+    }
+
+    function addDeaneryDepartments(Request $request, $id)
+    {
+        $deanery = Deanery::findOrFail((int) $id);
+        $deaneryCampusId = (int) ($deanery->campus_id ?? 0);
+
+        $request->validate([
+            'dept_ids' => 'required|array|min:1',
+            'dept_ids.*' => 'integer|exists:subjects,id',
+        ]);
+
+        $deptIds = collect($request->dept_ids)
+            ->map(fn($v) => (int) $v)
+            ->filter(fn($v) => $v > 0)
+            ->unique()
+            ->values();
+
+        if ($deaneryCampusId > 0) {
+            $validDeptIds = Subject::query()
+                ->whereIn('id', $deptIds->all())
+                ->where('campus_id', $deaneryCampusId)
+                ->pluck('id')
+                ->map(fn($value) => (int) $value)
+                ->values();
+
+            if ($validDeptIds->count() !== $deptIds->count()) {
+                return redirect()->back()->with('error', 'Only departments from the same campus can be mapped to this deanery.');
+            }
+        }
+
+        $added = 0;
+        foreach ($deptIds as $deptId) {
+            $exists = DeaneryDeptPivot::where('deanery_id', (int) $deanery->id)
+                ->where('dept_id', (int) $deptId)
+                ->exists();
+
+            if ($exists) {
+                continue;
+            }
+
+            $pivot = new DeaneryDeptPivot();
+            $pivot->deanery_id = (int) $deanery->id;
+            $pivot->dept_id = (int) $deptId;
+            $pivot->save();
+            $added++;
+        }
+
+        if ($added === 0) {
+            return redirect()->back()->with('error', 'Selected subjects/departments are already mapped.');
+        }
+
+        return redirect()->back()->with('success', $added . ' subject/department mapping(s) added.');
+    }
+
+    function syncDeaneryDepartments(Request $request, $id)
+    {
+        $deanery = Deanery::findOrFail((int) $id);
+        $deaneryCampusId = (int) ($deanery->campus_id ?? 0);
+
+        $request->validate([
+            'dept_ids' => 'nullable|array',
+            'dept_ids.*' => 'integer|exists:subjects,id',
+        ]);
+
+        $deptIds = collect($request->dept_ids ?? [])
+            ->map(fn($v) => (int) $v)
+            ->filter(fn($v) => $v > 0)
+            ->unique()
+            ->values();
+
+        if ($deaneryCampusId > 0 && $deptIds->isNotEmpty()) {
+            $validDeptIds = Subject::query()
+                ->whereIn('id', $deptIds->all())
+                ->where('campus_id', $deaneryCampusId)
+                ->pluck('id')
+                ->map(fn($value) => (int) $value)
+                ->values();
+
+            if ($validDeptIds->count() !== $deptIds->count()) {
+                return redirect()->back()->with('error', 'Only departments from the same campus can be mapped to this deanery.');
+            }
+        }
+
+        DB::transaction(function () use ($deanery, $deptIds) {
+            DeaneryDeptPivot::where('deanery_id', (int) $deanery->id)
+                ->whereNotIn('dept_id', $deptIds->all())
+                ->delete();
+
+            foreach ($deptIds as $deptId) {
+                $exists = DeaneryDeptPivot::where('deanery_id', (int) $deanery->id)
+                    ->where('dept_id', (int) $deptId)
+                    ->exists();
+
+                if ($exists) {
+                    continue;
+                }
+
+                $pivot = new DeaneryDeptPivot();
+                $pivot->deanery_id = (int) $deanery->id;
+                $pivot->dept_id = (int) $deptId;
+                $pivot->save();
+            }
+        });
+
+        return redirect()->back()->with('success', 'Deanery subject/department mappings updated.');
+    }
+
+    function deleteDeaneryDepartment($id)
+    {
+        $pivot = DeaneryDeptPivot::findOrFail((int) $id);
+        $pivot->delete();
+
+        return redirect()->back()->with('success', 'Subject/department mapping removed.');
     }
 
     function academicDept()

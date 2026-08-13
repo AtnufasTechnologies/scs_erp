@@ -147,32 +147,56 @@ class TimetableController extends Controller
 
         $facultyDeliveryTypes = [];
         foreach ($teachingAssignments as $assignment) {
-            if (empty($assignment->faculty_id) || empty($assignment->delivery_type)) {
+            if (empty($assignment->delivery_type)) {
                 continue;
             }
 
-            if (!isset($facultyDeliveryTypes[$assignment->faculty_id])) {
-                $facultyDeliveryTypes[$assignment->faculty_id] = [];
+            $assignmentFacultyIds = collect($assignment->allAssignedFacultyIds())
+                ->map(fn($id) => (int) $id)
+                ->filter(fn($id) => $id > 0)
+                ->unique()
+                ->values();
+
+            if ($assignmentFacultyIds->isEmpty() && !empty($assignment->faculty_id)) {
+                $assignmentFacultyIds = collect([(int) $assignment->faculty_id]);
             }
 
-            if (!in_array($assignment->delivery_type, $facultyDeliveryTypes[$assignment->faculty_id], true)) {
-                $facultyDeliveryTypes[$assignment->faculty_id][] = $assignment->delivery_type;
+            foreach ($assignmentFacultyIds as $facultyId) {
+                if (!isset($facultyDeliveryTypes[$facultyId])) {
+                    $facultyDeliveryTypes[$facultyId] = [];
+                }
+
+                if (!in_array($assignment->delivery_type, $facultyDeliveryTypes[$facultyId], true)) {
+                    $facultyDeliveryTypes[$facultyId][] = $assignment->delivery_type;
+                }
             }
         }
 
         $assignmentMeta = [];
         foreach ($teachingAssignments as $assignment) {
-            if (empty($assignment->course_id) || empty($assignment->faculty_id)) {
+            if (empty($assignment->course_id)) {
                 continue;
             }
 
-            $key = $assignment->course_id . '|' . $assignment->faculty_id;
-            if (!isset($assignmentMeta[$key])) {
-                $assignmentMeta[$key] = [
-                    'delivery_type' => $assignment->delivery_type,
-                    'allocation_group' => $assignment->allocation_group,
-                    'allocation_group_label' => $assignment->allocation_group_label,
-                ];
+            $assignmentFacultyIds = collect($assignment->allAssignedFacultyIds())
+                ->map(fn($id) => (int) $id)
+                ->filter(fn($id) => $id > 0)
+                ->unique()
+                ->values();
+
+            if ($assignmentFacultyIds->isEmpty() && !empty($assignment->faculty_id)) {
+                $assignmentFacultyIds = collect([(int) $assignment->faculty_id]);
+            }
+
+            foreach ($assignmentFacultyIds as $facultyId) {
+                $key = $assignment->course_id . '|' . $facultyId;
+                if (!isset($assignmentMeta[$key])) {
+                    $assignmentMeta[$key] = [
+                        'delivery_type' => $assignment->delivery_type,
+                        'allocation_group' => $assignment->allocation_group,
+                        'allocation_group_label' => $assignment->allocation_group_label,
+                    ];
+                }
             }
         }
 
@@ -330,6 +354,271 @@ class TimetableController extends Controller
             'teachingAssignmentList' => $teachingAssignmentList,
             'subjectUsesShifts' => $subjectUsesShifts,
             'shiftOptions' => $shiftOptions,
+        ]);
+    }
+
+    function history(int $id)
+    {
+        $data = Subject::find($id);
+        if (!$data) {
+            return redirect()->back()->with('error', 'Subject not found.');
+        }
+
+        $subjectUsesShifts = (int) ($data->has_shift_delivery ?? 0) === 1;
+        $enabledShiftIds = $this->getSubjectEnabledShiftIds($data);
+
+        $shiftOptionsQuery = ShiftMaster::query()->orderBy('sort_order');
+        if ($subjectUsesShifts && !empty($enabledShiftIds)) {
+            $shiftOptionsQuery->whereIn('id', $enabledShiftIds);
+        }
+
+        $shiftOptions = $shiftOptionsQuery->get(['id', 'title', 'slug']);
+        if ($subjectUsesShifts && $shiftOptions->isEmpty()) {
+            $shiftOptions = ShiftMaster::where('slug', $this->getDefaultShiftSlug())
+                ->get(['id', 'title', 'slug']);
+        }
+
+        $shiftTitleMap = $shiftOptions
+            ->mapWithKeys(fn($row) => [(string) $row->slug => (string) $row->title])
+            ->all();
+
+        $syllabi = SubjectHasSyllabus::query()
+            ->where('subject_id', $id)
+            ->with([
+                'batchmaster:id,batch_name',
+                'semestermaster:id,title',
+            ])
+            ->orderBy('batch_id')
+            ->orderBy('semester_id')
+            ->get(['id', 'subject_id', 'batch_id', 'semester_id', 'program_type']);
+
+        $syllabusIds = $syllabi->pluck('id')->filter()->values();
+
+        $routines = collect();
+        if ($syllabusIds->isNotEmpty()) {
+            $routines = SubjectHasRoutine::query()
+                ->whereIn('syllabus_id', $syllabusIds)
+                ->with([
+                    'syllabus:id,batch_id,semester_id,program_type,course_id',
+                    'syllabus.batchmaster:id,batch_name',
+                    'syllabus.semestermaster:id,title',
+                    'weekdaymaster:id,title',
+                    'hourmaster:id,hour_no,name,start_time,end_time,shift_id',
+                    'lecturehallmaster:id,title',
+                    'teachingAssignment:id,course_id,faculty_id,delivery_type,allocation_group',
+                    'teachingAssignment.primaryFacultyMembers:id,USER_CODE,FIRST_NAME,LAST_NAME',
+                    'teachingAssignment.coFacultyMembers:id,USER_CODE,FIRST_NAME,LAST_NAME',
+                    'teachingAllocation:id,course_id,faculty_id,delivery_type,allocation_group',
+                    'teachingAllocation.primaryFacultyMembers:id,USER_CODE,FIRST_NAME,LAST_NAME',
+                    'teachingAllocation.coFacultyMembers:id,USER_CODE,FIRST_NAME,LAST_NAME',
+                ])
+                ->orderBy('batch_id')
+                ->orderBy('syllabus_id')
+                ->orderBy('weekday_id')
+                ->orderBy('hour_id')
+                ->get();
+        }
+
+        $days = collect([
+            1 => 'Monday',
+            2 => 'Tuesday',
+            3 => 'Wednesday',
+            4 => 'Thursday',
+            5 => 'Friday',
+            6 => 'Saturday',
+        ]);
+
+        $defaultShiftSlug = $this->getDefaultShiftSlug();
+        $defaultShiftsForEmptyGroups = $shiftOptions->pluck('slug')->filter()->values();
+        if ($defaultShiftsForEmptyGroups->isEmpty()) {
+            $defaultShiftsForEmptyGroups = collect([$defaultShiftSlug]);
+        }
+
+        $groups = [];
+
+        foreach ($syllabi as $syllabus) {
+            $batchId = (int) ($syllabus->batch_id ?? 0);
+            $semesterId = (int) ($syllabus->semester_id ?? 0);
+            $programType = strtoupper(trim((string) ($syllabus->program_type ?? 'UG')));
+            $programType = $programType === 'PG' ? 'PG' : 'UG';
+
+            $comboKey = $batchId . '|' . $semesterId . '|' . $programType;
+            $shiftsForCombo = $routines
+                ->filter(function ($routine) use ($batchId, $semesterId, $programType) {
+                    return (int) ($routine->batch_id ?? 0) === $batchId
+                        && (int) ($routine->syllabus->semester_id ?? 0) === $semesterId
+                        && strtoupper(trim((string) ($routine->program_type ?? $routine->syllabus->program_type ?? 'UG'))) === $programType;
+                })
+                ->pluck('shift')
+                ->map(fn($value) => trim((string) $value))
+                ->filter()
+                ->unique()
+                ->values();
+
+            if ($shiftsForCombo->isEmpty()) {
+                $shiftsForCombo = $defaultShiftsForEmptyGroups;
+            }
+
+            foreach ($shiftsForCombo as $shiftSlug) {
+                $groupKey = $comboKey . '|' . $shiftSlug;
+                if (isset($groups[$groupKey])) {
+                    continue;
+                }
+
+                $groups[$groupKey] = [
+                    'batch_id' => $batchId,
+                    'batch_name' => (string) ($syllabus->batchmaster->batch_name ?? ('Batch ' . $batchId)),
+                    'semester_id' => $semesterId,
+                    'semester_title' => (string) ($syllabus->semestermaster->title ?? ('Semester ' . $semesterId)),
+                    'program_type' => $programType,
+                    'shift' => (string) $shiftSlug,
+                    'shift_title' => (string) ($shiftTitleMap[(string) $shiftSlug] ?? ucfirst((string) $shiftSlug)),
+                    'entries' => [],
+                    'hours' => [],
+                ];
+            }
+        }
+
+        $fallbackFacultyIds = $routines
+            ->map(function ($routine) {
+                $assignment = $routine->teachingAssignment ?: $routine->teachingAllocation;
+                return (int) ($assignment->faculty_id ?? 0);
+            })
+            ->filter(fn($id) => $id > 0)
+            ->unique()
+            ->values();
+
+        $fallbackFacultyMap = $fallbackFacultyIds->isNotEmpty()
+            ? Faculty::query()
+            ->whereIn('id', $fallbackFacultyIds)
+            ->get(['id', 'USER_CODE', 'FIRST_NAME', 'LAST_NAME'])
+            ->keyBy('id')
+            : collect();
+
+        foreach ($routines as $routine) {
+            $syllabus = $routine->syllabus;
+            if (!$syllabus) {
+                continue;
+            }
+
+            $batchId = (int) ($routine->batch_id ?? $syllabus->batch_id ?? 0);
+            $semesterId = (int) ($syllabus->semester_id ?? 0);
+            $programType = strtoupper(trim((string) ($routine->program_type ?? $syllabus->program_type ?? 'UG')));
+            $programType = $programType === 'PG' ? 'PG' : 'UG';
+            $shiftSlug = trim((string) ($routine->shift ?: $defaultShiftSlug));
+
+            $groupKey = $batchId . '|' . $semesterId . '|' . $programType . '|' . $shiftSlug;
+            if (!isset($groups[$groupKey])) {
+                $groups[$groupKey] = [
+                    'batch_id' => $batchId,
+                    'batch_name' => (string) ($syllabus->batchmaster->batch_name ?? ('Batch ' . $batchId)),
+                    'semester_id' => $semesterId,
+                    'semester_title' => (string) ($syllabus->semestermaster->title ?? ('Semester ' . $semesterId)),
+                    'program_type' => $programType,
+                    'shift' => (string) $shiftSlug,
+                    'shift_title' => (string) ($shiftTitleMap[(string) $shiftSlug] ?? ucfirst((string) $shiftSlug)),
+                    'entries' => [],
+                    'hours' => [],
+                ];
+            }
+
+            $hourNo = (int) ($routine->hourmaster->hour_no ?? $routine->hour_id ?? 0);
+
+            $dayName = (string) ($days[(int) ($routine->weekday_id ?? 0)] ?? '');
+            if ($dayName === '') {
+                $rawDayTitle = strtoupper(trim((string) ($routine->weekdaymaster->title ?? '')));
+                $dayAliasMap = [
+                    'MONDAY' => 'Monday',
+                    'TUESDAY' => 'Tuesday',
+                    'WEDNESDAY' => 'Wednesday',
+                    'THURSDAY' => 'Thursday',
+                    'FRIDAY' => 'Friday',
+                    'SATURDAY' => 'Saturday',
+                ];
+                $dayName = (string) ($dayAliasMap[$rawDayTitle] ?? '');
+            }
+
+            if ($hourNo <= 0 || $dayName === '') {
+                continue;
+            }
+
+            $assignment = $routine->teachingAssignment ?: $routine->teachingAllocation;
+
+            $courseLabel = trim((string) (
+                optional(optional($assignment)->course)->course_code
+                ? optional($assignment->course)->course_code . ' - ' . optional($assignment->course)->course_title
+                : (optional($syllabus->coursemaster)->course_code ? optional($syllabus->coursemaster)->course_code . ' - ' . optional($syllabus->coursemaster)->course_title : 'Course')
+            ));
+
+            $primaryFacultyLabels = collect($assignment?->primaryFacultyMembers ?? [])
+                ->map(fn($faculty) => trim((string) ($faculty->USER_CODE ?? '-') . ' - ' . (string) ($faculty->FIRST_NAME ?? '-') . ' ' . (string) ($faculty->LAST_NAME ?? '-')))
+                ->filter()
+                ->values();
+
+            if ($primaryFacultyLabels->isEmpty() && !empty($assignment?->faculty_id)) {
+                $faculty = $fallbackFacultyMap->get((int) $assignment->faculty_id);
+                if ($faculty) {
+                    $primaryFacultyLabels = collect([
+                        trim((string) ($faculty->USER_CODE ?? '-') . ' - ' . (string) ($faculty->FIRST_NAME ?? '-') . ' ' . (string) ($faculty->LAST_NAME ?? '-')),
+                    ]);
+                }
+            }
+
+            $delivery = trim((string) ($assignment->delivery_type ?? ''));
+            $allocation = trim((string) ($assignment->allocation_group_label ?? ''));
+            $room = trim((string) (optional($routine->lecturehallmaster)->title ?? '-'));
+
+            $groups[$groupKey]['entries'][$hourNo][$dayName][] = [
+                'course' => $courseLabel !== '' ? $courseLabel : 'Course',
+                'faculty' => $primaryFacultyLabels->isNotEmpty() ? implode(', ', $primaryFacultyLabels->all()) : '-',
+                'delivery' => $delivery,
+                'allocation' => $allocation,
+                'room' => $room !== '' ? $room : '-',
+            ];
+
+            $hourName = (string) ($routine->hourmaster->name ?? ('Hour ' . $hourNo));
+            $start = (string) ($routine->hourmaster->start_time ?? '');
+            $end = (string) ($routine->hourmaster->end_time ?? '');
+            $hourLabel = $hourName;
+            if ($start !== '' && $end !== '') {
+                $hourLabel .= ' (' . $start . ' - ' . $end . ')';
+            }
+
+            $groups[$groupKey]['hours'][$hourNo] = [
+                'hour_no' => $hourNo,
+                'label' => $hourLabel,
+            ];
+        }
+
+        $groupCollection = collect($groups)
+            ->map(function ($group) use ($days) {
+                $hours = collect($group['hours'])
+                    ->sortBy('hour_no')
+                    ->values();
+
+                if ($hours->isEmpty()) {
+                    $hours = collect(range(1, 6))->map(fn($hourNo) => [
+                        'hour_no' => $hourNo,
+                        'label' => 'Hour ' . $hourNo,
+                    ]);
+                }
+
+                $group['hours'] = $hours->all();
+                $group['days'] = $days->values()->all();
+                return $group;
+            })
+            ->sortBy([
+                ['batch_id', 'desc'],
+                ['semester_id', 'asc'],
+                ['program_type', 'asc'],
+                ['shift_title', 'asc'],
+            ])
+            ->values();
+
+        return view('admin.subject.timetable-history', [
+            'data' => $data,
+            'groups' => $groupCollection,
+            'totalGroups' => $groupCollection->count(),
         ]);
     }
 
@@ -544,12 +833,24 @@ class TimetableController extends Controller
             $assignmentByPair = [];
             $assignmentByCourse = [];
             foreach ($teachingAssignments as $assignment) {
-                if (!empty($assignment->course_id) && !empty($assignment->faculty_id)) {
-                    $pairKey = $assignment->course_id . '|' . $assignment->faculty_id;
-                    if (!isset($assignmentByPair[$pairKey])) {
-                        $assignmentByPair[$pairKey] = [];
+                $assignmentFacultyIds = collect($assignment->allAssignedFacultyIds())
+                    ->map(fn($id) => (int) $id)
+                    ->filter(fn($id) => $id > 0)
+                    ->unique()
+                    ->values();
+
+                if ($assignmentFacultyIds->isEmpty() && !empty($assignment->faculty_id)) {
+                    $assignmentFacultyIds = collect([(int) $assignment->faculty_id]);
+                }
+
+                if (!empty($assignment->course_id)) {
+                    foreach ($assignmentFacultyIds as $facultyId) {
+                        $pairKey = $assignment->course_id . '|' . $facultyId;
+                        if (!isset($assignmentByPair[$pairKey])) {
+                            $assignmentByPair[$pairKey] = [];
+                        }
+                        $assignmentByPair[$pairKey][] = $assignment;
                     }
-                    $assignmentByPair[$pairKey][] = $assignment;
                 }
 
                 if (!empty($assignment->course_id) && !isset($assignmentByCourse[$assignment->course_id])) {
@@ -573,7 +874,17 @@ class TimetableController extends Controller
                 ->keyBy('faculty_id');
 
             // Get direct faculty lookup for faculty_ids stored in routines
-            $allFaculties = Faculty::whereIn('id', $routines->pluck('faculty_id')->filter()->merge($teachingAssignments->pluck('faculty_id')->filter())->unique())
+            $assignedFacultyIds = $teachingAssignments
+                ->flatMap(function ($assignment) {
+                    return collect($assignment->allAssignedFacultyIds())
+                        ->map(fn($id) => (int) $id)
+                        ->filter(fn($id) => $id > 0)
+                        ->values();
+                })
+                ->unique()
+                ->values();
+
+            $allFaculties = Faculty::whereIn('id', $routines->pluck('faculty_id')->filter()->merge($assignedFacultyIds)->unique())
                 ->get()
                 ->keyBy('id');
 
@@ -2134,8 +2445,34 @@ class TimetableController extends Controller
                 $courseCode = (string) ($course->course_code ?? '');
                 $courseTitle = (string) ($course->course_title ?? '-');
 
+                $weekdayId = (int) ($routine->weekday_id ?? 0);
+                $weekdayMap = [
+                    1 => 'Monday',
+                    2 => 'Tuesday',
+                    3 => 'Wednesday',
+                    4 => 'Thursday',
+                    5 => 'Friday',
+                    6 => 'Saturday',
+                    7 => 'Sunday',
+                ];
+
+                $weekday = (string) ($weekdayMap[$weekdayId] ?? '');
+                if ($weekday === '') {
+                    $rawWeekdayTitle = strtoupper(trim((string) ($routine->weekdaymaster->title ?? '')));
+                    $weekdayAliasMap = [
+                        'MONDAY' => 'Monday',
+                        'TUESDAY' => 'Tuesday',
+                        'WEDNESDAY' => 'Wednesday',
+                        'THURSDAY' => 'Thursday',
+                        'FRIDAY' => 'Friday',
+                        'SATURDAY' => 'Saturday',
+                        'SUNDAY' => 'Sunday',
+                    ];
+                    $weekday = (string) ($weekdayAliasMap[$rawWeekdayTitle] ?? '-');
+                }
+
                 return [
-                    'weekday' => $routine->weekdaymaster->title ?? '-',
+                    'weekday' => $weekday,
                     'hour' => $hourLabel,
                     'hour_sort' => $hourNo > 0 ? $hourNo : (int) ($routine->hour_id ?? 0),
                     'subject' => $routine->syllabus->subject->title ?? '-',

@@ -4,7 +4,7 @@
 
   <main class="page-content">
     <div class="container-fluid py-3">
-      <div class="card border-0 shadow-lg mb-4" style="background: linear-gradient(125deg, #1f2937 0%, #0f766e 100%);">
+      <div class="card border-0 shadow-lg mb-4" style="background: linear-gradient(120deg, #bfe6f1 0%, #1d4ed8 100%);">
         <div class="card-body text-white py-4">
           <h3 class="mb-1">Student 360 Monitor</h3>
           <p class="mb-0 opacity-75">Read-only behavioural, academic, counselling, and discipline overview for monitoring.</p>

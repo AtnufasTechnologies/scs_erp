@@ -68,11 +68,11 @@ $roleType = UserHasRole::where('user_id', $userId)->value('role_name');
         </li>
 
         <li>
-          <a href="{{url('erp/admin/master/deanery')}}">
+          <a href="{{route('deanery')}}">
             <div class="parent-icon">
               <i class="fas fa-building"></i>
             </div>
-            <div class="menu-title">Deneary</div>
+            <div class="menu-title">Deanery</div>
           </a>
         </li>
 
@@ -305,11 +305,11 @@ $roleType = UserHasRole::where('user_id', $userId)->value('role_name');
     @endif
 
     <li>
-      <a href="{{route('bulk.student.course.enrollment')}}">
+      <a href="{{ Route::has('itcell.bulk.rollno.reconfigure') ? route('itcell.bulk.rollno.reconfigure') : url('erp/admin/master/bulk-student-course-enrollment') }}">
         <div class="parent-icon">
           <i class="far fa-ellipsis-h-alt"></i>
         </div>
-        <div class="menu-title">Bulk Course Enrollment </div>
+        <div class="menu-title">Bulk Roll Number Reconfiguration</div>
       </a>
     </li>
 
@@ -319,6 +319,15 @@ $roleType = UserHasRole::where('user_id', $userId)->value('role_name');
           <i class="fas fa-project-diagram"></i>
         </div>
         <div class="menu-title">Student Pathway Mapper</div>
+      </a>
+    </li>
+
+    <li>
+      <a href="{{ route('itcell.student-mdc-selection.index') }}">
+        <div class="parent-icon">
+          <i class="fas fa-book-reader"></i>
+        </div>
+        <div class="menu-title">Student MDC Mapper</div>
       </a>
     </li>
 
@@ -337,6 +346,24 @@ $roleType = UserHasRole::where('user_id', $userId)->value('role_name');
           <i class="fas fa-exchange-alt"></i>
         </div>
         <div class="menu-title">Student Campus Transfer</div>
+      </a>
+    </li>
+
+    <li>
+      <a href="{{ route('itcell.integrated-sublayer-settings.index') }}">
+        <div class="parent-icon">
+          <i class="fas fa-layer-group"></i>
+        </div>
+        <div class="menu-title">Integrated Program Sublayers</div>
+      </a>
+    </li>
+
+    <li>
+      <a href="{{ route('itcell.integrated-student-shift.index') }}">
+        <div class="parent-icon">
+          <i class="fas fa-random"></i>
+        </div>
+        <div class="menu-title">Integrated Student Shift</div>
       </a>
     </li>
 

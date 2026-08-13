@@ -12,11 +12,15 @@ use App\Models\BloodGroupMaster;
 use App\Models\Campus;
 use App\Models\DegreeTrackMaster;
 use App\Models\DepartmentMaster;
+use App\Models\IntegratedProgramSublayerSetting;
 use App\Models\LateralEntryAuditLog;
 use App\Models\NationalityMaster;
 use App\Models\ProgramMaster;
+use App\Models\ProgramCourseMaster;
+use App\Models\ProgramWiseSemesterCourse;
 use App\Models\ReligionMaster;
 use App\Models\Semester;
+use App\Models\StudentCourseInfo;
 use App\Models\StudentCampusTransferLog;
 use App\Models\StudentSemesterConfig;
 use App\Models\StudentMaster;
@@ -26,46 +30,469 @@ use App\Models\SubjectHasStudentProgam;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Schema;
+use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
 use Maatwebsite\Excel\Facades\Excel;
 
 class ITCellController extends Controller
 {
 
-    private function resolveEligibleProgramIdsForTransfer(int $campusId, int $batchId, int $subjectId)
+    public function integratedProgramSublayersIndex()
     {
-        $mappedProgramIds = SubjectHasStudentProgam::query()
-            ->where('campus_id', $campusId)
-            ->where('batch_id', $batchId)
-            ->where('subject_id', $subjectId)
-            ->distinct()
+        if (!Schema::hasTable('integrated_program_sublayer_settings')) {
+            return back()->with('error', 'Integrated sublayer settings table not found. Please run migrations first.');
+        }
+
+        $programs = StudentProgram::query()
+            ->orderBy('name')
+            ->get(['id', 'code', 'name']);
+
+        $settings = IntegratedProgramSublayerSetting::query()
+            ->with('studentProgram:id,code,name')
+            ->orderByDesc('updated_at')
+            ->orderByDesc('id')
+            ->get();
+
+        return view('admin.itcell.integrated-program-sublayers', [
+            'programs' => $programs,
+            'settings' => $settings,
+        ]);
+    }
+
+    public function integratedProgramSublayersStore(Request $request)
+    {
+        if (!Schema::hasTable('integrated_program_sublayer_settings')) {
+            return back()->with('error', 'Integrated sublayer settings table not found. Please run migrations first.');
+        }
+
+        $request->validate([
+            'student_program_id' => [
+                'required',
+                'integer',
+                'exists:student_program,id',
+                Rule::unique('integrated_program_sublayer_settings', 'student_program_id')->where(function ($query) {
+                    return $query->whereNull('deleted_at');
+                }),
+            ],
+            'ug_max_year' => 'required|integer|min:1|max:10',
+            'ug_label' => 'nullable|string|max:50',
+            'pg_label' => 'nullable|string|max:50',
+            'is_active' => 'nullable|in:0,1',
+        ]);
+
+        IntegratedProgramSublayerSetting::create([
+            'student_program_id' => (int) $request->student_program_id,
+            'ug_max_year' => (int) $request->ug_max_year,
+            'ug_label' => trim((string) $request->input('ug_label', '')) ?: 'UG Layer',
+            'pg_label' => trim((string) $request->input('pg_label', '')) ?: 'PG Layer',
+            'is_active' => (int) $request->input('is_active', 1),
+        ]);
+
+        return back()->with('success', 'Integrated program sublayer setting created successfully.');
+    }
+
+    public function integratedProgramSublayersUpdate(Request $request, int $id)
+    {
+        if (!Schema::hasTable('integrated_program_sublayer_settings')) {
+            return back()->with('error', 'Integrated sublayer settings table not found. Please run migrations first.');
+        }
+
+        $setting = IntegratedProgramSublayerSetting::query()->find($id);
+        if (!$setting) {
+            return back()->with('error', 'Setting not found.');
+        }
+
+        $request->validate([
+            'ug_max_year' => 'required|integer|min:1|max:10',
+            'ug_label' => 'nullable|string|max:50',
+            'pg_label' => 'nullable|string|max:50',
+            'is_active' => 'required|in:0,1',
+        ]);
+
+        $setting->update([
+            'ug_max_year' => (int) $request->ug_max_year,
+            'ug_label' => trim((string) $request->input('ug_label', '')) ?: 'UG Layer',
+            'pg_label' => trim((string) $request->input('pg_label', '')) ?: 'PG Layer',
+            'is_active' => (int) $request->is_active,
+        ]);
+
+        return back()->with('success', 'Integrated program sublayer setting updated successfully.');
+    }
+
+    public function integratedProgramSublayersToggle(int $id)
+    {
+        if (!Schema::hasTable('integrated_program_sublayer_settings')) {
+            return back()->with('error', 'Integrated sublayer settings table not found. Please run migrations first.');
+        }
+
+        $setting = IntegratedProgramSublayerSetting::query()->find($id);
+        if (!$setting) {
+            return back()->with('error', 'Setting not found.');
+        }
+
+        $setting->update([
+            'is_active' => (int) (!$setting->is_active),
+        ]);
+
+        return back()->with('success', 'Setting status changed successfully.');
+    }
+
+    public function integratedStudentShiftIndex(Request $request)
+    {
+        if (!Schema::hasTable('integrated_program_sublayer_settings')) {
+            return back()->with('error', 'Integrated sublayer settings table not found. Please run migrations first.');
+        }
+
+        $selectedBatchId = (int) $request->input('batch_id', 0);
+        $selectedIntegratedProgramId = (int) $request->input('integrated_program_id', 0);
+        $search = trim((string) $request->input('search', ''));
+
+        $batches = BatchMaster::query()->orderByDesc('id')->get(['id', 'batch_name']);
+
+        $integratedProgramIds = IntegratedProgramSublayerSetting::query()
+            ->where('is_active', 1)
             ->pluck('student_program_id')
             ->map(fn($id) => (int) $id)
             ->filter(fn($id) => $id > 0)
             ->unique()
             ->values();
 
-        if ($mappedProgramIds->isEmpty()) {
-            return collect();
+        $integratedPrograms = StudentProgram::query()
+            ->whereIn('id', $integratedProgramIds->all())
+            ->orderBy('name')
+            ->get(['id', 'code', 'name']);
+
+        if ($selectedIntegratedProgramId > 0 && !$integratedProgramIds->contains($selectedIntegratedProgramId)) {
+            $selectedIntegratedProgramId = 0;
         }
 
-        $enrolledProgramIds = StudentMaster::query()
-            ->where('campus_id', $campusId)
-            ->where('batch', $batchId)
-            ->whereNotNull('new_program_id')
-            ->distinct()
-            ->pluck('new_program_id')
+        $targetCombinations = collect();
+        if ($selectedBatchId > 0) {
+            $integratedSubjectIds = collect();
+            if ($selectedIntegratedProgramId > 0) {
+                $integratedSubjectIds = SubjectHasStudentProgam::query()
+                    ->where('batch_id', $selectedBatchId)
+                    ->where('student_program_id', $selectedIntegratedProgramId)
+                    ->pluck('subject_id')
+                    ->map(fn($id) => (int) $id)
+                    ->filter(fn($id) => $id > 0)
+                    ->unique()
+                    ->values();
+            }
+
+            $targetCombinations = SubjectHasStudentProgam::query()
+                ->with([
+                    'studentprograminfo:id,code,name,program_type',
+                    'studentprograminfo.programtypemaster:id,name',
+                    'subjectmaster:id,code,title',
+                ])
+                ->where('batch_id', $selectedBatchId)
+                ->when($integratedProgramIds->isNotEmpty(), fn($query) => $query->whereNotIn('student_program_id', $integratedProgramIds->all()))
+                ->when($selectedIntegratedProgramId > 0, fn($query) => $query->where('student_program_id', '!=', $selectedIntegratedProgramId))
+                ->when(
+                    $selectedIntegratedProgramId > 0,
+                    fn($query) => $integratedSubjectIds->isNotEmpty()
+                        ? $query->whereIn('subject_id', $integratedSubjectIds->all())
+                        : $query->whereRaw('1=0')
+                )
+                ->where(function ($query) {
+                    $query->whereHas('studentprograminfo.programtypemaster', function ($typeQuery) {
+                        $typeQuery->whereRaw("UPPER(name) LIKE '%UG%'")
+                            ->whereRaw("UPPER(name) NOT LIKE '%PG%'")
+                            ->whereRaw("UPPER(name) NOT LIKE '%INTEGRATED%'");
+                    })->orWhereHas('studentprograminfo', function ($programQuery) {
+                        $programQuery->where(function ($rawProgramTypeQuery) {
+                            $rawProgramTypeQuery->where('program_type', 1)
+                                ->orWhere('program_type', '1')
+                                ->orWhereRaw("UPPER(CAST(program_type AS CHAR)) = 'UG'");
+                        });
+                    });
+                })
+                ->orderBy('student_program_id')
+                ->orderBy('subject_id')
+                ->get(['id', 'student_program_id', 'subject_id', 'batch_id', 'program_type'])
+                ->filter(function ($row) {
+                    $raw = strtoupper(trim((string) ($row->program_type ?? '')));
+                    $masterRaw = strtoupper(trim((string) (optional(optional($row)->studentprograminfo)->programtypemaster->name ?? '')));
+
+                    $isPgLike = function (string $value): bool {
+                        return str_contains($value, 'PG') || str_contains($value, 'POST') || str_contains($value, 'INTEGRATED') || str_contains($value, '+');
+                    };
+
+                    $isUgLike = function (string $value): bool {
+                        return str_contains($value, 'UG') || str_contains($value, 'UNDER');
+                    };
+
+                    if ($raw !== '') {
+                        if ($isUgLike($raw) && !$isPgLike($raw)) {
+                            return true;
+                        }
+
+                        if (ctype_digit($raw)) {
+                            return (int) $raw === 1;
+                        }
+                    }
+
+                    if ($masterRaw !== '') {
+                        return $isUgLike($masterRaw) && !$isPgLike($masterRaw);
+                    }
+
+                    return false;
+                })
+                ->unique(function ($row) {
+                    return (int) ($row->student_program_id ?? 0) . '|' . (int) ($row->subject_id ?? 0) . '|' . (int) ($row->batch_id ?? 0);
+                })
+                ->values();
+        }
+
+        $students = collect();
+        if ($selectedBatchId > 0 && $integratedProgramIds->isNotEmpty()) {
+            $hasIntegratedOriginProgramId = Schema::hasColumn('student_masters', 'integrated_origin_program_id');
+            $studentsQuery = StudentMaster::query()
+                ->with([
+                    'batchmaster:id,batch_name',
+                    'stdprogramenrolled:id,code,name',
+                    'subjectmaster:id,code,title',
+                ])
+                ->where('batch', $selectedBatchId)
+                ->where(function ($query) use ($selectedIntegratedProgramId, $integratedProgramIds, $hasIntegratedOriginProgramId) {
+                    if ($selectedIntegratedProgramId > 0) {
+                        $query->where('new_program_id', $selectedIntegratedProgramId);
+                        if ($hasIntegratedOriginProgramId) {
+                            $query->orWhere('integrated_origin_program_id', $selectedIntegratedProgramId);
+                        }
+                        return;
+                    }
+
+                    $query->whereIn('new_program_id', $integratedProgramIds->all());
+                    if ($hasIntegratedOriginProgramId) {
+                        $query->orWhereIn('integrated_origin_program_id', $integratedProgramIds->all());
+                    }
+                });
+
+            if (Schema::hasColumn('student_masters', 'is_deleted')) {
+                $studentsQuery->where('is_deleted', 0);
+            }
+
+            if (Schema::hasColumn('student_masters', 'is_left')) {
+                $studentsQuery->where('is_left', 0);
+            }
+
+            if ($search !== '') {
+                $studentsQuery->where(function ($query) use ($search) {
+                    $query->where('roll_no', 'like', '%' . $search . '%')
+                        ->orWhere('register_no', 'like', '%' . $search . '%')
+                        ->orWhere('first_name', 'like', '%' . $search . '%')
+                        ->orWhere('last_name', 'like', '%' . $search . '%');
+                });
+            }
+
+            $studentSelectColumns = ['id', 'roll_no', 'register_no', 'first_name', 'last_name', 'batch', 'new_program_id', 'selected_combo_id', 'current_year'];
+            if (Schema::hasColumn('student_masters', 'is_integrated_program_origin')) {
+                $studentSelectColumns[] = 'is_integrated_program_origin';
+            }
+            if ($hasIntegratedOriginProgramId) {
+                $studentSelectColumns[] = 'integrated_origin_program_id';
+            }
+
+            $students = $studentsQuery
+                ->orderBy('roll_no')
+                ->orderBy('first_name')
+                ->get($studentSelectColumns);
+
+            $programLabelMap = StudentProgram::query()
+                ->whereIn('id', $students->pluck('new_program_id')
+                    ->merge($students->pluck('integrated_origin_program_id'))
+                    ->map(fn($id) => (int) $id)
+                    ->filter(fn($id) => $id > 0)
+                    ->unique()
+                    ->values()
+                    ->all())
+                ->get(['id', 'code', 'name'])
+                ->mapWithKeys(function ($program) {
+                    $label = trim(((string) ($program->code ?? '')) . (((string) ($program->code ?? '')) !== '' ? ' - ' : '') . ((string) ($program->name ?? '')));
+                    return [(int) $program->id => $label !== '' ? $label : ('Program #' . (int) $program->id)];
+                });
+
+            $students = $students->map(function ($student) use ($integratedProgramIds, $selectedIntegratedProgramId, $programLabelMap) {
+                $currentProgramId = (int) ($student->new_program_id ?? 0);
+                $originProgramId = (int) ($student->integrated_origin_program_id ?? 0);
+                $isCurrentIntegrated = $integratedProgramIds->contains($currentProgramId);
+
+                $sourceIntegratedProgramId = $originProgramId > 0 ? $originProgramId : ($isCurrentIntegrated ? $currentProgramId : 0);
+                $isShiftedFromIntegrated = $sourceIntegratedProgramId > 0 && $currentProgramId > 0 && $currentProgramId !== $sourceIntegratedProgramId;
+
+                $student->actual_program_label = $programLabelMap[$currentProgramId] ?? (trim((string) (optional($student->stdprogramenrolled)->code ?? '')) !== ''
+                    ? trim((string) (optional($student->stdprogramenrolled)->code ?? '') . ' - ' . (string) (optional($student->stdprogramenrolled)->name ?? ''))
+                    : (string) (optional($student->stdprogramenrolled)->name ?? '-'));
+
+                $student->source_integrated_program_label = $sourceIntegratedProgramId > 0
+                    ? ($programLabelMap[$sourceIntegratedProgramId] ?? ('Program #' . $sourceIntegratedProgramId))
+                    : '-';
+
+                $student->is_shifted_from_integrated = $isShiftedFromIntegrated ? 1 : 0;
+                $student->can_shift_now = ($selectedIntegratedProgramId > 0 && $currentProgramId === $selectedIntegratedProgramId) ? 1 : 0;
+
+                return $student;
+            })->values();
+        }
+
+        return view('admin.itcell.integrated-student-shift', [
+            'batches' => $batches,
+            'integratedPrograms' => $integratedPrograms,
+            'targetCombinations' => $targetCombinations,
+            'students' => $students,
+            'selectedBatchId' => $selectedBatchId,
+            'selectedIntegratedProgramId' => $selectedIntegratedProgramId,
+            'search' => $search,
+        ]);
+    }
+
+    public function integratedStudentShiftStore(Request $request)
+    {
+        if (!Schema::hasTable('integrated_program_sublayer_settings')) {
+            return back()->with('error', 'Integrated sublayer settings table not found. Please run migrations first.');
+        }
+
+        $request->validate([
+            'batch_id' => 'required|integer|exists:batch_masters,id',
+            'integrated_program_id' => 'required|integer|min:1|exists:student_program,id',
+            'target_combination_id' => 'required|integer|exists:subject_has_student_progams,id',
+            'student_ids' => 'required|array|min:1',
+            'student_ids.*' => 'required|integer|exists:student_masters,id',
+            'remarks' => 'nullable|string|max:500',
+            'search' => 'nullable|string|max:100',
+        ]);
+
+        $batchId = (int) $request->batch_id;
+        $integratedProgramId = (int) $request->integrated_program_id;
+        $targetCombinationId = (int) $request->target_combination_id;
+        $studentIds = collect((array) $request->input('student_ids', []))
             ->map(fn($id) => (int) $id)
             ->filter(fn($id) => $id > 0)
             ->unique()
             ->values();
 
-        if ($enrolledProgramIds->isEmpty()) {
-            return collect();
+        $isConfiguredIntegratedProgram = IntegratedProgramSublayerSetting::query()
+            ->where('student_program_id', $integratedProgramId)
+            ->where('is_active', 1)
+            ->exists();
+
+        if (!$isConfiguredIntegratedProgram) {
+            return back()->with('error', 'Selected source program is not configured as active integrated program.');
         }
 
-        return $mappedProgramIds->intersect($enrolledProgramIds)->values();
+        $targetCombination = SubjectHasStudentProgam::query()
+            ->where('id', $targetCombinationId)
+            ->where('batch_id', $batchId)
+            ->first(['id', 'student_program_id', 'subject_id', 'batch_id']);
+
+        if (!$targetCombination) {
+            return back()->with('error', 'Target combination is invalid for selected batch.');
+        }
+
+        if ((int) $targetCombination->student_program_id === $integratedProgramId) {
+            return back()->with('error', 'Target combination must be a non-integrated destination program.');
+        }
+
+        $hasIntegratedOriginFlag = Schema::hasColumn('student_masters', 'is_integrated_program_origin');
+        $hasIntegratedOriginProgramId = Schema::hasColumn('student_masters', 'integrated_origin_program_id');
+        $hasIntegratedShiftedAt = Schema::hasColumn('student_masters', 'integrated_shifted_at');
+        $hasSelectedComboColumn = Schema::hasColumn('student_masters', 'selected_combo_id');
+        $hasAcademicDeptColumn = Schema::hasColumn('student_masters', 'academic_dept_id');
+        $hasDepartmentColumn = Schema::hasColumn('student_masters', 'department');
+        $hasShiftLogTable = Schema::hasTable('integrated_program_student_shifts');
+
+        $eligibleStudents = StudentMaster::query()
+            ->whereIn('id', $studentIds->all())
+            ->where('batch', $batchId)
+            ->where('new_program_id', $integratedProgramId)
+            ->when(Schema::hasColumn('student_masters', 'is_deleted'), fn($query) => $query->where('is_deleted', 0))
+            ->when(Schema::hasColumn('student_masters', 'is_left'), fn($query) => $query->where('is_left', 0))
+            ->get(['id', 'new_program_id', 'selected_combo_id']);
+
+        if ($eligibleStudents->isEmpty()) {
+            return back()->with('error', 'No eligible integrated students found to shift.');
+        }
+
+        DB::transaction(function () use (
+            $eligibleStudents,
+            $targetCombination,
+            $batchId,
+            $integratedProgramId,
+            $request,
+            $hasIntegratedOriginFlag,
+            $hasIntegratedOriginProgramId,
+            $hasIntegratedShiftedAt,
+            $hasSelectedComboColumn,
+            $hasAcademicDeptColumn,
+            $hasDepartmentColumn,
+            $hasShiftLogTable
+        ) {
+            foreach ($eligibleStudents as $student) {
+                $updatePayload = [
+                    'new_program_id' => (int) $targetCombination->student_program_id,
+                ];
+
+                if ($hasSelectedComboColumn) {
+                    $updatePayload['selected_combo_id'] = (int) $targetCombination->subject_id;
+                }
+
+                if ($hasAcademicDeptColumn) {
+                    $updatePayload['academic_dept_id'] = (int) $targetCombination->subject_id;
+                }
+
+                if ($hasDepartmentColumn) {
+                    $updatePayload['department'] = (int) $targetCombination->subject_id;
+                }
+
+                if ($hasIntegratedOriginFlag) {
+                    $updatePayload['is_integrated_program_origin'] = 1;
+                }
+
+                if ($hasIntegratedOriginProgramId) {
+                    $updatePayload['integrated_origin_program_id'] = (int) $integratedProgramId;
+                }
+
+                if ($hasIntegratedShiftedAt) {
+                    $updatePayload['integrated_shifted_at'] = now();
+                }
+
+                // Intentional: roll_no is never changed in integrated shift.
+                StudentMaster::query()->where('id', (int) $student->id)->update($updatePayload);
+
+                if ($hasShiftLogTable) {
+                    DB::table('integrated_program_student_shifts')->insert([
+                        'student_id' => (int) $student->id,
+                        'batch_id' => $batchId,
+                        'from_program_id' => $integratedProgramId,
+                        'to_program_id' => (int) $targetCombination->student_program_id,
+                        'from_combination_id' => null,
+                        'to_combination_id' => (int) $targetCombination->id,
+                        'origin_program_id' => $hasIntegratedOriginProgramId ? (int) $integratedProgramId : null,
+                        'remarks' => trim((string) $request->input('remarks', '')),
+                        'shifted_by' => (int) (Auth::id() ?? 0),
+                        'created_at' => now(),
+                        'updated_at' => now(),
+                    ]);
+                }
+            }
+        });
+
+        $query = [
+            'batch_id' => $batchId,
+            'integrated_program_id' => $integratedProgramId,
+        ];
+        $search = trim((string) $request->input('search', ''));
+        if ($search !== '') {
+            $query['search'] = $search;
+        }
+
+        return redirect()
+            ->route('itcell.integrated-student-shift.index', $query)
+            ->with('success', $eligibleStudents->count() . ' integrated student(s) shifted. Roll number remains unchanged.');
     }
 
     private function deriveCurrentYearFromSemester(int $semester): int
@@ -519,6 +946,652 @@ class ITCellController extends Controller
             ->with('success', $updatedCount . ' student(s) updated successfully.');
     }
 
+    public function studentMdcSelectionIndex(Request $request)
+    {
+        $batches = BatchMaster::query()->orderByDesc('batch_name')->get(['id', 'batch_name']);
+        $semesters = Semester::query()->orderBy('id')->get(['id', 'title']);
+        $campuses = Campus::query()->orderBy('name')->get(['id', 'name']);
+
+        $selectedBatchId = (int) $request->input('batch_id', 0);
+        if ($selectedBatchId < 0) {
+            $selectedBatchId = 0;
+        }
+
+        $selectedSemesterId = (int) $request->input('semester_id', 0);
+        if ($selectedSemesterId < 0) {
+            $selectedSemesterId = 0;
+        }
+
+        $selectedProgramId = (int) $request->input('program_id', 0);
+        if ($selectedProgramId < 0) {
+            $selectedProgramId = 0;
+        }
+
+        $selectedCampusId = (int) $request->input('campus_id', 0);
+        if ($selectedCampusId < 0) {
+            $selectedCampusId = 0;
+        }
+
+        $search = trim((string) $request->input('search', ''));
+
+        $enrolledProgramsQuery = StudentProgram::query()
+            ->select('student_program.id', 'student_program.code', 'student_program.name')
+            ->join('student_masters', 'student_masters.new_program_id', '=', 'student_program.id')
+            ->whereNotNull('student_masters.new_program_id')
+            ->where('student_masters.is_deleted', 0)
+            ->where('student_masters.is_left', 0);
+
+        if ($selectedBatchId > 0) {
+            $enrolledProgramsQuery->where('student_masters.batch', $selectedBatchId);
+        }
+
+        if ($selectedCampusId > 0) {
+            $enrolledProgramsQuery->where('student_masters.campus_id', $selectedCampusId);
+        }
+
+        $enrolledPrograms = $enrolledProgramsQuery
+            ->distinct()
+            ->orderBy('student_program.name')
+            ->get();
+
+        if ($selectedProgramId > 0 && !$enrolledPrograms->contains('id', $selectedProgramId)) {
+            $selectedProgramId = 0;
+        }
+
+        $studentsQuery = StudentMaster::query()
+            ->with([
+                'batchmaster:id,batch_name',
+                'campusmaster:id,name',
+                'stdprogramenrolled:id,name,code',
+                'activeSemesterConfig:id,student_id,semester_id,current_semester',
+            ])
+            ->where('is_deleted', 0)
+            ->where('is_left', 0);
+
+        if ($selectedBatchId > 0) {
+            $studentsQuery->where('batch', $selectedBatchId);
+        }
+
+        if ($selectedSemesterId > 0) {
+            $studentsQuery->whereHas('activeSemesterConfig', function ($query) use ($selectedSemesterId) {
+                $query->where('semester_id', (string) $selectedSemesterId);
+            });
+        }
+
+        if ($selectedProgramId > 0) {
+            $studentsQuery->where('new_program_id', $selectedProgramId);
+        }
+
+        if ($selectedCampusId > 0) {
+            $studentsQuery->where('campus_id', $selectedCampusId);
+        }
+
+        if ($search !== '') {
+            $studentsQuery->where(function ($query) use ($search) {
+                $query->where('roll_no', 'like', '%' . $search . '%')
+                    ->orWhere('register_no', 'like', '%' . $search . '%')
+                    ->orWhere('user_code', 'like', '%' . $search . '%')
+                    ->orWhere('first_name', 'like', '%' . $search . '%')
+                    ->orWhere('last_name', 'like', '%' . $search . '%');
+            });
+        }
+
+        $students = $studentsQuery
+            ->orderBy('first_name')
+            ->orderBy('last_name')
+            ->paginate(30)
+            ->appends([
+                'batch_id' => $selectedBatchId,
+                'semester_id' => $selectedSemesterId,
+                'program_id' => $selectedProgramId,
+                'campus_id' => $selectedCampusId,
+                'search' => $search,
+            ]);
+
+        $offeredMdcCourses = $this->resolveOfferedMdcCoursesForBatchSemester(
+            $selectedBatchId,
+            $selectedSemesterId,
+            $selectedProgramId,
+            $selectedCampusId,
+        );
+
+        $mdcOptionsByStudent = [];
+        $currentMdcByStudent = [];
+
+        foreach ($students as $student) {
+            $studentId = (int) ($student->id ?? 0);
+            $semesterId = (int) ($student->activeSemesterConfig->semester_id ?? 0);
+
+            if ($studentId <= 0 || $semesterId <= 0) {
+                $mdcOptionsByStudent[$studentId] = [];
+                $currentMdcByStudent[$studentId] = null;
+                continue;
+            }
+
+            $mdcOptionsByStudent[$studentId] = $this->resolveAvailableMdcCoursesForStudent($student, $semesterId);
+            $currentMdcByStudent[$studentId] = $this->resolveCurrentMdcEnrollmentForStudent($student, $semesterId);
+        }
+
+        return view('admin.itcell.student-mdc-selection', [
+            'batches' => $batches,
+            'semesters' => $semesters,
+            'campuses' => $campuses,
+            'enrolledPrograms' => $enrolledPrograms,
+            'selectedBatchId' => $selectedBatchId,
+            'selectedSemesterId' => $selectedSemesterId,
+            'selectedProgramId' => $selectedProgramId,
+            'selectedCampusId' => $selectedCampusId,
+            'search' => $search,
+            'students' => $students,
+            'offeredMdcCourses' => $offeredMdcCourses,
+            'mdcOptionsByStudent' => $mdcOptionsByStudent,
+            'currentMdcByStudent' => $currentMdcByStudent,
+        ]);
+    }
+
+    public function studentMdcSelectionExport(Request $request)
+    {
+        $batchId = (int) $request->input('batch_id', 0);
+        $semesterId = (int) $request->input('semester_id', 0);
+        $programId = (int) $request->input('program_id', 0);
+        $campusId = (int) $request->input('campus_id', 0);
+
+        if ($batchId <= 0 || $semesterId <= 0) {
+            return back()->with('error', 'Please select both batch and semester before exporting MDC offered list.');
+        }
+
+        $offeredMdcCourses = $this->resolveOfferedMdcCoursesForBatchSemester($batchId, $semesterId, $programId, $campusId);
+        if (empty($offeredMdcCourses)) {
+            return back()->with('error', 'No MDC offered records found to export for the selected filters.');
+        }
+
+        $batchName = (string) (BatchMaster::query()->where('id', $batchId)->value('batch_name') ?? $batchId);
+        $semesterTitle = (string) (Semester::query()->where('id', $semesterId)->value('title') ?? ('Semester ' . $semesterId));
+
+        $filename = 'mdc-offered-batch-' . preg_replace('/[^A-Za-z0-9_-]/', '-', $batchName)
+            . '-semester-' . preg_replace('/[^A-Za-z0-9_-]/', '-', $semesterTitle)
+            . '-' . date('Y-m-d') . '.csv';
+
+        $headers = [
+            'Content-Type' => 'text/csv; charset=UTF-8',
+        ];
+
+        $callback = function () use ($offeredMdcCourses, $batchName, $semesterTitle) {
+            $handle = fopen('php://output', 'w');
+
+            // UTF-8 BOM for proper Excel compatibility.
+            fwrite($handle, "\xEF\xBB\xBF");
+
+            fputcsv($handle, ['Batch', 'Semester', 'Course Code', 'Course Title', 'Offered Department', 'Offered Programs']);
+
+            foreach ($offeredMdcCourses as $course) {
+                fputcsv($handle, [
+                    $batchName,
+                    $semesterTitle,
+                    (string) ($course['course_code'] ?? ''),
+                    (string) ($course['course_title'] ?? ''),
+                    (string) ($course['offered_department'] ?? ''),
+                    implode(', ', (array) ($course['offered_programs'] ?? [])),
+                ]);
+            }
+
+            fclose($handle);
+        };
+
+        return response()->streamDownload($callback, $filename, $headers);
+    }
+
+    private function resolveOfferedMdcCoursesForBatchSemester(int $batchId, int $semesterId, int $programId = 0, int $campusId = 0): array
+    {
+        if ($batchId <= 0 || $semesterId <= 0 || !Schema::hasTable('curriculam_engine')) {
+            return [];
+        }
+
+        $courseTable = (new ProgramCourseMaster())->getTable();
+
+        $query = DB::table('curriculam_engine as ce')
+            ->join($courseTable . ' as pcm', 'pcm.id', '=', 'ce.course_id')
+            ->leftJoin('subject_type_masters as stm', 'stm.id', '=', 'pcm.course_type')
+            ->leftJoin('subjects as sub', 'sub.id', '=', 'pcm.department')
+            ->leftJoin('subject_has_student_progams as shsp', 'shsp.id', '=', 'ce.program_combo_refid')
+            ->leftJoin('student_program as sp', 'sp.id', '=', 'shsp.student_program_id')
+            ->where('ce.batch', $batchId)
+            ->where('ce.semester', $semesterId);
+
+        if (Schema::hasColumn('curriculam_engine', 'deleted_at')) {
+            $query->whereNull('ce.deleted_at');
+        }
+
+        if (Schema::hasColumn('curriculam_engine', 'is_active')) {
+            $query->where('ce.is_active', 1);
+        }
+
+        if (Schema::hasColumn('curriculam_engine', 'delivery_category')) {
+            $query->whereRaw("UPPER(TRIM(COALESCE(ce.delivery_category, ''))) = ?", [ProgramWiseSemesterCourse::DELIVERY_OPEN_CHOICE]);
+        }
+
+        if (Schema::hasColumn($courseTable, 'deleted_at')) {
+            $query->whereNull('pcm.deleted_at');
+        }
+
+        if ($programId > 0) {
+            $query->where('shsp.student_program_id', $programId);
+        }
+
+        if ($campusId > 0 && Schema::hasColumn('subject_has_student_progams', 'campus_id')) {
+            $query->where('shsp.campus_id', $campusId);
+        }
+
+        $rows = $query
+            ->select([
+                'pcm.id as course_id',
+                'pcm.course_code',
+                'pcm.course_title',
+                'stm.title as course_type_title',
+                'sub.title as department_title',
+                'sp.id as program_id',
+                'sp.code as program_code',
+                'sp.name as program_name',
+            ])
+            ->orderBy('pcm.course_title')
+            ->get();
+
+        $mdcRows = collect($rows)->filter(function ($row) {
+            $typeTitle = strtoupper(trim((string) ($row->course_type_title ?? '')));
+            $normalizedType = $typeTitle !== '' ? preg_replace('/\s.*/', '', $typeTitle) : '';
+            $courseCode = strtoupper(trim((string) ($row->course_code ?? '')));
+
+            return $normalizedType === ProgramWiseSemesterCourse::DELIVERY_OPEN_CHOICE
+                || str_contains($courseCode, ProgramWiseSemesterCourse::DELIVERY_OPEN_CHOICE);
+        });
+
+        return $mdcRows
+            ->groupBy(fn($row) => (int) ($row->course_id ?? 0))
+            ->map(function ($group) {
+                $first = $group->first();
+                $offeredPrograms = $group
+                    ->map(function ($row) {
+                        $code = trim((string) ($row->program_code ?? ''));
+                        $name = trim((string) ($row->program_name ?? ''));
+                        return trim(($code !== '' ? $code . ' - ' : '') . $name);
+                    })
+                    ->filter(fn($label) => $label !== '')
+                    ->unique()
+                    ->values()
+                    ->all();
+
+                return [
+                    'course_id' => (int) ($first->course_id ?? 0),
+                    'course_code' => (string) ($first->course_code ?? ''),
+                    'course_title' => (string) ($first->course_title ?? ''),
+                    'offered_department' => (string) ($first->department_title ?? ''),
+                    'offered_programs' => $offeredPrograms,
+                ];
+            })
+            ->sortBy(fn($row) => trim(($row['course_code'] ?? '') . ' ' . ($row['course_title'] ?? '')))
+            ->values()
+            ->all();
+    }
+
+    public function studentMdcSelectionStore(Request $request)
+    {
+        $courseTable = (new ProgramCourseMaster())->getTable();
+
+        $validated = $request->validate([
+            'batch_id' => 'nullable|integer|exists:batch_masters,id',
+            'semester_id' => 'required|integer|exists:semesters,id',
+            'mdc_course_id' => 'required|integer|exists:' . $courseTable . ',id',
+            'student_ids' => 'required|array|min:1',
+            'student_ids.*' => 'integer|exists:student_masters,id',
+        ]);
+
+        try {
+            $semesterId = (int) $validated['semester_id'];
+            $selectedMdcCourseId = (int) $validated['mdc_course_id'];
+            $selectedBatchId = (int) $validated['batch_id'];
+            $studentIds = collect((array) $validated['student_ids'])
+                ->map(fn($id) => (int) $id)
+                ->filter(fn($id) => $id > 0)
+                ->unique()
+                ->values();
+
+            $summary = [
+                'processed' => 0,
+                'enrolled' => 0,
+                'restored' => 0,
+                'already' => 0,
+                'skipped_semester' => 0,
+                'replaced' => 0,
+            ];
+
+            DB::transaction(function () use ($studentIds, $selectedBatchId, $semesterId, $selectedMdcCourseId, &$summary) {
+                $studentsQuery = StudentMaster::query()
+                    ->with([
+                        'batchmaster:id,batch_name',
+                        'activeSemesterConfig:id,student_id,semester_id,current_semester',
+                    ])
+                    ->whereIn('id', $studentIds->all())
+                    ->lockForUpdate();
+
+                if ($selectedBatchId > 0) {
+                    $studentsQuery->where('batch', $selectedBatchId);
+                }
+
+                $students = $studentsQuery->get();
+
+                foreach ($students as $student) {
+                    $summary['processed']++;
+
+                    $activeSemesterId = (int) ($student->activeSemesterConfig->semester_id ?? 0);
+                    if ($activeSemesterId !== $semesterId) {
+                        $summary['skipped_semester']++;
+                        continue;
+                    }
+
+                    $academicYear = (string) (optional($student->batchmaster)->batch_name ?: date('Y'));
+
+                    // Rule: only one elective/MDC row per student per semester.
+                    $replacedRows = StudentCourseInfo::query()
+                        ->where('student_id', (int) $student->id)
+                        ->where('semester', $semesterId)
+                        ->where('is_elective', 1)
+                        ->where('course_id', '!=', $selectedMdcCourseId)
+                        ->delete();
+
+                    if ($replacedRows > 0) {
+                        $summary['replaced'] += (int) $replacedRows;
+                    }
+
+                    $existingSelectedCourse = StudentCourseInfo::withTrashed()
+                        ->where('student_id', (int) $student->id)
+                        ->where('course_id', $selectedMdcCourseId)
+                        ->where('semester', $semesterId)
+                        ->first();
+
+                    if ($existingSelectedCourse) {
+                        if (method_exists($existingSelectedCourse, 'trashed') && $existingSelectedCourse->trashed()) {
+                            $existingSelectedCourse->restore();
+                            $summary['restored']++;
+                        } else {
+                            $summary['already']++;
+                        }
+
+                        $existingSelectedCourse->update([
+                            'campus_id' => (int) ($student->campus_id ?? 0),
+                            'is_active' => 1,
+                            'is_elective' => 1,
+                            'academic_year' => $academicYear,
+                        ]);
+                    } else {
+                        StudentCourseInfo::create([
+                            'student_id' => (int) $student->id,
+                            'course_id' => $selectedMdcCourseId,
+                            'semester' => $semesterId,
+                            'campus_id' => (int) ($student->campus_id ?? 0),
+                            'is_active' => 1,
+                            'academic_year' => $academicYear,
+                            'is_elective' => 1,
+                        ]);
+                        $summary['enrolled']++;
+                    }
+                }
+            });
+
+            $message = 'Bulk MDC enrollment completed. '
+                . $summary['enrolled'] . ' enrolled, '
+                . $summary['restored'] . ' restored, '
+                . $summary['already'] . ' already enrolled.';
+
+            if ($summary['skipped_semester'] > 0) {
+                $message .= ' Skipped ' . $summary['skipped_semester'] . ' student(s) due to semester mismatch.';
+            }
+
+            if ($summary['replaced'] > 0) {
+                $message .= ' Replaced ' . $summary['replaced'] . ' previous elective/MDC row(s) to enforce one MDC per semester.';
+            }
+
+            if ($summary['processed'] === 0) {
+                return back()->with('error', 'No matching students were processed for the selected filters.');
+            }
+
+            return back()->with('success', $message);
+        } catch (ValidationException $e) {
+            throw $e;
+        } catch (\Throwable $e) {
+            return back()->with('error', 'Failed to update MDC selection. Please try again.');
+        }
+    }
+
+    private function isMdcCourseMappedForStudent(StudentMaster $student, int $semesterId, int $courseId): bool
+    {
+        if ($semesterId <= 0 || $courseId <= 0 || empty($student->new_program_id) || empty($student->batch)) {
+            return false;
+        }
+
+        if (!Schema::hasTable('subject_has_student_progams') || !Schema::hasTable('curriculam_engine')) {
+            return false;
+        }
+
+        $combinationQuery = DB::table('subject_has_student_progams')
+            ->where('student_program_id', (int) $student->new_program_id)
+            ->where('batch_id', (int) $student->batch);
+
+        if (Schema::hasColumn('subject_has_student_progams', 'campus_id') && (int) ($student->campus_id ?? 0) > 0) {
+            $combinationQuery->where('campus_id', (int) $student->campus_id);
+        }
+
+        $combinationIds = $combinationQuery
+            ->pluck('id')
+            ->map(fn($id) => (int) $id)
+            ->filter(fn($id) => $id > 0)
+            ->values();
+
+        if ($combinationIds->isEmpty()) {
+            $fallbackComboIds = DB::table('subject_has_student_progams')
+                ->where('student_program_id', (int) $student->new_program_id)
+                ->where('batch_id', (int) $student->batch)
+                ->pluck('id')
+                ->map(fn($id) => (int) $id)
+                ->filter(fn($id) => $id > 0)
+                ->values();
+
+            $combinationIds = $fallbackComboIds;
+        }
+
+        if ($combinationIds->isEmpty()) {
+            return false;
+        }
+
+        $baseQuery = DB::table('curriculam_engine')
+            ->whereIn('program_combo_refid', $combinationIds->all())
+            ->where('batch', (int) $student->batch)
+            ->where('semester', $semesterId)
+            ->where('course_id', $courseId);
+
+        if (Schema::hasColumn('curriculam_engine', 'deleted_at')) {
+            $baseQuery->whereNull('deleted_at');
+        }
+
+        if (Schema::hasColumn('curriculam_engine', 'is_active')) {
+            $baseQuery->where('is_active', 1);
+        }
+
+        $hasDeliveryCategoryColumn = Schema::hasColumn('curriculam_engine', 'delivery_category');
+        if ($hasDeliveryCategoryColumn) {
+            $mdcDeliveryQuery = clone $baseQuery;
+            $mdcDeliveryQuery->whereRaw(
+                "UPPER(TRIM(COALESCE(delivery_category, ''))) IN (?, ?, ?)",
+                [
+                    ProgramWiseSemesterCourse::DELIVERY_OPEN_CHOICE,
+                    'OPEN_CHOICE',
+                    'OPEN CHOICE',
+                ]
+            );
+
+            if ($mdcDeliveryQuery->exists()) {
+                return true;
+            }
+        }
+
+        // Fallback: if delivery category data is inconsistent/missing, accept only if
+        // curriculum row exists and the course itself is tagged as MDC.
+        if (!$baseQuery->exists()) {
+            return false;
+        }
+
+        return $this->isMdcCourseId($courseId);
+    }
+
+    private function isMdcCourseId(int $courseId): bool
+    {
+        if ($courseId <= 0) {
+            return false;
+        }
+
+        $course = ProgramCourseMaster::query()
+            ->with(['coursetypemaster:id,title'])
+            ->find($courseId);
+
+        return $this->isMdcCourse($course);
+    }
+
+    private function resolveAvailableMdcCoursesForStudent(StudentMaster $student, int $semesterId): array
+    {
+        if ($semesterId <= 0 || empty($student->new_program_id) || empty($student->batch)) {
+            return [];
+        }
+
+        $combinationQuery = SubjectHasStudentProgam::query()
+            ->where('student_program_id', (int) $student->new_program_id)
+            ->where('batch_id', (int) $student->batch);
+
+        if (Schema::hasColumn('subject_has_student_progams', 'campus_id') && (int) ($student->campus_id ?? 0) > 0) {
+            $combinationQuery->where('campus_id', (int) $student->campus_id);
+        }
+
+        $combination = $combinationQuery->orderByDesc('id')->first(['id']);
+
+        if (!$combination) {
+            $combination = SubjectHasStudentProgam::query()
+                ->where('student_program_id', (int) $student->new_program_id)
+                ->where('batch_id', (int) $student->batch)
+                ->orderByDesc('id')
+                ->first(['id']);
+        }
+
+        if (!$combination) {
+            return [];
+        }
+
+        $curriculumTable = (new ProgramWiseSemesterCourse())->getTable();
+
+        $courseIdsQuery = ProgramWiseSemesterCourse::query()
+            ->where('program_combo_refid', (int) $combination->id)
+            ->where('batch', (int) $student->batch)
+            ->where('semester', $semesterId);
+
+        if (Schema::hasColumn($curriculumTable, 'is_active')) {
+            $courseIdsQuery->where('is_active', 1);
+        }
+
+        if (Schema::hasColumn($curriculumTable, 'delivery_category')) {
+            $courseIdsQuery->whereRaw("UPPER(TRIM(COALESCE(delivery_category, ''))) = ?", [ProgramWiseSemesterCourse::DELIVERY_OPEN_CHOICE]);
+        }
+
+        if (Schema::hasColumn($curriculumTable, 'academic_pathway_id')) {
+            $pathwayId = (int) ($student->academic_pathway_id ?? 0);
+            if ($pathwayId > 0) {
+                $courseIdsQuery->where('academic_pathway_id', $pathwayId);
+            } else {
+                $courseIdsQuery->whereNull('academic_pathway_id');
+            }
+        }
+
+        if (Schema::hasColumn($curriculumTable, 'degree_track_id')) {
+            $degreeTrackId = (int) ($student->degree_track_id ?? 0);
+            if ($degreeTrackId > 0) {
+                $courseIdsQuery->where('degree_track_id', $degreeTrackId);
+            } else {
+                $courseIdsQuery->whereNull('degree_track_id');
+            }
+        }
+
+        $courseIds = $courseIdsQuery
+            ->pluck('course_id')
+            ->map(fn($id) => (int) $id)
+            ->filter(fn($id) => $id > 0)
+            ->unique()
+            ->values();
+
+        if ($courseIds->isEmpty()) {
+            return [];
+        }
+
+        $courses = ProgramCourseMaster::query()
+            ->with(['coursetypemaster:id,title'])
+            ->whereIn('id', $courseIds->all())
+            ->orderBy('course_title')
+            ->get()
+            ->filter(fn($course) => $this->isMdcCourse($course))
+            ->map(function ($course) {
+                return [
+                    'id' => (int) ($course->id ?? 0),
+                    'label' => trim(((string) ($course->course_code ?? '')) . ' - ' . ((string) ($course->course_title ?? ''))),
+                ];
+            })
+            ->filter(fn($course) => !empty($course['id']))
+            ->values()
+            ->all();
+
+        return $courses;
+    }
+
+    private function resolveCurrentMdcEnrollmentForStudent(StudentMaster $student, int $semesterId): ?array
+    {
+        if ($semesterId <= 0 || empty($student->id)) {
+            return null;
+        }
+
+        $academicYear = (string) (optional($student->batchmaster)->batch_name ?: date('Y'));
+
+        $currentElective = StudentCourseInfo::query()
+            ->with(['coursemaster.coursetypemaster:id,title'])
+            ->where('student_id', (int) $student->id)
+            ->where('semester', $semesterId)
+            ->where('is_elective', 1)
+            ->where(function ($query) use ($academicYear) {
+                $query->where('academic_year', $academicYear)
+                    ->orWhereNull('academic_year')
+                    ->orWhere('academic_year', '');
+            })
+            ->orderByDesc('id')
+            ->first();
+
+        if ($currentElective) {
+            return [
+                'course_id' => (int) ($currentElective->course_id ?? 0),
+                'label' => trim(((string) ($currentElective->coursemaster->course_code ?? '')) . ' - ' . ((string) ($currentElective->coursemaster->course_title ?? ''))),
+            ];
+        }
+
+        return null;
+    }
+
+    private function isMdcCourse($course): bool
+    {
+        if (!$course) {
+            return false;
+        }
+
+        $typeTitle = strtoupper(trim((string) ($course->coursetypemaster->title ?? '')));
+        if ($typeTitle !== '' && preg_replace('/\s.*/', '', $typeTitle) === ProgramWiseSemesterCourse::DELIVERY_OPEN_CHOICE) {
+            return true;
+        }
+
+        $courseCode = strtoupper(trim((string) ($course->course_code ?? '')));
+        return str_contains($courseCode, ProgramWiseSemesterCourse::DELIVERY_OPEN_CHOICE);
+    }
+
     public function lateralEntryIndex()
     {
         $programstype = ProgramMaster::all();
@@ -861,24 +1934,55 @@ class ITCellController extends Controller
             $selectedCampusId = 1;
         }
 
+        $selectedProgramId = (int) $request->input('program_id', 0);
+        if ($selectedProgramId < 0) {
+            $selectedProgramId = 0;
+        }
+
+        $search = trim((string) $request->input('search', ''));
+
+        $batchIdsWithStudents = StudentMaster::query()
+            ->whereIn('campus_id', $allowedCampusIds)
+            ->whereNotNull('batch')
+            ->distinct()
+            ->pluck('batch')
+            ->filter(fn($id) => !empty($id))
+            ->map(fn($id) => (int) $id)
+            ->values();
+
         $batches = BatchMaster::query()
+            ->whereIn('id', $batchIdsWithStudents)
             ->orderByDesc('batch_name')
             ->get(['id', 'batch_name']);
 
-        $subjects = Subject::query()
-            ->whereIn('campus_id', $allowedCampusIds)
-            ->orderBy('title')
-            ->get(['id', 'title', 'campus_id']);
+        $enrolledProgramOptionsQuery = StudentProgram::query()
+            ->select('student_program.id', 'student_program.name', 'student_program.code', 'student_program.campus_id')
+            ->join('student_masters', 'student_masters.new_program_id', '=', 'student_program.id')
+            ->whereIn('student_program.campus_id', $allowedCampusIds)
+            ->where('student_masters.campus_id', $selectedCampusId)
+            ->whereNotNull('student_masters.new_program_id');
 
-        $search = trim((string) $request->input('search', ''));
+        $enrolledPrograms = $enrolledProgramOptionsQuery
+            ->distinct()
+            ->orderBy('student_program.name')
+            ->get();
+
+        if ($selectedProgramId > 0 && !$enrolledPrograms->contains('id', $selectedProgramId)) {
+            $selectedProgramId = 0;
+        }
 
         $studentsQuery = StudentMaster::query()
             ->with([
                 'campusmaster:id,name',
                 'stdprogramenrolled:id,name,code,campus_id',
+                'batchmaster:id,batch_name',
             ])
             ->whereIn('campus_id', $allowedCampusIds)
             ->where('campus_id', $selectedCampusId);
+
+        if ($selectedProgramId > 0) {
+            $studentsQuery->where('new_program_id', $selectedProgramId);
+        }
 
         if ($search !== '') {
             $studentsQuery->where(function ($query) use ($search) {
@@ -896,6 +2000,7 @@ class ITCellController extends Controller
             ->paginate(30)
             ->appends([
                 'campus_id' => $selectedCampusId,
+                'program_id' => $selectedProgramId,
                 'search' => $search,
             ]);
 
@@ -915,10 +2020,12 @@ class ITCellController extends Controller
         return view('admin.itcell.student-campus-transfer', [
             'campuses' => $campuses,
             'batches' => $batches,
-            'subjects' => $subjects,
             'selectedCampusId' => $selectedCampusId,
+            'selectedProgramId' => $selectedProgramId,
             'search' => $search,
             'students' => $students,
+            'allowedCampusIds' => $allowedCampusIds,
+            'enrolledPrograms' => $enrolledPrograms,
             'recentTransfers' => $recentTransfers,
         ]);
     }
@@ -987,6 +2094,7 @@ class ITCellController extends Controller
         $validated = $request->validate([
             'student_id' => 'required|integer|exists:student_masters,id',
             'to_campus_id' => 'required|integer|in:1,2',
+            'to_batch_id' => 'required|integer|exists:batch_masters,id',
             'to_program_id' => 'required|integer|exists:student_program,id',
             'target_batch_id' => 'required|integer|exists:batch_masters,id',
             'target_subject_id' => 'required|integer|exists:subjects,id',
@@ -1020,29 +2128,22 @@ class ITCellController extends Controller
                 }
 
                 $toProgram = StudentProgram::query()->findOrFail((int) $validated['to_program_id']);
+                $toBatchId = (int) $validated['to_batch_id'];
                 if ((int) $toProgram->campus_id !== $toCampusId) {
                     throw ValidationException::withMessages([
                         'to_program_id' => 'Selected enrolled program does not belong to the target campus.',
                     ]);
                 }
 
-                $targetSubjectId = (int) $validated['target_subject_id'];
-                $targetSubject = Subject::query()->findOrFail($targetSubjectId);
-                if ((int) $targetSubject->campus_id !== $toCampusId) {
-                    throw ValidationException::withMessages([
-                        'target_subject_id' => 'Selected subject does not belong to the target campus.',
-                    ]);
-                }
+                $targetEnrollmentExists = StudentMaster::query()
+                    ->where('campus_id', $toCampusId)
+                    ->where('batch', $toBatchId)
+                    ->where('new_program_id', (int) $toProgram->id)
+                    ->exists();
 
-                $eligibleProgramIds = $this->resolveEligibleProgramIdsForTransfer(
-                    $toCampusId,
-                    (int) $validated['target_batch_id'],
-                    $targetSubjectId
-                );
-
-                if (!$eligibleProgramIds->contains((int) $toProgram->id)) {
+                if (!$targetEnrollmentExists) {
                     throw ValidationException::withMessages([
-                        'to_program_id' => 'Selected program is not available for enrolled students in the chosen batch/subject scope.',
+                        'to_program_id' => 'Selected enrolled program is not available for the chosen target campus and batch.',
                     ]);
                 }
 
@@ -1050,6 +2151,7 @@ class ITCellController extends Controller
                     'student_id' => $student->id,
                     'roll_no' => $student->roll_no,
                     'campus_id' => $student->campus_id,
+                    'batch' => $student->batch,
                     'new_program_id' => $student->new_program_id,
                     'department' => $student->department,
                     'academic_dept_id' => $student->academic_dept_id,
@@ -1064,6 +2166,7 @@ class ITCellController extends Controller
                 // Keep roll_no unchanged; transfer only campus/program and linked department fields.
                 $student->update([
                     'campus_id' => $toCampusId,
+                    'batch' => $toBatchId,
                     'new_program_id' => $toProgram->id,
                     'department' => $newDepartmentId,
                     'academic_dept_id' => $newDepartmentId,
@@ -1073,6 +2176,7 @@ class ITCellController extends Controller
                     'student_id' => $student->id,
                     'roll_no' => $student->roll_no,
                     'campus_id' => $student->campus_id,
+                    'batch' => $student->batch,
                     'new_program_id' => $student->new_program_id,
                     'department' => $student->department,
                     'academic_dept_id' => $student->academic_dept_id,
@@ -1102,6 +2206,53 @@ class ITCellController extends Controller
         } catch (\Exception $e) {
             return back()->with('error', 'Transfer failed. Please try again.');
         }
+    }
+
+    public function getStudentCampusTransferPrograms(Request $request)
+    {
+        $allowedCampusIds = [1, 2];
+
+        $validated = $request->validate([
+            'campus_id' => 'required|integer|in:1,2',
+            'batch_id' => 'nullable|integer|min:1',
+        ]);
+
+        $campusId = (int) $validated['campus_id'];
+        if (!in_array($campusId, $allowedCampusIds, true)) {
+            return response()->json([
+                'success' => true,
+                'programs' => [],
+            ]);
+        }
+
+        $programsQuery = StudentProgram::query()
+            ->select('student_program.id', 'student_program.code', 'student_program.name')
+            ->join('student_masters', 'student_masters.new_program_id', '=', 'student_program.id')
+            ->where('student_program.campus_id', $campusId)
+            ->where('student_masters.campus_id', $campusId)
+            ->whereNotNull('student_masters.new_program_id');
+
+        if (!empty($validated['batch_id'])) {
+            $programsQuery->where('student_masters.batch', (int) $validated['batch_id']);
+        }
+
+        $programs = $programsQuery
+            ->distinct()
+            ->orderBy('student_program.name')
+            ->get()
+            ->map(function ($program) {
+                return [
+                    'id' => (int) $program->id,
+                    'code' => (string) ($program->code ?? ''),
+                    'name' => (string) ($program->name ?? ''),
+                ];
+            })
+            ->values();
+
+        return response()->json([
+            'success' => true,
+            'programs' => $programs,
+        ]);
     }
 
     private function generateLateralEntryRollNo(int $program_type, $batchName, ?string $programCode, int $campusId, int $departmentId): string

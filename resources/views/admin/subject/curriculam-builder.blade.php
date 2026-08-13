@@ -18,6 +18,8 @@ $combo1DepartmentId = (int) (($comboBoundary['combo1'] ?? null) ?? optional(opti
 $combo2DepartmentId = (int) (($comboBoundary['combo2'] ?? null) ?? optional(optional($pageData)->combomap)->combo_id_2 ?? 0);
 $isSingleMajorCourse = $combo1DepartmentId > 0 && $combo1DepartmentId === $combo2DepartmentId;
 $availableSpecializations = collect($availableSpecializations ?? []);
+$isIntegratedSublayerReadOnly = (bool) ($isIntegratedSublayerReadOnly ?? false);
+$integratedSublayerPrograms = collect($integratedSublayerPrograms ?? []);
 $availableSpecializationsPayload = $availableSpecializations->map(function ($specialization) {
   return [
     'id' => (int) $specialization->id,
@@ -307,6 +309,22 @@ $typeLabelMap = [
           </p>
         </div>
       </div>
+
+      @if($isIntegratedSublayerReadOnly)
+      <div class="col-12 mt-3">
+        <div class="alert alert-info mb-0">
+          <strong>Integrated Program Mode:</strong> Curriculum design is disabled for this integrated program.
+          Showing read-only curriculum from configured sublayer programs:
+          @if($integratedSublayerPrograms->isNotEmpty())
+          <span class="ms-1">{{ $integratedSublayerPrograms->implode(', ') }}</span>
+          @else
+          <span class="ms-1">No sublayer program mapping found yet.</span>
+          @endif
+        </div>
+      </div>
+      @endif
+
+      @if(!$isIntegratedSublayerReadOnly)
       <div class="col-lg-5">
         <div class="">
           <!-- <form action="{{route('combo.course.fetching')}}" method="get"> -->
@@ -335,9 +353,11 @@ $typeLabelMap = [
         </div>
 
       </div>
+      @endif
     </div>
 
 
+    @if(!$isIntegratedSublayerReadOnly)
     <div class="swc-form-card">
       <form id="curriculumMappingForm" action="{{route('store.curriculam.mapping')}}" method="post">
         @csrf
@@ -471,6 +491,7 @@ $typeLabelMap = [
         </div>
       </form>
     </div>
+    @endif
 
     @forelse(($coursesBySemester ?? collect()) as $semesterId => $semesterCourses)
     @php
@@ -509,7 +530,9 @@ $typeLabelMap = [
                 <th>Pathway/Track</th>
                 <th style="width:110px">Order</th>
                 <th style="width:110px">Status</th>
+                @if(!$isIntegratedSublayerReadOnly)
                 <th style="width:120px">Action</th>
+                @endif
               </tr>
             </thead>
             <tbody class="swc-sortable-body" data-semester="{{ $semesterId }}" data-combination="{{ $data->id }}">
@@ -575,6 +598,7 @@ $typeLabelMap = [
                   <span class="badge bg-secondary">Inactive</span>
                   @endif
                 </td>
+                @if(!$isIntegratedSublayerReadOnly)
                 <td>
                   <button type="button" class="btn btn-sm btn-outline-primary mb-1" data-bs-toggle="modal" data-bs-target="#editMapping{{$mappedCourse->id}}">Edit</button>
                   <form action="{{ route('delete.program.semster.courses.mapping', $mappedCourse->id) }}" method="POST" onsubmit="return confirm('Delete this mapping? Delete is blocked if marks or attendance already exist for mapped students.');">
@@ -583,8 +607,10 @@ $typeLabelMap = [
                     <button type="submit" class="btn btn-sm btn-outline-danger">Delete</button>
                   </form>
                 </td>
+                @endif
               </tr>
 
+              @if(!$isIntegratedSublayerReadOnly)
               <div class="modal fade" id="editMapping{{$mappedCourse->id}}" tabindex="-1" aria-hidden="true">
                 <div class="modal-dialog modal-lg">
                   <div class="modal-content">
@@ -698,6 +724,7 @@ $typeLabelMap = [
                   </div>
                 </div>
               </div>
+              @endif
               @endforeach
             </tbody>
           </table>

@@ -473,6 +473,53 @@ class SubjectController extends Controller
             }])
             ->get();
 
+        if (Schema::hasTable('integrated_program_sublayer_settings') && Schema::hasColumn('student_masters', 'integrated_origin_program_id')) {
+            $integratedProgramIds = DB::table('integrated_program_sublayer_settings')
+                ->where('is_active', 1)
+                ->pluck('student_program_id')
+                ->map(fn($id) => (int) $id)
+                ->filter(fn($id) => $id > 0)
+                ->unique()
+                ->values();
+
+            if ($integratedProgramIds->isNotEmpty()) {
+                $integratedStudentRows = StudentMaster::query()
+                    ->where('batch', $activeBatch)
+                    ->where(function ($query) use ($integratedProgramIds) {
+                        $query->whereIn('new_program_id', $integratedProgramIds->all())
+                            ->orWhereIn('integrated_origin_program_id', $integratedProgramIds->all());
+                    })
+                    ->when(Schema::hasColumn('student_masters', 'is_deleted'), fn($query) => $query->where('is_deleted', 0))
+                    ->when(Schema::hasColumn('student_masters', 'is_left'), fn($query) => $query->where('is_left', 0))
+                    ->get(['new_program_id', 'integrated_origin_program_id']);
+
+                $integratedCountsByProgram = [];
+                foreach ($integratedStudentRows as $student) {
+                    $newProgramId = (int) ($student->new_program_id ?? 0);
+                    $originProgramId = (int) ($student->integrated_origin_program_id ?? 0);
+
+                    $bucketProgramId = 0;
+                    if ($integratedProgramIds->contains($newProgramId)) {
+                        $bucketProgramId = $newProgramId;
+                    } elseif ($integratedProgramIds->contains($originProgramId)) {
+                        $bucketProgramId = $originProgramId;
+                    }
+
+                    if ($bucketProgramId > 0) {
+                        $integratedCountsByProgram[$bucketProgramId] = (int) ($integratedCountsByProgram[$bucketProgramId] ?? 0) + 1;
+                    }
+                }
+
+                $combinations = $combinations->map(function ($combination) use ($integratedCountsByProgram, $integratedProgramIds) {
+                    $programId = (int) ($combination->student_program_id ?? 0);
+                    if ($integratedProgramIds->contains($programId)) {
+                        $combination->studentmaster_count = (int) ($integratedCountsByProgram[$programId] ?? 0);
+                    }
+                    return $combination;
+                })->values();
+            }
+        }
+
 
         $programIds = StudentMaster::where('batch', $activeBatch)
             ->where('campus_id', $subject->campus_id)
@@ -654,6 +701,17 @@ class SubjectController extends Controller
     function updateCombinationSpecializations(Request $request, $id)
     {
         $combination = SubjectHasStudentProgam::findOrFail($id);
+
+        if (Schema::hasTable('integrated_program_sublayer_settings')) {
+            $isIntegratedProgram = DB::table('integrated_program_sublayer_settings')
+                ->where('student_program_id', (int) ($combination->student_program_id ?? 0))
+                ->where('is_active', 1)
+                ->exists();
+
+            if ($isIntegratedProgram) {
+                return redirect()->back()->with('error', 'Specialization management is disabled for integrated programs. Manage specialization in sublayer programs.');
+            }
+        }
 
         $request->validate([
             'specialization_ids' => 'nullable|array',
@@ -1249,10 +1307,13 @@ class SubjectController extends Controller
 
 
         $request->validate([
+            'subject_id' => 'required|integer|exists:subjects,id',
             'course_code' => 'required|string|max:255',
             'course_title' => 'required|string|max:255',
             'course_type' => 'required',
             'paper_type' => 'required',
+            'co_cso_not_applicable' => 'nullable|in:0,1',
+            'co_cso_not_applicable_note' => 'nullable|string|max:255',
         ]);
 
         $normalizedCourseCode = Str::upper(trim((string) $request->course_code));
@@ -1276,6 +1337,24 @@ class SubjectController extends Controller
             'total_alloted_hours' => $request->total_alloted_hours,
             'paper_type_id' => $request->paper_type,
         ]);
+
+        $subjectCourseMap = SubjectCourseMaster::query()
+            ->where('subject_id', (int) $request->subject_id)
+            ->where('course_master_id', (int) $id)
+            ->first();
+
+        if ($subjectCourseMap && Schema::hasColumn('subject_course_masters', 'co_cso_not_applicable')) {
+            $isNoCoCsoApplicable = (int) $request->input('co_cso_not_applicable', 0) === 1;
+            $subjectCourseMap->co_cso_not_applicable = $isNoCoCsoApplicable;
+
+            if (Schema::hasColumn('subject_course_masters', 'co_cso_not_applicable_note')) {
+                $subjectCourseMap->co_cso_not_applicable_note = $isNoCoCsoApplicable
+                    ? (trim((string) $request->input('co_cso_not_applicable_note', '')) ?: null)
+                    : null;
+            }
+
+            $subjectCourseMap->save();
+        }
 
         return redirect()->back()->with('success', 'Course Master Updated');
     }
@@ -1317,6 +1396,19 @@ class SubjectController extends Controller
     function deleteCourseSpecificObjective($id)
     {
         $cso = CoHasCso::findOrFail($id);
+        $deptSubjectId = $this->currentDeptSubjectId();
+
+        if (!$this->canDepartmentManageCso($cso, $deptSubjectId)) {
+            return redirect()->back()->with('error', 'You are not allowed to delete this CSO.');
+        }
+
+        $linkedOtherSubject = SyllabusManager::where('cso_id', $id)
+            ->where('subject_id', '!=', $deptSubjectId)
+            ->exists();
+
+        if ($linkedOtherSubject) {
+            return redirect()->back()->with('error', 'This CSO is linked to another department and cannot be deleted here.');
+        }
 
         // Block deletion if any syllabus entry using this CSO has attendance or timetable
         $syllabusRecords = SyllabusManager::where('cso_id', $id)->get();
@@ -1347,6 +1439,22 @@ class SubjectController extends Controller
     function deleteCsoSubunit($id)
     {
         $subunit = CsoSubunit::findOrFail($id);
+        $cso = CoHasCso::find($subunit->cso_id);
+        $deptSubjectId = $this->currentDeptSubjectId();
+
+        if (!$cso || !$this->canDepartmentManageCso($cso, $deptSubjectId)) {
+            return redirect()->back()->with('error', 'You are not allowed to delete this subunit.');
+        }
+
+        $linkedOtherSubject = SyllabusSubunit::where('unit_id', $id)
+            ->whereHas('syllabusManager', function ($query) use ($deptSubjectId) {
+                $query->where('subject_id', '!=', $deptSubjectId);
+            })
+            ->exists();
+
+        if ($linkedOtherSubject) {
+            return redirect()->back()->with('error', 'This subunit is linked to another department and cannot be deleted here.');
+        }
 
         // Block deletion if any syllabus subunit uses this and the course has attendance or timetable
         $syllabusSubunits = SyllabusSubunit::with('syllabusManager')
@@ -1432,6 +1540,15 @@ class SubjectController extends Controller
             ->unique('course_master_id')
             ->values();
 
+        $courseApplicabilityMap = $cos->mapWithKeys(function ($item) {
+            return [
+                (int) ($item->course_master_id ?? 0) => [
+                    'co_cso_not_applicable' => (bool) ($item->co_cso_not_applicable ?? false),
+                    'co_cso_not_applicable_note' => trim((string) ($item->co_cso_not_applicable_note ?? '')),
+                ],
+            ];
+        });
+
         $mappedCourseIds = $cos
             ->pluck('course_master_id')
             ->filter()
@@ -1452,7 +1569,8 @@ class SubjectController extends Controller
             'batch',
             'semester',
             'courseobjective',
-            'cso.csosubunits.taxonomies.rbtmaster',
+            'cso',
+            'syllabusSubunits.csoSubunit.taxonomies.rbtmaster',
         ])->where('subject_id', $id);
 
         if (!empty($request->filter_batch)) {
@@ -1533,6 +1651,7 @@ class SubjectController extends Controller
             'batches'        => $batches,
             'semesters'      => $semesters,
             'cos'            => $cos,
+            'courseApplicabilityMap' => $courseApplicabilityMap,
             'data'           => $data,
             'shiftOptions'   => $shiftOptions,
             'selectedProgramType' => $selectedProgramType,
@@ -1555,12 +1674,34 @@ class SubjectController extends Controller
             'program_type' => 'required|in:UG,PG',
             'shift' => ['nullable', Rule::in($allowedShifts)],
             'co_id' => 'required',
-            'cso_id' => 'required|array|min:1',
+            'cso_id' => 'nullable|array',
             'cso_id.*' => 'integer|exists:co_has_csos,id',
-            'cso_subunit_map' => 'required|array|min:1',
+            'cso_subunit_map' => 'nullable|array',
             'status' => 'required|in:draft,published',
+            'declare_no_co_cso' => 'nullable|in:0,1',
+            'co_cso_not_applicable_note' => 'nullable|string|max:255',
 
         ]);
+
+        $courseMasterId = (int) ($request->co_id ?? 0);
+        $subjectCourseMap = SubjectCourseMaster::query()
+            ->where('subject_id', (int) $request->subject_id)
+            ->where('course_master_id', $courseMasterId)
+            ->first();
+
+        if (!$subjectCourseMap) {
+            return redirect()->back()->with('error', 'Selected course is not mapped to this department.');
+        }
+
+        $declaredNoCoCsoInRequest = (int) $request->input('declare_no_co_cso', 0) === 1;
+        $isAlreadyDeclaredNoCoCso = (bool) ($subjectCourseMap->co_cso_not_applicable ?? false);
+
+        if ($declaredNoCoCsoInRequest) {
+            $subjectCourseMap->co_cso_not_applicable = true;
+            $subjectCourseMap->co_cso_not_applicable_note = trim((string) $request->input('co_cso_not_applicable_note', '')) ?: null;
+            $subjectCourseMap->save();
+            $isAlreadyDeclaredNoCoCso = true;
+        }
 
         // Save syllabus only for one selected shift.
         $targetShifts = [$defaultShift];
@@ -1577,6 +1718,7 @@ class SubjectController extends Controller
         $updatedCount = 0;
         $status = $request->status ?? 'draft';
         $programType = $this->resolveSyllabusProgramType($request, 'program_type');
+        $allowNoCoCsoFlow = $isAlreadyDeclaredNoCoCso;
 
         if (Schema::hasColumn('subject_has_syllabi', 'program_type')) {
             SubjectHasSyllabus::firstOrCreate([
@@ -1607,8 +1749,42 @@ class SubjectController extends Controller
         $hasAtLeastOneSubunit = $selectedCsoIds
             ->contains(fn($csoId) => !empty($csoSubunitMap->get((string) $csoId, [])));
 
-        if (!$hasAtLeastOneSubunit) {
+        if (!$allowNoCoCsoFlow && $selectedCsoIds->isEmpty()) {
+            return redirect()->back()->with('error', 'Please select at least one CSO, or declare this course as CO/CSO not applicable.');
+        }
+
+        if (!$allowNoCoCsoFlow && !$hasAtLeastOneSubunit) {
             return redirect()->back()->with('error', 'Please select at least one subunit for the selected CSO(s).');
+        }
+
+        if ($allowNoCoCsoFlow) {
+            foreach ($targetShifts as $shiftSlug) {
+                $rec = SyllabusManager::updateOrCreate([
+                    'subject_id' => $request->subject_id,
+                    'batch_id' => $request->batch,
+                    'semester_id' => $request->semester,
+                    'shift' => $shiftSlug,
+                    'program_type' => $programType,
+                    'co_id' => $request->co_id,
+                    'cso_id' => null,
+                ], [
+                    'status' => $status,
+                ]);
+
+                if ($rec->wasRecentlyCreated) {
+                    $createdCount++;
+                } else {
+                    $updatedCount++;
+                }
+            }
+
+            if ($createdCount > 0 && $updatedCount > 0) {
+                return redirect()->back()->with('success', 'Syllabus created and updated (CO/CSO not applicable) with status: ' . ucfirst($status));
+            }
+
+            return redirect()->back()->with('success', $createdCount > 0
+                ? 'Syllabus created (CO/CSO not applicable) with status: ' . ucfirst($status)
+                : 'Syllabus updated (CO/CSO not applicable) with status: ' . ucfirst($status));
         }
 
         foreach ($targetShifts as $shiftSlug) {
@@ -1661,6 +1837,20 @@ class SubjectController extends Controller
         $isJsonRequest = request()->expectsJson() || request()->ajax();
         $subunit = SyllabusSubunit::with('syllabusManager')->findOrFail($id);
         $syllabusManager = $subunit->syllabusManager;
+        $deptSubjectId = $this->currentDeptSubjectId();
+
+        if (!$syllabusManager || (int) $syllabusManager->subject_id !== (int) $deptSubjectId) {
+            $message = 'You are not allowed to delete this syllabus subunit.';
+
+            if ($isJsonRequest) {
+                return response()->json([
+                    'status' => false,
+                    'message' => $message,
+                ], 403);
+            }
+
+            return redirect()->back()->with('error', $message);
+        }
 
         if ($syllabusManager) {
             $coId    = $syllabusManager->co_id;
@@ -1756,6 +1946,21 @@ class SubjectController extends Controller
     {
         $isJsonRequest = request()->expectsJson() || request()->ajax();
         $programType = $this->resolveSyllabusProgramType($request, 'program_type');
+        $deptSubjectId = $this->currentDeptSubjectId();
+
+        if ((int) $subjectId !== (int) $deptSubjectId) {
+            $message = 'You are not allowed to delete this syllabus course.';
+
+            if ($isJsonRequest) {
+                return response()->json([
+                    'status' => false,
+                    'message' => $message,
+                ], 403);
+            }
+
+            return redirect()->back()->with('error', $message);
+        }
+
         $hasAttendance = StudentAttendance::where('course_id', $coId)->exists();
         $hasTimetable  = SubjectHasRoutine::where('subject_course_id', $coId)
             ->where('batch_id', $batchId)
@@ -1898,6 +2103,169 @@ class SubjectController extends Controller
             'students' => $students,
             'program' => $program,
             'slug' => $slug
+        ]);
+    }
+
+    function integratedProgramStudentMappings(int $combinationId)
+    {
+        $userId = Auth::id();
+        $subjectId = SubjectHasDeptAdmin::where('user_id', $userId)->value('subject_id');
+
+        $combination = SubjectHasStudentProgam::with([
+            'studentprograminfo:id,code,name',
+            'batchmaster:id,batch_name',
+            'subjectmaster:id,title,slug',
+        ])->find($combinationId);
+
+        if (!$combination) {
+            return redirect()->route('department.dashboard')->with('error', 'Program combination not found.');
+        }
+
+        if ((int) ($combination->subject_id ?? 0) !== (int) $subjectId) {
+            return redirect()->route('department.dashboard')->with('error', 'You are not authorized to view this mapping.');
+        }
+
+        if (!Schema::hasTable('integrated_program_sublayer_settings')) {
+            return redirect()->route('department.dashboard')->with('error', 'Integrated sublayer settings table not found. Please run migrations first.');
+        }
+
+        $integratedProgramId = (int) ($combination->student_program_id ?? 0);
+        $isIntegratedProgram = DB::table('integrated_program_sublayer_settings')
+            ->where('student_program_id', $integratedProgramId)
+            ->where('is_active', 1)
+            ->exists();
+
+        if (!$isIntegratedProgram) {
+            return redirect()->route('department.dashboard')->with('error', 'Selected program is not configured as an active integrated program.');
+        }
+
+        $hasIsDeletedColumn = Schema::hasColumn('student_masters', 'is_deleted');
+        $hasIsLeftColumn = Schema::hasColumn('student_masters', 'is_left');
+        $hasOriginProgramColumn = Schema::hasColumn('student_masters', 'integrated_origin_program_id');
+        $hasShiftedAtColumn = Schema::hasColumn('student_masters', 'integrated_shifted_at');
+
+        $students = StudentMaster::query()
+            ->with('stdprogramenrolled:id,code,name')
+            ->where('batch', (int) ($combination->batch_id ?? 0))
+            ->where(function ($query) use ($integratedProgramId, $hasOriginProgramColumn) {
+                $query->where('new_program_id', $integratedProgramId);
+                if ($hasOriginProgramColumn) {
+                    $query->orWhere('integrated_origin_program_id', $integratedProgramId);
+                }
+            })
+            ->when($hasIsDeletedColumn, fn($query) => $query->where('is_deleted', 0))
+            ->when($hasIsLeftColumn, fn($query) => $query->where('is_left', 0))
+            ->orderBy('roll_no')
+            ->orderBy('id')
+            ->get([
+                'id',
+                'roll_no',
+                'register_no',
+                'first_name',
+                'last_name',
+                'new_program_id',
+                'batch',
+                'integrated_origin_program_id',
+                'integrated_shifted_at',
+            ]);
+
+        $latestShiftByStudent = collect();
+        if (Schema::hasTable('integrated_program_student_shifts')) {
+            $latestShiftByStudent = DB::table('integrated_program_student_shifts')
+                ->where('batch_id', (int) ($combination->batch_id ?? 0))
+                ->where('from_program_id', $integratedProgramId)
+                ->orderByDesc('id')
+                ->get([
+                    'id',
+                    'student_id',
+                    'to_program_id',
+                    'to_combination_id',
+                    'remarks',
+                    'created_at',
+                ])
+                ->unique('student_id')
+                ->keyBy('student_id');
+        }
+
+        $toProgramIds = $latestShiftByStudent
+            ->pluck('to_program_id')
+            ->map(fn($id) => (int) $id)
+            ->filter(fn($id) => $id > 0)
+            ->unique()
+            ->values();
+
+        $programLabelMap = StudentProgram::query()
+            ->whereIn('id', $toProgramIds->all())
+            ->get(['id', 'code', 'name'])
+            ->mapWithKeys(function ($program) {
+                $code = trim((string) ($program->code ?? ''));
+                $name = trim((string) ($program->name ?? ''));
+                $label = trim(($code !== '' ? $code . ' - ' : '') . $name);
+                return [(int) $program->id => $label !== '' ? $label : ('Program #' . (int) $program->id)];
+            });
+
+        $toCombinationIds = $latestShiftByStudent
+            ->pluck('to_combination_id')
+            ->map(fn($id) => (int) $id)
+            ->filter(fn($id) => $id > 0)
+            ->unique()
+            ->values();
+
+        $combinationLabelMap = SubjectHasStudentProgam::with('subjectmaster:id,code,title')
+            ->whereIn('id', $toCombinationIds->all())
+            ->get(['id', 'subject_id'])
+            ->mapWithKeys(function ($item) {
+                $subjectCode = trim((string) (optional($item->subjectmaster)->code ?? ''));
+                $subjectTitle = trim((string) (optional($item->subjectmaster)->title ?? ''));
+                $subjectLabel = trim(($subjectCode !== '' ? $subjectCode . ' - ' : '') . $subjectTitle);
+                return [(int) $item->id => $subjectLabel !== '' ? $subjectLabel : ('Combination #' . (int) $item->id)];
+            });
+
+        $rows = $students->map(function ($student) use (
+            $latestShiftByStudent,
+            $programLabelMap,
+            $combinationLabelMap,
+            $integratedProgramId,
+            $hasShiftedAtColumn
+        ) {
+            $studentId = (int) ($student->id ?? 0);
+            $latestShift = $latestShiftByStudent->get($studentId);
+
+            $mappedProgramId = $latestShift ? (int) ($latestShift->to_program_id ?? 0) : 0;
+            if ($mappedProgramId <= 0 && (int) ($student->new_program_id ?? 0) !== $integratedProgramId) {
+                $mappedProgramId = (int) ($student->new_program_id ?? 0);
+            }
+
+            $mappedProgramName = $programLabelMap[$mappedProgramId] ?? null;
+            if (!$mappedProgramName && $mappedProgramId > 0 && (int) ($student->new_program_id ?? 0) === $mappedProgramId && $student->stdprogramenrolled) {
+                $code = trim((string) ($student->stdprogramenrolled->code ?? ''));
+                $name = trim((string) ($student->stdprogramenrolled->name ?? ''));
+                $mappedProgramName = trim(($code !== '' ? $code . ' - ' : '') . $name);
+            }
+
+            $mappedCombinationName = null;
+            if ($latestShift && !empty($latestShift->to_combination_id)) {
+                $mappedCombinationName = $combinationLabelMap[(int) $latestShift->to_combination_id] ?? ('Combination #' . (int) $latestShift->to_combination_id);
+            }
+
+            $studentName = trim(((string) ($student->first_name ?? '')) . ' ' . ((string) ($student->last_name ?? '')));
+
+            return [
+                'student_id' => $studentId,
+                'roll_no' => (string) ($student->roll_no ?? '-'),
+                'register_no' => (string) ($student->register_no ?? '-'),
+                'student_name' => $studentName !== '' ? $studentName : '-',
+                'mapped_program' => $mappedProgramName,
+                'mapped_combination' => $mappedCombinationName,
+                'mapped_on' => $latestShift->created_at ?? ($hasShiftedAtColumn ? ($student->integrated_shifted_at ?? null) : null),
+                'remarks' => $latestShift->remarks ?? null,
+                'status' => $mappedProgramId > 0 ? 'Mapped' : 'Not Mapped',
+            ];
+        })->values();
+
+        return view('admin.subject.integrated-program-student-mapping', [
+            'combination' => $combination,
+            'rows' => $rows,
         ]);
     }
 
@@ -2807,8 +3175,33 @@ class SubjectController extends Controller
 
     function deleteCsoSubunitTaxonomy($id)
     {
-        SubunitHasRbt::findOrFail($id)->delete();
+        $taxonomy = SubunitHasRbt::findOrFail($id);
+        $subunit = CsoSubunit::find($taxonomy->subunit_id);
+        $deptSubjectId = $this->currentDeptSubjectId();
+        $cso = $subunit ? CoHasCso::find($subunit->cso_id) : null;
+
+        if (!$cso || !$this->canDepartmentManageCso($cso, $deptSubjectId)) {
+            return redirect()->back()->with('error', 'You are not allowed to remove this taxonomy mapping.');
+        }
+
+        $taxonomy->delete();
         return redirect()->back()->with('success', 'Taxonomy level removed from subunit');
+    }
+
+    private function currentDeptSubjectId(): int
+    {
+        return (int) SubjectHasDeptAdmin::where('user_id', Auth::id())->value('subject_id');
+    }
+
+    private function canDepartmentManageCso(CoHasCso $cso, int $deptSubjectId): bool
+    {
+        if ($deptSubjectId <= 0) {
+            return false;
+        }
+
+        return SubjectCourseMaster::where('course_master_id', (int) $cso->co_id)
+            ->where('subject_id', $deptSubjectId)
+            ->exists();
     }
 
 
@@ -2911,6 +3304,28 @@ class SubjectController extends Controller
         return redirect()->back()->with('success', 'Enabled shifts updated successfully.');
     }
 
+    function toggleTeachingAssignmentMultiPrimaryMode($id)
+    {
+        $subject = Subject::find($id);
+        if (!$subject) {
+            return redirect()->back()->with('error', 'Department not found.');
+        }
+
+        if (!Schema::hasColumn('subjects', 'allow_multi_primary_faculty')) {
+            return redirect()->back()->with('error', 'Multi primary faculty setting is not available yet. Please run latest migrations.');
+        }
+
+        $subject->allow_multi_primary_faculty = (int) ($subject->allow_multi_primary_faculty ?? 0) === 1 ? 0 : 1;
+        $subject->save();
+
+        return redirect()->back()->with(
+            'success',
+            (int) $subject->allow_multi_primary_faculty === 1
+                ? 'Multi primary faculty mode enabled for this department.'
+                : 'Single primary faculty mode enabled for this department.'
+        );
+    }
+
     private function subjectUsesShifts(?int $subjectId): bool
     {
         if (empty($subjectId)) {
@@ -2918,6 +3333,100 @@ class SubjectController extends Controller
         }
 
         return Subject::where('id', $subjectId)->value('has_shift_delivery') == 1;
+    }
+
+    private function subjectAllowsMultiPrimaryFaculty(?Subject $subject): bool
+    {
+        if (!$subject || !Schema::hasColumn('subjects', 'allow_multi_primary_faculty')) {
+            return false;
+        }
+
+        return (int) ($subject->allow_multi_primary_faculty ?? 0) === 1;
+    }
+
+    private function getIntegratedSublayerContextForCombination(?SubjectHasStudentProgam $combination): array
+    {
+        if (!$combination || !Schema::hasTable('integrated_program_sublayer_settings')) {
+            return [
+                'is_integrated' => false,
+                'setting' => null,
+                'sublayer_combinations' => collect(),
+            ];
+        }
+
+        $setting = DB::table('integrated_program_sublayer_settings')
+            ->where('student_program_id', (int) ($combination->student_program_id ?? 0))
+            ->where('is_active', 1)
+            ->first();
+
+        if (!$setting) {
+            return [
+                'is_integrated' => false,
+                'setting' => null,
+                'sublayer_combinations' => collect(),
+            ];
+        }
+
+        $integratedProgramIds = DB::table('integrated_program_sublayer_settings')
+            ->where('is_active', 1)
+            ->pluck('student_program_id')
+            ->map(fn($id) => (int) $id)
+            ->filter(fn($id) => $id > 0)
+            ->unique()
+            ->values();
+
+        $sublayerCombinations = SubjectHasStudentProgam::with([
+            'studentprograminfo:id,code,name,program_type',
+            'studentprograminfo.programtypemaster:id,name',
+            'subjectmaster:id,code,title',
+            'batchmaster:id,batch_name',
+        ])
+            ->where('batch_id', (int) ($combination->batch_id ?? 0))
+            ->where('subject_id', (int) ($combination->subject_id ?? 0))
+            ->where('id', '!=', (int) ($combination->id ?? 0))
+            ->where('student_program_id', '!=', (int) ($combination->student_program_id ?? 0))
+            ->when($integratedProgramIds->isNotEmpty(), fn($query) => $query->whereNotIn('student_program_id', $integratedProgramIds->all()))
+            ->orderBy('student_program_id')
+            ->get(['id', 'student_program_id', 'subject_id', 'batch_id', 'program_type']);
+
+        return [
+            'is_integrated' => true,
+            'setting' => $setting,
+            'sublayer_combinations' => $sublayerCombinations,
+        ];
+    }
+
+    private function getCoursesBySemesterFromCombinationIds(array $combinationIds): \Illuminate\Support\Collection
+    {
+        $combinationIds = collect($combinationIds)
+            ->map(fn($id) => (int) $id)
+            ->filter(fn($id) => $id > 0)
+            ->unique()
+            ->values();
+
+        if ($combinationIds->isEmpty()) {
+            return collect();
+        }
+
+        $curriculumTable = $this->getCurriculumEngineTable();
+        $rowsQuery = ProgramWiseSemesterCourse::with([
+            'semestermaster:id,title',
+            'programinfo:id,course_code,course_title,course_type,department',
+            'programinfo.coursetypemaster:id,title',
+            'specializationmaster:id,name',
+        ])->whereIn('program_combo_refid', $combinationIds->all())
+            ->orderBy('semester')
+            ->when(
+                Schema::hasColumn($curriculumTable, 'display_order'),
+                fn($query) => $query->orderBy('display_order')->orderBy('id'),
+                fn($query) => $query->orderBy('id')
+            );
+
+        if (Schema::hasColumn($curriculumTable, 'is_active')) {
+            $rowsQuery->where('is_active', 1);
+        }
+
+        return $rowsQuery->get()->groupBy('semester');
     }
 
     function curriculamBuilder($id, $code)
@@ -2935,45 +3444,35 @@ class SubjectController extends Controller
             return redirect()->back()->with('error', 'Program mapping not found.');
         }
 
+        $integratedContext = $this->getIntegratedSublayerContextForCombination($data);
+        $isIntegratedSublayerReadOnly = (bool) ($integratedContext['is_integrated'] ?? false);
+        $integratedSublayerCombinations = collect($integratedContext['sublayer_combinations'] ?? collect())->values();
+        $integratedSublayerPrograms = $integratedSublayerCombinations
+            ->map(function ($combination) {
+                $programCode = (string) (optional($combination->studentprograminfo)->code ?? '-');
+                $programName = (string) (optional($combination->studentprograminfo)->name ?? '-');
+                return trim(($programCode !== '' ? $programCode . ' - ' : '') . $programName);
+            })
+            ->filter()
+            ->unique()
+            ->values();
+
         $comboBoundary = $this->getProgrammeBoundarySubjectIds($data);
 
-        $coursesBySemester = ProgramWiseSemesterCourse::with([
-            'semestermaster:id,title',
-            'programinfo:id,course_code,course_title,course_type,department',
-            'programinfo.coursetypemaster:id,title',
-            'specializationmaster:id,name',
-        ])
-            ->where('program_combo_refid', $id)
-            ->orderBy('semester')
-            ->when(
-                Schema::hasColumn($this->getCurriculumEngineTable(), 'display_order'),
-                fn($query) => $query->orderBy('display_order')->orderBy('id'),
-                fn($query) => $query->orderBy('id')
-            )
-            ->get()
-            ->groupBy('semester');
+        $coursesBySemester = $isIntegratedSublayerReadOnly
+            ? $this->getCoursesBySemesterFromCombinationIds($integratedSublayerCombinations->pluck('id')->all())
+            : $this->getCoursesBySemesterFromCombinationIds([(int) $id]);
 
         $publishedCoursesBySemester = $this->getPublishedCoursesBySemesterForCombination($data);
         $selectedSemester = (int) request('semester');
-        $combo2SubjectId = (int) ($comboBoundary['combo2'] ?? 0);
         $generatedCourses = $selectedSemester > 0
-            ? collect($publishedCoursesBySemester[(string) $selectedSemester] ?? [])
-            ->filter(function ($course) use ($combo2SubjectId) {
-                $courseTypeTitle = strtoupper(trim((string) ($course['course_type_title'] ?? '')));
-                $sourceSubjectId = (int) ($course['source_subject_id'] ?? 0);
-
-                if (
-                    $combo2SubjectId > 0
-                    && $courseTypeTitle === ProgramWiseSemesterCourse::DELIVERY_OPEN_CHOICE
-                    && $sourceSubjectId === $combo2SubjectId
-                ) {
-                    return false;
-                }
-
-                return true;
-            })
-            ->values()
+            ? collect($publishedCoursesBySemester[(string) $selectedSemester] ?? [])->values()
             : collect();
+
+        if ($isIntegratedSublayerReadOnly) {
+            $generatedCourses = collect();
+            $selectedSemester = 0;
+        }
 
         $semesters = Semester::query()->orderBy('id')->get(['id', 'title']);
         $pathways = AcademicPathwayMaster::query()->orderBy('name')->get(['id', 'name']);
@@ -3011,6 +3510,8 @@ class SubjectController extends Controller
             'pathways' => $pathways,
             'degreeTracks' => $degreeTracks,
             'availableSpecializations' => $availableSpecializations,
+            'isIntegratedSublayerReadOnly' => $isIntegratedSublayerReadOnly,
+            'integratedSublayerPrograms' => $integratedSublayerPrograms,
 
         ]);
     }
@@ -3117,16 +3618,6 @@ class SubjectController extends Controller
         // Keep combo1 precedence when a course appears in both combos.
         $semesterCourses = $combo2Courses
             ->concat($combo1Courses)
-            ->filter(function ($course) use ($combo2SubjectId) {
-                $courseTypeTitle = strtoupper(trim((string) ($course['course_type_title'] ?? '')));
-                $sourceSubjectId = (int) ($course['source_subject_id'] ?? 0);
-
-                return !(
-                    $combo2SubjectId > 0
-                    && $courseTypeTitle === ProgramWiseSemesterCourse::DELIVERY_OPEN_CHOICE
-                    && $sourceSubjectId === $combo2SubjectId
-                );
-            })
             ->keyBy('id')
             ->values()
             ->sortBy(fn($course) => ($course['course_code'] ?? '') . ' ' . ($course['course_title'] ?? ''))
@@ -3248,6 +3739,11 @@ class SubjectController extends Controller
         ])->find($refid);
         if (!$combination) {
             return $respond(false, 'Program mapping not found.', 404);
+        }
+
+        $integratedContext = $this->getIntegratedSublayerContextForCombination($combination);
+        if ((bool) ($integratedContext['is_integrated'] ?? false)) {
+            return $respond(false, 'Curriculum design is locked for integrated programs. Please use configured UG/PG sublayer programs.', 422);
         }
 
         $comboBoundary = $this->getProgrammeBoundarySubjectIds($combination);
@@ -3555,6 +4051,12 @@ class SubjectController extends Controller
     {
         $mapping = ProgramWiseSemesterCourse::findOrFail($id);
         $combination = SubjectHasStudentProgam::with('batchmaster:id,batch_name')->find($mapping->program_combo_refid);
+
+        $integratedContext = $this->getIntegratedSublayerContextForCombination($combination);
+        if ((bool) ($integratedContext['is_integrated'] ?? false)) {
+            return redirect()->back()->with('error', 'Delete is locked for integrated programs. Manage curriculum in UG/PG sublayer programs.');
+        }
+
         $impact = $this->getMappingDeletionImpact($mapping, $combination);
 
         if ($mapping->course_type === ProgramWiseSemesterCourse::TYPE_AUTO && $combination) {
@@ -3603,6 +4105,11 @@ class SubjectController extends Controller
 
         if (!$combination) {
             return redirect()->back()->with('error', 'Program mapping not found.');
+        }
+
+        $integratedContext = $this->getIntegratedSublayerContextForCombination($combination);
+        if ((bool) ($integratedContext['is_integrated'] ?? false)) {
+            return redirect()->back()->with('error', 'Update is locked for integrated programs. Manage curriculum in UG/PG sublayer programs.');
         }
 
         $comboBoundary = $this->getProgrammeBoundarySubjectIds($combination);
@@ -4324,67 +4831,8 @@ class SubjectController extends Controller
             'assignments' => $assignments,
             'deliveryTypeMap' => $deliveryTypeMap,
             'shiftOptions' => $shiftOptions,
-            'teachingAllocationSetting' => $teachingAllocationSetting,
-            'allowMultiplePrimaryFaculty' => $allowMultiplePrimaryFaculty,
+            'allowsMultiPrimaryFaculty' => $this->subjectAllowsMultiPrimaryFaculty($subjectInfo),
         ]);
-    }
-
-    function storeTeachingAllocationSetting(Request $request, $subjectId)
-    {
-        $subject = Subject::find($subjectId);
-        if (!$subject) {
-            return redirect()->back()->with('error', 'Department not found.');
-        }
-
-        $validated = $request->validate([
-            'allow_multiple_primary_faculty' => 'required|in:0,1',
-        ]);
-
-        $exists = DepartmentTeachingAllocationSetting::query()
-            ->where('subject_id', (int) $subject->id)
-            ->exists();
-
-        if ($exists) {
-            return redirect()->back()->with('error', 'Teaching allocation setting already exists. Please use update.');
-        }
-
-        DepartmentTeachingAllocationSetting::query()->create([
-            'subject_id' => (int) $subject->id,
-            'allow_multiple_primary_faculty' => (int) $validated['allow_multiple_primary_faculty'] === 1,
-            'created_by' => Auth::id(),
-            'updated_by' => Auth::id(),
-        ]);
-
-        return redirect()->back()->with('success', 'Teaching allocation setting created successfully.');
-    }
-
-    function updateTeachingAllocationSetting(Request $request, $id)
-    {
-        $setting = DepartmentTeachingAllocationSetting::find($id);
-        if (!$setting) {
-            return redirect()->back()->with('error', 'Teaching allocation setting not found.');
-        }
-
-        $validated = $request->validate([
-            'allow_multiple_primary_faculty' => 'required|in:0,1',
-        ]);
-
-        $setting->allow_multiple_primary_faculty = (int) $validated['allow_multiple_primary_faculty'] === 1;
-        $setting->updated_by = Auth::id();
-        $setting->save();
-
-        return redirect()->back()->with('success', 'Teaching allocation setting updated successfully.');
-    }
-
-    function deleteTeachingAllocationSetting($id)
-    {
-        $setting = DepartmentTeachingAllocationSetting::find($id);
-        if (!$setting) {
-            return redirect()->back()->with('error', 'Teaching allocation setting not found.');
-        }
-
-        $setting->delete();
-        return redirect()->back()->with('success', 'Teaching allocation setting deleted successfully.');
     }
 
     function storeTeachingAssignment(Request $request, $subjectId)
@@ -4397,7 +4845,7 @@ class SubjectController extends Controller
             return redirect()->back()->with('error', 'Department not found.');
         }
 
-        $allowMultiplePrimaryFaculty = $this->allowMultiplePrimaryFacultyForSubject((int) $subject->id);
+        $allowsMultiPrimaryFaculty = $this->subjectAllowsMultiPrimaryFaculty($subject);
 
         $validated = $request->validate([
             'course_id' => 'required|integer|exists:program_course_masters,id',
@@ -4423,21 +4871,19 @@ class SubjectController extends Controller
             $primaryFacultyIds = collect([(int) $validated['faculty_id']]);
         }
 
-        if (!$allowMultiplePrimaryFaculty && $primaryFacultyIds->count() > 1) {
-            if ($request->expectsJson()) {
-                return response()->json(['message' => 'Multiple primary faculty is not enabled for this department.'], 422);
-            }
-            return redirect()->back()->with('error', 'Multiple primary faculty is not enabled for this department.');
-        }
-
         if ($primaryFacultyIds->isEmpty()) {
             if ($request->expectsJson()) {
-                return response()->json(['message' => 'Please select at least one primary faculty.'], 422);
+                return response()->json(['message' => 'Please select at least one primary faculty member.'], 422);
             }
-            return redirect()->back()->with('error', 'Please select at least one primary faculty.');
+            return redirect()->back()->with('error', 'Please select at least one primary faculty member.');
         }
 
-        $validated['faculty_id'] = (int) $primaryFacultyIds->first();
+        if (!$allowsMultiPrimaryFaculty && $primaryFacultyIds->count() > 1) {
+            if ($request->expectsJson()) {
+                return response()->json(['message' => 'This department is configured for single primary faculty assignment.'], 422);
+            }
+            return redirect()->back()->with('error', 'This department is configured for single primary faculty assignment.');
+        }
 
         $coFacultyIds = collect($validated['co_faculty_ids'] ?? [])
             ->map(fn($value) => (int) $value)
@@ -4445,12 +4891,11 @@ class SubjectController extends Controller
             ->unique()
             ->values();
 
-        $primaryFacultyIdSet = $primaryFacultyIds->flip();
-        if ($coFacultyIds->first(fn($id) => $primaryFacultyIdSet->has($id)) !== null) {
+        if ($coFacultyIds->intersect($primaryFacultyIds)->isNotEmpty()) {
             if ($request->expectsJson()) {
-                return response()->json(['message' => 'Primary faculty cannot be selected as co-faculty.'], 422);
+                return response()->json(['message' => 'A faculty member cannot be selected as both primary and co-faculty.'], 422);
             }
-            return redirect()->back()->with('error', 'Primary faculty cannot be selected as co-faculty.');
+            return redirect()->back()->with('error', 'A faculty member cannot be selected as both primary and co-faculty.');
         }
 
         $isCourseMapped = SubjectCourseMaster::where('subject_id', $subject->id)
@@ -4464,33 +4909,24 @@ class SubjectController extends Controller
             return redirect()->back()->with('error', 'Selected course is not mapped to this department.');
         }
 
-        $mappedPrimaryFacultyIds = SubjectFacultyMaster::where('subject_id', $subject->id)
-            ->whereIn('faculty_id', $primaryFacultyIds->all())
-            ->pluck('faculty_id')
-            ->map(fn($value) => (int) $value)
+        $allSelectedFacultyIds = $primaryFacultyIds
+            ->merge($coFacultyIds)
             ->unique()
             ->values();
 
-        if ($mappedPrimaryFacultyIds->count() !== $primaryFacultyIds->count()) {
-            if ($request->expectsJson()) {
-                return response()->json(['message' => 'One or more selected primary faculty members are not mapped to this department.'], 422);
-            }
-            return redirect()->back()->with('error', 'One or more selected primary faculty members are not mapped to this department.');
-        }
-
-        if ($coFacultyIds->isNotEmpty()) {
-            $mappedCoFacultyIds = SubjectFacultyMaster::where('subject_id', $subject->id)
-                ->whereIn('faculty_id', $coFacultyIds->all())
+        if ($allSelectedFacultyIds->isNotEmpty()) {
+            $mappedFacultyIds = SubjectFacultyMaster::where('subject_id', $subject->id)
+                ->whereIn('faculty_id', $allSelectedFacultyIds->all())
                 ->pluck('faculty_id')
                 ->map(fn($value) => (int) $value)
                 ->unique()
                 ->values();
 
-            if ($mappedCoFacultyIds->count() !== $coFacultyIds->count()) {
+            if ($mappedFacultyIds->count() !== $allSelectedFacultyIds->count()) {
                 if ($request->expectsJson()) {
-                    return response()->json(['message' => 'One or more co-faculty members are not mapped to this department.'], 422);
+                    return response()->json(['message' => 'One or more selected faculty members are not mapped to this department.'], 422);
                 }
-                return redirect()->back()->with('error', 'One or more co-faculty members are not mapped to this department.');
+                return redirect()->back()->with('error', 'One or more selected faculty members are not mapped to this department.');
             }
         }
 
@@ -4514,21 +4950,36 @@ class SubjectController extends Controller
             return redirect()->back()->with('error', 'Selected shift is not applicable for this subject.');
         }
 
-        $duplicateQuery = TeachingAssignment::where('subject_id', $subject->id)
+        $matchingAssignments = TeachingAssignment::where('subject_id', $subject->id)
             ->where('course_id', $validated['course_id'])
             ->where('delivery_type', $resolvedDeliveryType)
-            ->where('shift_id', (int) $validated['shift_id']);
+            ->where('shift_id', (int) $validated['shift_id'])
+            ->with('primaryFacultyMembers:id')
+            ->get(['id', 'faculty_id']);
 
-        if (!$allowMultiplePrimaryFaculty) {
-            $duplicateQuery->where('faculty_id', (int) $validated['faculty_id']);
-        }
+        $duplicateExists = $matchingAssignments->contains(function ($existingAssignment) use ($primaryFacultyIds) {
+            $existingPrimaryIds = collect($existingAssignment->primaryFacultyMembers ?? collect())
+                ->pluck('id')
+                ->map(fn($value) => (int) $value)
+                ->filter(fn($value) => $value > 0)
+                ->unique()
+                ->values();
+
+            if ($existingPrimaryIds->isEmpty() && !empty($existingAssignment->faculty_id)) {
+                $existingPrimaryIds = collect([(int) $existingAssignment->faculty_id]);
+            }
+
+            return $existingPrimaryIds->intersect($primaryFacultyIds)->isNotEmpty();
+        });
 
         if ($duplicateQuery->exists()) {
             if ($request->expectsJson()) {
-                return response()->json(['message' => 'Duplicate entry: this course, delivery type and shift already exists.'], 422);
+                return response()->json(['message' => 'Duplicate entry: this course and delivery type already has one or more selected primary faculty members.'], 422);
             }
-            return redirect()->back()->with('error', 'Duplicate entry: this course, delivery type and shift already exists.');
+            return redirect()->back()->with('error', 'Duplicate entry: this course and delivery type already has one or more selected primary faculty members.');
         }
+
+        $canonicalPrimaryFacultyId = (int) ($primaryFacultyIds->first() ?? 0);
 
         $nextAllocationGroup = $this->resolveTeachingAssignmentAllocationGroup(
             (int) $subject->id,
@@ -4537,13 +4988,13 @@ class SubjectController extends Controller
             (int) $validated['shift_id']
         );
 
-        $createdAssignmentId = DB::transaction(function () use ($subject, $validated, $resolvedDeliveryType, $nextAllocationGroup, $coFacultyIds, $primaryFacultyIds) {
+        $assignment = DB::transaction(function () use ($subject, $validated, $resolvedDeliveryType, $nextAllocationGroup, $primaryFacultyIds, $coFacultyIds, $canonicalPrimaryFacultyId) {
             $assignment = TeachingAssignment::create([
                 'subject_id' => $subject->id,
                 'course_id' => $validated['course_id'],
                 'delivery_type' => $resolvedDeliveryType,
                 'shift_id' => (int) $validated['shift_id'],
-                'faculty_id' => (int) $primaryFacultyIds->first(),
+                'faculty_id' => $canonicalPrimaryFacultyId,
                 'allocation_group' => $nextAllocationGroup,
                 'is_active' => (int) $validated['status'],
                 'room' => $validated['room'] ?? '',
@@ -4556,15 +5007,13 @@ class SubjectController extends Controller
             return (int) $assignment->id;
         });
 
-        $createdAssignment = TeachingAssignment::query()
-            ->with([
-                'course:id,course_code,course_title',
-                'faculty:id,USER_CODE,FIRST_NAME,LAST_NAME',
-                'primaryFacultyMembers:id,USER_CODE,FIRST_NAME,LAST_NAME',
-                'coFacultyMembers:id,USER_CODE,FIRST_NAME,LAST_NAME',
-                'shiftmaster:id,title,slug',
-            ])
-            ->findOrFail($createdAssignmentId);
+        $assignment->load([
+            'course:id,course_code,course_title',
+            'faculty:id,USER_CODE,FIRST_NAME,LAST_NAME',
+            'primaryFacultyMembers:id,USER_CODE,FIRST_NAME,LAST_NAME',
+            'coFacultyMembers:id,USER_CODE,FIRST_NAME,LAST_NAME',
+            'shiftmaster:id,title,slug',
+        ]);
 
         if ($request->expectsJson()) {
             return response()->json([
@@ -4587,7 +5036,8 @@ class SubjectController extends Controller
             return redirect()->back()->with('error', 'Teaching assignment not found.');
         }
 
-        $allowMultiplePrimaryFaculty = $this->allowMultiplePrimaryFacultyForSubject((int) $assignment->subject_id);
+        $subject = Subject::find((int) $assignment->subject_id);
+        $allowsMultiPrimaryFaculty = $this->subjectAllowsMultiPrimaryFaculty($subject);
 
         $validated = $request->validate([
             'course_id' => 'required|integer|exists:program_course_masters,id',
@@ -4613,21 +5063,19 @@ class SubjectController extends Controller
             $primaryFacultyIds = collect([(int) $validated['faculty_id']]);
         }
 
-        if (!$allowMultiplePrimaryFaculty && $primaryFacultyIds->count() > 1) {
-            if ($request->expectsJson()) {
-                return response()->json(['message' => 'Multiple primary faculty is not enabled for this department.'], 422);
-            }
-            return redirect()->back()->with('error', 'Multiple primary faculty is not enabled for this department.');
-        }
-
         if ($primaryFacultyIds->isEmpty()) {
             if ($request->expectsJson()) {
-                return response()->json(['message' => 'Please select a primary faculty.'], 422);
+                return response()->json(['message' => 'Please select at least one primary faculty member.'], 422);
             }
-            return redirect()->back()->with('error', 'Please select a primary faculty.');
+            return redirect()->back()->with('error', 'Please select at least one primary faculty member.');
         }
 
-        $validated['faculty_id'] = (int) $primaryFacultyIds->first();
+        if (!$allowsMultiPrimaryFaculty && $primaryFacultyIds->count() > 1) {
+            if ($request->expectsJson()) {
+                return response()->json(['message' => 'This department is configured for single primary faculty assignment.'], 422);
+            }
+            return redirect()->back()->with('error', 'This department is configured for single primary faculty assignment.');
+        }
 
         $coFacultyIds = collect($validated['co_faculty_ids'] ?? [])
             ->map(fn($value) => (int) $value)
@@ -4635,12 +5083,11 @@ class SubjectController extends Controller
             ->unique()
             ->values();
 
-        $primaryFacultyIdSet = $primaryFacultyIds->flip();
-        if ($coFacultyIds->first(fn($id) => $primaryFacultyIdSet->has($id)) !== null) {
+        if ($coFacultyIds->intersect($primaryFacultyIds)->isNotEmpty()) {
             if ($request->expectsJson()) {
-                return response()->json(['message' => 'Primary faculty cannot be selected as co-faculty.'], 422);
+                return response()->json(['message' => 'A faculty member cannot be selected as both primary and co-faculty.'], 422);
             }
-            return redirect()->back()->with('error', 'Primary faculty cannot be selected as co-faculty.');
+            return redirect()->back()->with('error', 'A faculty member cannot be selected as both primary and co-faculty.');
         }
 
         $isCourseMapped = SubjectCourseMaster::where('subject_id', $assignment->subject_id)
@@ -4654,33 +5101,24 @@ class SubjectController extends Controller
             return redirect()->back()->with('error', 'Selected course is not mapped to this department.');
         }
 
-        $mappedPrimaryFacultyIds = SubjectFacultyMaster::where('subject_id', $assignment->subject_id)
-            ->whereIn('faculty_id', $primaryFacultyIds->all())
-            ->pluck('faculty_id')
-            ->map(fn($value) => (int) $value)
+        $allSelectedFacultyIds = $primaryFacultyIds
+            ->merge($coFacultyIds)
             ->unique()
             ->values();
 
-        if ($mappedPrimaryFacultyIds->count() !== $primaryFacultyIds->count()) {
-            if ($request->expectsJson()) {
-                return response()->json(['message' => 'One or more selected primary faculty members are not mapped to this department.'], 422);
-            }
-            return redirect()->back()->with('error', 'One or more selected primary faculty members are not mapped to this department.');
-        }
-
-        if ($coFacultyIds->isNotEmpty()) {
-            $mappedCoFacultyIds = SubjectFacultyMaster::where('subject_id', $assignment->subject_id)
-                ->whereIn('faculty_id', $coFacultyIds->all())
+        if ($allSelectedFacultyIds->isNotEmpty()) {
+            $mappedFacultyIds = SubjectFacultyMaster::where('subject_id', $assignment->subject_id)
+                ->whereIn('faculty_id', $allSelectedFacultyIds->all())
                 ->pluck('faculty_id')
                 ->map(fn($value) => (int) $value)
                 ->unique()
                 ->values();
 
-            if ($mappedCoFacultyIds->count() !== $coFacultyIds->count()) {
+            if ($mappedFacultyIds->count() !== $allSelectedFacultyIds->count()) {
                 if ($request->expectsJson()) {
-                    return response()->json(['message' => 'One or more co-faculty members are not mapped to this department.'], 422);
+                    return response()->json(['message' => 'One or more selected faculty members are not mapped to this department.'], 422);
                 }
-                return redirect()->back()->with('error', 'One or more co-faculty members are not mapped to this department.');
+                return redirect()->back()->with('error', 'One or more selected faculty members are not mapped to this department.');
             }
         }
 
@@ -4697,7 +5135,6 @@ class SubjectController extends Controller
             return redirect()->back()->with('error', 'Unable to resolve delivery type from curriculum. Please select a valid curriculum-mapped delivery type.');
         }
 
-        $subject = Subject::find($assignment->subject_id);
         if (!$subject || !$this->isTeachingAssignmentShiftAllowed($subject, (int) $validated['shift_id'])) {
             if ($request->expectsJson()) {
                 return response()->json(['message' => 'Selected shift is not applicable for this subject.'], 422);
@@ -4705,28 +5142,41 @@ class SubjectController extends Controller
             return redirect()->back()->with('error', 'Selected shift is not applicable for this subject.');
         }
 
-        $duplicateQuery = TeachingAssignment::where('subject_id', $assignment->subject_id)
+        $matchingAssignments = TeachingAssignment::where('subject_id', $assignment->subject_id)
             ->where('course_id', $validated['course_id'])
             ->where('delivery_type', $resolvedDeliveryType)
             ->where('shift_id', (int) $validated['shift_id'])
-            ->where('id', '!=', $assignment->id);
+            ->where('id', '!=', $assignment->id)
+            ->with('primaryFacultyMembers:id')
+            ->get(['id', 'faculty_id']);
 
-        if (!$allowMultiplePrimaryFaculty) {
-            $duplicateQuery->where('faculty_id', (int) $validated['faculty_id']);
-        }
+        $duplicateExists = $matchingAssignments->contains(function ($existingAssignment) use ($primaryFacultyIds) {
+            $existingPrimaryIds = collect($existingAssignment->primaryFacultyMembers ?? collect())
+                ->pluck('id')
+                ->map(fn($value) => (int) $value)
+                ->filter(fn($value) => $value > 0)
+                ->unique()
+                ->values();
 
-        $duplicateExists = $duplicateQuery->exists();
+            if ($existingPrimaryIds->isEmpty() && !empty($existingAssignment->faculty_id)) {
+                $existingPrimaryIds = collect([(int) $existingAssignment->faculty_id]);
+            }
+
+            return $existingPrimaryIds->intersect($primaryFacultyIds)->isNotEmpty();
+        });
 
         if ($duplicateExists) {
             if ($request->expectsJson()) {
-                return response()->json(['message' => 'Duplicate entry: this course, faculty and delivery type already exists.'], 422);
+                return response()->json(['message' => 'Duplicate entry: this course and delivery type already has one or more selected primary faculty members.'], 422);
             }
-            return redirect()->back()->with('error', 'Duplicate entry: this course, faculty and delivery type already exists.');
+            return redirect()->back()->with('error', 'Duplicate entry: this course and delivery type already has one or more selected primary faculty members.');
         }
+
+        $canonicalPrimaryFacultyId = (int) ($primaryFacultyIds->first() ?? 0);
 
         $combinationChanged =
             (int) $assignment->course_id !== (int) $validated['course_id'] ||
-            (int) $assignment->faculty_id !== (int) $validated['faculty_id'] ||
+            (int) $assignment->faculty_id !== $canonicalPrimaryFacultyId ||
             (string) $assignment->delivery_type !== (string) $resolvedDeliveryType ||
             (int) ($assignment->shift_id ?? 0) !== (int) $validated['shift_id'];
 
@@ -4740,9 +5190,9 @@ class SubjectController extends Controller
             );
         }
 
-        DB::transaction(function () use ($assignment, $validated, $resolvedDeliveryType, $coFacultyIds, $primaryFacultyIds) {
+        DB::transaction(function () use ($assignment, $validated, $resolvedDeliveryType, $primaryFacultyIds, $coFacultyIds, $canonicalPrimaryFacultyId) {
             $assignment->course_id = $validated['course_id'];
-            $assignment->faculty_id = (int) $primaryFacultyIds->first();
+            $assignment->faculty_id = $canonicalPrimaryFacultyId;
             $assignment->delivery_type = $resolvedDeliveryType;
             $assignment->shift_id = (int) $validated['shift_id'];
             $assignment->is_active = (int) $validated['status'];
@@ -4758,23 +5208,43 @@ class SubjectController extends Controller
                 ->where('course_master_id', $assignment->course_id)
                 ->value('id');
 
-            $routineUpdatePayload = [
-                'faculty_id' => (int) $assignment->faculty_id,
-            ];
+            $routineUpdatePayload = [];
 
             if (!empty($subjectCourseId)) {
                 $routineUpdatePayload['subject_course_id'] = (int) $subjectCourseId;
             }
 
-            SubjectHasRoutine::query()
+            $linkedRoutinesQuery = SubjectHasRoutine::query()
                 ->where(function ($query) use ($assignment) {
                     $query->where('teaching_assignment_id', $assignment->id);
 
                     if (Schema::hasColumn('subject_has_routines', 'teaching_allocation_id')) {
                         $query->orWhere('teaching_allocation_id', $assignment->id);
                     }
+                });
+
+            if (!empty($routineUpdatePayload)) {
+                (clone $linkedRoutinesQuery)->update($routineUpdatePayload);
+            }
+
+            $assignedFacultyIds = collect($assignment->allAssignedFacultyIds())
+                ->map(fn($value) => (int) $value)
+                ->filter(fn($value) => $value > 0)
+                ->unique()
+                ->values();
+
+            if ($assignedFacultyIds->isEmpty()) {
+                $assignedFacultyIds = collect([(int) $assignment->faculty_id]);
+            }
+
+            (clone $linkedRoutinesQuery)
+                ->where(function ($query) use ($assignedFacultyIds) {
+                    $query->whereNull('faculty_id')
+                        ->orWhereNotIn('faculty_id', $assignedFacultyIds->all());
                 })
-                ->update($routineUpdatePayload);
+                ->update([
+                    'faculty_id' => (int) $assignment->faculty_id,
+                ]);
 
             // Also backfill newly matching legacy rows created before this assignment existed.
             $this->syncRoutinesWithTeachingAssignment($assignment);
@@ -4815,14 +5285,14 @@ class SubjectController extends Controller
             ->where('teaching_assignment_id', (int) $assignment->id)
             ->delete();
 
-        $rows = [];
-        $primaryIds = collect($primaryFacultyIds)
+        $primaryFacultyCollection = collect($primaryFacultyIds)
             ->map(fn($value) => (int) $value)
             ->filter(fn($value) => $value > 0)
             ->unique()
             ->values();
 
-        foreach ($primaryIds as $primaryFacultyId) {
+        $rows = [];
+        foreach ($primaryFacultyCollection as $primaryFacultyId) {
             $rows[] = [
                 'teaching_assignment_id' => (int) $assignment->id,
                 'faculty_id' => $primaryFacultyId,
@@ -4833,7 +5303,7 @@ class SubjectController extends Controller
         }
 
         foreach (collect($coFacultyIds)->map(fn($value) => (int) $value)->filter(fn($value) => $value > 0)->unique()->values() as $coFacultyId) {
-            if ($primaryIds->contains($coFacultyId)) {
+            if ($primaryFacultyCollection->contains($coFacultyId)) {
                 continue;
             }
 
@@ -4854,7 +5324,7 @@ class SubjectController extends Controller
     private function serializeTeachingAssignment(TeachingAssignment $assignment): array
     {
         $primaryFacultyCollection = $assignment->primaryFacultyMembers ?? collect();
-        if ($primaryFacultyCollection->isEmpty() && $assignment->faculty) {
+        if ($primaryFacultyCollection->isEmpty() && !empty($assignment->faculty)) {
             $primaryFacultyCollection = collect([$assignment->faculty]);
         }
 
@@ -4899,6 +5369,7 @@ class SubjectController extends Controller
             'primary_faculty_ids' => $primaryFacultyCollection
                 ->pluck('id')
                 ->map(fn($value) => (int) $value)
+                ->filter(fn($value) => $value > 0)
                 ->values()
                 ->all(),
             'co_faculty_ids' => $coFacultyCollection
@@ -5079,6 +5550,12 @@ class SubjectController extends Controller
         $typesForCourse = $allowedTypes[$courseId] ?? [];
         $normalizedRequestedType = $this->normalizeDeliveryCategoryInput($requestedDeliveryType);
 
+        // Flexibility fallback: if curriculum has no mapped delivery type for this
+        // subject/course (e.g., no combination configured yet), allow COMMON.
+        if (empty($typesForCourse)) {
+            return $normalizedRequestedType ?: ProgramWiseSemesterCourse::DELIVERY_PROGRAMME_COMMON;
+        }
+
         if (count($typesForCourse) === 1) {
             return (string) $typesForCourse[0];
         }
@@ -5096,6 +5573,13 @@ class SubjectController extends Controller
             return;
         }
 
+        if (!$assignment->relationLoaded('primaryFacultyMembers') || !$assignment->relationLoaded('coFacultyMembers')) {
+            $assignment->load([
+                'primaryFacultyMembers:id',
+                'coFacultyMembers:id',
+            ]);
+        }
+
         $subjectCourseIds = SubjectCourseMaster::query()
             ->where('subject_id', $assignment->subject_id)
             ->where('course_master_id', $assignment->course_id)
@@ -5108,16 +5592,38 @@ class SubjectController extends Controller
             return;
         }
 
+        $assignedFacultyIds = collect($assignment->allAssignedFacultyIds())
+            ->map(fn($value) => (int) $value)
+            ->filter(fn($value) => $value > 0)
+            ->unique()
+            ->values();
+
+        if ($assignedFacultyIds->isEmpty()) {
+            $assignedFacultyIds = collect([(int) ($assignment->faculty_id ?? 0)])
+                ->filter(fn($value) => $value > 0)
+                ->values();
+        }
+
+        if ($assignedFacultyIds->isEmpty()) {
+            return;
+        }
+
+        $hasTeachingAllocationId = Schema::hasColumn('subject_has_routines', 'teaching_allocation_id');
+
         $query = SubjectHasRoutine::query()
-            ->where('faculty_id', (int) $assignment->faculty_id)
+            ->whereIn('faculty_id', $assignedFacultyIds->all())
             ->whereIn('subject_course_id', $subjectCourseIds)
             ->whereNull('teaching_assignment_id');
+
+        if ($hasTeachingAllocationId) {
+            $query->whereNull('teaching_allocation_id');
+        }
 
         $updatePayload = [
             'teaching_assignment_id' => (int) $assignment->id,
         ];
 
-        if (Schema::hasColumn('subject_has_routines', 'teaching_allocation_id')) {
+        if ($hasTeachingAllocationId) {
             $updatePayload['teaching_allocation_id'] = (int) $assignment->id;
         }
 
@@ -5138,6 +5644,10 @@ class SubjectController extends Controller
         $selectedBatchId = (int) $request->query('batch', 0);
         $selectedProgramComboId = (int) $request->query('program_combo', 0);
         $studentSearch = trim((string) $request->query('student_search', ''));
+        $selectedIntegratedLayer = strtolower(trim((string) $request->query('integrated_layer', 'all')));
+        if (!in_array($selectedIntegratedLayer, ['all', 'ug', 'pg'], true)) {
+            $selectedIntegratedLayer = 'all';
+        }
 
         $batchOptions = BatchMaster::orderByDesc('id')->get(['id', 'batch_name']);
         $offeredProgramCombinations = collect();
@@ -5145,6 +5655,10 @@ class SubjectController extends Controller
         $availableSpecializationsForSelectedProgram = collect();
         $students = collect();
         $studentAssignmentMap = collect();
+        $showIntegratedLayerFilter = false;
+        $integratedLayerOptions = collect();
+        $integratedProgramIdsWithSublayers = collect();
+        $integratedProgramSettings = collect();
 
         if ($selectedBatchId > 0) {
             $activeSpecializationIds = $activeSpecializations->pluck('id')->map(fn($v) => (int) $v)->all();
@@ -5170,8 +5684,45 @@ class SubjectController extends Controller
                 })
                 ->values();
 
+            if (Schema::hasTable('integrated_program_sublayer_settings')) {
+                $offeredProgramIds = $offeredProgramCombinations
+                    ->pluck('student_program_id')
+                    ->map(fn($v) => (int) $v)
+                    ->filter(fn($v) => $v > 0)
+                    ->unique()
+                    ->values();
+
+                if ($offeredProgramIds->isNotEmpty()) {
+                    $integratedProgramSettings = DB::table('integrated_program_sublayer_settings')
+                        ->whereIn('student_program_id', $offeredProgramIds->all())
+                        ->where('is_active', 1)
+                        ->get(['student_program_id', 'ug_max_year', 'ug_label', 'pg_label'])
+                        ->keyBy(fn($row) => (int) ($row->student_program_id ?? 0));
+
+                    $integratedProgramIdsWithSublayers = $integratedProgramSettings->keys()->map(fn($v) => (int) $v)->values();
+                }
+            }
+
             $selectedProgramCombination = $offeredProgramCombinations->firstWhere('id', $selectedProgramComboId);
             if ($selectedProgramCombination) {
+                $selectedProgramId = (int) ($selectedProgramCombination->student_program_id ?? 0);
+                $integratedLayerMeta = $integratedProgramSettings->get($selectedProgramId);
+                $hasCurrentYearColumn = Schema::hasColumn('student_masters', 'current_year');
+                $showIntegratedLayerFilter = !empty($integratedLayerMeta) && $hasCurrentYearColumn;
+
+                if ($showIntegratedLayerFilter) {
+                    $ugMaxYear = max(1, (int) ($integratedLayerMeta->ug_max_year ?? 2));
+                    $ugLabel = trim((string) ($integratedLayerMeta->ug_label ?? 'UG Layer'));
+                    $pgLabel = trim((string) ($integratedLayerMeta->pg_label ?? 'PG Layer'));
+                    $integratedLayerOptions = collect([
+                        ['value' => 'all', 'label' => 'All Layers'],
+                        ['value' => 'ug', 'label' => $ugLabel . ' (Year 1-' . $ugMaxYear . ')'],
+                        ['value' => 'pg', 'label' => $pgLabel . ' (Year ' . ($ugMaxYear + 1) . '+)'],
+                    ]);
+                } else {
+                    $selectedIntegratedLayer = 'all';
+                }
+
                 $allowedSpecializationIds = collect($selectedProgramCombination->specialization_ids ?? [])
                     ->map(fn($v) => (int) $v)
                     ->filter(fn($v) => $v > 0)
@@ -5182,9 +5733,18 @@ class SubjectController extends Controller
                     ->values();
 
                 $studentsQuery = StudentMaster::query()
-                    ->select(['id', 'roll_no', 'first_name', 'last_name', 'new_program_id', 'batch'])
+                    ->select(['id', 'roll_no', 'first_name', 'last_name', 'new_program_id', 'batch', 'current_year'])
                     ->where('batch', $selectedBatchId)
                     ->where('new_program_id', (int) $selectedProgramCombination->student_program_id);
+
+                if ($showIntegratedLayerFilter) {
+                    $ugMaxYear = max(1, (int) ($integratedLayerMeta->ug_max_year ?? 2));
+                    if ($selectedIntegratedLayer === 'ug' && $ugMaxYear > 0) {
+                        $studentsQuery->whereNotNull('current_year')->where('current_year', '<=', $ugMaxYear);
+                    } elseif ($selectedIntegratedLayer === 'pg' && $ugMaxYear > 0) {
+                        $studentsQuery->whereNotNull('current_year')->where('current_year', '>=', $ugMaxYear + 1);
+                    }
+                }
 
                 if (Schema::hasColumn('student_masters', 'is_deleted')) {
                     $studentsQuery->where('is_deleted', 0);
@@ -5241,6 +5801,10 @@ class SubjectController extends Controller
             'availableSpecializationsForSelectedProgram' => $availableSpecializationsForSelectedProgram,
             'students' => $students,
             'studentSearch' => $studentSearch,
+            'selectedIntegratedLayer' => $selectedIntegratedLayer,
+            'showIntegratedLayerFilter' => $showIntegratedLayerFilter,
+            'integratedLayerOptions' => $integratedLayerOptions,
+            'integratedProgramIdsWithSublayers' => $integratedProgramIdsWithSublayers,
             'studentAssignmentMap' => $studentAssignmentMap,
             'specializationLookup' => $specializationLookup,
         ]);
@@ -5290,10 +5854,12 @@ class SubjectController extends Controller
         $request->validate([
             'batch' => 'required|integer|exists:batch_masters,id',
             'program_combo_id' => 'required|integer|exists:subject_has_student_progams,id',
-            'specialization_id' => 'required|integer|exists:specialization_masters,id',
+            'assignment_action' => ['required', Rule::in(['assign', 'reset'])],
+            'specialization_id' => ['nullable', 'integer', Rule::exists('specialization_masters', 'id')],
             'student_ids' => 'required|array|min:1',
             'student_ids.*' => 'required|integer|exists:student_masters,id',
             'student_search' => 'nullable|string|max:100',
+            'integrated_layer' => ['nullable', Rule::in(['all', 'ug', 'pg'])],
         ]);
 
         $subject = Subject::find((int) $id);
@@ -5303,7 +5869,8 @@ class SubjectController extends Controller
 
         $batchId = (int) $request->batch;
         $programComboId = (int) $request->program_combo_id;
-        $specializationId = (int) $request->specialization_id;
+        $assignmentAction = (string) $request->input('assignment_action', 'assign');
+        $specializationId = (int) $request->input('specialization_id', 0);
         $studentIds = collect($request->input('student_ids', []))->map(fn($v) => (int) $v)->filter(fn($v) => $v > 0)->unique()->values();
 
         $programCombination = SubjectHasStudentProgam::where('id', $programComboId)
@@ -5315,22 +5882,28 @@ class SubjectController extends Controller
             return redirect()->back()->with('error', 'Invalid program combination for selected batch.');
         }
 
-        $specialization = SpecializationMaster::where('id', $specializationId)
-            ->where('subject_id', (int) $subject->id)
-            ->where('is_active', 1)
-            ->first();
+        if ($assignmentAction === 'assign') {
+            if ($specializationId <= 0) {
+                return redirect()->back()->with('error', 'Please select specialization to assign.');
+            }
 
-        if (!$specialization) {
-            return redirect()->back()->with('error', 'Please select an active specialization from this department.');
-        }
+            $specialization = SpecializationMaster::where('id', $specializationId)
+                ->where('subject_id', (int) $subject->id)
+                ->where('is_active', 1)
+                ->first();
 
-        $allowedSpecializationIds = collect($programCombination->specialization_ids ?? [])
-            ->map(fn($v) => (int) $v)
-            ->filter(fn($v) => $v > 0)
-            ->values();
+            if (!$specialization) {
+                return redirect()->back()->with('error', 'Please select an active specialization from this department.');
+            }
 
-        if (!$allowedSpecializationIds->contains($specializationId)) {
-            return redirect()->back()->with('error', 'Selected specialization is not offered for the selected program.');
+            $allowedSpecializationIds = collect($programCombination->specialization_ids ?? [])
+                ->map(fn($v) => (int) $v)
+                ->filter(fn($v) => $v > 0)
+                ->values();
+
+            if (!$allowedSpecializationIds->contains($specializationId)) {
+                return redirect()->back()->with('error', 'Selected specialization is not offered for the selected program.');
+            }
         }
 
         $eligibleStudentsQuery = StudentMaster::query()
@@ -5355,8 +5928,10 @@ class SubjectController extends Controller
         $hasSemesterColumn = Schema::hasColumn('student_specializations', 'semester_id');
         $hasActiveColumn = Schema::hasColumn('student_specializations', 'is_active');
         $hasDeletedAt = Schema::hasColumn('student_specializations', 'deleted_at');
+        $specializationColumnMeta = DB::selectOne("SELECT IS_NULLABLE FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'student_specializations' AND COLUMN_NAME = 'specialization_id'");
+        $canSpecializationBeNull = strtoupper((string) ($specializationColumnMeta->IS_NULLABLE ?? 'NO')) === 'YES';
 
-        DB::transaction(function () use ($eligibleStudentIds, $programComboId, $specializationId, $hasSemesterColumn, $hasActiveColumn, $hasDeletedAt) {
+        DB::transaction(function () use ($eligibleStudentIds, $programComboId, $specializationId, $assignmentAction, $hasSemesterColumn, $hasActiveColumn, $hasDeletedAt, $canSpecializationBeNull) {
             foreach ($eligibleStudentIds as $studentId) {
                 $existingQuery = DB::table('student_specializations')
                     ->where('student_id', (int) $studentId)
@@ -5369,23 +5944,35 @@ class SubjectController extends Controller
                 $existing = $existingQuery->orderByDesc('id')->first();
 
                 if ($existing) {
-                    $updatePayload = [
-                        'specialization_id' => $specializationId,
-                        'updated_at' => now(),
-                    ];
-
-                    if ($hasActiveColumn) {
-                        $updatePayload['is_active'] = 1;
-                    }
-
-                    if ($hasDeletedAt) {
-                        $updatePayload['deleted_at'] = null;
+                    $updatePayload = ['updated_at' => now()];
+                    if ($assignmentAction === 'assign') {
+                        $updatePayload['specialization_id'] = $specializationId;
+                        if ($hasActiveColumn) {
+                            $updatePayload['is_active'] = 1;
+                        }
+                        if ($hasDeletedAt) {
+                            $updatePayload['deleted_at'] = null;
+                        }
+                    } else {
+                        if ($canSpecializationBeNull) {
+                            $updatePayload['specialization_id'] = null;
+                        }
+                        if ($hasActiveColumn) {
+                            $updatePayload['is_active'] = 0;
+                        }
+                        if ($hasDeletedAt) {
+                            $updatePayload['deleted_at'] = now();
+                        }
                     }
 
                     DB::table('student_specializations')
                         ->where('id', (int) $existing->id)
                         ->update($updatePayload);
                 } else {
+                    if ($assignmentAction === 'reset') {
+                        continue;
+                    }
+
                     $insertPayload = [
                         'student_id' => (int) $studentId,
                         'subject_has_student_program_id' => $programComboId,
@@ -5416,6 +6003,11 @@ class SubjectController extends Controller
             'program_combo' => $programComboId,
         ];
 
+        $integratedLayer = strtolower(trim((string) $request->input('integrated_layer', 'all')));
+        if (in_array($integratedLayer, ['all', 'ug', 'pg'], true) && $integratedLayer !== 'all') {
+            $queryParams['integrated_layer'] = $integratedLayer;
+        }
+
         $search = trim((string) $request->input('student_search', ''));
         if ($search !== '') {
             $queryParams['student_search'] = $search;
@@ -5423,7 +6015,9 @@ class SubjectController extends Controller
 
         return redirect()
             ->route('department.specialization.master', ['id' => $id, 'slug' => $slug] + $queryParams)
-            ->with('success', 'Specialization assigned to ' . $eligibleStudentIds->count() . ' student(s).');
+            ->with('success', $assignmentAction === 'reset'
+                ? 'Specialization reset for ' . $eligibleStudentIds->count() . ' student(s).'
+                : 'Specialization assigned to ' . $eligibleStudentIds->count() . ' student(s).');
     }
 
 

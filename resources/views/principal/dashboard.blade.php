@@ -17,29 +17,12 @@
       </div>
     </div>
 
-    <!--welcome-->
-    <div class="row mt-3">
-      <div class="col-12">
-        <div class="card shadow-lg border-0 mb-4" style="background: linear-gradient(135deg, #4d2d9d 0%, #0b9da2 100%);">
-          <div class="card-body p-5">
-            <div class="row align-items-center">
-              <div class="col-md-8">
-                <h4 class="text-white fw-bold mb-2">Welcome to Principal Dashboard, {{ Auth::user()->name }}!</h4>
-                <p class="text-white-50 mb-0">Bird's eye view of the entire system across both campuses.</p>
-              </div>
-              <div class="col-md-4 text-end">
-                <i class="fas fa-university fa-4x text-white"></i>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-    </div>
+
 
     <!--overview stats-->
     <div class="row">
       <div class="col-xl-3 col-md-6">
-        <div class="card border-0 shadow-sm">
+        <div class="stat-card ">
           <div class="card-body">
             <div class="d-flex align-items-center">
               <div class="flex-grow-1">
@@ -54,23 +37,23 @@
         </div>
       </div>
       <div class="col-xl-3 col-md-6">
-        <div class="card border-0 shadow-sm">
+        <div class="stat-card">
           <div class="card-body">
             <div class="d-flex align-items-center">
               <div class="flex-grow-1">
                 <p class="mb-1 text-muted">Total Faculty</p>
-                <h3 class="mb-0 fw-bold">{{ $totalFaculty }}</h3>
+
                 <small class="text-danger"><i class="fas fa-user-clock"></i> {{ $facultyOnLeaveToday }} on leave today</small>
               </div>
               <div class="rounded-circle  bg-secondary bg-opacity-10 p-3">
-                <i class="fas fa-chalkboard-teacher fa-2x "></i>
+                <h3 class="mb-0 fw-bold">{{ $totalFaculty }}</h3>
               </div>
             </div>
           </div>
         </div>
       </div>
       <div class="col-xl-3 col-md-6">
-        <div class="card border-0 shadow-sm">
+        <div class="stat-card">
           <div class="card-body">
             <div class="d-flex align-items-center">
               <div class="flex-grow-1">
@@ -85,7 +68,7 @@
         </div>
       </div>
       <div class="col-xl-3 col-md-6">
-        <div class="card border-0 shadow-sm">
+        <div class="stat-card">
           <div class="card-body">
             <div class="d-flex align-items-center">
               <div class="flex-grow-1">
@@ -192,195 +175,47 @@
       </div>
     </div>
 
-    <!--admission campus breakdown-->
-    <div class="row mt-3">
+    <!--hours by shift-->
+    <div class="row mt-4">
       <div class="col-12">
-        <div class="card border-0 shadow-sm">
-          <div class="card-header bg-white">
-            <h6 class="mb-0"><i class="fas fa-chart-bar me-2"></i>Admissions by Campus</h6>
+        <div class=" border-0 ">
+          <div class="card-header bg-white d-flex align-items-center justify-content-between flex-wrap gap-2">
+            <h6 class="mb-0"><i class="fas fa-clock me-2 text-success"></i>Timing by Shift</h6>
+            <small class="text-muted">Grouped from hour masters</small>
           </div>
           <div class="card-body">
-            <div class="table-responsive">
-              <table class="table table-bordered mb-0">
-                <thead class="bg-dark">
-                  <tr>
-                    <th>Campus</th>
-                    <th>Registrations</th>
-                    <th>Applications</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  @foreach($campuses as $campus)
-                  <tr>
-                    <td>{{ $campus->name }}</td>
-                    <td><span class="badge bg-primary">{{ $registrationsByCampus[$campus->id] ?? 0 }}</span></td>
-                    <td><span class="badge bg-success">{{ $totalApplications }}</span></td>
-                  </tr>
-                  @endforeach
-                </tbody>
-              </table>
-            </div>
-          </div>
-        </div>
-      </div>
-    </div>
-
-    <!-- ── Programs, Combo & Curriculum Overview ─────────────────────────── -->
-    <div class="row mt-4" id="programs-curriculum">
-      <div class="col-12">
-        <div class="card border-0 shadow-sm">
-          <div class="card-header bg-white d-flex align-items-center justify-content-between">
-            <h6 class="mb-0"><i class="fas fa-graduation-cap me-2 text-primary"></i>Programs, Combos &amp; Curriculum Status</h6>
-            <small class="text-muted">Curriculum coverage: semesters with at least one course mapped</small>
-          </div>
-          <div class="card-body p-0">
-            <div class="table-responsive">
-              <table class="table table-hover mb-0 align-middle" style="font-size:0.85rem;">
-                <thead class="table-dark">
-                  <tr>
-                    <th>Campus</th>
-                    <th>Program Code</th>
-                    <th>Program Name</th>
-                    <th>Shift</th>
-                    <th>Type</th>
-                    <th>Combo 1 (Major A)</th>
-                    <th>Combo 2 (Major B)</th>
-                    <th class="text-center">Curriculum</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  @forelse($programsOverview as $prog)
-                  @php
-                  $covered = $prog->curriculum_covered;
-                  $total = $prog->curriculum_total;
-                  $pct = $total > 0 ? round(($covered / $total) * 100) : 0;
-                  $badgeClass = $covered >= $total && $total > 0 ? 'success' : ($covered > 0 ? 'warning' : 'danger');
-                  $badgeText = $covered >= $total && $total > 0 ? 'Complete' : ($covered > 0 ? 'Partial' : 'Not Started');
-                  @endphp
-                  <tr>
-                    <td>{{ $prog->campusmaster->name ?? '—' }}</td>
-                    <td><code>{{ $prog->code }}</code></td>
-                    <td>{{ Str::title($prog->name) }}</td>
-                    <td>
-                      @if($prog->shiftmaster)
-                      <span class="badge bg-secondary">{{ $prog->shiftmaster->title }}</span>
-                      @else
-                      <span class="text-muted">Common</span>
-                      @endif
-                    </td>
-                    <td>
-                      @if($prog->programtypemaster)
-                      <span class="badge bg-info text-dark">{{ $prog->programtypemaster->name }}</span>
-                      @else
-                      <span class="text-muted">—</span>
-                      @endif
-                    </td>
-                    <td>
-                      @if($prog->combomap && $prog->combomap->combo1)
-                      <span class="badge bg-success">{{ $prog->combomap->combo1->title }}</span>
-                      @else
-                      <span class="text-muted">—</span>
-                      @endif
-                    </td>
-                    <td>
-                      @if($prog->combomap && $prog->combomap->combo2)
-                      <span class="badge bg-primary">{{ $prog->combomap->combo2->title }}</span>
-                      @else
-                      <span class="text-muted">—</span>
-                      @endif
-                    </td>
-                    <td class="text-center">
-                      @if(!$prog->has_combos)
-                      <span class="badge bg-secondary">No Combinations</span>
-                      @else
-                      <span class="badge bg-{{ $badgeClass }} me-1">{{ $badgeText }}</span>
-                      <small class="text-muted">{{ $covered }}/{{ $total }} sem</small>
-                      @if($total > 0)
-                      <div class="progress mt-1" style="height:5px;">
-                        <div class="progress-bar bg-{{ $badgeClass }}" style="width:{{ $pct }}%"></div>
+            @if($hoursByShift->isEmpty())
+            <div class="text-muted">No hour setup found.</div>
+            @else
+            <div class="row g-3">
+              @foreach($hoursByShift as $shiftId => $hours)
+              <div class="col-xl-4 col-md-6">
+                <div class="card border h-100">
+                  <div class="card-header bg-white d-flex justify-content-between align-items-center">
+                    <span class="fw-semibold">{{ optional($allShifts->get((int) $shiftId))->title ?? 'Common' }}</span>
+                    <span class="badge bg-secondary">{{ $hours->count() }}</span>
+                  </div>
+                  <div class="card-body">
+                    <div class="list-group list-group-flush">
+                      @foreach($hours as $hour)
+                      <div class="list-group-item px-0 py-2">
+                        <div class="fw-semibold">{{ $hour->name }}</div>
+                        <div class="small text-muted">{{ \Carbon\Carbon::parse($hour->start_time)->format('h:i A') }} - {{ \Carbon\Carbon::parse($hour->end_time)->format('h:i A') }}</div>
                       </div>
-                      @endif
-                      @endif
-                    </td>
-                  </tr>
-                  @empty
-                  <tr>
-                    <td colspan="8" class="text-center text-muted py-3">No programs found.</td>
-                  </tr>
-                  @endforelse
-                </tbody>
-              </table>
+                      @endforeach
+                    </div>
+                  </div>
+                </div>
+              </div>
+              @endforeach
             </div>
+            @endif
           </div>
         </div>
       </div>
     </div>
 
-    <!-- ── Subjects: Shifts & Specializations ───────────────────────────── -->
-    <div class="row mt-4 mb-4" id="subjects-overview">
-      <div class="col-12">
-        <div class="card border-0 shadow-sm">
-          <div class="card-header bg-white d-flex align-items-center justify-content-between">
-            <h6 class="mb-0"><i class="fas fa-book-open me-2 text-success"></i>Subjects — Shifts &amp; Specializations</h6>
-            <small class="text-muted">Departments configured in the system</small>
-          </div>
-          <div class="card-body p-0">
-            <div class="table-responsive">
-              <table class="table table-hover mb-0 align-middle" style="font-size:0.85rem;">
-                <thead class="table-dark">
-                  <tr>
-                    <th>Campus</th>
-                    <th>Subject / Department</th>
-                    <th>Shift Delivery</th>
-                    <th>Applicable Shifts</th>
-                    <th>Specializations</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  @forelse($subjectsOverview as $sub)
-                  <tr>
-                    <td>{{ $sub->campusmaster->name ?? '—' }}</td>
-                    <td><strong>{{ $sub->title }}</strong> <code class="ms-1 text-muted">{{ $sub->code }}</code></td>
-                    <td class="text-center">
-                      @if($sub->uses_shifts)
-                      <span class="badge bg-success"><i class="fas fa-check me-1"></i>Yes</span>
-                      @else
-                      <span class="badge bg-secondary">No</span>
-                      @endif
-                    </td>
-                    <td>
-                      @if($sub->uses_shifts && count($sub->applicable_shifts) > 0)
-                      @foreach($sub->applicable_shifts as $shift)
-                      <span class="badge bg-info text-dark me-1">{{ $shift }}</span>
-                      @endforeach
-                      @elseif($sub->uses_shifts)
-                      <span class="text-warning small">Shift mode on, none assigned</span>
-                      @else
-                      <span class="text-muted small">—</span>
-                      @endif
-                    </td>
-                    <td>
-                      @if($sub->specializations_list->isNotEmpty())
-                      @foreach($sub->specializations_list as $spec)
-                      <span class="badge bg-light text-dark border me-1 mb-1">{{ $spec->name }}</span>
-                      @endforeach
-                      @else
-                      <span class="text-muted small">None</span>
-                      @endif
-                    </td>
-                  </tr>
-                  @empty
-                  <tr>
-                    <td colspan="5" class="text-center text-muted py-3">No subjects found.</td>
-                  </tr>
-                  @endforelse
-                </tbody>
-              </table>
-            </div>
-          </div>
-        </div>
-      </div>
-    </div>
+
 
   </main>
 </div>

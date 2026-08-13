@@ -912,7 +912,7 @@ $userRole = StaticController::fetchUserRole($userId);
                     <i class="fas fa-sitemap"></i>
                     {{ $slot['delivery_type'] ?? 'COMMON' }}
                     &nbsp;|&nbsp;
-                    Group {{ !is_null($slot['group'] ?? null) ? $slot['group'] : '—' }}
+                    {{ $slot['group_label'] ?? (!is_null($slot['group'] ?? null) ? 'Group '.$slot['group'] : 'Group —') }}
                   </div>
                   <div class="sp-slot-meta">
                     <i class="fas fa-door-open"></i>
@@ -1489,18 +1489,8 @@ $userRole = StaticController::fetchUserRole($userId);
             @error('batch')<div class="invalid-feedback">{{ $message }}</div>@enderror
           </div>
           <div class="col-md-4">
-            <label class="form-label fw-semibold" style="font-size:.82rem;">Department</label>
-            <select name="department" class="form-select form-select-sm @error('department') is-invalid @enderror">
-              <option value="">— Select —</option>
-              @foreach($departments as $d)
-              <option value="{{ $d->id }}" {{ old('department', $data->department)==$d->id?'selected':'' }}>{{ $d->name }}</option>
-              @endforeach
-            </select>
-            @error('department')<div class="invalid-feedback">{{ $message }}</div>@enderror
-          </div>
-          <div class="col-md-4">
             <label class="form-label fw-semibold" style="font-size:.82rem;">Campus</label>
-            <select name="campus_id" class="form-select form-select-sm @error('campus_id') is-invalid @enderror">
+            <select id="academicCampusSelect" name="campus_id" class="form-select form-select-sm @error('campus_id') is-invalid @enderror">
               <option value="">— Select —</option>
               @foreach($campuses as $c)
               <option value="{{ $c->id }}" {{ old('campus_id', $data->campus_id)==$c->id?'selected':'' }}>{{ $c->name }}</option>
@@ -1508,10 +1498,36 @@ $userRole = StaticController::fetchUserRole($userId);
             </select>
             @error('campus_id')<div class="invalid-feedback">{{ $message }}</div>@enderror
           </div>
+          <div class="col-md-4">
+            <label class="form-label fw-semibold" style="font-size:.82rem;">Subject</label>
+            <select
+              name="academic_dept_id"
+              id="academicSubjectSelect"
+              class="form-select form-select-sm @error('academic_dept_id') is-invalid @enderror"
+              data-subjects-url="{{ route('admin.student.subjects-by-campus') }}"
+              data-programs-url="{{ route('admin.student.enrolled-programs') }}">
+              <option value="">— Select —</option>
+              @foreach($subjects as $subject)
+              <option value="{{ $subject->id }}" {{ old('academic_dept_id', $data->academic_dept_id)==$subject->id?'selected':'' }}>{{ $subject->title }}</option>
+              @endforeach
+            </select>
+            @error('academic_dept_id')<div class="invalid-feedback">{{ $message }}</div>@enderror
+          </div>
+          <div class="col-md-4">
+            <label class="form-label fw-semibold" style="font-size:.82rem;">Program</label>
+            <select id="academicProgramSelect" name="new_program_id" class="form-select form-select-sm @error('new_program_id') is-invalid @enderror">
+              <option value="">— Select —</option>
+              @foreach($availablePrograms as $program)
+              <option value="{{ data_get($program, 'id') }}" {{ old('new_program_id', $data->new_program_id)==data_get($program, 'id')?'selected':'' }}>{{ data_get($program, 'code') }} - {{ data_get($program, 'name') }}</option>
+              @endforeach
+            </select>
+            <div id="academicProgramHint" class="small mt-1" style="color:#6c757d;"></div>
+            @error('new_program_id')<div class="invalid-feedback">{{ $message }}</div>@enderror
+          </div>
           <div class="col-md-3">
             <label class="form-label fw-semibold" style="font-size:.82rem;">Admission Date</label>
             <input type="date" name="admission_date" class="form-control form-control-sm"
-              value="{{ old('admission_date', $data->admission_date ? date('Y-m-d', strtotime($data->admission_date)) : '') }}">
+              value="{{ $data->admission_date != null ? $data->admission_date : '' }}">
           </div>
           <div class="col-md-3">
             <label class="form-label fw-semibold" style="font-size:.82rem;">Graduation Year</label>
@@ -1521,10 +1537,18 @@ $userRole = StaticController::fetchUserRole($userId);
             <label class="form-label fw-semibold" style="font-size:.82rem;">Status</label>
             <select name="status" class="form-select form-select-sm">
               <option value="">— Select —</option>
-              @foreach(['active','inactive','alumni','dropout','on leave'] as $st)
+              @foreach(['active','inactive','left','alumni','dropout','on leave'] as $st)
               <option value="{{ $st }}" {{ old('status', $data->status)==$st?'selected':'' }}>{{ ucfirst($st) }}</option>
               @endforeach
             </select>
+          </div>
+          <div class="col-md-6 d-flex align-items-end pb-1">
+            <div class="form-check">
+              <input class="form-check-input" type="checkbox" name="mark_left_deactivate" id="markLeftDeactivate" value="1" {{ old('mark_left_deactivate') ? 'checked' : '' }}>
+              <label class="form-check-label fw-semibold" for="markLeftDeactivate" style="font-size:.82rem;">
+                Mark as Left and Deactivate Student Login
+              </label>
+            </div>
           </div>
         </div>
       </div>
@@ -1744,10 +1768,153 @@ $userRole = StaticController::fetchUserRole($userId);
     var semFilter = document.getElementById('enrollSemFilter');
     var enrollForm = document.getElementById('enrollForm');
     var listContainer = document.getElementById('courseListContainer');
+    var batchSelect = document.querySelector('select[name="batch"]');
+    var subjectSelect = document.getElementById('academicSubjectSelect');
+    var campusSelect = document.getElementById('academicCampusSelect');
+    var programSelect = document.getElementById('academicProgramSelect');
+    var programHint = document.getElementById('academicProgramHint');
+    var initialSubjectId = "{{ old('academic_dept_id', $data->academic_dept_id) }}";
+    var initialProgramId = "{{ old('new_program_id', $data->new_program_id) }}";
+
+    var setProgramHint = function(text) {
+      if (programHint) {
+        programHint.textContent = text;
+      }
+    };
+
+    var buildProgramOptions = function(programs, selectedProgramId) {
+      if (!programSelect) return;
+      programSelect.innerHTML = '<option value="">— Select —</option>';
+
+      (programs || []).forEach(function(program) {
+        var option = document.createElement('option');
+        option.value = String(program.id);
+        option.textContent = [program.code, program.name].filter(Boolean).join(' - ');
+        if (selectedProgramId && String(selectedProgramId) === String(program.id)) {
+          option.selected = true;
+        }
+        programSelect.appendChild(option);
+      });
+    };
+
+    var buildSubjectOptions = function(subjects, selectedSubjectId) {
+      if (!subjectSelect) return;
+      subjectSelect.innerHTML = '<option value="">— Select —</option>';
+
+      (subjects || []).forEach(function(subject) {
+        var option = document.createElement('option');
+        option.value = String(subject.id);
+        option.textContent = subject.title;
+        if (selectedSubjectId && String(selectedSubjectId) === String(subject.id)) {
+          option.selected = true;
+        }
+        subjectSelect.appendChild(option);
+      });
+    };
+
+    var loadProgramsByBatchAndSubject = function(selectedProgramId) {
+      if (!batchSelect || !subjectSelect || !campusSelect || !programSelect) return;
+
+      var batchId = batchSelect.value;
+      var subjectId = subjectSelect.value;
+      var campusId = campusSelect.value;
+      var endpoint = subjectSelect.getAttribute('data-programs-url');
+
+      if (!batchId || !subjectId || !campusId || !endpoint) {
+        buildProgramOptions([], null);
+        setProgramHint('Select batch, subject, and campus to load enrolled programs.');
+        return;
+      }
+
+      setProgramHint('Loading enrolled programs...');
+
+      fetch(endpoint + '?batch_id=' + encodeURIComponent(batchId) + '&subject_id=' + encodeURIComponent(subjectId) + '&campus_id=' + encodeURIComponent(campusId), {
+          headers: {
+            'X-Requested-With': 'XMLHttpRequest',
+            'Accept': 'application/json'
+          }
+        })
+        .then(function(response) {
+          if (!response.ok) {
+            throw new Error('Failed to fetch programs');
+          }
+          return response.json();
+        })
+        .then(function(payload) {
+          var programs = Array.isArray(payload.programs) ? payload.programs : [];
+          buildProgramOptions(programs, selectedProgramId);
+
+          if (programs.length === 0) {
+            setProgramHint('No enrolled programs found for selected batch and subject.');
+          } else {
+            setProgramHint(programs.length + ' enrolled program(s) available.');
+          }
+        })
+        .catch(function() {
+          buildProgramOptions([], null);
+          setProgramHint('Could not load programs. Please refresh and try again.');
+        });
+    };
+
+    var loadSubjectsByCampus = function(selectedSubjectId, selectedProgramId) {
+      if (!campusSelect || !subjectSelect) return;
+
+      var campusId = campusSelect.value;
+      var endpoint = subjectSelect.getAttribute('data-subjects-url');
+
+      if (!campusId || !endpoint) {
+        buildSubjectOptions([], null);
+        buildProgramOptions([], null);
+        setProgramHint('Select batch, subject, and campus to load enrolled programs.');
+        return;
+      }
+
+      fetch(endpoint + '?campus_id=' + encodeURIComponent(campusId), {
+          headers: {
+            'X-Requested-With': 'XMLHttpRequest',
+            'Accept': 'application/json'
+          }
+        })
+        .then(function(response) {
+          if (!response.ok) {
+            throw new Error('Failed to fetch subjects');
+          }
+          return response.json();
+        })
+        .then(function(payload) {
+          var subjects = Array.isArray(payload.subjects) ? payload.subjects : [];
+          var selectedExists = subjects.some(function(subject) {
+            return String(subject.id) === String(selectedSubjectId || '');
+          });
+          var resolvedSubjectId = selectedExists ? selectedSubjectId : null;
+
+          buildSubjectOptions(subjects, resolvedSubjectId);
+          loadProgramsByBatchAndSubject(resolvedSubjectId ? selectedProgramId : null);
+        })
+        .catch(function() {
+          buildSubjectOptions([], null);
+          buildProgramOptions([], null);
+          setProgramHint('Could not load subjects. Please refresh and try again.');
+        });
+    };
 
     if (semFilter) {
       semFilter.addEventListener('change', filterEnrollOptions);
       filterEnrollOptions();
+    }
+
+    if (batchSelect && subjectSelect && campusSelect && programSelect) {
+      batchSelect.addEventListener('change', function() {
+        loadProgramsByBatchAndSubject(null);
+      });
+      subjectSelect.addEventListener('change', function() {
+        loadProgramsByBatchAndSubject(null);
+      });
+      campusSelect.addEventListener('change', function() {
+        loadSubjectsByCampus(null, null);
+      });
+
+      loadSubjectsByCampus(initialSubjectId, initialProgramId);
     }
 
     if (enrollForm) {

@@ -38,14 +38,16 @@
       </a>
     </li>
 
-    <!-- <li>
-      <a href="{{route('faculty.internal-marks.index')}}">
+
+
+    <li>
+      <a href="{{route('faculty.attendance.view.remedial-class')}}">
         <div class="parent-icon">
-          <i class="fas fa-pen-alt"></i>
+          <i class="fas fa-chalkboard-teacher"></i>
         </div>
-        <div class="menu-title">Internal Marks (FA) </div>
+        <div class="menu-title">Remedial Classes </div>
       </a>
-    </li> -->
+    </li>
 
     <li>
       <a href="{{route('faculty.workdiary')}}">
@@ -92,16 +94,28 @@
       </a>
     </li>
 
-
+    <li class="menu-label">Examinations</li>
 
     <li>
-      <a href="{{route('faculty.attendance.view.remedial-class')}}">
+      <a href="{{route('faculty.fa1.index')}}">
         <div class="parent-icon">
-          <i class="fas fa-chalkboard-teacher"></i>
+          <i class="far fa-tasks"></i>
         </div>
-        <div class="menu-title">Remedial Classes </div>
+        <div class="menu-title">FA 1 MCQ </div>
       </a>
     </li>
+
+    <li>
+      <a href="{{route('faculty.internal-marks.index')}}">
+        <div class="parent-icon">
+          <i class="fas fa-sliders-h-square"></i>
+        </div>
+        <div class="menu-title">FA II & III </div>
+      </a>
+    </li>
+
+    <li class="menu-label">Personal</li>
+
 
     <li>
       <a href="{{route('faculty.profile')}}">
