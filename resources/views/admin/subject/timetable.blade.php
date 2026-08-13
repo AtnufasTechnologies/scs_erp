@@ -660,6 +660,61 @@ $days = Weekday::all();
       return chunks;
     }
 
+    function getGroupFacultyName(entry) {
+      const teachingGroupId = Number(entry.teaching_group_id || 0);
+      const allocationGroupId = Number(entry.allocation_group || 0);
+
+      let mappedGroup = null;
+      if (teachingGroupId > 0) {
+        mappedGroup = getCreatedGroupById(teachingGroupId);
+      }
+
+      if (!mappedGroup && allocationGroupId > 0) {
+        mappedGroup = getCreatedGroupById(allocationGroupId);
+      }
+
+      const mappedFaculty = String(mappedGroup?.faculty_label || '').trim();
+      if (mappedFaculty) {
+        return mappedFaculty;
+      }
+
+      const fallbackPrimary = Array.isArray(entry.primary_faculty_names) && entry.primary_faculty_names.length ?
+        entry.primary_faculty_names.join(', ') :
+        (entry.teacher_name || 'Teacher');
+
+      return String(
+        entry.group_faculty_name ||
+        entry.teaching_group_faculty_name ||
+        entry.teaching_group_faculty_label ||
+        entry.group_teacher_name ||
+        fallbackPrimary
+      ).trim();
+    }
+
+    function getAllocationGroupCode(entry) {
+      const rawLabel = String(entry.allocation_group_label || '').trim();
+      if (rawLabel) {
+        const stripped = rawLabel.replace(/^group\s*/i, '').trim();
+        if (/^[a-z]$/i.test(stripped)) {
+          return stripped.toUpperCase();
+        }
+
+        const letterMatch = rawLabel.match(/\b([A-Z])\b/i);
+        if (letterMatch) {
+          return String(letterMatch[1] || '').toUpperCase();
+        }
+
+        return stripped;
+      }
+
+      const allocationGroup = Number(entry.allocation_group || 0);
+      if (allocationGroup > 0 && allocationGroup <= 26) {
+        return String.fromCharCode(64 + allocationGroup);
+      }
+
+      return allocationGroup > 0 ? String(allocationGroup) : '';
+    }
+
     function getEntryByKey(entryKey) {
       return timetableData.find(entry => makeEntryKey(entry) === entryKey);
     }
@@ -1492,6 +1547,10 @@ $days = Weekday::all();
             const primaryFacultyText = Array.isArray(entry.primary_faculty_names) && entry.primary_faculty_names.length ?
               entry.primary_faculty_names.join(', ') :
               (entry.teacher_name || 'Teacher');
+            const groupFacultyText = getGroupFacultyName(entry);
+            const groupCode = getAllocationGroupCode(entry);
+            const groupCodeHtml = isGroupTeaching && groupCode ? `<span class="slot-chip slot-chip-group">Group ${escapeHtml(groupCode)}</span>` : '';
+            const visibleMeta = isGroupTeaching ? entryMeta.slice(0, 1) : entryMeta;
             const identityKey = getEntryIdentityKey(entry);
             const identicalCount = entries.filter(item => getEntryIdentityKey(item) === identityKey).length;
             const isActive = Number(entry.slot_active ?? 1) === 1;
@@ -1504,10 +1563,11 @@ $days = Weekday::all();
             return `
               <div class="slot-entry p-2 mb-2 text-start" style="font-size:12px;">
                 <div class="fw-bold">${escapeHtml(entry.subject_name || 'Course')} ${groupBadgeHtml}</div>
-                <div><i class="fas fa-user-tie"></i> <span class="fw-semibold">Primary:</span> ${escapeHtml(primaryFacultyText)}</div>
+                <div><i class="fas fa-user-tie"></i> <span class="fw-semibold">${isGroupTeaching ? 'Group Faculty' : 'Primary'}:</span> ${escapeHtml(isGroupTeaching ? (groupFacultyText || '-') : primaryFacultyText)}</div>
                 <div><i class="fas fa-door-open"></i> Room: ${escapeHtml(roomLabel)}</div>
                 <div>
-                  ${entryMeta.map((meta, index) => `<span class="slot-chip ${index === 0 ? 'slot-chip-delivery' : 'slot-chip-group'}">${escapeHtml(meta)}</span>`).join('')}
+                  ${groupCodeHtml}
+                  ${visibleMeta.map((meta, index) => `<span class="slot-chip ${index === 0 ? 'slot-chip-delivery' : 'slot-chip-group'}">${escapeHtml(meta)}</span>`).join('')}
                 </div>
                 ${activityHtml}
                 <div class="mt-1 d-flex gap-1">
