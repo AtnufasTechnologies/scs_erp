@@ -525,28 +525,7 @@ $days = Weekday::all();
     }
 
     async function openSlotSourceChooser(hourNumber, day) {
-      if (typeof Swal !== 'undefined' && Swal && typeof Swal.fire === 'function') {
-        const result = await Swal.fire({
-          icon: 'question',
-          title: 'Add Slot From',
-          text: 'Choose how you want to add this timetable slot.',
-          showCancelButton: true,
-          confirmButtonText: 'Add From Dept',
-          denyButtonText: 'Add From Group',
-          showDenyButton: true,
-        });
-
-        if (result.isConfirmed) {
-          openSubjectModal(hourNumber, day, null, 'dept');
-        } else if (result.isDenied) {
-          openSubjectModal(hourNumber, day, null, 'group');
-        }
-
-        return;
-      }
-
-      const useDeptFlow = confirm('Press OK for Add From Dept.\nPress Cancel for Add From Group.');
-      openSubjectModal(hourNumber, day, null, useDeptFlow ? 'dept' : 'group');
+      openSubjectModal(hourNumber, day, null, 'dept');
     }
 
     function setSlotModalMode(mode = 'dept', isEdit = false) {
@@ -570,7 +549,7 @@ $days = Weekday::all();
           saveButton.textContent = 'Save Group Slot';
         }
       } else {
-        if (modalTitle) modalTitle.textContent = isEdit ? 'Update Course & Teacher' : 'Add Slot From Dept';
+        if (modalTitle) modalTitle.textContent = isEdit ? 'Update Course & Teacher' : 'Add Slot Item';
         if (deptSection) deptSection.style.display = '';
         if (groupSection) groupSection.style.display = 'none';
         if (saveButton) {
@@ -1496,7 +1475,7 @@ $days = Weekday::all();
           const entries = getSlotEntries(hour, day);
           if (!entries.length) {
             tableBody += `
-              <td class="period-cell" style="cursor:pointer;padding:15px;" onclick="openSlotSourceChooser(${hour}, '${day}'); return false;">
+              <td class="period-cell" style="cursor:pointer;padding:15px;" onclick="openSubjectModal(${hour}, '${day}', null, 'dept'); return false;">
                 <small class="text-muted"><i class="fas fa-plus-circle"></i> Add</small>
               </td>
             `;
@@ -1543,7 +1522,7 @@ $days = Weekday::all();
             <td class="period-cell filled" style="vertical-align:top;">
               <div class="d-flex justify-content-between align-items-center mb-2">
                 <small class="fw-bold text-muted">${entries.length} item(s)</small>
-                <button class="btn btn-success btn-sm" onclick="openSlotSourceChooser(${hour}, '${day}'); return false;"><i class="fas fa-plus"></i></button>
+                <button class="btn btn-success btn-sm" onclick="openSubjectModal(${hour}, '${day}', null, 'dept'); return false;"><i class="fas fa-plus"></i></button>
               </div>
               ${rows}
             </td>
