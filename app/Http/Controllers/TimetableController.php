@@ -598,16 +598,26 @@ class TimetableController extends Controller
                     ->map(function ($item) use ($batchNameMap, $semesterTitleMap) {
                         $batchId = (int) ($item->batch_id ?? 0);
                         $semesterId = (int) ($item->semester_id ?? 0);
+                        $programType = strtoupper(trim((string) ($item->program_type ?? 'UG')));
+                        $programType = $programType === 'PG' ? 'PG' : 'UG';
                         return [
+                            'course_id' => (int) ($item->course_id ?? 0),
                             'course_label' => trim((string) ($item->course->course_code ?? '-') . ' - ' . (string) ($item->course->course_title ?? '-')),
+                            'batch_id' => $batchId,
                             'batch_name' => (string) ($batchNameMap->get($batchId, $batchId > 0 ? (string) $batchId : '-')),
+                            'semester_id' => $semesterId,
                             'semester_title' => (string) ($semesterTitleMap->get($semesterId, $semesterId > 0 ? (string) $semesterId : '-')),
+                            'program_type' => $programType,
                         ];
                     })
                     ->filter(fn($row) => !empty($row['course_label']))
                     ->unique(fn($row) => ($row['course_label'] ?? '') . '|' . ($row['batch_name'] ?? '') . '|' . ($row['semester_title'] ?? ''))
                     ->values()
                     ->all();
+
+                $anchorItem = $items->first();
+                $anchorProgramType = strtoupper(trim((string) ($anchorItem->program_type ?? 'UG')));
+                $anchorProgramType = $anchorProgramType === 'PG' ? 'PG' : 'UG';
 
                 $studentKeys = $items
                     ->map(function ($item) {
@@ -639,6 +649,9 @@ class TimetableController extends Controller
                     'room_no' => trim((string) ($items->first(fn($entry) => trim((string) ($entry->room_no ?? '')) !== '')?->room_no ?? '')),
                     'course_labels' => $courseLabels,
                     'course_rows' => $courseRows,
+                    'anchor_batch_id' => (int) ($anchorItem->batch_id ?? 0),
+                    'anchor_semester_id' => (int) ($anchorItem->semester_id ?? 0),
+                    'anchor_program_type' => $anchorProgramType,
                     'dept_ids' => $deptIds,
                     'group_students_count' => (int) $groupStudentsCount,
                 ];
@@ -2195,6 +2208,7 @@ class TimetableController extends Controller
             $updatedCount = 0;
             $restoredCount = 0;
             $archivedCount = 0;
+            $affectedSlotMap = [];
 
             $weekdays = [
                 'Monday' => 1,
@@ -2208,10 +2222,15 @@ class TimetableController extends Controller
             $existingSyllabi = SubjectHasSyllabus::where('subject_id', $subjectId)
                 ->where('batch_id', $batchId)
                 ->where('semester_id', $semesterId)
-                ->get(['id', 'course_id']);
+                ->get(['id', 'course_id', 'batch_id', 'semester_id']);
 
             $syllabusById = $existingSyllabi->keyBy('id');
             $syllabusByCourseId = $existingSyllabi->keyBy('course_id');
+            $syllabusByCompositeKey = $existingSyllabi
+                ->mapWithKeys(function ($row) {
+                    $key = ((int) ($row->batch_id ?? 0)) . '|' . ((int) ($row->semester_id ?? 0)) . '|' . ((int) ($row->course_id ?? 0));
+                    return [$key => $row];
+                });
             $syllabusIds = $existingSyllabi->pluck('id');
 
             $existingRoutinesQuery = SubjectHasRoutine::withTrashed()
@@ -2249,6 +2268,47 @@ class TimetableController extends Controller
                 ->get()
                 ->keyBy('id');
 
+            $assignmentByGroupCourse = [];
+            foreach ($teachingAssignments as $assignment) {
+                $groupId = (int) ($assignment->allocation_group ?? 0);
+                $courseId = (int) ($assignment->course_id ?? 0);
+                if ($groupId <= 0 || $courseId <= 0) {
+                    continue;
+                }
+
+                $key = $groupId . '|' . $courseId;
+                if (!isset($assignmentByGroupCourse[$key])) {
+                    $assignmentByGroupCourse[$key] = $assignment;
+                }
+            }
+
+            $groupRowsByAllocation = collect();
+            if ($supportsTeachingGroupId) {
+                $groupIdsInPayload = collect($timetable)
+                    ->pluck('teaching_group_id')
+                    ->map(fn($value) => (int) $value)
+                    ->filter(fn($value) => $value > 0)
+                    ->unique()
+                    ->values();
+
+                if ($groupIdsInPayload->isNotEmpty()) {
+                    $groupRowsByAllocation = TeachingGroupItem::query()
+                        ->where('subject_id', $subjectId)
+                        ->whereIn('allocation_group_id', $groupIdsInPayload->all())
+                        ->orderBy('allocation_group_id')
+                        ->orderBy('id')
+                        ->get([
+                            'allocation_group_id',
+                            'course_id',
+                            'batch_id',
+                            'semester_id',
+                            'program_type',
+                            'faculty_id',
+                        ])
+                        ->groupBy(fn($row) => (int) ($row->allocation_group_id ?? 0));
+                }
+            }
+
             if ($supportsRoutineIsActive) {
                 $timetable = $this->normalizeIncomingTimetableSlotActivity($timetable, $teachingAssignments);
             }
@@ -2284,113 +2344,267 @@ class TimetableController extends Controller
                 if (!isset($weekdays[$dayName])) continue;
                 $weekdayId = $weekdays[$dayName];
 
-                if ($courseMasterId <= 0) {
+                if ($courseMasterId <= 0 && $slotTeachingGroupId <= 0) {
                     continue;
                 }
 
-                $slotKey = implode('|', [
-                    $dayName,
-                    $hourNumber,
-                    $courseMasterId,
-                    $facultyId ?: 0,
-                    $teachingAssignmentId ?: 0,
-                    $slotTeachingGroupId,
-                ]);
+                $targetRows = [];
+                if ($supportsTeachingGroupId && $slotTeachingGroupId > 0) {
+                    $groupRows = collect($groupRowsByAllocation->get($slotTeachingGroupId, collect()));
 
-                if (isset($seenSlots[$slotKey])) {
-                    continue;
+                    $targetRows = $groupRows
+                        ->map(function ($groupRow) use ($slotTeachingGroupId, $assignmentByGroupCourse, $facultyId, $teachingAssignmentId, $programType, $subjectCourseMap) {
+                            $targetCourseId = (int) ($groupRow->course_id ?? 0);
+                            $targetBatchId = (int) ($groupRow->batch_id ?? 0);
+                            $targetSemesterId = (int) ($groupRow->semester_id ?? 0);
+
+                            if ($targetCourseId <= 0 || $targetBatchId <= 0 || $targetSemesterId <= 0) {
+                                return null;
+                            }
+
+                            $normalizedProgramType = strtoupper(trim((string) ($groupRow->program_type ?? $programType)));
+                            $normalizedProgramType = $normalizedProgramType === 'PG' ? 'PG' : 'UG';
+
+                            $targetAssignment = $assignmentByGroupCourse[$slotTeachingGroupId . '|' . $targetCourseId] ?? null;
+                            $targetAssignmentId = $targetAssignment ? (int) ($targetAssignment->id ?? 0) : (int) ($teachingAssignmentId ?? 0);
+                            if ($targetAssignmentId <= 0) {
+                                $targetAssignmentId = null;
+                            }
+
+                            $resolvedFacultyId = (int) ($groupRow->faculty_id ?? 0);
+                            if ($resolvedFacultyId <= 0 && $targetAssignment) {
+                                $resolvedFacultyId = (int) ($targetAssignment->faculty_id ?? 0);
+                            }
+                            if ($resolvedFacultyId <= 0) {
+                                $resolvedFacultyId = (int) ($facultyId ?? 0);
+                            }
+
+                            return [
+                                'course_id' => $targetCourseId,
+                                'batch_id' => $targetBatchId,
+                                'semester_id' => $targetSemesterId,
+                                'program_type' => $normalizedProgramType,
+                                'faculty_id' => $resolvedFacultyId > 0 ? $resolvedFacultyId : null,
+                                'teaching_assignment_id' => $targetAssignmentId,
+                                'subject_course_id' => optional($subjectCourseMap->get($targetCourseId))->id,
+                            ];
+                        })
+                        ->filter()
+                        ->values()
+                        ->all();
                 }
-                $seenSlots[$slotKey] = true;
 
-                // Find the subject_course_master record ID for this course_master_id
-                $syllabus = $syllabusByCourseId->get($courseMasterId);
-                if (!$syllabus) {
-                    $syllabusLookup = [
-                        'subject_id' => $subjectId,
-                        'batch_id' => $batchId,
-                        'semester_id' => $semesterId,
+                if (empty($targetRows)) {
+                    $targetRows[] = [
                         'course_id' => $courseMasterId,
+                        'batch_id' => (int) $batchId,
+                        'semester_id' => (int) $semesterId,
+                        'program_type' => $programType,
+                        'faculty_id' => !empty($facultyId) ? (int) $facultyId : null,
+                        'teaching_assignment_id' => !empty($teachingAssignmentId) ? (int) $teachingAssignmentId : null,
+                        'subject_course_id' => optional($subjectCourseMap->get($courseMasterId))->id,
                     ];
-
-                    $syllabus = SubjectHasSyllabus::firstOrCreate($syllabusLookup);
-                    $syllabusByCourseId->put($courseMasterId, $syllabus);
-                    $syllabusById->put($syllabus->id, $syllabus);
                 }
 
-                $subjectCourseId = optional($subjectCourseMap->get($courseMasterId))->id;
+                foreach ($targetRows as $target) {
+                    $targetCourseId = (int) ($target['course_id'] ?? 0);
+                    $targetBatchId = (int) ($target['batch_id'] ?? 0);
+                    $targetSemesterId = (int) ($target['semester_id'] ?? 0);
+                    $targetProgramType = strtoupper(trim((string) ($target['program_type'] ?? $programType)));
+                    $targetProgramType = $targetProgramType === 'PG' ? 'PG' : 'UG';
+                    $targetFacultyId = !empty($target['faculty_id']) ? (int) $target['faculty_id'] : null;
+                    $targetAssignmentId = !empty($target['teaching_assignment_id']) ? (int) $target['teaching_assignment_id'] : null;
+                    $targetSubjectCourseId = $target['subject_course_id'] ?? null;
 
-                $entryKey = implode('|', [
-                    $weekdayId,
-                    $hourNumber,
-                    $courseMasterId,
-                    (int) ($facultyId ?: 0),
-                    (int) ($teachingAssignmentId ?: 0),
-                    $slotTeachingGroupId,
-                ]);
-
-                $routine = null;
-                $incomingRoutineId = !empty($slot['routine_id']) ? (int) $slot['routine_id'] : null;
-
-                if ($incomingRoutineId && isset($existingById[$incomingRoutineId])) {
-                    $candidate = $existingById[$incomingRoutineId];
-                    if ((int) $candidate->syllabus_id === (int) $syllabus->id) {
-                        $routine = $candidate;
+                    if ($targetCourseId <= 0 || $targetBatchId <= 0 || $targetSemesterId <= 0) {
+                        continue;
                     }
-                }
 
-                if (!$routine && !empty($existingByKey[$entryKey])) {
-                    foreach ($existingByKey[$entryKey] as $candidate) {
-                        if (!isset($matchedRoutineIds[$candidate->id])) {
+                    $slotKey = implode('|', [
+                        $dayName,
+                        $hourNumber,
+                        $targetCourseId,
+                        $targetBatchId,
+                        $targetSemesterId,
+                        $targetProgramType,
+                        (int) ($targetFacultyId ?: 0),
+                        (int) ($targetAssignmentId ?: 0),
+                        $slotTeachingGroupId,
+                    ]);
+
+                    if (isset($seenSlots[$slotKey])) {
+                        continue;
+                    }
+                    $seenSlots[$slotKey] = true;
+
+                    $syllabusLookupKey = $targetBatchId . '|' . $targetSemesterId . '|' . $targetCourseId;
+                    $syllabus = $syllabusByCompositeKey->get($syllabusLookupKey);
+                    if (!$syllabus) {
+                        $syllabusLookup = [
+                            'subject_id' => $subjectId,
+                            'batch_id' => $targetBatchId,
+                            'semester_id' => $targetSemesterId,
+                            'course_id' => $targetCourseId,
+                        ];
+
+                        $syllabus = SubjectHasSyllabus::firstOrCreate($syllabusLookup);
+                        $syllabusByCompositeKey->put($syllabusLookupKey, $syllabus);
+                        if ((int) ($targetBatchId ?? 0) === (int) $batchId && (int) ($targetSemesterId ?? 0) === (int) $semesterId) {
+                            $syllabusByCourseId->put($targetCourseId, $syllabus);
+                        }
+                        $syllabusById->put($syllabus->id, $syllabus);
+                    }
+
+                    $entryKey = implode('|', [
+                        $weekdayId,
+                        $hourNumber,
+                        $targetCourseId,
+                        (int) ($targetFacultyId ?: 0),
+                        (int) ($targetAssignmentId ?: 0),
+                        $slotTeachingGroupId,
+                    ]);
+
+                    $routine = null;
+                    $incomingRoutineId = !empty($slot['routine_id']) ? (int) $slot['routine_id'] : null;
+
+                    if ($incomingRoutineId && isset($existingById[$incomingRoutineId])) {
+                        $candidate = $existingById[$incomingRoutineId];
+                        if ((int) $candidate->syllabus_id === (int) $syllabus->id) {
                             $routine = $candidate;
-                            break;
                         }
                     }
-                }
 
-                $payload = [
-                    'syllabus_id' => $syllabus->id,
-                    'batch_id' => $batchId,
-                    'shift' => $activeShift,
-                    'weekday_id' => $weekdayId,
-                    'hour_id' => $hourNumber,
-                    'lecturehall_id' => !empty($slot['lecturehall_id']) ? (int) $slot['lecturehall_id'] : null,
-                    'faculty_id' => $facultyId,
-                    'subject_course_id' => $subjectCourseId,
-                    'teaching_assignment_id' => $teachingAssignmentId,
-                ];
-
-                if ($supportsTeachingGroupId) {
-                    $payload['teaching_group_id'] = !empty($slot['teaching_group_id']) ? (int) $slot['teaching_group_id'] : null;
-                }
-
-                if ($supportsRoutineIsActive) {
-                    $payload['is_active'] = (int) (!empty($slot['slot_active']) ? 1 : 0);
-                }
-
-                if ($this->supportsRoutineProgramType()) {
-                    $payload['program_type'] = $programType;
-                }
-
-                if ($routine) {
-                    $wasTrashed = method_exists($routine, 'trashed') ? $routine->trashed() : false;
-                    if ($wasTrashed) {
-                        $routine->restore();
-                        $restoredCount++;
+                    if (!$routine && !empty($existingByKey[$entryKey])) {
+                        foreach ($existingByKey[$entryKey] as $candidate) {
+                            if (!isset($matchedRoutineIds[$candidate->id])) {
+                                $routine = $candidate;
+                                break;
+                            }
+                        }
                     }
 
-                    $routine->fill($payload);
-                    $routine->save();
+                    if (!$routine) {
+                        $routineQuery = SubjectHasRoutine::withTrashed()
+                            ->where('syllabus_id', $syllabus->id)
+                            ->where('shift', $activeShift)
+                            ->where('weekday_id', $weekdayId)
+                            ->where('hour_id', $hourNumber);
 
-                    $updatedCount++;
-                    $matchedRoutineIds[$routine->id] = true;
-                    continue;
+                        if ($this->supportsRoutineProgramType()) {
+                            $routineQuery->where('program_type', $targetProgramType);
+                        }
+
+                        if ($supportsTeachingGroupId) {
+                            if ($slotTeachingGroupId > 0) {
+                                $routineQuery->where('teaching_group_id', $slotTeachingGroupId);
+                            } else {
+                                $routineQuery->whereNull('teaching_group_id');
+                            }
+                        }
+
+                        if (!empty($targetAssignmentId)) {
+                            $routineQuery->where('teaching_assignment_id', $targetAssignmentId);
+                        } else {
+                            $routineQuery->whereNull('teaching_assignment_id');
+                        }
+
+                        if (!empty($targetFacultyId)) {
+                            $routineQuery->where('faculty_id', $targetFacultyId);
+                        } else {
+                            $routineQuery->whereNull('faculty_id');
+                        }
+
+                        $routine = $routineQuery->first();
+                    }
+
+                    $payload = [
+                        'syllabus_id' => $syllabus->id,
+                        'batch_id' => $targetBatchId,
+                        'shift' => $activeShift,
+                        'weekday_id' => $weekdayId,
+                        'hour_id' => $hourNumber,
+                        'lecturehall_id' => !empty($slot['lecturehall_id']) ? (int) $slot['lecturehall_id'] : null,
+                        'faculty_id' => $targetFacultyId,
+                        'subject_course_id' => $targetSubjectCourseId,
+                        'teaching_assignment_id' => $targetAssignmentId,
+                    ];
+
+                    if ($supportsTeachingGroupId) {
+                        $payload['teaching_group_id'] = !empty($slotTeachingGroupId) ? (int) $slotTeachingGroupId : null;
+                    }
+
+                    if ($supportsRoutineIsActive) {
+                        $payload['is_active'] = (int) (!empty($slot['slot_active']) ? 1 : 0);
+                    }
+
+                    if ($this->supportsRoutineProgramType()) {
+                        $payload['program_type'] = $targetProgramType;
+                    }
+
+                    if ($routine) {
+                        $wasTrashed = method_exists($routine, 'trashed') ? $routine->trashed() : false;
+                        $operation = 'updated';
+                        if ($wasTrashed) {
+                            $routine->restore();
+                            $restoredCount++;
+                            $operation = 'restored';
+                        }
+
+                        $routine->fill($payload);
+                        $routine->save();
+
+                        $affectedSlotKey = implode('|', [
+                            $dayName,
+                            $hourNumber,
+                            $targetBatchId,
+                            $targetSemesterId,
+                            $targetProgramType,
+                            $targetCourseId,
+                            $slotTeachingGroupId,
+                        ]);
+                        $affectedSlotMap[$affectedSlotKey] = [
+                            'operation' => $operation,
+                            'day' => (string) $dayName,
+                            'hour' => (int) $hourNumber,
+                            'batch_id' => (int) $targetBatchId,
+                            'semester_id' => (int) $targetSemesterId,
+                            'program_type' => (string) $targetProgramType,
+                            'course_id' => (int) $targetCourseId,
+                            'teaching_group_id' => $slotTeachingGroupId > 0 ? (int) $slotTeachingGroupId : null,
+                        ];
+
+                        $updatedCount++;
+                        $matchedRoutineIds[$routine->id] = true;
+                        continue;
+                    }
+
+                    $created = SubjectHasRoutine::create(array_merge($payload, [
+                        'substitution_faculty_id' => null,
+                    ]));
+
+                    $affectedSlotKey = implode('|', [
+                        $dayName,
+                        $hourNumber,
+                        $targetBatchId,
+                        $targetSemesterId,
+                        $targetProgramType,
+                        $targetCourseId,
+                        $slotTeachingGroupId,
+                    ]);
+                    $affectedSlotMap[$affectedSlotKey] = [
+                        'operation' => 'created',
+                        'day' => (string) $dayName,
+                        'hour' => (int) $hourNumber,
+                        'batch_id' => (int) $targetBatchId,
+                        'semester_id' => (int) $targetSemesterId,
+                        'program_type' => (string) $targetProgramType,
+                        'course_id' => (int) $targetCourseId,
+                        'teaching_group_id' => $slotTeachingGroupId > 0 ? (int) $slotTeachingGroupId : null,
+                    ];
+
+                    $createdCount++;
+                    $matchedRoutineIds[$created->id] = true;
                 }
-
-                $created = SubjectHasRoutine::create(array_merge($payload, [
-                    'substitution_faculty_id' => null,
-                ]));
-                $createdCount++;
-                $matchedRoutineIds[$created->id] = true;
             }
 
             // Archive slots removed from the current payload. Soft delete preserves historical links.
@@ -2409,7 +2623,15 @@ class TimetableController extends Controller
 
             return response()->json([
                 'success' => true,
-                'message' => "Timetable synced successfully. {$createdCount} created, {$updatedCount} updated, {$restoredCount} restored, {$archivedCount} archived."
+                'message' => "Timetable synced successfully. {$createdCount} created, {$updatedCount} updated, {$restoredCount} restored, {$archivedCount} archived.",
+                'meta' => [
+                    'created' => $createdCount,
+                    'updated' => $updatedCount,
+                    'restored' => $restoredCount,
+                    'archived' => $archivedCount,
+                    'affected_slots_count' => count($affectedSlotMap),
+                    'affected_slots' => array_values($affectedSlotMap),
+                ],
             ]);
         } catch (\Exception $e) {
             return response()->json([

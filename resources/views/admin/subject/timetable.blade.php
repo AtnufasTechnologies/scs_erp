@@ -1654,6 +1654,8 @@ $days = Weekday::all();
 
       const currentEntry = editingEntryKey ? getEntryByKey(editingEntryKey) : null;
       const ignoreRoutineId = Number(currentEntry?.routine_id || 0);
+      const inheritedGroupId = Number(currentEntry?.teaching_group_id || 0);
+      const effectiveTeachingGroupId = selectedGroupIdForPayload > 0 ? selectedGroupIdForPayload : (inheritedGroupId > 0 ? inheritedGroupId : 0);
 
       try {
         const conflictResult = await validateTimetableConflictBeforeAdd({
@@ -1679,7 +1681,7 @@ $days = Weekday::all();
         day_of_week: day,
         subject_id: Number(assignment.course_id),
         teaching_assignment_id: Number(teachingAssignmentId),
-        teaching_group_id: selectedGroupIdForPayload > 0 ? selectedGroupIdForPayload : null,
+        teaching_group_id: effectiveTeachingGroupId > 0 ? effectiveTeachingGroupId : null,
         teacher_id: effectiveTeacherId,
         subject_name: effectiveSubjectLabel,
         teacher_name: effectiveTeacherLabel,
@@ -1712,7 +1714,8 @@ $days = Weekday::all();
         const duplicate = timetableData.find(entry =>
           Number(entry.hour_number) === hourNumber &&
           entry.day_of_week === day &&
-          Number(entry.teaching_assignment_id || 0) === Number(teachingAssignmentId)
+          Number(entry.teaching_assignment_id || 0) === Number(teachingAssignmentId) &&
+          Number(entry.teaching_group_id || 0) === effectiveTeachingGroupId
         );
         if (duplicate) return alert('This teacher assignment is already added in the selected slot.');
         timetableData.push(payload);
@@ -1802,7 +1805,47 @@ $days = Weekday::all();
         .then(response => response.json())
         .then(response => {
           if (response.success) {
-            alert('Timetable saved successfully!');
+            const meta = response.meta || {};
+            const created = Number(meta.created || 0);
+            const updated = Number(meta.updated || 0);
+            const restored = Number(meta.restored || 0);
+            const archived = Number(meta.archived || 0);
+            const affectedSlots = Array.isArray(meta.affected_slots) ? meta.affected_slots : [];
+            const affectedCount = Number(meta.affected_slots_count || affectedSlots.length || 0);
+
+            const previewLines = affectedSlots
+              .slice(0, 20)
+              .map((slot) => {
+                const operation = String(slot.operation || 'updated').toUpperCase();
+                const day = String(slot.day || '-');
+                const hour = Number(slot.hour || 0);
+                const batch = Number(slot.batch_id || 0);
+                const semester = Number(slot.semester_id || 0);
+                const program = String(slot.program_type || 'UG').toUpperCase();
+                const courseId = Number(slot.course_id || 0);
+                const groupId = Number(slot.teaching_group_id || 0);
+                const groupText = groupId > 0 ? ` | Group ${groupId}` : '';
+                return `${operation}: ${day} H${hour} | B${batch} S${semester} ${program} | C${courseId}${groupText}`;
+              });
+
+            const moreCount = affectedSlots.length > previewLines.length ? (affectedSlots.length - previewLines.length) : 0;
+            const summaryLines = [
+              response.message || 'Timetable saved successfully.',
+              `Created: ${created}, Updated: ${updated}, Restored: ${restored}, Archived: ${archived}`,
+              `Affected slots: ${affectedCount}`,
+            ];
+
+            if (previewLines.length) {
+              summaryLines.push('');
+              summaryLines.push('Affected slot preview:');
+              summaryLines.push(...previewLines);
+            }
+
+            if (moreCount > 0) {
+              summaryLines.push(`...and ${moreCount} more slot(s).`);
+            }
+
+            alert(summaryLines.join('\n'));
             loadTimetable();
           } else {
             alert('Error: ' + (response.message || 'Unknown error'));

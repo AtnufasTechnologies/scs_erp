@@ -212,6 +212,40 @@
   </div>
 </div>
 
+<div class="modal fade" id="allotTimeslotModal" tabindex="-1" aria-labelledby="allotTimeslotModalLabel" aria-hidden="true">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title" id="allotTimeslotModalLabel">Allot Timeslot</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <div class="modal-body">
+        <div class="mb-2 small text-muted" id="allotTimeslotGroupLabel">Selected Group: -</div>
+        <div class="mb-3">
+          <label class="form-label fw-semibold">Day</label>
+          <select id="allotTimeslotDay" class="form-select">
+            <option value="">--Select Day--</option>
+            <option value="Monday">Monday</option>
+            <option value="Tuesday">Tuesday</option>
+            <option value="Wednesday">Wednesday</option>
+            <option value="Thursday">Thursday</option>
+            <option value="Friday">Friday</option>
+            <option value="Saturday">Saturday</option>
+          </select>
+        </div>
+        <div class="mb-0">
+          <label class="form-label fw-semibold">Hour</label>
+          <input type="number" id="allotTimeslotHour" class="form-control" min="1" max="20" step="1" placeholder="e.g. 1">
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+        <button type="button" class="btn btn-primary" id="submitAllotTimeslotBtn">Allot</button>
+      </div>
+    </div>
+  </div>
+</div>
+
 <script>
   (function() {
     const csrfToken = "{{ csrf_token() }}";
@@ -236,9 +270,14 @@
     const saveGroupEndpoint = "{{ route('department.timetable.group-builder.save', [$subject->id]) }}";
     const assignFacultyEndpoint = "{{ route('department.timetable.group-builder.assign-faculty', [$subject->id]) }}";
     const deleteGroupEndpoint = "{{ route('department.timetable.group-builder.delete-group', [$subject->id]) }}";
+    const allotTimeslotEndpointTemplate = "{{ route('department.timetable.store', [$subject->id, 'BATCH_ID', 'SEMESTER_ID']) }}";
     const createdGroupTableBody = document.getElementById('createdGroupTableBody');
     const createdGroupMetaText = document.getElementById('createdGroupMetaText');
     const saveCreatedGroupFacultyBtn = document.getElementById('saveCreatedGroupFacultyBtn');
+    const allotTimeslotGroupLabel = document.getElementById('allotTimeslotGroupLabel');
+    const allotTimeslotDay = document.getElementById('allotTimeslotDay');
+    const allotTimeslotHour = document.getElementById('allotTimeslotHour');
+    const submitAllotTimeslotBtn = document.getElementById('submitAllotTimeslotBtn');
     const facultyOptions = (() => {
       const raw = document.getElementById('facultyOptionsJson')?.textContent || '[]';
       try {
@@ -271,6 +310,7 @@
     let selectedDeptId = 0;
     let selectedDeptName = '';
     let bucketRows = [];
+    let selectedAllotGroupId = 0;
 
     function normalizeRow(raw) {
       return {
@@ -406,6 +446,52 @@
       return result;
     }
 
+    function findCreatedGroupById(groupId) {
+      const id = Number(groupId || 0);
+      if (id <= 0) return null;
+      return createdGroupRows.find((row) => Number(row.allocation_group_id || 0) === id) || null;
+    }
+
+    function openAllotTimeslotModal(groupId) {
+      const id = Number(groupId || 0);
+      if (id <= 0) {
+        alert('Invalid group selected.');
+        return;
+      }
+
+      selectedAllotGroupId = id;
+      const row = findCreatedGroupById(id);
+      allotTimeslotGroupLabel.textContent = `Selected Group: ${String(row?.group_identifier || ('Group ' + id))}`;
+      allotTimeslotDay.value = '';
+      allotTimeslotHour.value = '';
+
+      const modal = new bootstrap.Modal(document.getElementById('allotTimeslotModal'));
+      modal.show();
+    }
+
+    function summarizeAffectedSlots(meta) {
+      const slots = Array.isArray(meta?.affected_slots) ? meta.affected_slots : [];
+      if (!slots.length) {
+        return 'No affected slot details returned.';
+      }
+
+      const lines = slots.slice(0, 15).map((slot) => {
+        const operation = String(slot.operation || 'updated').toUpperCase();
+        const day = String(slot.day || '-');
+        const hour = Number(slot.hour || 0);
+        const batch = Number(slot.batch_id || 0);
+        const semester = Number(slot.semester_id || 0);
+        const program = String(slot.program_type || 'UG').toUpperCase();
+        return `${operation}: ${day} H${hour} | B${batch} S${semester} ${program}`;
+      });
+
+      if (slots.length > lines.length) {
+        lines.push(`...and ${slots.length - lines.length} more.`);
+      }
+
+      return lines.join('\n');
+    }
+
     function renderCreatedGroups() {
       if (!createdGroupRows.length) {
         createdGroupTableBody.innerHTML = '<tr><td colspan="8" class="text-center text-muted py-4">No teaching groups created yet.</td></tr>';
@@ -452,6 +538,14 @@
               </select>
             </td>
             <td class="text-center">
+              <button
+                type="button"
+                class="btn btn-outline-primary btn-sm me-1 open-allot-timeslot-btn"
+                data-allocation-group-id="${Number(row.allocation_group_id || 0)}"
+                title="Allot Timeslot"
+              >
+                <i class="fa fa-clock me-1" aria-hidden="true"></i>Allot Timeslot
+              </button>
               <button
                 type="button"
                 class="btn btn-outline-danger btn-sm delete-created-group-btn"
@@ -812,6 +906,13 @@
     });
 
     createdGroupTableBody.addEventListener('click', async function(event) {
+      const allotBtn = event.target.closest('.open-allot-timeslot-btn');
+      if (allotBtn) {
+        const groupId = Number(allotBtn.dataset.allocationGroupId || 0);
+        openAllotTimeslotModal(groupId);
+        return;
+      }
+
       const deleteBtn = event.target.closest('.delete-created-group-btn');
       if (!deleteBtn) return;
 
@@ -849,6 +950,107 @@
         alert(error.message || 'Unable to delete teaching group.');
       } finally {
         deleteBtn.disabled = false;
+      }
+    });
+
+    submitAllotTimeslotBtn.addEventListener('click', async function() {
+      const groupId = Number(selectedAllotGroupId || 0);
+      const day = String(allotTimeslotDay.value || '').trim();
+      const hourNumber = Number(allotTimeslotHour.value || 0);
+
+      if (groupId <= 0) {
+        alert('Please select a valid group.');
+        return;
+      }
+
+      if (!day) {
+        alert('Please select day.');
+        return;
+      }
+
+      if (hourNumber <= 0) {
+        alert('Please enter a valid hour number.');
+        return;
+      }
+
+      const groupRow = findCreatedGroupById(groupId);
+      if (!groupRow) {
+        alert('Created group row not found. Please refresh and try again.');
+        return;
+      }
+
+      const anchorBatchId = Number(groupRow.anchor_batch_id || 0);
+      const anchorSemesterId = Number(groupRow.anchor_semester_id || 0);
+      const anchorProgramType = String(groupRow.anchor_program_type || 'UG').toUpperCase() === 'PG' ? 'PG' : 'UG';
+      const firstCourseId = Number((Array.isArray(groupRow.course_rows) && groupRow.course_rows.length > 0 ? groupRow.course_rows[0]?.course_id : 0) || 0);
+
+      if (anchorBatchId <= 0 || anchorSemesterId <= 0 || firstCourseId <= 0) {
+        alert('Unable to derive batch/semester/course for this group. Please refresh and try again.');
+        return;
+      }
+
+      const saveUrl = allotTimeslotEndpointTemplate
+        .replace('BATCH_ID', String(anchorBatchId))
+        .replace('SEMESTER_ID', String(anchorSemesterId));
+
+      const payload = {
+        batch_id: anchorBatchId,
+        semester_id: anchorSemesterId,
+        program_type: anchorProgramType,
+        shift: 'common',
+        timetable: [{
+          hour_number: hourNumber,
+          day_of_week: day,
+          subject_id: firstCourseId,
+          teaching_assignment_id: null,
+          teaching_group_id: groupId,
+          teacher_id: Number(groupRow.faculty_id || 0) > 0 ? Number(groupRow.faculty_id) : null,
+          slot_active: 1,
+        }],
+      };
+
+      submitAllotTimeslotBtn.disabled = true;
+      const originalText = submitAllotTimeslotBtn.textContent;
+      submitAllotTimeslotBtn.textContent = 'Allotting...';
+
+      try {
+        const response = await fetch(saveUrl, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Accept': 'application/json',
+            'X-Requested-With': 'XMLHttpRequest',
+            'X-CSRF-TOKEN': csrfToken,
+          },
+          body: JSON.stringify(payload),
+        });
+
+        const result = await response.json().catch(() => ({}));
+        if (!response.ok || !result.success) {
+          throw new Error(result.message || 'Unable to allot timeslot.');
+        }
+
+        const modal = bootstrap.Modal.getInstance(document.getElementById('allotTimeslotModal'));
+        if (modal) modal.hide();
+
+        const counts = result.meta || {};
+        const created = Number(counts.created || 0);
+        const updated = Number(counts.updated || 0);
+        const restored = Number(counts.restored || 0);
+        const archived = Number(counts.archived || 0);
+        const affectedCount = Number(counts.affected_slots_count || 0);
+        alert([
+          result.message || 'Timeslot allotted successfully.',
+          `Created: ${created}, Updated: ${updated}, Restored: ${restored}, Archived: ${archived}`,
+          `Affected slots: ${affectedCount}`,
+          '',
+          summarizeAffectedSlots(counts),
+        ].join('\n'));
+      } catch (error) {
+        alert(error.message || 'Unable to allot timeslot.');
+      } finally {
+        submitAllotTimeslotBtn.disabled = false;
+        submitAllotTimeslotBtn.textContent = originalText;
       }
     });
 
