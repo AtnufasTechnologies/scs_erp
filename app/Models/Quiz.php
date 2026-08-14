@@ -4,6 +4,8 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use App\Models\Faculty;
+use App\Models\User;
 
 class Quiz extends Model
 {
@@ -79,5 +81,15 @@ class Quiz extends Model
   public function semestermaster()
   {
     return $this->belongsTo(Semester::class, 'semester_id');
+  }
+
+  public function faculty()
+  {
+    return $this->belongsTo(Faculty::class, 'faculty_id');
+  }
+
+  public function creator()
+  {
+    return $this->belongsTo(User::class, 'created_by');
   }
 }

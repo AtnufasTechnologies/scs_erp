@@ -27,6 +27,7 @@ use App\Models\StudentMaster;
 use App\Models\StudentProgram;
 use App\Models\Subject;
 use App\Models\SubjectHasStudentProgam;
+use App\Models\UserHasRole;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
@@ -798,6 +799,14 @@ class ITCellController extends Controller
 
     function studentPathwayMapper(Request $request)
     {
+        $isPrincipalMonitoring = $request->routeIs('principal.pathway.mapper');
+        if ($isPrincipalMonitoring) {
+            $role = (string) UserHasRole::where('user_id', Auth::id())->value('role_name');
+            if ($role !== 'principal') {
+                abort(403, 'Unauthorized access.');
+            }
+        }
+
         $batches = BatchMaster::orderByDesc('id')->get();
         $pathways = AcademicPathwayMaster::orderBy('name')->get();
         $degreeTracks = DegreeTrackMaster::orderBy('name')->get();
@@ -880,6 +889,7 @@ class ITCellController extends Controller
                 'pathway_type' => $request->input('pathway_type'),
                 'current_semester' => $request->input('current_semester'),
             ],
+            'isPrincipalMonitoring' => $isPrincipalMonitoring,
         ]);
     }
 

@@ -154,6 +154,16 @@ $pendingLeaveCount = $pendingLeaveQuery->count();
         <div class="menu-title">Curriculam Defaulters</div>
       </a>
     </li>
+    @if(StaticController::isPrincipal())
+    <li>
+      <a href="{{ route('principal.pathway.mapper') }}">
+        <div class="parent-icon">
+          <i class="fas fa-project-diagram"></i>
+        </div>
+        <div class="menu-title">Student Pathway Mapper</div>
+      </a>
+    </li>
+    @endif
     <li>
       <a href="{{ route('principal.classes.index') }}">
         <div class="parent-icon">
@@ -162,6 +172,17 @@ $pendingLeaveCount = $pendingLeaveQuery->count();
         <div class="menu-title">Classes (Hour-wise)</div>
       </a>
     </li>
+
+    @if(StaticController::isPrincipal())
+    <li>
+      <a href="{{ route('principal.quizzes.index') }}">
+        <div class="parent-icon">
+          <i class="fas fa-question-circle"></i>
+        </div>
+        <div class="menu-title">FA1 Quiz Monitor</div>
+      </a>
+    </li>
+    @endif
 
     <li>
       <a href="{{ route('principal.work-diary.overview') }}">
