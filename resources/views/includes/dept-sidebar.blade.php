@@ -72,6 +72,12 @@ if ($subjectId) {
     </div>
   </a>
 
+  <a href="{{ route('department.quizzes.index') }}">
+    <div class="sidebar-icon {{ request()->routeIs('department.quizzes.index') ? 'active' : '' }}" title="FA1 Quiz Monitor" data-bs-toggle="tooltip" data-bs-placement="right" data-bs-title="FA1 Quiz Monitor">
+      <i class="fas fa-question-circle fa-lg"></i>
+    </div>
+  </a>
+
 
   <a href="{{route('department.student.group.allocation',[$data->id,$data->slug])}}">
     <div class="sidebar-icon" title="Student Group Allotment" data-bs-toggle="tooltip" data-bs-placement="right" data-bs-title="Student Group Allotment">

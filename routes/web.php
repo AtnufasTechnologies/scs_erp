@@ -49,6 +49,7 @@ use App\Http\Controllers\PaymentBatchController;
 use App\Http\Controllers\PrincipalController;
 use App\Http\Controllers\PrincipalMonitoringController;
 use App\Http\Controllers\PromotionController;
+use App\Http\Controllers\QuizOversightController;
 use App\Http\Controllers\SeatingAllocationController;
 use App\Http\Controllers\StudentCreditController;
 use App\Http\Controllers\CourseOfferingController;
@@ -834,6 +835,7 @@ Route::group(['prefix' => '/erp'], function () {
 
     Route::group(['prefix' => '/deptartment',], function () {
         Route::get('dashboard', [SubjectController::class, 'departmentDashboard'])->name('department.dashboard');
+        Route::get('fa1-quizzes', [QuizOversightController::class, 'index'])->name('department.quizzes.index');
         Route::get('enrolled-programs/by-batch', [SubjectController::class, 'fetchEnrolledProgramsByBatch'])->name('department.batch.enrolled-programs');
         Route::get('combo-master', [SubjectController::class, 'comboMaster'])->name('department.combo.master');
         Route::delete('combination/{id}/delete', [SubjectController::class, 'deleteCombination'])->name('department.combination.delete');
@@ -1218,10 +1220,12 @@ Route::group(['prefix' => '/erp'], function () {
         Route::get('courses/{id}', [PrincipalController::class, 'courseDetail'])->name('principal.courses.detail');
         Route::get('curriculam', [PrincipalController::class, 'curriculamProgramWise'])->name('principal.curriculam.index');
         Route::get('curriculam/defaulters', [PrincipalController::class, 'curriculamDefaulters'])->name('principal.curriculam.defaulters');
+        Route::get('student-pathway-mapper', [ITCellController::class, 'studentPathwayMapper'])->name('principal.pathway.mapper');
         Route::get('syllabus', [PrincipalController::class, 'subjectSyllabus'])->name('principal.syllabus.index');
         Route::get('syllabus/{id}', [PrincipalController::class, 'subjectSyllabusDetail'])->name('principal.syllabus.detail');
         Route::get('classes', [PrincipalController::class, 'classes'])->name('principal.classes.index');
         Route::get('admissions', [PrincipalController::class, 'admissions'])->name('principal.admissions.index');
+        Route::get('fa1-quizzes', [QuizOversightController::class, 'index'])->name('principal.quizzes.index');
 
         // Fee Management
         Route::get('fees', [PrincipalController::class, 'studentFees'])->name('principal.fees.index');
