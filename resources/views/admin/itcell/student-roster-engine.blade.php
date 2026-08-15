@@ -317,6 +317,166 @@
 </div>
 @endif
 
+@if(($rosterExclusionReasons ?? collect())->isNotEmpty())
+<div class="card shadow-sm mb-4 border-warning-subtle">
+  <div class="card-header bg-transparent d-flex justify-content-between align-items-center">
+    <h5 class="mb-0 text-warning-emphasis">Why Students Were Excluded (Latest Resolve)</h5>
+    <span class="badge bg-warning text-dark">{{ ($rosterExclusionReasons ?? collect())->sum('total') }} Exclusion(s)</span>
+  </div>
+  <div class="card-body">
+    <div class="table-responsive">
+      <table class="table table-bordered table-sm align-middle mb-0">
+        <thead class="table-light">
+          <tr>
+            <th style="width: 70px;">#</th>
+            <th>Reason Code</th>
+            <th style="width: 160px;">Count</th>
+          </tr>
+        </thead>
+        <tbody>
+          @foreach(($rosterExclusionReasons ?? collect()) as $index => $reason)
+          <tr>
+            <td>{{ $index + 1 }}</td>
+            <td><strong>{{ $reason['reason_code'] ?? 'UNKNOWN' }}</strong></td>
+            <td><span class="badge bg-secondary">{{ (int) ($reason['total'] ?? 0) }}</span></td>
+          </tr>
+          @endforeach
+        </tbody>
+      </table>
+    </div>
+    <div class="small text-muted mt-2">
+      Reason counts are pulled from student_roster_rule_results for the latest Resolve Student Roster run.
+    </div>
+
+    @if(($rosterExcludedStudents ?? collect())->isNotEmpty())
+    <hr class="my-3">
+    <div class="d-flex flex-wrap justify-content-between align-items-end gap-2 mb-2">
+      <h6 class="mb-0">Excluded Students (Latest Resolve)</h6>
+      <div style="min-width: 260px;">
+        <label for="excludedReasonFilter" class="form-label mb-1">Filter by Reason Code</label>
+        <select id="excludedReasonFilter" class="form-select form-select-sm">
+          <option value="">All Reasons</option>
+          @foreach(($rosterExclusionReasons ?? collect()) as $reason)
+          <option value="{{ strtoupper(trim((string) ($reason['reason_code'] ?? 'UNKNOWN'))) }}">
+            {{ strtoupper(trim((string) ($reason['reason_code'] ?? 'UNKNOWN'))) }}
+          </option>
+          @endforeach
+        </select>
+      </div>
+    </div>
+    <div class="table-responsive">
+      <table class="table table-bordered table-sm align-middle mb-0">
+        <thead class="table-light">
+          <tr>
+            <th style="width: 70px;">#</th>
+            <th>Student</th>
+            <th>Roll No</th>
+            <th>Register No</th>
+            <th>Program</th>
+            <th>Batch</th>
+            <th>Pathway / Track</th>
+            <th>Reason Code</th>
+            <th>Reason</th>
+          </tr>
+        </thead>
+        <tbody id="excludedStudentsTableBody">
+          @foreach(($rosterExcludedStudents ?? collect()) as $index => $student)
+          <tr class="excluded-student-row" data-reason-code="{{ strtoupper(trim((string) ($student['reason_code'] ?? 'UNKNOWN'))) }}">
+            <td>{{ $index + 1 }}</td>
+            <td>
+              {{ $student['student_name'] ?? '-' }}
+              <div class="small text-muted">ID: {{ (int) ($student['student_id'] ?? 0) }}</div>
+            </td>
+            <td>{{ $student['roll_no'] ?? '-' }}</td>
+            <td>{{ $student['register_no'] ?? '-' }}</td>
+            <td>
+              <div><strong>{{ $student['program_code'] ?? 'N/A' }}</strong></div>
+              <div class="small text-muted">{{ $student['program_name'] ?? 'Unknown Program' }}</div>
+            </td>
+            <td>{{ $student['batch_name'] ?? '-' }}</td>
+            <td>
+              <div>{{ $student['academic_pathway'] ?? '-' }}</div>
+              <div class="small text-muted">{{ $student['degree_track'] ?? '-' }}</div>
+            </td>
+            <td><span class="badge bg-secondary">{{ $student['reason_code'] ?? 'UNKNOWN' }}</span></td>
+            <td>
+              {{ $student['reason'] ?? '-' }}
+              @if(strtoupper(trim((string) ($student['reason_code'] ?? ''))) === 'NO_ACADEMIC_PATHWAY')
+              <div class="mt-2">
+                <button
+                  type="button"
+                  class="btn btn-sm btn-outline-success js-fix-pathway-btn"
+                  data-bs-toggle="modal"
+                  data-bs-target="#fixPathwayModal"
+                  data-student-id="{{ (int) ($student['student_id'] ?? 0) }}"
+                  data-student-name="{{ $student['student_name'] ?? '' }}">
+                  Fix Pathway
+                </button>
+              </div>
+              @endif
+            </td>
+          </tr>
+          @endforeach
+        </tbody>
+      </table>
+    </div>
+    <div class="alert alert-warning d-none mt-2 mb-0" id="excludedStudentsNoMatch">
+      No excluded students found for the selected reason code.
+    </div>
+    @endif
+  </div>
+</div>
+@endif
+
+<div class="modal fade" id="fixPathwayModal" tabindex="-1" aria-labelledby="fixPathwayModalLabel" aria-hidden="true">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <form method="POST" action="{{ route('itcell.student-roster-engine.fix-pathway') }}" id="fixPathwayForm">
+        @csrf
+        <div class="modal-header">
+          <h5 class="modal-title" id="fixPathwayModalLabel">Fix Academic Pathway</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+        </div>
+        <div class="modal-body">
+          <div class="alert d-none" id="fixPathwayFeedback" role="alert"></div>
+
+          <p class="mb-2">
+            Update pathway for:
+            <strong id="fixPathwayStudentName">-</strong>
+          </p>
+
+          <input type="hidden" name="student_id" id="fixPathwayStudentId" value="0">
+          <input type="hidden" name="batch_id" value="{{ (int) ($selectedBatchId ?? 0) }}">
+          <input type="hidden" name="semester_id" value="{{ (int) (($rosterContext['semester_id'] ?? 0) > 0 ? ($rosterContext['semester_id'] ?? 0) : ($selectedSemesterId ?? 0)) }}">
+          <input type="hidden" name="curriculum_row_id" value="{{ (int) ($selectedCurriculumRowId ?? 0) }}">
+          <input type="hidden" name="teaching_group_id" value="{{ (int) ($teachingGroupId ?? 0) }}">
+          <input type="hidden" name="teaching_assignment_id" value="{{ (int) ($teachingAssignmentId ?? 0) }}">
+
+          <label for="fixPathwayAcademicPathway" class="form-label">Academic Pathway</label>
+          <select name="academic_pathway_id" id="fixPathwayAcademicPathway" class="form-select" required>
+            <option value="">Select pathway</option>
+            @foreach(($pathways ?? collect()) as $pathway)
+            <option value="{{ (int) ($pathway->id ?? 0) }}">{{ $pathway->name ?? 'Unnamed Pathway' }}</option>
+            @endforeach
+          </select>
+
+          <label for="fixPathwayDegreeTrack" class="form-label mt-3">Degree Track </label>
+          <select name="degree_track_id" id="fixPathwayDegreeTrack" class="form-select">
+            <option value="">Keep existing degree track</option>
+            @foreach(($degreeTracks ?? collect()) as $track)
+            <option value="{{ (int) ($track->id ?? 0) }}">{{ $track->name ?? 'Unnamed Track' }}</option>
+            @endforeach
+          </select>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+          <button type="submit" class="btn btn-primary" id="fixPathwaySubmitButton">Save Pathway &amp; Track</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+
 <div class="card shadow-sm">
   <div class="card-header bg-transparent d-flex justify-content-between align-items-center">
     <h5 class="mb-0">Resolved Students</h5>
@@ -390,6 +550,18 @@
     const noMatchAlert = document.getElementById('curriculumRowsNoMatch');
     const resolveForm = document.getElementById('resolveRosterForm');
     const resolveButton = document.getElementById('resolveRosterButton');
+    const excludedReasonFilter = document.getElementById('excludedReasonFilter');
+    const excludedStudentsTableBody = document.getElementById('excludedStudentsTableBody');
+    const excludedStudentsNoMatch = document.getElementById('excludedStudentsNoMatch');
+    const fixPathwayButtons = document.querySelectorAll('.js-fix-pathway-btn');
+    const fixPathwayStudentIdInput = document.getElementById('fixPathwayStudentId');
+    const fixPathwayStudentName = document.getElementById('fixPathwayStudentName');
+    const fixPathwayAcademicPathwaySelect = document.getElementById('fixPathwayAcademicPathway');
+    const fixPathwayDegreeTrackSelect = document.getElementById('fixPathwayDegreeTrack');
+    const fixPathwayForm = document.getElementById('fixPathwayForm');
+    const fixPathwayModal = document.getElementById('fixPathwayModal');
+    const fixPathwaySubmitButton = document.getElementById('fixPathwaySubmitButton');
+    const fixPathwayFeedback = document.getElementById('fixPathwayFeedback');
 
     if (!searchInput || !tableBody) {
       return;
@@ -426,6 +598,215 @@
 
     // Reapply persisted filters after page reload (e.g., after Resolve Student Roster).
     applyFilter();
+
+    const applyExcludedStudentFilter = function() {
+      if (!excludedReasonFilter || !excludedStudentsTableBody) {
+        return;
+      }
+
+      const selectedReasonCode = String(excludedReasonFilter.value || '').trim().toUpperCase();
+      const excludedRows = Array.from(excludedStudentsTableBody.querySelectorAll('.excluded-student-row'));
+      let visibleCount = 0;
+
+      excludedRows.forEach(function(row) {
+        const rowReasonCode = String(row.getAttribute('data-reason-code') || '').trim().toUpperCase();
+        const isMatch = selectedReasonCode === '' || rowReasonCode === selectedReasonCode;
+        row.classList.toggle('d-none', !isMatch);
+        if (isMatch) {
+          visibleCount++;
+        }
+      });
+
+      if (excludedStudentsNoMatch) {
+        excludedStudentsNoMatch.classList.toggle('d-none', visibleCount > 0);
+      }
+    };
+
+    if (excludedReasonFilter && excludedStudentsTableBody) {
+      excludedReasonFilter.addEventListener('change', applyExcludedStudentFilter);
+      applyExcludedStudentFilter();
+    }
+
+    const isDualMajorPathwayName = function(pathwayName) {
+      const normalized = String(pathwayName || '').trim().toLowerCase();
+      return normalized.indexOf('dual') !== -1 && normalized.indexOf('major') !== -1;
+    };
+
+    const findRegularTrackOption = function() {
+      if (!fixPathwayDegreeTrackSelect) {
+        return null;
+      }
+
+      const options = Array.from(fixPathwayDegreeTrackSelect.options || []);
+      return options.find(function(option) {
+        return String(option.textContent || '').trim().toLowerCase().indexOf('regular') !== -1 && String(option.value || '').trim() !== '';
+      }) || null;
+    };
+
+    const applyPathwayDegreeTrackDependency = function() {
+      if (!fixPathwayAcademicPathwaySelect || !fixPathwayDegreeTrackSelect) {
+        return;
+      }
+
+      const selectedOption = fixPathwayAcademicPathwaySelect.options[fixPathwayAcademicPathwaySelect.selectedIndex];
+      const selectedPathwayName = selectedOption ? String(selectedOption.textContent || '') : '';
+      const isDualMajor = isDualMajorPathwayName(selectedPathwayName);
+      const degreeTrackOptions = Array.from(fixPathwayDegreeTrackSelect.options || []);
+
+      degreeTrackOptions.forEach(function(option) {
+        option.disabled = false;
+      });
+
+      if (!isDualMajor) {
+        if (fixPathwayFeedback && fixPathwayFeedback.getAttribute('data-source') === 'pathway-rule') {
+          fixPathwayFeedback.className = 'alert d-none';
+          fixPathwayFeedback.textContent = '';
+          fixPathwayFeedback.removeAttribute('data-source');
+        }
+        return;
+      }
+
+      const regularOption = findRegularTrackOption();
+      if (!regularOption) {
+        if (fixPathwayFeedback) {
+          fixPathwayFeedback.className = 'alert alert-danger';
+          fixPathwayFeedback.textContent = 'Dual Major pathway requires a Regular degree track, but no Regular option is available.';
+          fixPathwayFeedback.setAttribute('data-source', 'pathway-rule');
+        }
+        if (fixPathwaySubmitButton) {
+          fixPathwaySubmitButton.disabled = true;
+        }
+        return;
+      }
+
+      degreeTrackOptions.forEach(function(option) {
+        option.disabled = String(option.value || '') !== String(regularOption.value || '');
+      });
+
+      fixPathwayDegreeTrackSelect.value = String(regularOption.value || '');
+
+      if (fixPathwayFeedback) {
+        fixPathwayFeedback.className = 'alert alert-info';
+        fixPathwayFeedback.textContent = 'Dual Major selected: Degree Track is automatically set to Regular.';
+        fixPathwayFeedback.setAttribute('data-source', 'pathway-rule');
+      }
+    };
+
+    if (fixPathwayAcademicPathwaySelect) {
+      fixPathwayAcademicPathwaySelect.addEventListener('change', function() {
+        if (fixPathwaySubmitButton) {
+          fixPathwaySubmitButton.disabled = false;
+        }
+        applyPathwayDegreeTrackDependency();
+      });
+    }
+
+    if (fixPathwayButtons.length > 0 && fixPathwayStudentIdInput && fixPathwayStudentName) {
+      fixPathwayButtons.forEach(function(button) {
+        button.addEventListener('click', function() {
+          const studentId = String(button.getAttribute('data-student-id') || '0');
+          const studentName = String(button.getAttribute('data-student-name') || '-');
+          fixPathwayStudentIdInput.value = studentId;
+          fixPathwayStudentName.textContent = studentName;
+
+          if (fixPathwayFeedback) {
+            fixPathwayFeedback.className = 'alert d-none';
+            fixPathwayFeedback.textContent = '';
+            fixPathwayFeedback.removeAttribute('data-source');
+          }
+
+          if (fixPathwayAcademicPathwaySelect) {
+            fixPathwayAcademicPathwaySelect.value = '';
+          }
+
+          if (fixPathwayDegreeTrackSelect) {
+            fixPathwayDegreeTrackSelect.value = '';
+            Array.from(fixPathwayDegreeTrackSelect.options || []).forEach(function(option) {
+              option.disabled = false;
+            });
+          }
+
+          if (fixPathwaySubmitButton) {
+            fixPathwaySubmitButton.disabled = false;
+          }
+
+          applyPathwayDegreeTrackDependency();
+        });
+      });
+    }
+
+    if (fixPathwayForm) {
+      fixPathwayForm.addEventListener('submit', function(event) {
+        event.preventDefault();
+
+        if (fixPathwaySubmitButton) {
+          fixPathwaySubmitButton.disabled = true;
+          fixPathwaySubmitButton.textContent = 'Saving...';
+        }
+
+        if (fixPathwayFeedback) {
+          fixPathwayFeedback.className = 'alert d-none';
+          fixPathwayFeedback.textContent = '';
+        }
+
+        const formData = new FormData(fixPathwayForm);
+
+        fetch(fixPathwayForm.action, {
+            method: 'POST',
+            headers: {
+              'X-Requested-With': 'XMLHttpRequest',
+              'Accept': 'application/json'
+            },
+            body: formData
+          })
+          .then(function(response) {
+            return response.json().then(function(payload) {
+              return {
+                ok: response.ok,
+                status: response.status,
+                payload: payload
+              };
+            });
+          })
+          .then(function(result) {
+            if (!result.ok || !result.payload || result.payload.ok === false) {
+              let message = 'Unable to update pathway details. Please try again.';
+              if (result.payload && result.payload.message) {
+                message = String(result.payload.message);
+              } else if (result.payload && result.payload.errors) {
+                const firstField = Object.keys(result.payload.errors)[0];
+                const firstError = firstField ? result.payload.errors[firstField] : null;
+                if (Array.isArray(firstError) && firstError.length > 0) {
+                  message = String(firstError[0]);
+                }
+              }
+              throw new Error(message);
+            }
+
+            if (window.bootstrap && fixPathwayModal) {
+              const modalInstance = window.bootstrap.Modal.getInstance(fixPathwayModal);
+              if (modalInstance) {
+                modalInstance.hide();
+              }
+            }
+
+            window.location.reload();
+          })
+          .catch(function(error) {
+            const message = error && error.message ? error.message : 'Request failed. Please try again.';
+            if (fixPathwayFeedback) {
+              fixPathwayFeedback.className = 'alert alert-danger';
+              fixPathwayFeedback.textContent = message;
+            }
+          })
+          .finally(function() {
+            if (fixPathwaySubmitButton) {
+              fixPathwaySubmitButton.disabled = false;
+              fixPathwaySubmitButton.textContent = 'Save Pathway & Track';
+            }
+          });
+      });
+    }
 
     if (resolveForm && resolveButton) {
       resolveForm.addEventListener('submit', function() {

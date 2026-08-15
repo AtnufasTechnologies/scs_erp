@@ -876,7 +876,6 @@ class StudentRosterEngine
 
     $studentComboRows = DB::table('subject_has_student_progams')
       ->where('student_program_id', $studentProgramId)
-      ->where('subject_id', $expectedSubjectId)
       ->when((int) ($course->batch_id ?? 0) > 0, function ($q) use ($course) {
         if (Schema::hasColumn('subject_has_student_progams', 'batch_id')) {
           $q->where('batch_id', (int) $course->batch_id);
@@ -885,12 +884,33 @@ class StudentRosterEngine
       ->when(Schema::hasColumn('subject_has_student_progams', 'deleted_at'), function ($q) {
         $q->whereNull('deleted_at');
       })
+      ->get(['id', 'subject_id']);
+
+    if ($studentComboRows->isEmpty()) {
+      return false;
+    }
+
+    $directSubjectComboRowIds = $studentComboRows
+      ->filter(function ($row) use ($expectedSubjectId) {
+        return (int) ($row->subject_id ?? 0) === $expectedSubjectId;
+      })
       ->pluck('id')
       ->map(fn($v) => (int) $v)
       ->filter(fn($v) => $v > 0)
       ->values();
 
-    if ($studentComboRows->isEmpty()) {
+    // COMBO1 remains strict. COMBO2 supports fallback via program-combo mapping rows
+    // when institutions store combo2 in std_prog_combo_maps but not as direct subject rows.
+    $candidateComboRowIds = $directSubjectComboRowIds;
+    if ($combo === 'COMBO2' && $candidateComboRowIds->isEmpty()) {
+      $candidateComboRowIds = $studentComboRows
+        ->pluck('id')
+        ->map(fn($v) => (int) $v)
+        ->filter(fn($v) => $v > 0)
+        ->values();
+    }
+
+    if ($candidateComboRowIds->isEmpty()) {
       return false;
     }
 
@@ -916,7 +936,7 @@ class StudentRosterEngine
       return false;
     }
 
-    if (!$studentComboRows->intersect($allowedComboRefIds)->isNotEmpty()) {
+    if (!$candidateComboRowIds->intersect($allowedComboRefIds)->isNotEmpty()) {
       return false;
     }
 

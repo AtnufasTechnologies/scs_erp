@@ -154,6 +154,7 @@ Route::group(['prefix' => '/erp'], function () {
         Route::get('itcell/student-mdc-selection/export', [ITCellController::class, 'studentMdcSelectionExport'])->name('itcell.student-mdc-selection.export');
         Route::post('itcell/student-mdc-selection', [ITCellController::class, 'studentMdcSelectionStore'])->name('itcell.student-mdc-selection.store');
         Route::get('itcell/student-roster-engine', [ITCellController::class, 'studentRosterEngineIndex'])->name('itcell.student-roster-engine.index');
+        Route::post('itcell/student-roster-engine/fix-pathway', [ITCellController::class, 'fixNoAcademicPathwayInRoster'])->name('itcell.student-roster-engine.fix-pathway');
         Route::get('itcell/subject-program-enrollment-inspector', [ITCellController::class, 'subjectProgramEnrollmentInspectorIndex'])->name('itcell.subject-program-enrollment-inspector.index');
         Route::get('itcell/lateral-entry', [ITCellController::class, 'lateralEntryIndex'])->name('itcell.lateral-entry.index');
         Route::get('itcell/lateral-entry/programs', [ITCellController::class, 'getProgramsForLateralEntry'])->name('itcell.lateral-entry.programs');

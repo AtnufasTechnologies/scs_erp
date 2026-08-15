@@ -1167,7 +1167,10 @@ class ITCellController extends Controller
         $selectedCurriculumRow = null;
         $resolvedRoster = collect();
         $resolvedProgramStats = collect();
+        $rosterExclusionReasons = collect();
+        $rosterExcludedStudents = collect();
         $rosterContext = [];
+        $rosterExclusionReasons = collect();
         $rosterContext = [];
         $resolvedProgramStats = collect();
         $dashboardProgramStats = collect();
@@ -1541,6 +1544,14 @@ class ITCellController extends Controller
             ->orderByDesc('batch_name')
             ->get(['id', 'batch_name']);
 
+        $pathways = AcademicPathwayMaster::query()
+            ->orderBy('name')
+            ->get(['id', 'name']);
+
+        $degreeTracks = DegreeTrackMaster::query()
+            ->orderBy('name')
+            ->get(['id', 'name']);
+
         $semesters = Semester::query()
             ->orderBy('id')
             ->get(['id', 'title']);
@@ -1555,6 +1566,8 @@ class ITCellController extends Controller
         $selectedCurriculumRow = null;
         $resolvedRoster = collect();
         $resolvedProgramStats = collect();
+        $rosterExclusionReasons = collect();
+        $rosterExcludedStudents = collect();
         $rosterContext = [];
 
         /*
@@ -1698,6 +1711,11 @@ class ITCellController extends Controller
 
         if ($selectedCurriculumRow) {
 
+            $decisionStartId = 0;
+            if (Schema::hasTable('student_roster_rule_results')) {
+                $decisionStartId = (int) (DB::table('student_roster_rule_results')->max('id') ?? 0);
+            }
+
             $courseContext = [
 
                 'id' =>
@@ -1832,6 +1850,127 @@ class ITCellController extends Controller
                 })
                 ->sortBy('program_code')
                 ->values();
+
+            $deliveryScopedProgramIds = collect();
+            $deliveryType = strtoupper(trim((string) ($courseContext['delivery_type'] ?? '')));
+
+            if (
+                in_array($deliveryType, ['COMBO1', 'COMBO2'], true)
+                && Schema::hasTable('subject_has_student_progams')
+                && Schema::hasTable('std_prog_combo_maps')
+            ) {
+                $curriculumTable = (new ProgramWiseSemesterCourse())->getTable();
+
+                $deliveryScopeQuery = DB::table($curriculumTable . ' as ce')
+                    ->join('subject_has_student_progams as shp', 'shp.id', '=', 'ce.program_combo_refid')
+                    ->join('std_prog_combo_maps as spcm', 'spcm.student_program_id', '=', 'shp.student_program_id')
+                    ->where('ce.course_id', (int) ($courseContext['course_id'] ?? 0))
+                    ->whereRaw('UPPER(TRIM(COALESCE(ce.delivery_category, ""))) = ?', [$deliveryType]);
+
+                if (Schema::hasColumn($curriculumTable, 'batch') && (int) ($courseContext['batch_id'] ?? 0) > 0) {
+                    $deliveryScopeQuery->where('ce.batch', (int) $courseContext['batch_id']);
+                }
+
+                if (Schema::hasColumn($curriculumTable, 'semester') && (int) ($courseContext['semester_id'] ?? 0) > 0) {
+                    $deliveryScopeQuery->where('ce.semester', (int) $courseContext['semester_id']);
+                }
+
+                if (Schema::hasColumn($curriculumTable, 'is_active')) {
+                    $deliveryScopeQuery->where('ce.is_active', 1);
+                }
+
+                if (Schema::hasColumn($curriculumTable, 'deleted_at')) {
+                    $deliveryScopeQuery->whereNull('ce.deleted_at');
+                }
+
+                if (Schema::hasColumn('subject_has_student_progams', 'deleted_at')) {
+                    $deliveryScopeQuery->whereNull('shp.deleted_at');
+                }
+
+                if ($deliveryType === 'COMBO1') {
+                    $deliveryScopeQuery->whereColumn('spcm.combo_id_1', 'shp.subject_id');
+                } else {
+                    $deliveryScopeQuery->whereColumn('spcm.combo_id_2', 'shp.subject_id');
+                }
+
+                $deliveryScopedProgramIds = $deliveryScopeQuery
+                    ->pluck('shp.student_program_id')
+                    ->map(fn($id) => (int) $id)
+                    ->filter(fn($id) => $id > 0)
+                    ->unique()
+                    ->values();
+            }
+
+            if (Schema::hasTable('student_roster_rule_results')) {
+                $reasonQuery = DB::table('student_roster_rule_results as srr')
+                    ->join('student_masters as sm', 'sm.id', '=', 'srr.student_id')
+                    ->where('srr.id', '>', $decisionStartId)
+                    ->where('srr.subject_course_id', (int) ($courseContext['course_id'] ?? 0))
+                    ->where('srr.included', 0)
+                    ->select([
+                        'srr.reason_code',
+                        DB::raw('COUNT(*) as total'),
+                    ])
+                    ->groupBy('srr.reason_code')
+                    ->orderByDesc('total');
+
+                if ($deliveryScopedProgramIds->isNotEmpty()) {
+                    $reasonQuery->whereIn('sm.new_program_id', $deliveryScopedProgramIds->all());
+                }
+
+                $rosterExclusionReasons = $reasonQuery->get()->map(function ($row) {
+                    return [
+                        'reason_code' => (string) ($row->reason_code ?? 'UNKNOWN'),
+                        'total' => (int) ($row->total ?? 0),
+                    ];
+                })->values();
+
+                $rosterExcludedStudents = DB::table('student_roster_rule_results as srr')
+                    ->join('student_masters as sm', 'sm.id', '=', 'srr.student_id')
+                    ->leftJoin('student_program as sp', 'sp.id', '=', 'sm.new_program_id')
+                    ->leftJoin('academic_pathway_masters as ap', 'ap.id', '=', 'sm.academic_pathway_id')
+                    ->leftJoin('degree_track_masters as dt', 'dt.id', '=', 'sm.degree_track_id')
+                    ->leftJoin('batch_masters as bm', 'bm.id', '=', 'sm.batch')
+                    ->where('srr.id', '>', $decisionStartId)
+                    ->where('srr.subject_course_id', (int) ($courseContext['course_id'] ?? 0))
+                    ->where('srr.included', 0)
+                    ->orderBy('srr.reason_code')
+                    ->orderBy('sm.roll_no')
+                    ->select([
+                        'sm.id as student_id',
+                        'sm.roll_no',
+                        'sm.register_no',
+                        'sm.first_name',
+                        'sm.last_name',
+                        'sp.code as program_code',
+                        'sp.name as program_name',
+                        'bm.batch_name',
+                        'ap.name as pathway_name',
+                        'dt.name as degree_track_name',
+                        'srr.reason_code',
+                        'srr.reason',
+                    ])
+                    ->when($deliveryScopedProgramIds->isNotEmpty(), function ($q) use ($deliveryScopedProgramIds) {
+                        $q->whereIn('sm.new_program_id', $deliveryScopedProgramIds->all());
+                    })
+                    ->get()
+                    ->map(function ($row) {
+                        return [
+                            'student_id' => (int) ($row->student_id ?? 0),
+                            'student_name' => trim((string) ($row->first_name ?? '') . ' ' . (string) ($row->last_name ?? '')),
+                            'roll_no' => (string) ($row->roll_no ?? ''),
+                            'register_no' => (string) ($row->register_no ?? ''),
+                            'program_code' => trim((string) ($row->program_code ?? '')),
+                            'program_name' => trim((string) ($row->program_name ?? '')),
+                            'batch_name' => trim((string) ($row->batch_name ?? '')),
+                            'academic_pathway' => trim((string) ($row->pathway_name ?? '')),
+                            'degree_track' => trim((string) ($row->degree_track_name ?? '')),
+                            'reason_code' => (string) ($row->reason_code ?? 'UNKNOWN'),
+                            'reason' => (string) ($row->reason ?? ''),
+                        ];
+                    })
+                    ->values();
+            }
         }
 
         /*
@@ -1846,6 +1985,12 @@ class ITCellController extends Controller
 
                 'batches' =>
                 $batches,
+
+                'pathways' =>
+                $pathways,
+
+                'degreeTracks' =>
+                $degreeTracks,
 
                 'semesters' =>
                 $semesters,
@@ -1873,8 +2018,122 @@ class ITCellController extends Controller
 
                 'rosterContext' =>
                 $rosterContext,
+
+                'rosterExclusionReasons' =>
+                $rosterExclusionReasons,
+
+                'rosterExcludedStudents' =>
+                $rosterExcludedStudents,
             ]
         );
+    }
+
+    public function fixNoAcademicPathwayInRoster(Request $request)
+    {
+        $request->validate([
+            'student_id' => 'required|integer|exists:student_masters,id',
+            'academic_pathway_id' => 'required|integer|exists:academic_pathway_masters,id',
+            'degree_track_id' => 'nullable|integer|exists:degree_track_masters,id',
+            'batch_id' => 'nullable|integer',
+            'semester_id' => 'nullable|integer',
+            'curriculum_row_id' => 'nullable|integer',
+            'teaching_group_id' => 'nullable|integer',
+            'teaching_assignment_id' => 'nullable|integer',
+        ]);
+
+        $studentId = (int) $request->input('student_id');
+        $selectedSemesterId = (int) $request->input('semester_id', 0);
+        $semesterConfigCreated = false;
+        $pathwayId = (int) $request->input('academic_pathway_id');
+
+        $selectedPathway = AcademicPathwayMaster::query()
+            ->where('id', $pathwayId)
+            ->first(['id', 'name']);
+
+        $pathwayNameUpper = strtoupper(trim((string) ($selectedPathway->name ?? '')));
+        $isDualMajorPathway = str_contains($pathwayNameUpper, 'DUAL')
+            && str_contains($pathwayNameUpper, 'MAJOR');
+
+        $updateData = [
+            'academic_pathway_id' => $pathwayId,
+        ];
+
+        if ($isDualMajorPathway) {
+            $regularTrack = DegreeTrackMaster::query()
+                ->whereRaw('UPPER(TRIM(COALESCE(name, ""))) = ?', ['REGULAR'])
+                ->orWhereRaw('UPPER(TRIM(COALESCE(name, ""))) LIKE ?', ['%REGULAR%'])
+                ->orderByRaw('CASE WHEN UPPER(TRIM(COALESCE(name, ""))) = "REGULAR" THEN 0 ELSE 1 END')
+                ->orderBy('id')
+                ->first(['id', 'name']);
+
+            if (!$regularTrack) {
+                $errorMessage = 'Dual Major pathway requires a Regular degree track, but no Regular track was found.';
+                if ($request->ajax() || $request->expectsJson()) {
+                    return response()->json([
+                        'ok' => false,
+                        'message' => $errorMessage,
+                    ], 422);
+                }
+
+                return redirect()->back()->with('error', $errorMessage);
+            }
+
+            $updateData['degree_track_id'] = (int) $regularTrack->id;
+        } elseif ($request->filled('degree_track_id')) {
+            $updateData['degree_track_id'] = (int) $request->input('degree_track_id');
+        }
+
+        DB::transaction(function () use ($studentId, $selectedSemesterId, $updateData, &$semesterConfigCreated) {
+            StudentMaster::query()
+                ->where('id', $studentId)
+                ->update($updateData);
+
+            if ($selectedSemesterId > 0) {
+                $semesterConfigQuery = StudentSemesterConfig::query()
+                    ->where('student_id', (string) $studentId)
+                    ->where('semester_id', (string) $selectedSemesterId);
+
+                if (!$semesterConfigQuery->exists()) {
+                    StudentSemesterConfig::query()
+                        ->where('student_id', (string) $studentId)
+                        ->update(['current_semester' => 0]);
+
+                    StudentSemesterConfig::query()->create([
+                        'student_id' => (string) $studentId,
+                        'semester_id' => (string) $selectedSemesterId,
+                        'current_semester' => 1,
+                    ]);
+
+                    $semesterConfigCreated = true;
+                }
+            }
+        });
+
+        $redirectQuery = array_filter([
+            'batch_id' => (int) $request->input('batch_id', 0),
+            'semester_id' => (int) $request->input('semester_id', 0),
+            'curriculum_row_id' => (int) $request->input('curriculum_row_id', 0),
+            'teaching_group_id' => (int) $request->input('teaching_group_id', 0),
+            'teaching_assignment_id' => (int) $request->input('teaching_assignment_id', 0),
+        ], function ($value) {
+            return !is_null($value) && (int) $value > 0;
+        });
+
+        $successMessage = $semesterConfigCreated
+            ? 'Academic pathway and degree track updated. Missing semester config was added and activated. Please resolve roster again.'
+            : 'Academic pathway and degree track updated for the selected student. Please resolve roster again.';
+
+        if ($request->ajax() || $request->expectsJson()) {
+            return response()->json([
+                'ok' => true,
+                'message' => $successMessage,
+                'redirect_url' => route('itcell.student-roster-engine.index', $redirectQuery),
+            ]);
+        }
+
+        return redirect()
+            ->route('itcell.student-roster-engine.index', $redirectQuery)
+            ->with('success', $successMessage);
     }
     public function subjectProgramEnrollmentInspectorIndex(Request $request)
     {
