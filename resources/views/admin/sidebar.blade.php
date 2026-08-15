@@ -332,6 +332,15 @@ $roleType = UserHasRole::where('user_id', $userId)->value('role_name');
     </li>
 
     <li>
+      <a href="{{ route('itcell.student-roster-engine.index') }}">
+        <div class="parent-icon">
+          <i class="fas fa-users-cog"></i>
+        </div>
+        <div class="menu-title">Student Roster Engine</div>
+      </a>
+    </li>
+
+    <li>
       <a href="{{ route('itcell.lateral-entry.index') }}">
         <div class="parent-icon">
           <i class="fas fa-user-plus"></i>

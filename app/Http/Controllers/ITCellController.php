@@ -28,6 +28,7 @@ use App\Models\StudentProgram;
 use App\Models\Subject;
 use App\Models\SubjectHasStudentProgam;
 use App\Models\UserHasRole;
+use App\Services\StudentRosterEngine;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
@@ -1149,6 +1150,334 @@ class ITCellController extends Controller
         };
 
         return response()->streamDownload($callback, $filename, $headers);
+    }
+
+    public function studentRosterEngineIndex(Request $request, StudentRosterEngine $studentRosterEngine)
+    {
+        $batches = BatchMaster::query()->orderByDesc('batch_name')->get(['id', 'batch_name']);
+        $semesters = Semester::query()->orderBy('id')->get(['id', 'title']);
+
+        $selectedBatchId = max(0, (int) $request->input('batch_id', 0));
+        $selectedSemesterId = max(0, (int) $request->input('semester_id', 0));
+        $selectedCurriculumRowId = max(0, (int) $request->input('curriculum_row_id', 0));
+        $teachingGroupId = max(0, (int) $request->input('teaching_group_id', 0));
+        $teachingAssignmentId = max(0, (int) $request->input('teaching_assignment_id', 0));
+
+        $curriculumRows = collect();
+        $selectedCurriculumRow = null;
+        $resolvedRoster = collect();
+        $resolvedProgramStats = collect();
+        $dashboardProgramStats = collect();
+        $droppedRosterStudents = collect();
+        $rosterContext = [];
+
+        if ($selectedBatchId > 0) {
+            $curriculumTable = (new ProgramWiseSemesterCourse())->getTable();
+            $courseTable = (new ProgramCourseMaster())->getTable();
+
+            $curriculumQuery = DB::table($curriculumTable . ' as ce')
+                ->join($courseTable . ' as pcm', 'pcm.id', '=', 'ce.course_id')
+                ->leftJoin('batch_masters as bm', 'bm.id', '=', 'ce.batch')
+                ->leftJoin('subject_has_student_progams as shp', 'shp.id', '=', 'ce.program_combo_refid')
+                ->leftJoin('student_program as sp', 'sp.id', '=', 'shp.student_program_id')
+                ->leftJoin('academic_pathway_masters as ap', 'ap.id', '=', 'ce.academic_pathway_id')
+                ->leftJoin('degree_track_masters as dt', 'dt.id', '=', 'ce.degree_track_id')
+                ->leftJoin('subjects as od', 'od.id', '=', 'ce.offering_dept')
+                ->where('ce.batch', $selectedBatchId);
+
+            if ($selectedSemesterId > 0) {
+                $curriculumQuery->where('ce.semester', $selectedSemesterId);
+            }
+
+            if (Schema::hasColumn($curriculumTable, 'deleted_at')) {
+                $curriculumQuery->whereNull('ce.deleted_at');
+            }
+
+            if (Schema::hasColumn($curriculumTable, 'is_active')) {
+                $curriculumQuery->where('ce.is_active', 1);
+            }
+
+            if (Schema::hasColumn($courseTable, 'deleted_at')) {
+                $curriculumQuery->whereNull('pcm.deleted_at');
+            }
+
+            $curriculumRows = $curriculumQuery
+                ->select([
+                    'ce.id as curriculum_row_id',
+                    'ce.program_combo_refid',
+                    'ce.batch',
+                    'bm.batch_name',
+                    'ce.semester',
+                    'ce.course_id',
+                    'ce.offering_dept',
+                    'ce.delivery_category',
+                    'ce.course_type',
+                    'pcm.course_code',
+                    'pcm.course_title',
+                    'shp.program_type',
+                    'sp.code as program_code',
+                    'sp.name as program_name',
+                    'ap.name as pathway_name',
+                    'dt.name as degree_track_name',
+                    'od.title as offering_department_name',
+                ])
+                ->orderBy('ce.semester')
+                ->orderBy('pcm.course_code')
+                ->orderBy('ce.id')
+                ->get();
+
+            if ($selectedCurriculumRowId > 0) {
+                $selectedCurriculumRow = $curriculumRows->first(function ($row) use ($selectedCurriculumRowId) {
+                    return (int) ($row->curriculum_row_id ?? 0) === $selectedCurriculumRowId;
+                });
+
+                if (!$selectedCurriculumRow) {
+                    $selectedCurriculumRow = $curriculumQuery
+                        ->where('ce.id', $selectedCurriculumRowId)
+                        ->select([
+                            'ce.id as curriculum_row_id',
+                            'ce.program_combo_refid',
+                            'ce.batch',
+                            'bm.batch_name',
+                            'ce.semester',
+                            'ce.course_id',
+                            'ce.offering_dept',
+                            'ce.delivery_category',
+                            'ce.course_type',
+                            'pcm.course_code',
+                            'pcm.course_title',
+                            'shp.program_type',
+                            'sp.code as program_code',
+                            'sp.name as program_name',
+                            'ap.name as pathway_name',
+                            'dt.name as degree_track_name',
+                            'od.title as offering_department_name',
+                        ])
+                        ->first();
+                }
+
+                if ($selectedCurriculumRow) {
+                    $rosterContext = [
+                        'subject_id' => (int) ($selectedCurriculumRow->offering_dept ?? 0),
+                        'batch_id' => (int) ($selectedCurriculumRow->batch ?? $selectedBatchId),
+                        'semester_id' => (int) ($selectedCurriculumRow->semester ?? $selectedSemesterId),
+                        'program_type' => (string) ($selectedCurriculumRow->program_type ?? ''),
+                        'delivery_type' => (string) ($selectedCurriculumRow->delivery_category ?? ''),
+                        'selection_type' => (string) ($selectedCurriculumRow->course_type ?? ''),
+                        'teaching_group_id' => $teachingGroupId,
+                        'teaching_assignment_id' => $teachingAssignmentId,
+                    ];
+
+                    $resolvedRoster = $studentRosterEngine->getRoster(
+                        (int) ($selectedCurriculumRow->course_id ?? 0),
+                        $rosterContext
+                    )->values();
+
+                    if ($resolvedRoster->isNotEmpty()) {
+                        $resolvedProgramIds = $resolvedRoster
+                            ->pluck('program_id')
+                            ->map(fn($id) => (int) $id)
+                            ->filter(fn($id) => $id > 0)
+                            ->unique()
+                            ->values();
+
+                        $programMap = StudentProgram::query()
+                            ->whereIn('id', $resolvedProgramIds->all())
+                            ->get(['id', 'code', 'name'])
+                            ->keyBy('id');
+
+                        $resolvedProgramStats = $resolvedRoster
+                            ->groupBy(fn($student) => (int) ($student['program_id'] ?? 0))
+                            ->map(function ($students, $programId) use ($programMap) {
+                                $program = $programMap->get((int) $programId);
+                                $programCode = trim((string) (optional($program)->code ?? '')) ?: 'N/A';
+                                $programName = trim((string) (optional($program)->name ?? '')) ?: 'Unknown Program';
+
+                                return [
+                                    'program_id' => (int) $programId,
+                                    'program_code' => $programCode,
+                                    'program_name' => $programName,
+                                    'student_count' => $students->count(),
+                                ];
+                            })
+                            ->sortByDesc('student_count')
+                            ->values();
+                    }
+
+                    $selectedCourseId = (int) ($selectedCurriculumRow->course_id ?? 0);
+                    $selectedBatch = (int) ($selectedCurriculumRow->batch ?? $selectedBatchId);
+                    $selectedSemester = (int) ($selectedCurriculumRow->semester ?? $selectedSemesterId);
+
+                    $relevantCurriculumRows = $curriculumRows->filter(function ($row) use ($selectedCourseId, $selectedBatch, $selectedSemester) {
+                        return (int) ($row->course_id ?? 0) === $selectedCourseId
+                            && (int) ($row->batch ?? 0) === $selectedBatch
+                            && (int) ($row->semester ?? 0) === $selectedSemester;
+                    })->values();
+
+                    $comparisonComboIds = $relevantCurriculumRows
+                        ->pluck('program_combo_refid')
+                        ->map(fn($id) => (int) $id)
+                        ->filter(fn($id) => $id > 0)
+                        ->unique()
+                        ->values();
+
+                    if ($comparisonComboIds->isNotEmpty()) {
+                        $comparisonProgramIds = SubjectHasStudentProgam::query()
+                            ->whereIn('id', $comparisonComboIds->all())
+                            ->pluck('student_program_id')
+                            ->map(fn($id) => (int) $id)
+                            ->filter(fn($id) => $id > 0)
+                            ->unique()
+                            ->values();
+
+                        if ($comparisonProgramIds->isNotEmpty()) {
+                            $dashboardEligibleQuery = StudentMaster::query()
+                                ->where('batch', $selectedBatch)
+                                ->whereIn('new_program_id', $comparisonProgramIds->all());
+
+                            if (Schema::hasColumn('student_masters', 'is_left')) {
+                                $dashboardEligibleQuery->where('is_left', 0);
+                            }
+
+                            $dashboardEligibleStudents = $dashboardEligibleQuery
+                                ->get([
+                                    'id',
+                                    'roll_no',
+                                    'register_no',
+                                    'first_name',
+                                    'last_name',
+                                    'new_program_id',
+                                ])
+                                ->map(function ($student) {
+                                    return [
+                                        'student_id' => (int) ($student->id ?? 0),
+                                        'roll_no' => (string) ($student->roll_no ?? ''),
+                                        'register_no' => (string) ($student->register_no ?? ''),
+                                        'student_name' => trim((string) ($student->first_name ?? '') . ' ' . (string) ($student->last_name ?? '')),
+                                        'program_id' => (int) ($student->new_program_id ?? 0),
+                                    ];
+                                })
+                                ->values();
+
+                            $allProgramIds = $dashboardEligibleStudents->pluck('program_id')
+                                ->merge($resolvedRoster->pluck('program_id')->map(fn($id) => (int) $id))
+                                ->map(fn($id) => (int) $id)
+                                ->filter(fn($id) => $id > 0)
+                                ->unique()
+                                ->values();
+
+                            $programMap = StudentProgram::query()
+                                ->whereIn('id', $allProgramIds->all())
+                                ->get(['id', 'code', 'name'])
+                                ->keyBy('id');
+
+                            $resolvedCountsByProgram = $resolvedRoster
+                                ->groupBy(fn($row) => (int) ($row['program_id'] ?? 0))
+                                ->map(fn($rows) => $rows->count());
+
+                            $expectedCountsByProgram = $dashboardEligibleStudents
+                                ->groupBy(fn($row) => (int) ($row['program_id'] ?? 0))
+                                ->map(fn($rows) => $rows->count());
+
+                            $dashboardProgramStats = $allProgramIds
+                                ->map(function ($programId) use ($programMap, $expectedCountsByProgram, $resolvedCountsByProgram) {
+                                    $program = $programMap->get((int) $programId);
+                                    $expectedCount = (int) ($expectedCountsByProgram->get((int) $programId) ?? 0);
+                                    $resolvedCount = (int) ($resolvedCountsByProgram->get((int) $programId) ?? 0);
+
+                                    return [
+                                        'program_id' => (int) $programId,
+                                        'program_code' => trim((string) (optional($program)->code ?? '')) ?: 'N/A',
+                                        'program_name' => trim((string) (optional($program)->name ?? '')) ?: 'Unknown Program',
+                                        'dashboard_count' => $expectedCount,
+                                        'roster_count' => $resolvedCount,
+                                        'dropped_count' => max(0, $expectedCount - $resolvedCount),
+                                    ];
+                                })
+                                ->sortByDesc('dashboard_count')
+                                ->values();
+
+                            $resolvedStudentIds = $resolvedRoster
+                                ->pluck('student_id')
+                                ->map(fn($id) => (int) $id)
+                                ->filter(fn($id) => $id > 0)
+                                ->unique();
+
+                            $droppedRows = $dashboardEligibleStudents
+                                ->filter(fn($student) => !$resolvedStudentIds->contains((int) ($student['student_id'] ?? 0)))
+                                ->values();
+
+                            $droppedStudentIds = $droppedRows
+                                ->pluck('student_id')
+                                ->map(fn($id) => (int) $id)
+                                ->filter(fn($id) => $id > 0)
+                                ->unique()
+                                ->values();
+
+                            $hasEnrollmentIds = collect();
+                            if ($droppedStudentIds->isNotEmpty() && $selectedCourseId > 0 && $selectedSemester > 0) {
+                                $enrollmentQuery = StudentCourseInfo::query()
+                                    ->whereIn('student_id', $droppedStudentIds->all())
+                                    ->where('course_id', $selectedCourseId)
+                                    ->where('semester', $selectedSemester);
+
+                                if (Schema::hasColumn('student_course_infos', 'is_deleted')) {
+                                    $enrollmentQuery->where('is_deleted', 0);
+                                }
+
+                                $hasEnrollmentIds = $enrollmentQuery
+                                    ->pluck('student_id')
+                                    ->map(fn($id) => (int) $id)
+                                    ->filter(fn($id) => $id > 0)
+                                    ->unique()
+                                    ->values();
+                            }
+
+                            $droppedRosterStudents = $droppedRows
+                                ->map(function ($student) use ($programMap, $hasEnrollmentIds) {
+                                    $studentId = (int) ($student['student_id'] ?? 0);
+                                    $programId = (int) ($student['program_id'] ?? 0);
+                                    $program = $programMap->get($programId);
+                                    $hasEnrollment = $hasEnrollmentIds->contains($studentId);
+
+                                    return [
+                                        'student_id' => $studentId,
+                                        'roll_no' => (string) ($student['roll_no'] ?? ''),
+                                        'register_no' => (string) ($student['register_no'] ?? ''),
+                                        'student_name' => (string) ($student['student_name'] ?? ''),
+                                        'program_id' => $programId,
+                                        'program_code' => trim((string) (optional($program)->code ?? '')) ?: 'N/A',
+                                        'program_name' => trim((string) (optional($program)->name ?? '')) ?: 'Unknown Program',
+                                        'has_course_enrollment' => $hasEnrollment,
+                                        'proof_note' => $hasEnrollment
+                                            ? 'Dropped by roster rule after enrollment match'
+                                            : 'Missing student_course_infos entry for selected course+semester',
+                                    ];
+                                })
+                                ->sortBy('program_code')
+                                ->values();
+                        }
+                    }
+                }
+            }
+        }
+
+        return view('admin.itcell.student-roster-engine', [
+            'batches' => $batches,
+            'semesters' => $semesters,
+            'selectedBatchId' => $selectedBatchId,
+            'selectedSemesterId' => $selectedSemesterId,
+            'selectedCurriculumRowId' => $selectedCurriculumRowId,
+            'teachingGroupId' => $teachingGroupId,
+            'teachingAssignmentId' => $teachingAssignmentId,
+            'curriculumRows' => $curriculumRows,
+            'selectedCurriculumRow' => $selectedCurriculumRow,
+            'resolvedRoster' => $resolvedRoster,
+            'resolvedProgramStats' => $resolvedProgramStats,
+            'dashboardProgramStats' => $dashboardProgramStats,
+            'droppedRosterStudents' => $droppedRosterStudents,
+            'rosterContext' => $rosterContext,
+        ]);
     }
 
     private function resolveOfferedMdcCoursesForBatchSemester(int $batchId, int $semesterId, int $programId = 0, int $campusId = 0): array

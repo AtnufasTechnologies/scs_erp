@@ -133,6 +133,7 @@ Route::group(['prefix' => '/erp'], function () {
         Route::get('student/subjects/by-campus', [AdminController::class, 'fetchSubjectsByCampus'])->name('admin.student.subjects-by-campus');
         Route::get('student/enrolled-programs/by-batch-subject', [AdminController::class, 'fetchEnrolledProgramsByBatchAndSubject'])->name('admin.student.enrolled-programs');
         Route::put('{id}/std-update', [AdminController::class, 'stdUpdate'])->name('admin.student.update');
+        Route::put('{id}/std-semester-update', [AdminController::class, 'stdSemesterUpdate'])->name('admin.student.semester.update');
         Route::post('{studentId}/courses', [AdminController::class, 'stdCourseStore'])->name('admin.student.courses.store');
         Route::put('{studentId}/courses/{sciId}', [AdminController::class, 'stdCourseUpdate'])->name('admin.student.courses.update');
         Route::delete('{studentId}/courses/{sciId}', [AdminController::class, 'stdCourseDestroy'])->name('admin.student.courses.destroy');
@@ -152,6 +153,7 @@ Route::group(['prefix' => '/erp'], function () {
         Route::get('itcell/student-mdc-selection', [ITCellController::class, 'studentMdcSelectionIndex'])->name('itcell.student-mdc-selection.index');
         Route::get('itcell/student-mdc-selection/export', [ITCellController::class, 'studentMdcSelectionExport'])->name('itcell.student-mdc-selection.export');
         Route::post('itcell/student-mdc-selection', [ITCellController::class, 'studentMdcSelectionStore'])->name('itcell.student-mdc-selection.store');
+        Route::get('itcell/student-roster-engine', [ITCellController::class, 'studentRosterEngineIndex'])->name('itcell.student-roster-engine.index');
         Route::get('itcell/lateral-entry', [ITCellController::class, 'lateralEntryIndex'])->name('itcell.lateral-entry.index');
         Route::get('itcell/lateral-entry/programs', [ITCellController::class, 'getProgramsForLateralEntry'])->name('itcell.lateral-entry.programs');
         Route::get('itcell/lateral-entry/application-data', [ITCellController::class, 'getLateralEntryApplicationData'])->name('itcell.lateral-entry.application-data');

@@ -36,7 +36,10 @@
 
       <section class="about-me card">
         <h3>👋 About Me</h3>
-        <p><i>Wish me on</i> <b>{{date('d M Y',strtotime($data->dob))}} </b></p>
+        @php
+        $dobTs = !empty($data->dob) ? strtotime((string) $data->dob) : false;
+        @endphp
+        <p><i>Wish me on</i> <b>{{ $dobTs ? date('d M Y', $dobTs) : '—' }} </b></p>
         <p>Gender <strong>{{$data->gender == '1' ? 'Male' :'Female'}}</strong> </p>
         <p><strong class="text-capitalize">{{$data->religionmaster != null ? $data->religionmaster->name : ''}}</strong> by Faith </p>
         <p>I'm a {{$data->current_year}}year {{$data->programgroup->programInfo->name}} student from the department of {{$data->deptmaster->name}}.

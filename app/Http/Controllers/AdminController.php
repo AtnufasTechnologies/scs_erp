@@ -47,6 +47,7 @@ use App\Models\ExamSystem\Result;
 use App\Models\Quote;
 use App\Models\StudentProgram;
 use App\Models\StudentProgramTypeMaster;
+use App\Models\StudentSemesterConfig;
 use App\Models\User;
 use App\Models\UserCampusSetting;
 use App\Models\UserHasPermission;
@@ -197,7 +198,7 @@ class AdminController extends Controller
 
         // Add active semester information to each student from student_semester_configs
         foreach ($students as $student) {
-            $student->current_semester = $student->activeSemesterConfig->semester_id ?? null;
+            $student->current_semester = $student->activeSemesterConfig?->semester_id;
         }
 
         if ($request->ajax()) {
@@ -229,7 +230,8 @@ class AdminController extends Controller
             'academicpathway',
             'degreetrack',
             'singleselection',
-            'subjectmaster'
+            'subjectmaster',
+            'activeSemesterConfig'
         ])->firstOrFail();
         $studentCourses = StudentCourseInfo::with([
             'coursemaster'
@@ -887,6 +889,7 @@ class AdminController extends Controller
             'register_no'           => 'nullable|string|max:100',
             'university_register_no' => 'nullable|string|max:100',
             'current_year'          => 'nullable|integer|min:1|max:6',
+            'semester_id'           => 'nullable|integer|exists:semesters,id',
             'admission_date'        => 'nullable|date',
             'graduation_year'       => 'nullable|integer',
             'status'                => 'nullable|string|max:50',
@@ -928,6 +931,31 @@ class AdminController extends Controller
 
         $student->update($validated);
 
+        $selectedSemesterId = (int) $request->input('semester_id', 0);
+        if ($selectedSemesterId > 0) {
+            DB::transaction(function () use ($student, $selectedSemesterId) {
+                StudentSemesterConfig::query()
+                    ->where('student_id', (int) $student->id)
+                    ->update(['current_semester' => 0]);
+
+                StudentSemesterConfig::query()->updateOrCreate(
+                    [
+                        'student_id' => (int) $student->id,
+                        'semester_id' => $selectedSemesterId,
+                    ],
+                    [
+                        'current_semester' => 1,
+                    ]
+                );
+
+                if (Schema::hasColumn('exam_students', 'current_semester')) {
+                    ExamStudent::query()
+                        ->where('erp_student_id', (int) $student->id)
+                        ->update(['current_semester' => $selectedSemesterId]);
+                }
+            });
+        }
+
         if ($request->boolean('mark_left_deactivate')) {
             if (Schema::hasColumn($student->getTable(), 'is_active')) {
                 $student->is_active = 0;
@@ -941,6 +969,47 @@ class AdminController extends Controller
 
         return redirect()->route('admin.student.profile', ['id' => $id, 'rollno' => $student->roll_no])
             ->with('success', 'Student details updated successfully.');
+    }
+
+    /**
+     * Manually update active semester for a student profile.
+     */
+    function stdSemesterUpdate(Request $request, $id)
+    {
+        $student = StudentMaster::findOrFail($id);
+
+        $validated = $request->validate([
+            'semester_id' => 'required|integer|exists:semesters,id',
+        ]);
+
+        $semesterId = (int) $validated['semester_id'];
+
+        DB::transaction(function () use ($student, $semesterId) {
+            StudentSemesterConfig::query()
+                ->where('student_id', (int) $student->id)
+                ->update(['current_semester' => 0]);
+
+            StudentSemesterConfig::query()->updateOrCreate(
+                [
+                    'student_id' => (int) $student->id,
+                    'semester_id' => $semesterId,
+                ],
+                [
+                    'current_semester' => 1,
+                ]
+            );
+
+            // Keep exam profile semester in sync where applicable.
+            if (Schema::hasColumn('exam_students', 'current_semester')) {
+                ExamStudent::query()
+                    ->where('erp_student_id', (int) $student->id)
+                    ->update(['current_semester' => $semesterId]);
+            }
+        });
+
+        return redirect()
+            ->route('admin.student.profile', ['id' => $id, 'rollno' => $student->roll_no])
+            ->with('success', 'Student semester updated successfully.');
     }
 
     function fetchEnrolledProgramsByBatchAndSubject(Request $request)
