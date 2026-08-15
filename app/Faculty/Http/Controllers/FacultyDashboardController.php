@@ -21,6 +21,7 @@ use App\Models\SyllabusManager;
 use App\Models\SyllabusSubunit;
 use App\Models\UserHasRole;
 use App\Models\WorkDiary;
+use App\Services\StudentRosterEngine;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Schema;
@@ -28,6 +29,13 @@ use Illuminate\Support\Facades\Storage;
 
 class FacultyDashboardController extends Controller
 {
+  private StudentRosterEngine $studentRosterEngine;
+
+  public function __construct(StudentRosterEngine $studentRosterEngine)
+  {
+    $this->studentRosterEngine = $studentRosterEngine;
+  }
+
   public function index()
   {
     $userId = Auth::user()->id;
@@ -519,6 +527,11 @@ class FacultyDashboardController extends Controller
     $requestedProgramType = strtoupper(trim((string) $request->query('program_type', 'ALL')));
     $programType = in_array($requestedProgramType, ['UG', 'PG', 'ALL'], true) ? $requestedProgramType : 'ALL';
 
+    $routineSelectColumns = ['syllabus_id', 'shift', 'teaching_group_id', 'teaching_assignment_id'];
+    if ($hasTeachingAllocationLink) {
+      $routineSelectColumns[] = 'teaching_allocation_id';
+    }
+
     $assignedRoutines = SubjectHasRoutine::where(function ($query) use ($facultyId) {
       $query->where('faculty_id', $facultyId)
         ->orWhereHas('teachingAssignment', function ($assignmentQuery) use ($facultyId) {
@@ -543,7 +556,7 @@ class FacultyDashboardController extends Controller
         });
       })
       ->whereNotNull('syllabus_id')
-      ->get(['syllabus_id', 'shift']);
+      ->get($routineSelectColumns);
 
     $syllabusShiftMap = $assignedRoutines
       ->groupBy('syllabus_id')
@@ -554,6 +567,16 @@ class FacultyDashboardController extends Controller
           ->filter()
           ->unique()
           ->values();
+      });
+
+    $syllabusContextMap = $assignedRoutines
+      ->groupBy('syllabus_id')
+      ->map(function ($rows) {
+        $first = $rows->first();
+        return [
+          'teaching_group_id' => (int) ($first->teaching_group_id ?? 0),
+          'teaching_assignment_id' => (int) (($first->teaching_assignment_id ?? 0) ?: ($first->teaching_allocation_id ?? 0)),
+        ];
       });
 
     $assignedSyllabusIds = $assignedRoutines
@@ -614,7 +637,7 @@ class FacultyDashboardController extends Controller
     $data = collect($subjectsPaginator->items());
 
     // Load all syllabus managers (CSOs) with their units for each subject
-    $data->each(function ($syllabus) use ($syllabusShiftMap) {
+    $data->each(function ($syllabus) use ($syllabusShiftMap, $syllabusContextMap) {
       $courseId = (int) ($syllabus->course_id ?? 0);
       $assignedShifts = collect($syllabusShiftMap->get((int) $syllabus->id, []))
         ->map(fn($shift) => strtolower(trim((string) $shift)))
@@ -692,6 +715,36 @@ class FacultyDashboardController extends Controller
         ->flatten(1)
         ->unique('id')
         ->values();
+
+      $syllabusContext = (array) ($syllabusContextMap->get((int) $syllabus->id, []) ?? []);
+      $roster = collect();
+
+      if ($courseId > 0) {
+        $roster = $this->studentRosterEngine->getRoster($courseId, [
+          'subject_id' => (int) ($syllabus->subject_id ?? 0),
+          'batch_id' => (int) ($syllabus->batch_id ?? 0),
+          'semester_id' => (int) ($syllabus->semester_id ?? 0),
+          'program_type' => (string) ($syllabus->program_type ?? ''),
+          'teaching_group_id' => (int) ($syllabusContext['teaching_group_id'] ?? 0),
+          'teaching_assignment_id' => (int) ($syllabusContext['teaching_assignment_id'] ?? 0),
+        ]);
+      }
+
+      $syllabus->roster_students = $roster
+        ->map(function ($row) {
+          return [
+            'student_id' => (int) ($row['student_id'] ?? 0),
+            'roll_no' => (string) ($row['roll_no'] ?? ''),
+            'register_no' => (string) ($row['register_no'] ?? ''),
+            'student_name' => (string) ($row['student_name'] ?? ''),
+            'program_id' => (int) ($row['program_id'] ?? 0),
+            'batch_id' => (int) ($row['batch_id'] ?? 0),
+            'semester_id' => (int) ($row['semester_id'] ?? 0),
+          ];
+        })
+        ->values();
+
+      $syllabus->roster_count = (int) $syllabus->roster_students->count();
     });
 
     // Group by semester first, then batch.
