@@ -341,6 +341,15 @@ $roleType = UserHasRole::where('user_id', $userId)->value('role_name');
     </li>
 
     <li>
+      <a href="{{ route('itcell.subject-program-enrollment-inspector.index') }}">
+        <div class="parent-icon">
+          <i class="fas fa-analytics"></i>
+        </div>
+        <div class="menu-title">Subject Program Enrollment Inspector</div>
+      </a>
+    </li>
+
+    <li>
       <a href="{{ route('itcell.lateral-entry.index') }}">
         <div class="parent-icon">
           <i class="fas fa-user-plus"></i>

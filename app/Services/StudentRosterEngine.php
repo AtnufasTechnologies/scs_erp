@@ -220,13 +220,27 @@ class StudentRosterEngine
         return null;
       }
 
-      $matchingRows = $curriculumRows->filter(function ($row) use ($eligibleComboIds, $semesterId, $student, $studentSpecs, $forceDualMajor) {
+      $matchingRows = $curriculumRows->filter(function ($row) use ($eligibleComboIds, $semesterId, $student, $studentSpecs, $forceDualMajor, $context) {
         if (!$eligibleComboIds->contains((int) ($row->program_combo_refid ?? 0))) {
           return false;
         }
 
         if ((int) ($row->semester ?? 0) !== $semesterId) {
           return false;
+        }
+
+        if (!empty($context['delivery_explicit'])) {
+          $rowDelivery = $this->normalizeDeliveryType((string) ($row->delivery_category ?? ''));
+          if ($rowDelivery !== (string) ($context['delivery_type'] ?? '')) {
+            return false;
+          }
+        }
+
+        if (!empty($context['selection_explicit'])) {
+          $rowSelection = $this->normalizeSelectionType((string) ($row->course_type ?? ''));
+          if ($rowSelection !== (string) ($context['selection_type'] ?? '')) {
+            return false;
+          }
         }
 
         if (!$forceDualMajor) {
@@ -416,6 +430,8 @@ class StudentRosterEngine
   {
     $teachingAssignmentId = (int) ($context['teaching_assignment_id'] ?? 0);
     $teachingGroupId = (int) ($context['teaching_group_id'] ?? 0);
+    $rawDelivery = trim((string) ($context['delivery_type'] ?? ''));
+    $rawSelection = trim((string) ($context['selection_type'] ?? ''));
 
     if ($teachingGroupId <= 0 && $teachingAssignmentId > 0) {
       $assignment = TeachingAssignment::query()->find($teachingAssignmentId, ['id', 'allocation_group']);
@@ -429,6 +445,8 @@ class StudentRosterEngine
       'program_type' => strtoupper(trim((string) ($context['program_type'] ?? ''))),
       'delivery_type' => $this->normalizeDeliveryType((string) ($context['delivery_type'] ?? '')),
       'selection_type' => $this->normalizeSelectionType((string) ($context['selection_type'] ?? '')),
+      'delivery_explicit' => $rawDelivery !== '',
+      'selection_explicit' => $rawSelection !== '',
       'teaching_group_id' => $teachingGroupId,
       'teaching_assignment_id' => $teachingAssignmentId,
     ];
@@ -546,8 +564,8 @@ class StudentRosterEngine
   ): bool {
     if ($deliveryType === ProgramWiseSemesterCourse::DELIVERY_MAJOR_COMBO1) {
       if ($isDual) {
-        // Dual-major students should not be rejected by COMBO1 delivery gating.
-        return true;
+        // For dual-major, COMBO1 rows must still map to student's chosen/derived major.
+        return $combo1 > 0 && $singleMajorSubjectId > 0 && $singleMajorSubjectId === $combo1;
       }
 
       return $combo1 > 0 && $singleMajorSubjectId > 0 && $singleMajorSubjectId === $combo1;
@@ -555,8 +573,8 @@ class StudentRosterEngine
 
     if ($deliveryType === ProgramWiseSemesterCourse::DELIVERY_MAJOR_COMBO2) {
       if ($isDual) {
-        // Dual-major students should not be rejected by COMBO2 delivery gating.
-        return true;
+        // For dual-major, COMBO2 rows must still map to student's chosen/derived major.
+        return $combo2 > 0 && $singleMajorSubjectId > 0 && $singleMajorSubjectId === $combo2;
       }
 
       return $combo2 > 0 && $singleMajorSubjectId > 0 && $singleMajorSubjectId === $combo2;

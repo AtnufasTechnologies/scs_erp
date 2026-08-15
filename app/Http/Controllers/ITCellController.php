@@ -1480,6 +1480,283 @@ class ITCellController extends Controller
         ]);
     }
 
+    public function subjectProgramEnrollmentInspectorIndex(Request $request)
+    {
+        $batches = BatchMaster::query()->orderByDesc('batch_name')->get(['id', 'batch_name']);
+        $departmentsQuery = DB::table('subjects as sub')
+            ->select(['sub.id', 'sub.title', 'sub.code']);
+
+        if (Schema::hasColumn('subjects', 'deleted_at')) {
+            $departmentsQuery->whereNull('sub.deleted_at');
+        }
+
+        if (Schema::hasColumn('subjects', 'campus_id') && Schema::hasTable('campuses')) {
+            $departmentsQuery
+                ->leftJoin('campuses as campus', 'campus.id', '=', 'sub.campus_id')
+                ->addSelect('campus.name as campus_name');
+        }
+
+        $departments = $departmentsQuery
+            ->orderBy('sub.title')
+            ->get();
+
+        $selectedBatchId = max(0, (int) $request->input('batch_id', 0));
+        $selectedDepartmentId = max(0, (int) $request->input('department_id', 0));
+
+        $combinationRows = collect();
+        $programSummaryRows = collect();
+        $selectedDepartmentComboInsights = null;
+        $totalEnrolledStudents = 0;
+        $enrollmentByProgram = collect();
+
+        if ($selectedBatchId > 0) {
+            $curriculumTable = (new ProgramWiseSemesterCourse())->getTable();
+
+            $comboQuery = DB::table('subject_has_student_progams as shp')
+                ->join('subjects as sub', 'sub.id', '=', 'shp.subject_id')
+                ->join('student_program as sp', 'sp.id', '=', 'shp.student_program_id')
+                ->where('shp.batch_id', $selectedBatchId);
+
+            if (Schema::hasColumn('subjects', 'campus_id') && Schema::hasTable('campuses')) {
+                $comboQuery->leftJoin('campuses as campus', 'campus.id', '=', 'sub.campus_id');
+            }
+
+            if ($selectedDepartmentId > 0) {
+                $comboQuery->where('shp.subject_id', $selectedDepartmentId);
+            }
+
+            if (Schema::hasColumn('subject_has_student_progams', 'deleted_at')) {
+                $comboQuery->whereNull('shp.deleted_at');
+            }
+
+            if (Schema::hasTable($curriculumTable)) {
+                $comboQuery->leftJoin($curriculumTable . ' as ce', function ($join) use ($selectedBatchId, $curriculumTable) {
+                    $join->on('ce.program_combo_refid', '=', 'shp.id')
+                        ->where('ce.batch', '=', $selectedBatchId);
+
+                    if (Schema::hasColumn($curriculumTable, 'deleted_at')) {
+                        $join->whereNull('ce.deleted_at');
+                    }
+
+                    if (Schema::hasColumn($curriculumTable, 'is_active')) {
+                        $join->where('ce.is_active', '=', 1);
+                    }
+                });
+            }
+
+            $combo1Aliases = [
+                ProgramWiseSemesterCourse::DELIVERY_MAJOR_COMBO1,
+                'CORE-A',
+                'COREA',
+                'MAJOR_COMBO1',
+                'COMBO1F',
+                'COMBO1-F',
+                'COMBO1_F',
+            ];
+            $combo2Aliases = [
+                ProgramWiseSemesterCourse::DELIVERY_MAJOR_COMBO2,
+                'CORE-B',
+                'COREB',
+                'MAJOR_COMBO2',
+                'COMBO2F',
+                'COMBO2-F',
+                'COMBO2_F',
+            ];
+
+            $combo1SqlList = "'" . implode("','", array_map(fn($v) => strtoupper(trim((string) $v)), $combo1Aliases)) . "'";
+            $combo2SqlList = "'" . implode("','", array_map(fn($v) => strtoupper(trim((string) $v)), $combo2Aliases)) . "'";
+
+            $combinationRows = $comboQuery
+                ->select([
+                    'shp.id as combo_id',
+                    'shp.subject_id as department_id',
+                    'sub.code as department_code',
+                    'sub.title as department_name',
+                    'campus.name as campus_name',
+                    'shp.student_program_id as program_id',
+                    'sp.code as program_code',
+                    'sp.name as program_name',
+                    'shp.program_type',
+                ])
+                ->selectRaw('COUNT(DISTINCT ce.id) as linked_curriculum_rows')
+                ->selectRaw("SUM(CASE WHEN UPPER(TRIM(COALESCE(ce.delivery_category, ''))) IN ($combo1SqlList) THEN 1 ELSE 0 END) as combo1_rows")
+                ->selectRaw("SUM(CASE WHEN UPPER(TRIM(COALESCE(ce.delivery_category, ''))) IN ($combo2SqlList) THEN 1 ELSE 0 END) as combo2_rows")
+                ->groupBy('shp.id', 'shp.subject_id', 'sub.code', 'sub.title', 'campus.name', 'shp.student_program_id', 'sp.code', 'sp.name', 'shp.program_type')
+                ->orderBy('sub.title')
+                ->orderBy('sp.code')
+                ->get()
+                ->map(function ($row) {
+                    $row->combo1_rows = (int) ($row->combo1_rows ?? 0);
+                    $row->combo2_rows = (int) ($row->combo2_rows ?? 0);
+                    $row->linked_curriculum_rows = (int) ($row->linked_curriculum_rows ?? 0);
+                    return $row;
+                })
+                ->values();
+
+            $programIds = $combinationRows->pluck('program_id')
+                ->map(fn($id) => (int) $id)
+                ->filter(fn($id) => $id > 0)
+                ->unique()
+                ->values();
+
+            // Batch-level enrollment map used by both COMBO1 and COMBO2 views.
+            $batchEnrollmentQuery = StudentMaster::query()->where('batch', $selectedBatchId);
+
+            if (Schema::hasColumn('student_masters', 'is_deleted')) {
+                $batchEnrollmentQuery->where('is_deleted', 0);
+            }
+
+            if (Schema::hasColumn('student_masters', 'is_left')) {
+                $batchEnrollmentQuery->where(function ($q) {
+                    $q->whereNull('is_left')->orWhere('is_left', 0);
+                });
+            }
+
+            $enrollmentByProgram = $batchEnrollmentQuery
+                ->whereNotNull('new_program_id')
+                ->selectRaw('new_program_id as program_id, COUNT(*) as students_count')
+                ->groupBy('new_program_id')
+                ->pluck('students_count', 'program_id');
+
+            $totalEnrolledStudents = (int) $enrollmentByProgram->sum();
+
+            if ($programIds->isNotEmpty()) {
+                $enrollmentQuery = StudentMaster::query()
+                    ->where('batch', $selectedBatchId)
+                    ->whereIn('new_program_id', $programIds->all());
+
+                if (Schema::hasColumn('student_masters', 'is_deleted')) {
+                    $enrollmentQuery->where('is_deleted', 0);
+                }
+
+                if (Schema::hasColumn('student_masters', 'is_left')) {
+                    $enrollmentQuery->where(function ($q) {
+                        $q->whereNull('is_left')->orWhere('is_left', 0);
+                    });
+                }
+
+                $enrollmentBySelectedPrograms = $enrollmentQuery
+                    ->selectRaw('new_program_id as program_id, COUNT(*) as students_count')
+                    ->groupBy('new_program_id')
+                    ->pluck('students_count', 'program_id');
+
+                $programSummaryRows = $combinationRows
+                    ->groupBy(fn($row) => (int) ($row->program_id ?? 0))
+                    ->map(function ($rows, $programId) use ($enrollmentBySelectedPrograms, $totalEnrolledStudents) {
+                        $first = $rows->first();
+                        $studentsCount = (int) ($enrollmentBySelectedPrograms[(int) $programId] ?? 0);
+                        $combo1Offered = $rows->sum(fn($row) => (int) ($row->combo1_rows ?? 0));
+                        $combo2Offered = $rows->sum(fn($row) => (int) ($row->combo2_rows ?? 0));
+
+                        return [
+                            'program_id' => (int) $programId,
+                            'program_code' => (string) ($first->program_code ?? ''),
+                            'program_name' => (string) ($first->program_name ?? ''),
+                            'department_links' => $rows->pluck('department_id')->unique()->count(),
+                            'combo1_rows' => $combo1Offered,
+                            'combo2_rows' => $combo2Offered,
+                            'students_count' => $studentsCount,
+                            'enrollment_share' => $totalEnrolledStudents > 0
+                                ? round(($studentsCount / $totalEnrolledStudents) * 100, 2)
+                                : 0,
+                        ];
+                    })
+                    ->sortByDesc('students_count')
+                    ->values();
+            }
+
+            if ($selectedDepartmentId > 0) {
+                // COMBO1 source: same as department dashboard -> combinations linked by subject_id + batch.
+                $combo1Programs = $combinationRows
+                    ->groupBy(fn($row) => (int) ($row->program_id ?? 0))
+                    ->map(function ($programRows, $programId) use ($enrollmentByProgram) {
+                        $first = $programRows->first();
+                        return [
+                            'program_id' => (int) $programId,
+                            'program_code' => (string) ($first->program_code ?? ''),
+                            'program_name' => (string) ($first->program_name ?? ''),
+                            'students_count' => (int) ($enrollmentByProgram[(int) $programId] ?? 0),
+                        ];
+                    })
+                    ->sortByDesc('students_count')
+                    ->values();
+
+                // COMBO2 source: programs whose combo map has selected department in combo_id_2 for the selected batch.
+                $combo2Query = DB::table('subject_has_student_progams as shp')
+                    ->join('std_prog_combo_maps as scm', 'scm.student_program_id', '=', 'shp.student_program_id')
+                    ->join('student_program as sp', 'sp.id', '=', 'shp.student_program_id')
+                    ->where('shp.batch_id', $selectedBatchId)
+                    ->where('scm.combo_id_2', $selectedDepartmentId);
+
+                if (Schema::hasColumn('subject_has_student_progams', 'deleted_at')) {
+                    $combo2Query->whereNull('shp.deleted_at');
+                }
+
+                if (Schema::hasColumn('std_prog_combo_maps', 'deleted_at')) {
+                    $combo2Query->whereNull('scm.deleted_at');
+                }
+
+                $combo2Programs = $combo2Query
+                    ->select([
+                        'sp.id as program_id',
+                        'sp.code as program_code',
+                        'sp.name as program_name',
+                    ])
+                    ->groupBy('sp.id', 'sp.code', 'sp.name')
+                    ->orderBy('sp.code')
+                    ->get()
+                    ->map(function ($row) use ($enrollmentByProgram) {
+                        return [
+                            'program_id' => (int) ($row->program_id ?? 0),
+                            'program_code' => (string) ($row->program_code ?? ''),
+                            'program_name' => (string) ($row->program_name ?? ''),
+                            'students_count' => (int) ($enrollmentByProgram[(int) ($row->program_id ?? 0)] ?? 0),
+                        ];
+                    })
+                    ->sortByDesc('students_count')
+                    ->values();
+
+                $selectedDepartment = $departments->firstWhere('id', $selectedDepartmentId);
+                $selectedBatchName = (string) optional($batches->firstWhere('id', $selectedBatchId))->batch_name;
+
+                $combo1TotalStudents = (int) $combo1Programs->sum(fn($row) => (int) ($row['students_count'] ?? 0));
+                $combo2TotalStudents = (int) $combo2Programs->sum(fn($row) => (int) ($row['students_count'] ?? 0));
+
+                $uniqueProgramIds = $combo1Programs
+                    ->pluck('program_id')
+                    ->merge($combo2Programs->pluck('program_id'))
+                    ->map(fn($id) => (int) $id)
+                    ->filter(fn($id) => $id > 0)
+                    ->unique()
+                    ->values();
+
+                $uniqueTotalStudents = (int) $uniqueProgramIds
+                    ->sum(fn($programId) => (int) ($enrollmentByProgram[(int) $programId] ?? 0));
+
+                $selectedDepartmentComboInsights = [
+                    'department_name' => (string) ($selectedDepartment->title ?? $combinationRows->first()->department_name ?? ''),
+                    'batch_name' => $selectedBatchName,
+                    'combo1_programs' => $combo1Programs,
+                    'combo2_programs' => $combo2Programs,
+                    'combo1_total_students' => $combo1TotalStudents,
+                    'combo2_total_students' => $combo2TotalStudents,
+                    'unique_total_students' => $uniqueTotalStudents,
+                ];
+            }
+        }
+
+        return view('admin.itcell.subject-program-enrollment-inspector', [
+            'batches' => $batches,
+            'departments' => $departments,
+            'selectedBatchId' => $selectedBatchId,
+            'selectedDepartmentId' => $selectedDepartmentId,
+            'combinationRows' => $combinationRows,
+            'programSummaryRows' => $programSummaryRows,
+            'selectedDepartmentComboInsights' => $selectedDepartmentComboInsights,
+            'totalEnrolledStudents' => $totalEnrolledStudents,
+        ]);
+    }
+
     private function resolveOfferedMdcCoursesForBatchSemester(int $batchId, int $semesterId, int $programId = 0, int $campusId = 0): array
     {
         if ($batchId <= 0 || $semesterId <= 0 || !Schema::hasTable('curriculam_engine')) {
