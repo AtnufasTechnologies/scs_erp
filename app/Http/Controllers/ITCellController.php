@@ -1590,6 +1590,20 @@ class ITCellController extends Controller
                 )
 
                 ->leftJoin(
+                    'batch_masters as bm',
+                    'bm.id',
+                    '=',
+                    'ce.batch'
+                )
+
+                ->leftJoin(
+                    'subject_type_masters as stm',
+                    'stm.id',
+                    '=',
+                    'pcm.course_type'
+                )
+
+                ->leftJoin(
                     'subject_has_student_progams as shp',
                     'shp.id',
                     '=',
@@ -1668,6 +1682,9 @@ class ITCellController extends Controller
 
                     'pcm.course_code',
                     'pcm.course_title',
+                    'stm.title as course_type_name',
+
+                    'bm.batch_name',
 
                     'shp.program_type',
 

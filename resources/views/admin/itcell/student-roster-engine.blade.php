@@ -128,11 +128,12 @@
             <tr>
               <th style="width: 70px;">Use</th>
               <th>Course</th>
-              <th>Batch Name</th>
+              <th>Course Type</th>
               <th>Batch</th>
               <th>Semester</th>
               <th>Delivery</th>
               <th>Selection</th>
+
               <th>Program Code</th>
               <th>Program Name</th>
               <th>Program Type</th>
@@ -148,15 +149,17 @@
               <td class="text-center">
                 <input type="radio" name="curriculum_row_id" value="{{ $rowId }}" {{ (int) $selectedCurriculumRowId === $rowId ? 'checked' : '' }} required>
               </td>
+
               <td>
                 <strong>{{ $row->course_code ?? 'N/A' }}</strong>
                 <div class="small text-muted">{{ $row->course_title ?? 'Untitled course' }}</div>
               </td>
-              <td>{{ $row->batch_name ?? '-' }}</td>
+              <td>{{ trim((string) ($row->course_type_name ?? '')) !== '' ? $row->course_type_name : strtoupper((string) ($row->course_type ?? '-')) }}</td>
+
               <td>{{ $row->batch_name ?? '-' }}</td>
               <td>{{ $row->semester ?? '-' }}</td>
-              <td><span class="badge bg-info text-dark">{{ strtoupper((string) ($row->delivery_category ?? 'COMMON')) }}</span></td>
-              <td><span class="badge bg-warning text-dark">{{ strtoupper((string) ($row->course_type ?? 'AUTO')) }}</span></td>
+              <td><span class="badge badge-warning">{{ strtoupper((string) ($row->delivery_category ?? 'COMMON')) }}</span></td>
+              <td>{{ strtoupper((string) ($row->course_type ?? 'AUTO')) }}</td>
               <td>{{ $row->program_code ?? '-' }}</td>
               <td>{{ $row->program_name ?? '-' }}</td>
 
@@ -196,6 +199,7 @@
       <div class="col-md-2"><strong>Semester:</strong> {{ $rosterContext['semester_id'] ?? '-' }}</div>
       <div class="col-md-2"><strong>Delivery:</strong> {{ strtoupper((string) ($rosterContext['delivery_type'] ?? '')) }}</div>
       <div class="col-md-2"><strong>Selection:</strong> {{ strtoupper((string) ($rosterContext['selection_type'] ?? '')) }}</div>
+      <div class="col-md-3"><strong>Course Type:</strong> {{ trim((string) ($selectedCurriculumRow->course_type_name ?? '')) !== '' ? $selectedCurriculumRow->course_type_name : strtoupper((string) ($selectedCurriculumRow->course_type ?? '-')) }}</div>
       <div class="col-md-12"><strong>Program Source:</strong> {{ $selectedCurriculumRow->program_name ?? '-' }} ({{ $selectedCurriculumRow->program_code ?? '-' }})</div>
     </div>
   </div>
