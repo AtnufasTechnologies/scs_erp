@@ -22,6 +22,8 @@ use App\Models\ReligionMaster;
 use App\Models\Semester;
 use App\Models\StudentCourseInfo;
 use App\Models\StudentCampusTransferLog;
+use App\Models\StudentRosterRuleMapping;
+use App\Models\StudentRosterRuleMaster;
 use App\Models\StudentSemesterConfig;
 use App\Models\StudentMaster;
 use App\Models\StudentProgram;
@@ -1150,6 +1152,178 @@ class ITCellController extends Controller
         };
 
         return response()->streamDownload($callback, $filename, $headers);
+    }
+
+    public function studentRosterRulesIndex()
+    {
+        if (!Schema::hasTable('student_roster_rule_masters') || !Schema::hasTable('student_roster_rule_mappings')) {
+            return back()->with('error', 'Roster rule tables are missing. Please run migrations first.');
+        }
+
+        $ruleMasters = StudentRosterRuleMaster::query()
+            ->orderBy('rule_code')
+            ->get(['id', 'rule_code', 'rule_name', 'is_active']);
+
+        $pathways = AcademicPathwayMaster::query()
+            ->orderBy('name')
+            ->get(['id', 'name']);
+
+        $degreeTracks = DegreeTrackMaster::query()
+            ->orderBy('name')
+            ->get(['id', 'name']);
+
+        $mappings = StudentRosterRuleMapping::query()
+            ->with([
+                'rule:id,rule_code,rule_name',
+                'academicPathway:id,name',
+                'degreeTrack:id,name',
+            ])
+            ->orderBy('priority')
+            ->orderBy('id')
+            ->get();
+
+        return view('admin.itcell.student-roster-rules', [
+            'ruleMasters' => $ruleMasters,
+            'pathways' => $pathways,
+            'degreeTracks' => $degreeTracks,
+            'mappings' => $mappings,
+            'deliveryTypeOptions' => [
+                'COMBO1',
+                'COMBO2',
+                'MDC',
+                'AEC',
+                'SEC',
+                'VAC',
+                'COMMON',
+            ],
+            'selectionTypeOptions' => [
+                'AUTO',
+                'STUDENT_CHOICE',
+                'DEPARTMENT_CHOICE',
+            ],
+            'rosterSourceOptions' => [
+                'COMBO1',
+                'COMBO2',
+                'STUDENT_SELECTION',
+                'CURRICULUM',
+                'TEACHING_GROUP',
+            ],
+            'semesterScopeOptions' => [
+                'SAME',
+                'ANY',
+            ],
+            'batchScopeOptions' => [
+                'SAME',
+                'ANY',
+            ],
+            'programScopeOptions' => [
+                'MULTIPLE',
+                'ANY',
+            ],
+            'specializationScopeOptions' => [
+                'ANY',
+                'SAME',
+                'MAPPED',
+            ],
+            'majorRestrictionOptions' => [
+                'NONE',
+                'EXCLUDE_MAJOR_DEPARTMENTS',
+            ],
+        ]);
+    }
+
+    public function studentRosterRulesStore(Request $request)
+    {
+        if (!Schema::hasTable('student_roster_rule_mappings')) {
+            return back()->with('error', 'Roster rule mappings table is missing. Please run migrations first.');
+        }
+
+        $payload = $this->validateStudentRosterRulePayload($request);
+        StudentRosterRuleMapping::query()->create($payload);
+
+        return redirect()
+            ->route('itcell.student-roster-rules.index')
+            ->with('success', 'Student roster rule mapping created successfully.');
+    }
+
+    public function studentRosterRulesUpdate(Request $request, int $id)
+    {
+        if (!Schema::hasTable('student_roster_rule_mappings')) {
+            return back()->with('error', 'Roster rule mappings table is missing. Please run migrations first.');
+        }
+
+        $mapping = StudentRosterRuleMapping::query()->find($id);
+        if (!$mapping) {
+            return back()->with('error', 'Student roster rule mapping not found.');
+        }
+
+        $payload = $this->validateStudentRosterRulePayload($request);
+        $mapping->update($payload);
+
+        return redirect()
+            ->route('itcell.student-roster-rules.index')
+            ->with('success', 'Student roster rule mapping updated successfully.');
+    }
+
+    public function studentRosterRulesDestroy(int $id)
+    {
+        if (!Schema::hasTable('student_roster_rule_mappings')) {
+            return back()->with('error', 'Roster rule mappings table is missing. Please run migrations first.');
+        }
+
+        $mapping = StudentRosterRuleMapping::query()->find($id);
+        if (!$mapping) {
+            return back()->with('error', 'Student roster rule mapping not found.');
+        }
+
+        $mapping->delete();
+
+        return redirect()
+            ->route('itcell.student-roster-rules.index')
+            ->with('success', 'Student roster rule mapping deleted successfully.');
+    }
+
+    private function validateStudentRosterRulePayload(Request $request): array
+    {
+        $validated = $request->validate([
+            'rule_id' => ['required', 'integer', 'exists:student_roster_rule_masters,id'],
+            'academic_pathway_id' => ['required', 'integer', 'exists:academic_pathway_masters,id'],
+            'degree_track_id' => ['nullable', 'integer', 'exists:degree_track_masters,id'],
+            'delivery_type' => ['required', 'string', Rule::in(['COMBO1', 'COMBO2', 'MDC', 'AEC', 'SEC', 'VAC', 'COMMON'])],
+            'selection_type' => ['nullable', 'string', Rule::in(['AUTO', 'STUDENT_CHOICE', 'DEPARTMENT_CHOICE'])],
+            'roster_source' => ['required', 'string', Rule::in(['COMBO1', 'COMBO2', 'STUDENT_SELECTION', 'CURRICULUM', 'TEACHING_GROUP'])],
+            'semester_scope' => ['required', 'string', Rule::in(['SAME', 'ANY'])],
+            'batch_scope' => ['required', 'string', Rule::in(['SAME', 'ANY'])],
+            'program_scope' => ['required', 'string', Rule::in(['MULTIPLE', 'ANY'])],
+            'specialization_scope' => ['required', 'string', Rule::in(['ANY', 'SAME', 'MAPPED'])],
+            'major_restriction' => ['required', 'string', Rule::in(['NONE', 'EXCLUDE_MAJOR_DEPARTMENTS'])],
+            'student_selection_required' => ['required', 'in:0,1'],
+            'teaching_group_override' => ['required', 'in:0,1'],
+            'priority' => ['required', 'integer', 'min:1', 'max:100000'],
+            'is_active' => ['required', 'in:0,1'],
+            'notes' => ['nullable', 'string', 'max:2000'],
+        ]);
+
+        return [
+            'rule_id' => (int) $validated['rule_id'],
+            'academic_pathway_id' => (int) $validated['academic_pathway_id'],
+            'degree_track_id' => !empty($validated['degree_track_id']) ? (int) $validated['degree_track_id'] : null,
+            'delivery_type' => strtoupper(trim((string) $validated['delivery_type'])),
+            'selection_type' => isset($validated['selection_type']) && trim((string) $validated['selection_type']) !== ''
+                ? strtoupper(trim((string) $validated['selection_type']))
+                : null,
+            'roster_source' => strtoupper(trim((string) $validated['roster_source'])),
+            'semester_scope' => strtoupper(trim((string) $validated['semester_scope'])),
+            'batch_scope' => strtoupper(trim((string) $validated['batch_scope'])),
+            'program_scope' => strtoupper(trim((string) $validated['program_scope'])),
+            'specialization_scope' => strtoupper(trim((string) $validated['specialization_scope'])),
+            'major_restriction' => strtoupper(trim((string) $validated['major_restriction'])),
+            'student_selection_required' => (int) $validated['student_selection_required'] === 1,
+            'teaching_group_override' => (int) $validated['teaching_group_override'] === 1,
+            'priority' => (int) $validated['priority'],
+            'is_active' => (int) $validated['is_active'] === 1,
+            'notes' => isset($validated['notes']) ? trim((string) $validated['notes']) : null,
+        ];
     }
     /*
     public function studentRosterEngineIndex(Request $request, StudentRosterEngine $studentRosterEngine)
