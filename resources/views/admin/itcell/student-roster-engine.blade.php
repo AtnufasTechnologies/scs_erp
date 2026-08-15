@@ -82,7 +82,7 @@
     @elseif(($curriculumRows ?? collect())->isEmpty())
     <div class="alert alert-warning mb-0">No curriculum rows found for selected filters.</div>
     @else
-    <form method="GET" action="{{ route('itcell.student-roster-engine.index') }}">
+    <form method="GET" action="{{ route('itcell.student-roster-engine.index') }}" id="resolveRosterForm">
       <input type="hidden" name="batch_id" value="{{ (int) $selectedBatchId }}">
       <input type="hidden" name="semester_id" value="{{ (int) $selectedSemesterId }}">
       <input type="hidden" name="teaching_group_id" value="{{ (int) ($teachingGroupId ?? 0) }}">
@@ -129,7 +129,7 @@
               <th style="width: 70px;">Use</th>
               <th>Course</th>
               <th>Batch Name</th>
-              <th>Batch ID</th>
+              <th>Batch</th>
               <th>Semester</th>
               <th>Delivery</th>
               <th>Selection</th>
@@ -153,7 +153,7 @@
                 <div class="small text-muted">{{ $row->course_title ?? 'Untitled course' }}</div>
               </td>
               <td>{{ $row->batch_name ?? '-' }}</td>
-              <td>{{ $row->batch ?? '-' }}</td>
+              <td>{{ $row->batch_name ?? '-' }}</td>
               <td>{{ $row->semester ?? '-' }}</td>
               <td><span class="badge bg-info text-dark">{{ strtoupper((string) ($row->delivery_category ?? 'COMMON')) }}</span></td>
               <td><span class="badge bg-warning text-dark">{{ strtoupper((string) ($row->course_type ?? 'AUTO')) }}</span></td>
@@ -175,7 +175,10 @@
         No curriculum rows match your search.
       </div>
 
-      <button type="submit" class="btn btn-success">Resolve Student Roster</button>
+      <button type="submit" class="btn btn-success" id="resolveRosterButton">
+        <span class="resolve-label-default">Resolve Student Roster</span>
+        <span class="resolve-label-loading d-none">Please wait, fetching students...</span>
+      </button>
     </form>
     @endif
   </div>
@@ -189,7 +192,7 @@
   <div class="card-body">
     <div class="row g-3">
       <div class="col-md-3"><strong>Course:</strong> {{ $selectedCurriculumRow->course_code ?? 'N/A' }} - {{ $selectedCurriculumRow->course_title ?? 'Untitled course' }}</div>
-      <div class="col-md-3"><strong>Batch:</strong> {{ $selectedCurriculumRow->batch_name ?? '-' }} (ID: {{ $rosterContext['batch_id'] ?? '-' }})</div>
+      <div class="col-md-3"><strong>Batch:</strong> {{ $selectedCurriculumRow->batch_name ?? '-' }}</div>
       <div class="col-md-2"><strong>Semester:</strong> {{ $rosterContext['semester_id'] ?? '-' }}</div>
       <div class="col-md-2"><strong>Delivery:</strong> {{ strtoupper((string) ($rosterContext['delivery_type'] ?? '')) }}</div>
       <div class="col-md-2"><strong>Selection:</strong> {{ strtoupper((string) ($rosterContext['selection_type'] ?? '')) }}</div>
@@ -330,7 +333,7 @@
             <th style="width: 70px;">#</th>
             <th>Student</th>
             <th>Roll No</th>
-            <th>Register No</th>
+
             <th>Program</th>
             <th>Batch</th>
             <th>Semester</th>
@@ -348,9 +351,20 @@
               <div class="small text-muted">ID: {{ (int) ($student['student_id'] ?? 0) }}</div>
             </td>
             <td>{{ $student['roll_no'] ?? '-' }}</td>
-            <td>{{ $student['register_no'] ?? '-' }}</td>
-            <td>{{ (int) ($student['program_id'] ?? 0) }}</td>
-            <td>{{ (int) ($student['batch_id'] ?? 0) }}</td>
+
+            <td>
+              @php
+              $programCode = trim((string) ($student['program_code'] ?? ''));
+              $programName = trim((string) ($student['program_name'] ?? ''));
+              @endphp
+              @if($programCode !== '' || $programName !== '')
+              <div><strong>{{ $programCode !== '' ? $programCode : 'N/A' }}</strong></div>
+              <div class="small text-muted">{{ $programName !== '' ? $programName : 'Unknown Program' }}</div>
+              @else
+              {{ (int) ($student['program_id'] ?? 0) }}
+              @endif
+            </td>
+            <td>{{ (string) ($student['batch_name'] ?? '-') }}</td>
             <td>{{ (int) ($student['semester_id'] ?? 0) }}</td>
             <td>{{ $student['academic_pathway'] ?? '-' }}</td>
             <td>{{ $student['degree_track'] ?? '-' }}</td>
@@ -374,6 +388,8 @@
     const programCodeFilter = document.getElementById('curriculumProgramCodeFilter');
     const tableBody = document.getElementById('curriculumRowsTableBody');
     const noMatchAlert = document.getElementById('curriculumRowsNoMatch');
+    const resolveForm = document.getElementById('resolveRosterForm');
+    const resolveButton = document.getElementById('resolveRosterButton');
 
     if (!searchInput || !tableBody) {
       return;
@@ -410,6 +426,20 @@
 
     // Reapply persisted filters after page reload (e.g., after Resolve Student Roster).
     applyFilter();
+
+    if (resolveForm && resolveButton) {
+      resolveForm.addEventListener('submit', function() {
+        resolveButton.disabled = true;
+        const defaultLabel = resolveButton.querySelector('.resolve-label-default');
+        const loadingLabel = resolveButton.querySelector('.resolve-label-loading');
+        if (defaultLabel) {
+          defaultLabel.classList.add('d-none');
+        }
+        if (loadingLabel) {
+          loadingLabel.classList.remove('d-none');
+        }
+      });
+    }
   }());
 </script>
 

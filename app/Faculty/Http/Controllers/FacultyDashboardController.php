@@ -720,7 +720,15 @@ class FacultyDashboardController extends Controller
       $roster = collect();
 
       if ($courseId > 0) {
-        $roster = $this->studentRosterEngine->getRoster($courseId, [
+        $courseContext = (object) [
+          'id' => $courseId,
+          'delivery_type' => '',
+          'selection_type' => '',
+          'semester_id' => (int) ($syllabus->semester_id ?? 0),
+          'batch_id' => (int) ($syllabus->batch_id ?? 0),
+        ];
+
+        $roster = $this->studentRosterEngine->getStudentsForCourse($courseContext, [
           'subject_id' => (int) ($syllabus->subject_id ?? 0),
           'batch_id' => (int) ($syllabus->batch_id ?? 0),
           'semester_id' => (int) ($syllabus->semester_id ?? 0),
@@ -731,15 +739,15 @@ class FacultyDashboardController extends Controller
       }
 
       $syllabus->roster_students = $roster
-        ->map(function ($row) {
+        ->map(function ($row) use ($syllabus) {
           return [
-            'student_id' => (int) ($row['student_id'] ?? 0),
-            'roll_no' => (string) ($row['roll_no'] ?? ''),
-            'register_no' => (string) ($row['register_no'] ?? ''),
-            'student_name' => (string) ($row['student_name'] ?? ''),
-            'program_id' => (int) ($row['program_id'] ?? 0),
-            'batch_id' => (int) ($row['batch_id'] ?? 0),
-            'semester_id' => (int) ($row['semester_id'] ?? 0),
+            'student_id' => (int) ($row->id ?? 0),
+            'roll_no' => (string) ($row->roll_no ?? ''),
+            'register_no' => (string) ($row->register_no ?? ''),
+            'student_name' => trim((string) ($row->first_name ?? '') . ' ' . (string) ($row->last_name ?? '')),
+            'program_id' => (int) ($row->new_program_id ?? 0),
+            'batch_id' => (int) ($row->batch ?? 0),
+            'semester_id' => (int) ($syllabus->semester_id ?? 0),
           ];
         })
         ->values();

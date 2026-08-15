@@ -1151,7 +1151,7 @@ class ITCellController extends Controller
 
         return response()->streamDownload($callback, $filename, $headers);
     }
-
+    /*
     public function studentRosterEngineIndex(Request $request, StudentRosterEngine $studentRosterEngine)
     {
         $batches = BatchMaster::query()->orderByDesc('batch_name')->get(['id', 'batch_name']);
@@ -1166,6 +1166,9 @@ class ITCellController extends Controller
         $curriculumRows = collect();
         $selectedCurriculumRow = null;
         $resolvedRoster = collect();
+        $resolvedProgramStats = collect();
+        $rosterContext = [];
+        $rosterContext = [];
         $resolvedProgramStats = collect();
         $dashboardProgramStats = collect();
         $droppedRosterStudents = collect();
@@ -1268,10 +1271,43 @@ class ITCellController extends Controller
                         'teaching_assignment_id' => $teachingAssignmentId,
                     ];
 
-                    $resolvedRoster = $studentRosterEngine->getRoster(
-                        (int) ($selectedCurriculumRow->course_id ?? 0),
-                        $rosterContext
-                    )->values();
+                    $courseContext = (object) [
+                        'id' => (int) ($selectedCurriculumRow->course_id ?? 0),
+                        'delivery_type' => strtoupper(trim((string) ($selectedCurriculumRow->delivery_category ?? ''))),
+                        'selection_type' => strtoupper(trim((string) ($selectedCurriculumRow->course_type ?? ''))),
+                        'semester_id' => (int) ($selectedCurriculumRow->semester ?? $selectedSemesterId),
+                        'batch_id' => (int) ($selectedCurriculumRow->batch ?? $selectedBatchId),
+                    ];
+
+                    $resolvedStudents = $studentRosterEngine->getStudentsForCourse($courseContext, $rosterContext)->values();
+
+                    $pathwayNameMap = AcademicPathwayMaster::query()->pluck('name', 'id');
+                    $degreeTrackNameMap = DegreeTrackMaster::query()->pluck('name', 'id');
+
+                    $resolvedRoster = $resolvedStudents->map(function ($student) use ($courseContext, $pathwayNameMap, $degreeTrackNameMap, $rosterContext) {
+                        $pathwayId = (int) ($student->academic_pathway_id ?? 0);
+                        $degreeTrackId = (int) ($student->degree_track_id ?? 0);
+
+                        return [
+                            'student_id' => (int) ($student->id ?? 0),
+                            'course_id' => (int) ($courseContext->id ?? 0),
+                            'program_id' => (int) ($student->new_program_id ?? 0),
+                            'batch_id' => (int) ($student->batch ?? 0),
+                            'semester_id' => (int) ($courseContext->semester_id ?? 0),
+                            'academic_pathway_id' => $pathwayId,
+                            'academic_pathway' => (string) ($pathwayNameMap[$pathwayId] ?? ''),
+                            'degree_track_id' => $degreeTrackId,
+                            'degree_track' => (string) ($degreeTrackNameMap[$degreeTrackId] ?? ''),
+                            'specialization_id' => null,
+                            'delivery_type' => (string) ($courseContext->delivery_type ?? ''),
+                            'selection_type' => (string) ($courseContext->selection_type ?? ''),
+                            'teaching_group_id' => (int) ($rosterContext['teaching_group_id'] ?? 0),
+                            'teaching_assignment_id' => (int) ($rosterContext['teaching_assignment_id'] ?? 0),
+                            'roll_no' => (string) ($student->roll_no ?? ''),
+                            'register_no' => (string) ($student->register_no ?? ''),
+                            'student_name' => trim((string) ($student->first_name ?? '') . ' ' . (string) ($student->last_name ?? '')),
+                        ];
+                    })->values();
 
                     if ($resolvedRoster->isNotEmpty()) {
                         $resolvedProgramIds = $resolvedRoster
@@ -1479,7 +1515,367 @@ class ITCellController extends Controller
             'rosterContext' => $rosterContext,
         ]);
     }
+    */
 
+    public function studentRosterEngineIndex(
+        Request $request,
+        StudentRosterEngine $studentRosterEngine
+    ) {
+        /*
+    |--------------------------------------------------------------------------
+    | 1. Basic filters
+    |--------------------------------------------------------------------------
+    */
+
+        $batchId = (int) $request->input('batch_id', 0);
+        $semesterId = (int) $request->input('semester_id', 0);
+        $curriculumRowId = (int) $request->input('curriculum_row_id', 0);
+
+        /*
+    |--------------------------------------------------------------------------
+    | 2. Master data
+    |--------------------------------------------------------------------------
+    */
+
+        $batches = BatchMaster::query()
+            ->orderByDesc('batch_name')
+            ->get(['id', 'batch_name']);
+
+        $semesters = Semester::query()
+            ->orderBy('id')
+            ->get(['id', 'title']);
+
+        /*
+    |--------------------------------------------------------------------------
+    | 3. Defaults
+    |--------------------------------------------------------------------------
+    */
+
+        $curriculumRows = collect();
+        $selectedCurriculumRow = null;
+        $resolvedRoster = collect();
+        $resolvedProgramStats = collect();
+        $rosterContext = [];
+
+        /*
+    |--------------------------------------------------------------------------
+    | 4. Load courses offered for Batch + Semester
+    |--------------------------------------------------------------------------
+    */
+
+        if ($batchId > 0) {
+
+            $curriculumTable = (new ProgramWiseSemesterCourse())->getTable();
+            $courseTable = (new ProgramCourseMaster())->getTable();
+
+            $query = DB::table($curriculumTable . ' as ce')
+                ->join(
+                    $courseTable . ' as pcm',
+                    'pcm.id',
+                    '=',
+                    'ce.course_id'
+                )
+
+                ->leftJoin(
+                    'subject_has_student_progams as shp',
+                    'shp.id',
+                    '=',
+                    'ce.program_combo_refid'
+                )
+
+                ->leftJoin(
+                    'student_program as sp',
+                    'sp.id',
+                    '=',
+                    'shp.student_program_id'
+                )
+
+                ->leftJoin(
+                    'academic_pathway_masters as ap',
+                    'ap.id',
+                    '=',
+                    'ce.academic_pathway_id'
+                )
+
+                ->leftJoin(
+                    'degree_track_masters as dt',
+                    'dt.id',
+                    '=',
+                    'ce.degree_track_id'
+                )
+
+                ->leftJoin(
+                    'subjects as od',
+                    'od.id',
+                    '=',
+                    'ce.offering_dept'
+                )
+
+                ->where(
+                    'ce.batch',
+                    $batchId
+                );
+
+            if ($semesterId > 0) {
+                $query->where(
+                    'ce.semester',
+                    $semesterId
+                );
+            }
+
+            if (Schema::hasColumn($curriculumTable, 'deleted_at')) {
+                $query->whereNull('ce.deleted_at');
+            }
+
+            if (Schema::hasColumn($curriculumTable, 'is_active')) {
+                $query->where('ce.is_active', 1);
+            }
+
+            if (Schema::hasColumn($courseTable, 'deleted_at')) {
+                $query->whereNull('pcm.deleted_at');
+            }
+
+            $curriculumRows = $query
+                ->select([
+                    'ce.id as curriculum_row_id',
+
+                    'ce.batch',
+                    'ce.semester',
+                    'ce.course_id',
+
+                    'ce.program_combo_refid',
+
+                    'ce.academic_pathway_id',
+                    'ce.degree_track_id',
+
+                    'ce.offering_dept',
+
+                    'ce.delivery_category',
+                    'ce.course_type',
+
+                    'pcm.course_code',
+                    'pcm.course_title',
+
+                    'shp.program_type',
+
+                    'sp.code as program_code',
+                    'sp.name as program_name',
+
+                    'ap.name as pathway_name',
+                    'dt.name as degree_track_name',
+
+                    'od.title as offering_department_name',
+                ])
+
+                ->orderBy('ce.semester')
+                ->orderBy('pcm.course_code')
+                ->orderBy('ce.id')
+
+                ->get();
+        }
+
+        /*
+    |--------------------------------------------------------------------------
+    | 5. Selected course
+    |--------------------------------------------------------------------------
+    */
+
+        if ($curriculumRowId > 0) {
+
+            $selectedCurriculumRow = $curriculumRows
+                ->first(function ($row) use ($curriculumRowId) {
+
+                    return (int) $row->curriculum_row_id
+                        === $curriculumRowId;
+                });
+        }
+
+        /*
+    |--------------------------------------------------------------------------
+    | 6. RUN STUDENT ROSTER ENGINE
+    |--------------------------------------------------------------------------
+    */
+
+        if ($selectedCurriculumRow) {
+
+            $courseContext = [
+
+                'id' =>
+                (int) $selectedCurriculumRow->course_id,
+
+                'curriculum_row_id' =>
+                (int) $selectedCurriculumRow->curriculum_row_id,
+
+                'course_id' =>
+                (int) $selectedCurriculumRow->course_id,
+
+                'batch_id' =>
+                (int) $selectedCurriculumRow->batch,
+
+                'semester_id' =>
+                (int) $selectedCurriculumRow->semester,
+
+                'academic_pathway_id' =>
+                (int) $selectedCurriculumRow->academic_pathway_id,
+
+                'degree_track_id' =>
+                (int) $selectedCurriculumRow->degree_track_id,
+
+                'program_combo_refid' =>
+                (int) $selectedCurriculumRow->program_combo_refid,
+
+                'program_type' =>
+                strtoupper(
+                    trim(
+                        (string) $selectedCurriculumRow->program_type
+                    )
+                ),
+
+                'delivery_type' =>
+                strtoupper(
+                    trim(
+                        (string) $selectedCurriculumRow->delivery_category
+                    )
+                ),
+
+                'selection_type' =>
+                strtoupper(
+                    trim(
+                        (string) $selectedCurriculumRow->course_type
+                    )
+                ),
+
+                'offering_dept' =>
+                (int) $selectedCurriculumRow->offering_dept,
+            ];
+
+            $rosterContext = $courseContext;
+
+            /*
+         * The engine is now the SINGLE source of truth
+         * for deciding which students attend this course.
+         */
+
+            $resolvedStudents =
+                $studentRosterEngine
+                ->getStudentsForCourse($courseContext, $courseContext)
+                ->values();
+
+            $resolvedProgramIds = $resolvedStudents
+                ->pluck('new_program_id')
+                ->map(fn($id) => (int) $id)
+                ->filter(fn($id) => $id > 0)
+                ->unique()
+                ->values();
+
+            $programMap = StudentProgram::query()
+                ->whereIn('id', $resolvedProgramIds->all())
+                ->get(['id', 'code', 'name'])
+                ->keyBy('id');
+
+            $resolvedBatchIds = $resolvedStudents
+                ->pluck('batch')
+                ->map(fn($id) => (int) $id)
+                ->filter(fn($id) => $id > 0)
+                ->unique()
+                ->values();
+
+            $batchNameMap = BatchMaster::query()
+                ->whereIn('id', $resolvedBatchIds->all())
+                ->pluck('batch_name', 'id');
+
+            $pathwayNameMap = AcademicPathwayMaster::query()->pluck('name', 'id');
+            $degreeTrackNameMap = DegreeTrackMaster::query()->pluck('name', 'id');
+
+            $resolvedRoster = $resolvedStudents
+                ->map(function ($student) use ($courseContext, $pathwayNameMap, $degreeTrackNameMap, $programMap, $batchNameMap) {
+                    $pathwayId = (int) ($student->academic_pathway_id ?? 0);
+                    $degreeTrackId = (int) ($student->degree_track_id ?? 0);
+                    $programId = (int) ($student->new_program_id ?? 0);
+                    $program = $programMap->get($programId);
+                    $batchId = (int) ($student->batch ?? 0);
+
+                    return [
+                        'student_id' => (int) ($student->id ?? 0),
+                        'student_name' => trim((string) ($student->first_name ?? '') . ' ' . (string) ($student->last_name ?? '')),
+                        'roll_no' => (string) ($student->roll_no ?? ''),
+                        'register_no' => (string) ($student->register_no ?? ''),
+                        'program_id' => $programId,
+                        'program_code' => trim((string) (optional($program)->code ?? '')),
+                        'program_name' => trim((string) (optional($program)->name ?? '')),
+                        'batch_id' => $batchId,
+                        'batch_name' => (string) ($batchNameMap[$batchId] ?? ''),
+                        'semester_id' => (int) ($courseContext['semester_id'] ?? 0),
+                        'academic_pathway_id' => $pathwayId,
+                        'academic_pathway' => (string) ($pathwayNameMap[$pathwayId] ?? '-'),
+                        'degree_track_id' => $degreeTrackId,
+                        'degree_track' => (string) ($degreeTrackNameMap[$degreeTrackId] ?? '-'),
+                        'delivery_type' => (string) ($courseContext['delivery_type'] ?? ''),
+                        'selection_type' => (string) ($courseContext['selection_type'] ?? ''),
+                    ];
+                })
+                ->values();
+
+            $resolvedProgramStats = $resolvedRoster
+                ->groupBy(function ($row) {
+                    return (int) ($row['program_id'] ?? 0);
+                })
+                ->map(function ($rows) {
+                    $first = $rows->first();
+
+                    return [
+                        'program_id' => (int) ($first['program_id'] ?? 0),
+                        'program_code' => trim((string) ($first['program_code'] ?? '')) ?: 'N/A',
+                        'program_name' => trim((string) ($first['program_name'] ?? '')) ?: 'Unknown Program',
+                        'student_count' => $rows->count(),
+                    ];
+                })
+                ->sortBy('program_code')
+                ->values();
+        }
+
+        /*
+    |--------------------------------------------------------------------------
+    | 7. Return view
+    |--------------------------------------------------------------------------
+    */
+
+        return view(
+            'admin.itcell.student-roster-engine',
+            [
+
+                'batches' =>
+                $batches,
+
+                'semesters' =>
+                $semesters,
+
+                'selectedBatchId' =>
+                $batchId,
+
+                'selectedSemesterId' =>
+                $semesterId,
+
+                'selectedCurriculumRowId' =>
+                $curriculumRowId,
+
+                'curriculumRows' =>
+                $curriculumRows,
+
+                'selectedCurriculumRow' =>
+                $selectedCurriculumRow,
+
+                'resolvedRoster' =>
+                $resolvedRoster,
+
+                'resolvedProgramStats' =>
+                $resolvedProgramStats,
+
+                'rosterContext' =>
+                $rosterContext,
+            ]
+        );
+    }
     public function subjectProgramEnrollmentInspectorIndex(Request $request)
     {
         $batches = BatchMaster::query()->orderByDesc('batch_name')->get(['id', 'batch_name']);

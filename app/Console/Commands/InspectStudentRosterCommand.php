@@ -25,6 +25,14 @@ class InspectStudentRosterCommand extends Command
   {
     $courseId = (int) $this->argument('course_id');
 
+    $courseContext = (object) [
+      'id' => $courseId,
+      'delivery_type' => strtoupper(trim((string) ($this->option('delivery_type') ?? ''))),
+      'selection_type' => strtoupper(trim((string) ($this->option('selection_type') ?? ''))),
+      'semester_id' => (int) ($this->option('semester_id') ?? 0),
+      'batch_id' => (int) ($this->option('batch_id') ?? 0),
+    ];
+
     $context = [
       'subject_id' => (int) ($this->option('subject_id') ?? 0),
       'batch_id' => (int) ($this->option('batch_id') ?? 0),
@@ -36,51 +44,56 @@ class InspectStudentRosterCommand extends Command
       'teaching_assignment_id' => (int) ($this->option('teaching_assignment_id') ?? 0),
     ];
 
-    $roster = $engine->getRoster($courseId, $context)->values();
+    $report = $engine->explainRosterForCourse($courseContext, $context);
+    $rows = collect($report['students'] ?? []);
 
-    $this->info('Roster size: ' . $roster->count());
+    $this->info('Course: ' . (int) ($report['course']['course_id'] ?? 0));
+    $this->info('Delivery: ' . (string) ($report['course']['delivery_type'] ?? ''));
+    $this->info('Selection: ' . (string) ($report['course']['selection_type'] ?? ''));
+    $this->info('Total candidates: ' . (int) ($report['total_candidates'] ?? 0));
+    $this->info('Total roster: ' . (int) ($report['total_roster'] ?? 0));
 
-    if ($roster->isEmpty()) {
-      $this->line('No students resolved for the given context.');
+    if ($rows->isEmpty()) {
+      $this->line('No candidate students found for the given context.');
       return self::SUCCESS;
     }
 
     if ((bool) $this->option('json')) {
-      $this->line($roster->toJson(JSON_PRETTY_PRINT));
+      $this->line(json_encode($report, JSON_PRETTY_PRINT));
       return self::SUCCESS;
     }
 
-    $rows = $roster->map(function ($row, $index) {
+    $tableRows = $rows->map(function ($row, $index) {
       return [
         '#' => $index + 1,
         'student_id' => (int) ($row['student_id'] ?? 0),
-        'roll_no' => (string) ($row['roll_no'] ?? ''),
-        'name' => (string) ($row['student_name'] ?? ''),
+        'name' => (string) ($row['name'] ?? ''),
         'program_id' => (int) ($row['program_id'] ?? 0),
         'batch_id' => (int) ($row['batch_id'] ?? 0),
         'semester_id' => (int) ($row['semester_id'] ?? 0),
-        'pathway' => (string) ($row['academic_pathway'] ?? ''),
-        'track' => (string) ($row['degree_track'] ?? ''),
-        'delivery_type' => (string) ($row['delivery_type'] ?? ''),
-        'selection_type' => (string) ($row['selection_type'] ?? ''),
-        'teaching_group_id' => (int) ($row['teaching_group_id'] ?? 0),
+        'pathway_id' => (int) ($row['academic_pathway_id'] ?? 0),
+        'track_id' => (int) ($row['degree_track_id'] ?? 0),
+        'rule' => (string) ($row['rule_code'] ?? ''),
+        'source' => (string) ($row['roster_source'] ?? ''),
+        'decision' => (string) ($row['decision'] ?? ''),
+        'reason' => (string) ($row['reason_code'] ?? ''),
       ];
     })->all();
 
     $this->table([
       '#',
       'student_id',
-      'roll_no',
       'name',
       'program_id',
       'batch_id',
       'semester_id',
-      'pathway',
-      'track',
-      'delivery_type',
-      'selection_type',
-      'teaching_group_id',
-    ], $rows);
+      'pathway_id',
+      'track_id',
+      'rule',
+      'source',
+      'decision',
+      'reason',
+    ], $tableRows);
 
     return self::SUCCESS;
   }
