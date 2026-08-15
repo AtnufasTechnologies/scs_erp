@@ -2,758 +2,988 @@
 
 namespace App\Services;
 
-use App\Models\ProgramCourseMaster;
-use App\Models\ProgramWiseSemesterCourse;
-use App\Models\StudentSpecialization;
-use App\Models\TeachingAssignment;
-use App\Models\TeachingGroupItem;
+use App\Models\StudentMaster;
+use App\Models\StudentRosterRuleMapping;
 use Illuminate\Support\Collection;
-use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Schema;
+use Illuminate\Support\Facades\Log;
 
 class StudentRosterEngine
 {
-  public function getRoster(int $courseId, array $context = []): Collection
+  /**
+   * Return the complete student roster for a course.
+   *
+   * This should become the SINGLE entry point used by:
+   *
+   * - Faculty / Courses
+   * - Attendance
+   * - Examination
+   * - Timetable student roster
+   * - Any future module requiring students for a course
+   */
+  public function getStudentsForCourse($course, array $context = []): Collection
   {
-    if ($courseId <= 0) {
-      return collect();
-    }
+    /*
+        |--------------------------------------------------------------------------
+        | 1. Get candidate students
+        |--------------------------------------------------------------------------
+        |
+        | IMPORTANT:
+        | We don't apply pathway rules here yet.
+        |
+        | Candidate generation should return the students who could
+        | potentially belong to this course.
+        |
+        */
 
-    $course = ProgramCourseMaster::query()->find($courseId, ['id', 'department']);
-    if (!$course) {
-      return collect();
-    }
+    $students = $this->getCandidateStudents($course, $context);
 
-    $context = $this->normalizeContext($context);
+    /*
+        |--------------------------------------------------------------------------
+        | 2. Evaluate every student through the rule engine
+        |--------------------------------------------------------------------------
+        */
 
-    $groupRoster = $this->resolveTeachingGroupRoster($courseId, $course, $context);
-    if ($groupRoster->isNotEmpty()) {
-      return $groupRoster->values();
-    }
+    return $students
+      ->filter(function ($student) use ($course, $context) {
 
-    return $this->resolveNormalRoster($courseId, $course, $context)->values();
-  }
-
-  private function resolveNormalRoster(int $courseId, ProgramCourseMaster $course, array $context): Collection
-  {
-    $curriculumTable = (new ProgramWiseSemesterCourse())->getTable();
-
-    $curriculumQuery = ProgramWiseSemesterCourse::query()->where('course_id', $courseId);
-
-    if (!empty($context['batch_id'])) {
-      $curriculumQuery->where('batch', (int) $context['batch_id']);
-    }
-
-    if (!empty($context['semester_id'])) {
-      $curriculumQuery->where('semester', (int) $context['semester_id']);
-    }
-
-    if (Schema::hasColumn($curriculumTable, 'is_active')) {
-      $curriculumQuery->where('is_active', 1);
-    }
-
-    $curriculumRows = $curriculumQuery->get([
-      'id',
-      'program_combo_refid',
-      'batch',
-      'semester',
-      'course_id',
-      'offering_dept',
-      'academic_pathway_id',
-      'degree_track_id',
-      'course_type',
-      'delivery_category',
-      'specialization_mode',
-      'specialization_master_id',
-      'specialization_master_ids',
-    ]);
-
-    if ($curriculumRows->isEmpty()) {
-      return collect();
-    }
-
-    $comboIds = $curriculumRows
-      ->pluck('program_combo_refid')
-      ->map(fn($id) => (int) $id)
-      ->filter(fn($id) => $id > 0)
-      ->unique()
-      ->values();
-
-    if ($comboIds->isEmpty()) {
-      return collect();
-    }
-
-    $comboRowsQuery = DB::table('subject_has_student_progams as shp')
-      ->whereIn('shp.id', $comboIds->all())
-      ->select([
-        'shp.id',
-        'shp.subject_id',
-        'shp.student_program_id',
-        'shp.batch_id',
-        'shp.program_type',
-      ]);
-
-    if (Schema::hasColumn('subject_has_student_progams', 'deleted_at')) {
-      $comboRowsQuery->whereNull('shp.deleted_at');
-    }
-
-    $comboRows = $comboRowsQuery->get();
-    if ($comboRows->isEmpty()) {
-      return collect();
-    }
-
-    $comboById = $comboRows->keyBy(fn($row) => (int) $row->id);
-    $allowedProgramIds = $comboRows->pluck('student_program_id')
-      ->map(fn($id) => (int) $id)
-      ->filter(fn($id) => $id > 0)
-      ->unique()
-      ->values();
-
-    if ($allowedProgramIds->isEmpty()) {
-      return collect();
-    }
-
-    $semesters = $curriculumRows->pluck('semester')
-      ->map(fn($id) => (int) $id)
-      ->filter(fn($id) => $id > 0)
-      ->unique()
-      ->values();
-
-    $isOpenChoiceStudentChoice = ($context['delivery_type'] ?? '') === ProgramWiseSemesterCourse::DELIVERY_OPEN_CHOICE
-      && ($context['selection_type'] ?? '') === ProgramWiseSemesterCourse::TYPE_STUDENT_CHOICE;
-    $hasContextSemester = (int) ($context['semester_id'] ?? 0) > 0;
-
-    if ($isOpenChoiceStudentChoice && $hasContextSemester) {
-      // For open-choice elective rows, source candidates from program-combination membership
-      // so counts align with department combination dashboards.
-      $studentQuery = DB::table('student_masters as sm')
-        ->leftJoin('academic_pathway_masters as ap', 'ap.id', '=', 'sm.academic_pathway_id')
-        ->leftJoin('degree_track_masters as dt', 'dt.id', '=', 'sm.degree_track_id')
-        ->whereIn('sm.new_program_id', $allowedProgramIds->all())
-        ->select([
-          'sm.id as student_id',
-          'sm.roll_no',
-          'sm.register_no',
-          'sm.first_name',
-          'sm.last_name',
-          'sm.new_program_id as program_id',
-          'sm.batch as batch_id',
-          'sm.academic_pathway_id',
-          'sm.degree_track_id',
-          'sm.academic_dept_id',
-          'sm.selected_combo_id',
-          'ap.name as academic_pathway_name',
-          'dt.name as degree_track_name',
-          DB::raw((int) $context['semester_id'] . ' as semester_id'),
-        ]);
-    } else {
-      $studentQuery = DB::table('student_masters as sm')
-        ->join('student_course_infos as sci', 'sci.student_id', '=', 'sm.id')
-        ->leftJoin('academic_pathway_masters as ap', 'ap.id', '=', 'sm.academic_pathway_id')
-        ->leftJoin('degree_track_masters as dt', 'dt.id', '=', 'sm.degree_track_id')
-        ->where('sci.course_id', $courseId)
-        ->whereIn('sm.new_program_id', $allowedProgramIds->all())
-        ->whereIn('sci.semester', $semesters->all())
-        ->select([
-          'sm.id as student_id',
-          'sm.roll_no',
-          'sm.register_no',
-          'sm.first_name',
-          'sm.last_name',
-          'sm.new_program_id as program_id',
-          'sm.batch as batch_id',
-          'sm.academic_pathway_id',
-          'sm.degree_track_id',
-          'sm.academic_dept_id',
-          'sm.selected_combo_id',
-          'ap.name as academic_pathway_name',
-          'dt.name as degree_track_name',
-          'sci.semester as semester_id',
-        ]);
-    }
-
-    $this->applyActiveStudentGuards($studentQuery, 'sm');
-
-    if (!empty($context['batch_id'])) {
-      $studentQuery->where('sm.batch', (int) $context['batch_id']);
-    }
-
-    if (!empty($context['semester_id']) && !$isOpenChoiceStudentChoice) {
-      $studentQuery->where('sci.semester', (int) $context['semester_id']);
-    }
-
-    if (!$isOpenChoiceStudentChoice && Schema::hasColumn('student_course_infos', 'is_deleted')) {
-      $studentQuery->where('sci.is_deleted', 0);
-    }
-
-    $students = $studentQuery
-      ->orderBy('sm.roll_no')
-      ->get()
-      ->unique(fn($row) => (int) $row->student_id)
-      ->values();
-
-    if ($students->isEmpty()) {
-      return collect();
-    }
-
-    $comboMapRows = DB::table('std_prog_combo_maps')
-      ->whereIn('student_program_id', $allowedProgramIds->all())
-      ->get(['student_program_id', 'combo_id_1', 'combo_id_2']);
-
-    $comboMapByProgramId = $comboMapRows->keyBy(fn($row) => (int) $row->student_program_id);
-    $studentSpecs = $this->loadStudentSpecializations($students);
-
-    $forceDualMajor = $this->isContextDualMajor((string) ($context['program_type'] ?? ''));
-
-    $resolved = $students->map(function ($student) use ($course, $context, $comboById, $comboMapByProgramId, $curriculumRows, $studentSpecs, $courseId, $forceDualMajor) {
-      $programId = (int) ($student->program_id ?? 0);
-      $batchId = (int) ($student->batch_id ?? 0);
-      $semesterId = (int) ($student->semester_id ?? 0);
-
-      $eligibleComboIds = $comboById
-        ->filter(fn($combo) => (int) ($combo->student_program_id ?? 0) === $programId && (int) ($combo->batch_id ?? 0) === $batchId)
-        ->keys()
-        ->map(fn($id) => (int) $id)
-        ->values();
-
-      if ($eligibleComboIds->isEmpty()) {
-        return null;
-      }
-
-      $matchingRows = $curriculumRows->filter(function ($row) use ($eligibleComboIds, $semesterId, $student, $studentSpecs, $forceDualMajor, $context) {
-        if (!$eligibleComboIds->contains((int) ($row->program_combo_refid ?? 0))) {
-          return false;
-        }
-
-        if ((int) ($row->semester ?? 0) !== $semesterId) {
-          return false;
-        }
-
-        if (!empty($context['delivery_explicit'])) {
-          $rowDelivery = $this->normalizeDeliveryType((string) ($row->delivery_category ?? ''));
-          if ($rowDelivery !== (string) ($context['delivery_type'] ?? '')) {
-            return false;
-          }
-        }
-
-        if (!empty($context['selection_explicit'])) {
-          $rowSelection = $this->normalizeSelectionType((string) ($row->course_type ?? ''));
-          if ($rowSelection !== (string) ($context['selection_type'] ?? '')) {
-            return false;
-          }
-        }
-
-        if (!$forceDualMajor) {
-          $rowPathwayId = (int) ($row->academic_pathway_id ?? 0);
-          if ($rowPathwayId > 0 && $rowPathwayId !== (int) ($student->academic_pathway_id ?? 0)) {
-            return false;
-          }
-
-          $rowTrackId = (int) ($row->degree_track_id ?? 0);
-          if ($rowTrackId > 0 && $rowTrackId !== (int) ($student->degree_track_id ?? 0)) {
-            return false;
-          }
-        }
-
-        $rowDeliveryType = $this->normalizeDeliveryType((string) ($row->delivery_category ?? ''));
-        $skipDualMajorSpecializationGate = $forceDualMajor && in_array($rowDeliveryType, [
-          ProgramWiseSemesterCourse::DELIVERY_MAJOR_COMBO1,
-          ProgramWiseSemesterCourse::DELIVERY_MAJOR_COMBO2,
-        ], true);
-
-        if (!$skipDualMajorSpecializationGate && !$this->passesSpecializationGate($row, (int) ($student->student_id ?? 0), $studentSpecs)) {
-          return false;
-        }
-
-        return true;
-      })->values();
-
-      if ($matchingRows->isEmpty()) {
-        return null;
-      }
-
-      $comboMap = $comboMapByProgramId->get($programId);
-      $combo1 = (int) ($comboMap->combo_id_1 ?? 0);
-      $combo2 = (int) ($comboMap->combo_id_2 ?? 0);
-      $isDual = $forceDualMajor || $this->isDualPathway($student, $combo1, $combo2);
-      $singleMajorSubjectId = $this->resolveSingleMajorSubjectId($student, $combo1, $combo2);
-
-      foreach ($matchingRows as $row) {
-        $deliveryType = $this->normalizeDeliveryType((string) ($row->delivery_category ?? ''));
-        $selectionType = $this->normalizeSelectionType((string) ($row->course_type ?? ''));
-        $offeringDept = (int) ($row->offering_dept ?? 0);
-
-        if (!$this->isDeliveryRowEligible(
-          $deliveryType,
-          $selectionType,
-          $isDual,
-          $combo1,
-          $combo2,
-          $singleMajorSubjectId,
-          $offeringDept,
-          $course
-        )) {
-          continue;
-        }
-
-        return [
-          'student_id' => (int) ($student->student_id ?? 0),
-          'course_id' => $courseId,
-          'program_id' => (int) ($student->program_id ?? 0),
-          'batch_id' => (int) ($student->batch_id ?? 0),
-          'semester_id' => (int) ($student->semester_id ?? 0),
-          'academic_pathway_id' => (int) ($student->academic_pathway_id ?? 0),
-          'academic_pathway' => (string) ($student->academic_pathway_name ?? ''),
-          'degree_track_id' => (int) ($student->degree_track_id ?? 0),
-          'degree_track' => (string) ($student->degree_track_name ?? ''),
-          'specialization_id' => null,
-          'delivery_type' => $deliveryType,
-          'selection_type' => $selectionType,
-          'teaching_group_id' => (int) ($context['teaching_group_id'] ?? 0),
-          'teaching_assignment_id' => (int) ($context['teaching_assignment_id'] ?? 0),
-          'roll_no' => (string) ($student->roll_no ?? ''),
-          'register_no' => (string) ($student->register_no ?? ''),
-          'student_name' => trim((string) ($student->first_name ?? '') . ' ' . (string) ($student->last_name ?? '')),
-        ];
-      }
-
-      return null;
-    })->filter()->values();
-
-    return $resolved
-      ->unique(fn($row) => (int) ($row['student_id'] ?? 0))
+        return $this->qualifies(
+          $student,
+          $course,
+          $context
+        );
+      })
       ->values();
   }
 
-  private function resolveTeachingGroupRoster(int $courseId, ProgramCourseMaster $course, array $context): Collection
-  {
-    $teachingGroupId = (int) ($context['teaching_group_id'] ?? 0);
-    if ($teachingGroupId <= 0) {
-      return collect();
-    }
 
-    $subjectId = (int) ($context['subject_id'] ?? 0);
+  /**
+   * Check one student against the roster rules.
+   */
+  public function qualifies(
+    StudentMaster $student,
+    $course,
+    array $context = []
+  ): bool {
 
-    $groupRows = TeachingGroupItem::query()
-      ->when($subjectId > 0, fn($query) => $query->where('subject_id', $subjectId))
-      ->where('course_id', $courseId)
-      ->where('allocation_group_id', $teachingGroupId)
-      ->when(Schema::hasColumn('teaching_group_items', 'deleted_at'), fn($query) => $query->whereNull('deleted_at'))
-      ->get([
-        'course_id',
-        'batch_id',
-        'semester_id',
-        'student_program_id',
-        'delivery_type',
-      ]);
+    /*
+        |--------------------------------------------------------------------------
+        | GLOBAL RULE #1
+        |--------------------------------------------------------------------------
+        |
+        | Students who have left must NEVER appear anywhere.
+        |
+        */
 
-    if ($groupRows->isEmpty()) {
-      return collect();
-    }
-
-    $rows = collect();
-    foreach ($groupRows as $groupRow) {
-      $groupCourseId = (int) ($groupRow->course_id ?? 0);
-      $batchId = (int) ($groupRow->batch_id ?? 0);
-      $semesterId = (int) ($groupRow->semester_id ?? 0);
-      $programId = (int) ($groupRow->student_program_id ?? 0);
-
-      if ($groupCourseId <= 0 || $batchId <= 0 || $semesterId <= 0) {
-        continue;
-      }
-
-      $studentQuery = DB::table('student_masters as sm')
-        ->join('student_course_infos as sci', 'sci.student_id', '=', 'sm.id')
-        ->leftJoin('academic_pathway_masters as ap', 'ap.id', '=', 'sm.academic_pathway_id')
-        ->leftJoin('degree_track_masters as dt', 'dt.id', '=', 'sm.degree_track_id')
-        ->where('sm.batch', $batchId)
-        ->where('sci.course_id', $groupCourseId)
-        ->where('sci.semester', $semesterId)
-        ->select([
-          'sm.id as student_id',
-          'sm.roll_no',
-          'sm.register_no',
-          'sm.first_name',
-          'sm.last_name',
-          'sm.new_program_id as program_id',
-          'sm.batch as batch_id',
-          'sm.academic_pathway_id',
-          'sm.degree_track_id',
-          'ap.name as academic_pathway_name',
-          'dt.name as degree_track_name',
-          'sci.semester as semester_id',
-        ]);
-
-      $this->applyActiveStudentGuards($studentQuery, 'sm');
-
-      if (Schema::hasColumn('student_course_infos', 'is_deleted')) {
-        $studentQuery->where('sci.is_deleted', 0);
-      }
-
-      if (Schema::hasColumn('student_course_infos', 'allocation_group_id')) {
-        $studentQuery->where('sci.allocation_group_id', $teachingGroupId);
-      }
-
-      if ($programId > 0) {
-        $studentQuery->where('sm.new_program_id', $programId);
-      }
-
-      $rows = $rows->concat($studentQuery->get()->map(function ($student) use ($courseId, $teachingGroupId, $context, $groupRow) {
-        return [
-          'student_id' => (int) ($student->student_id ?? 0),
-          'course_id' => $courseId,
-          'program_id' => (int) ($student->program_id ?? 0),
-          'batch_id' => (int) ($student->batch_id ?? 0),
-          'semester_id' => (int) ($student->semester_id ?? 0),
-          'academic_pathway_id' => (int) ($student->academic_pathway_id ?? 0),
-          'academic_pathway' => (string) ($student->academic_pathway_name ?? ''),
-          'degree_track_id' => (int) ($student->degree_track_id ?? 0),
-          'degree_track' => (string) ($student->degree_track_name ?? ''),
-          'specialization_id' => null,
-          'delivery_type' => $this->normalizeDeliveryType((string) ($groupRow->delivery_type ?? ($context['delivery_type'] ?? ''))),
-          'selection_type' => (string) ($context['selection_type'] ?? ''),
-          'teaching_group_id' => $teachingGroupId,
-          'teaching_assignment_id' => (int) ($context['teaching_assignment_id'] ?? 0),
-          'roll_no' => (string) ($student->roll_no ?? ''),
-          'register_no' => (string) ($student->register_no ?? ''),
-          'student_name' => trim((string) ($student->first_name ?? '') . ' ' . (string) ($student->last_name ?? '')),
-        ];
-      }));
-    }
-
-    return $rows
-      ->unique(fn($row) => (int) ($row['student_id'] ?? 0))
-      ->values();
-  }
-
-  private function normalizeContext(array $context): array
-  {
-    $teachingAssignmentId = (int) ($context['teaching_assignment_id'] ?? 0);
-    $teachingGroupId = (int) ($context['teaching_group_id'] ?? 0);
-    $rawDelivery = trim((string) ($context['delivery_type'] ?? ''));
-    $rawSelection = trim((string) ($context['selection_type'] ?? ''));
-
-    if ($teachingGroupId <= 0 && $teachingAssignmentId > 0) {
-      $assignment = TeachingAssignment::query()->find($teachingAssignmentId, ['id', 'allocation_group']);
-      $teachingGroupId = (int) ($assignment->allocation_group ?? 0);
-    }
-
-    return [
-      'subject_id' => (int) ($context['subject_id'] ?? 0),
-      'batch_id' => (int) ($context['batch_id'] ?? 0),
-      'semester_id' => (int) ($context['semester_id'] ?? 0),
-      'program_type' => strtoupper(trim((string) ($context['program_type'] ?? ''))),
-      'delivery_type' => $this->normalizeDeliveryType((string) ($context['delivery_type'] ?? '')),
-      'selection_type' => $this->normalizeSelectionType((string) ($context['selection_type'] ?? '')),
-      'delivery_explicit' => $rawDelivery !== '',
-      'selection_explicit' => $rawSelection !== '',
-      'teaching_group_id' => $teachingGroupId,
-      'teaching_assignment_id' => $teachingAssignmentId,
-    ];
-  }
-
-  private function normalizeDeliveryType(string $value): string
-  {
-    $normalized = strtoupper(trim($value));
-    if ($normalized === '') {
-      return ProgramWiseSemesterCourse::DELIVERY_PROGRAMME_COMMON;
-    }
-
-    $aliases = [
-      'CORE-A' => ProgramWiseSemesterCourse::DELIVERY_MAJOR_COMBO1,
-      'COREA' => ProgramWiseSemesterCourse::DELIVERY_MAJOR_COMBO1,
-      'MAJOR_COMBO1' => ProgramWiseSemesterCourse::DELIVERY_MAJOR_COMBO1,
-      'COMBO1F' => ProgramWiseSemesterCourse::DELIVERY_MAJOR_COMBO1,
-      'COMBO1-F' => ProgramWiseSemesterCourse::DELIVERY_MAJOR_COMBO1,
-      'COMBO1_F' => ProgramWiseSemesterCourse::DELIVERY_MAJOR_COMBO1,
-      'CORE-B' => ProgramWiseSemesterCourse::DELIVERY_MAJOR_COMBO2,
-      'COREB' => ProgramWiseSemesterCourse::DELIVERY_MAJOR_COMBO2,
-      'MAJOR_COMBO2' => ProgramWiseSemesterCourse::DELIVERY_MAJOR_COMBO2,
-      'COMBO2F' => ProgramWiseSemesterCourse::DELIVERY_MAJOR_COMBO2,
-      'COMBO2-F' => ProgramWiseSemesterCourse::DELIVERY_MAJOR_COMBO2,
-      'COMBO2_F' => ProgramWiseSemesterCourse::DELIVERY_MAJOR_COMBO2,
-    ];
-
-    return $aliases[$normalized] ?? $normalized;
-  }
-
-  private function isContextDualMajor(string $programType): bool
-  {
-    $normalized = strtoupper(trim($programType));
-    if ($normalized === '') {
+    if ((int) $student->is_left === 1) {
       return false;
     }
 
-    return str_contains($normalized, 'DUAL');
-  }
 
-  private function normalizeSelectionType(string $value): string
-  {
-    $normalized = strtoupper(trim($value));
+    /*
+        |--------------------------------------------------------------------------
+        | GLOBAL RULE #2
+        |--------------------------------------------------------------------------
+        |
+        | Student must have an academic pathway.
+        |
+        */
 
-    if (in_array($normalized, ['COMPULSORY', 'MANDATORY'], true)) {
-      return ProgramWiseSemesterCourse::TYPE_AUTO;
+    $academicPathwayId = $this->getAcademicPathwayId($student);
+
+    if (!$academicPathwayId) {
+
+      $this->debugDecision(
+        $student,
+        $course,
+        null,
+        false,
+        'NO_ACADEMIC_PATHWAY',
+        'Student has no academic pathway.'
+      );
+
+      return false;
     }
 
-    if (in_array($normalized, ['ELECTIVE', 'OPTIONAL'], true)) {
-      return ProgramWiseSemesterCourse::TYPE_STUDENT_CHOICE;
+
+    /*
+        |--------------------------------------------------------------------------
+        | Degree Track
+        |--------------------------------------------------------------------------
+        */
+
+    $degreeTrackId = $this->getDegreeTrackId($student);
+
+
+    /*
+        |--------------------------------------------------------------------------
+        | Resolve rule
+        |--------------------------------------------------------------------------
+        */
+
+    $rule = $this->resolveRule(
+      $academicPathwayId,
+      $degreeTrackId,
+      $course
+    );
+
+
+    /*
+        |--------------------------------------------------------------------------
+        | No rule found
+        |--------------------------------------------------------------------------
+        |
+        | NEVER silently drop the student.
+        |
+        */
+
+    if (!$rule) {
+
+      $this->debugDecision(
+        $student,
+        $course,
+        null,
+        false,
+        'NO_RULE',
+        'No StudentRoster rule matched this student/course combination.',
+        [
+          'academic_pathway_id' => $academicPathwayId,
+          'degree_track_id' => $degreeTrackId,
+          'delivery_type' => $course->delivery_type ?? null,
+          'selection_type' => $course->selection_type ?? null,
+        ]
+      );
+
+      return false;
     }
 
-    if (in_array($normalized, [
-      ProgramWiseSemesterCourse::TYPE_AUTO,
-      ProgramWiseSemesterCourse::TYPE_STUDENT_CHOICE,
-      ProgramWiseSemesterCourse::TYPE_DEPARTMENT_CHOICE,
-    ], true)) {
-      return $normalized;
-    }
 
-    return ProgramWiseSemesterCourse::TYPE_AUTO;
-  }
+    /*
+        |--------------------------------------------------------------------------
+        | Teaching Group
+        |--------------------------------------------------------------------------
+        |
+        | Teaching Group is special.
+        |
+        | It can combine:
+        |
+        | - multiple courses
+        | - multiple programs
+        | - multiple batches
+        | - multiple semesters
+        |
+        | Therefore it is checked before normal semester/batch restrictions.
+        |
+        */
 
-  private function isDualPathway(object $student, int $combo1, int $combo2): bool
-  {
-    $pathwayId = (int) ($student->academic_pathway_id ?? 0);
-    if ($pathwayId === 2) {
+    if (
+      (bool) $rule->teaching_group_override &&
+      $this->isInTeachingGroup($student, $course, $context)
+    ) {
+
+      $this->debugDecision(
+        $student,
+        $course,
+        $rule,
+        true,
+        'TEACHING_GROUP',
+        'Student included through Teaching Group.'
+      );
+
       return true;
     }
-    if ($pathwayId === 1) {
+
+
+    /*
+        |--------------------------------------------------------------------------
+        | Semester Scope
+        |--------------------------------------------------------------------------
+        */
+
+    if (
+      !$this->passesSemesterScope(
+        $student,
+        $course,
+        $rule
+      )
+    ) {
+
+      $this->debugDecision(
+        $student,
+        $course,
+        $rule,
+        false,
+        'SEMESTER_SCOPE',
+        'Student failed semester scope.'
+      );
+
       return false;
     }
 
-    $pathwayName = strtoupper(trim((string) ($student->academic_pathway_name ?? '')));
-    if ($pathwayName !== '') {
-      if (str_contains($pathwayName, 'DUAL')) {
-        return true;
-      }
-      if (str_contains($pathwayName, 'SINGLE')) {
-        return false;
-      }
+
+    /*
+        |--------------------------------------------------------------------------
+        | Batch Scope
+        |--------------------------------------------------------------------------
+        */
+
+    if (
+      !$this->passesBatchScope(
+        $student,
+        $course,
+        $rule
+      )
+    ) {
+
+      $this->debugDecision(
+        $student,
+        $course,
+        $rule,
+        false,
+        'BATCH_SCOPE',
+        'Student failed batch scope.'
+      );
+
+      return false;
     }
 
-    return $combo1 > 0 && $combo2 > 0 && $combo1 !== $combo2;
+
+    /*
+        |--------------------------------------------------------------------------
+        | Specialization
+        |--------------------------------------------------------------------------
+        */
+
+    if (
+      !$this->passesSpecializationScope(
+        $student,
+        $course,
+        $rule
+      )
+    ) {
+
+      $this->debugDecision(
+        $student,
+        $course,
+        $rule,
+        false,
+        'SPECIALIZATION_SCOPE',
+        'Student failed specialization applicability.'
+      );
+
+      return false;
+    }
+
+
+    /*
+        |--------------------------------------------------------------------------
+        | Major Restriction
+        |--------------------------------------------------------------------------
+        */
+
+    if (
+      !$this->passesMajorRestriction(
+        $student,
+        $course,
+        $rule
+      )
+    ) {
+
+      $this->debugDecision(
+        $student,
+        $course,
+        $rule,
+        false,
+        'MAJOR_RESTRICTION',
+        'Student failed major restriction.'
+      );
+
+      return false;
+    }
+
+
+    /*
+        |--------------------------------------------------------------------------
+        | Finally execute the rule
+        |--------------------------------------------------------------------------
+        */
+
+    $result = $this->executeRosterSource(
+      $student,
+      $course,
+      $rule,
+      $context
+    );
+
+
+    $this->debugDecision(
+      $student,
+      $course,
+      $rule,
+      $result,
+      $result
+        ? 'INCLUDED'
+        : 'ROSTER_SOURCE_REJECTED',
+      $result
+        ? 'Student included by roster rule.'
+        : 'Student did not satisfy roster source.'
+    );
+
+
+    return $result;
   }
 
-  private function resolveSingleMajorSubjectId(object $student, int $combo1, int $combo2): int
-  {
-    $selectedCombo = (int) ($student->selected_combo_id ?? 0);
-    if ($selectedCombo > 0) {
-      return $selectedCombo;
-    }
 
-    $academicDept = (int) ($student->academic_dept_id ?? 0);
-    if ($academicDept > 0) {
-      return $academicDept;
-    }
+    // ========================================================================
+    // RULE RESOLUTION
+    // ========================================================================
 
-    if ($combo1 > 0 && $combo2 <= 0) {
-      return $combo1;
-    }
 
-    return 0;
+  /**
+   * Resolve the applicable rule from the database.
+   *
+   * Priority:
+   *
+   * 1. Exact pathway
+   * 2. Exact degree track
+   * 3. Exact delivery type
+   * 4. Exact selection type
+   * 5. Active rule
+   * 6. Lowest priority number
+   */
+  protected function resolveRule(
+    int $academicPathwayId,
+    ?int $degreeTrackId,
+    $course
+  ): ?StudentRosterRuleMapping {
+
+    return StudentRosterRuleMapping::query()
+
+      ->with([
+        'rule',
+        'academicPathway',
+        'degreeTrack',
+      ])
+
+      /*
+             * Academic Pathway MUST match.
+             */
+      ->where(
+        'academic_pathway_id',
+        $academicPathwayId
+      )
+
+      /*
+             * Degree Track:
+             *
+             * Exact track OR generic NULL rule.
+             */
+      ->where(function ($query) use ($degreeTrackId) {
+
+        $query
+          ->where(
+            'degree_track_id',
+            $degreeTrackId
+          )
+          ->orWhereNull('degree_track_id');
+      })
+
+      /*
+             * Delivery type MUST match.
+             */
+      ->where(
+        'delivery_type',
+        $course->delivery_type
+      )
+
+      /*
+             * Selection type:
+             *
+             * Exact match OR generic rule.
+             */
+      ->where(function ($query) use ($course) {
+
+        $selectionType =
+          $course->selection_type ?? null;
+
+        $query
+          ->where(
+            'selection_type',
+            $selectionType
+          )
+          ->orWhereNull('selection_type');
+      })
+
+      ->where('is_active', true)
+
+      /*
+             * Most specific rule first.
+             */
+      ->orderByRaw(
+        'CASE
+                    WHEN degree_track_id IS NULL THEN 1
+                    ELSE 0
+                 END'
+      )
+
+      ->orderByRaw(
+        'CASE
+                    WHEN selection_type IS NULL THEN 1
+                    ELSE 0
+                 END'
+      )
+
+      ->orderBy('priority')
+
+      ->first();
   }
 
-  private function isDeliveryRowEligible(
-    string $deliveryType,
-    string $selectionType,
-    bool $isDual,
-    int $combo1,
-    int $combo2,
-    int $singleMajorSubjectId,
-    int $offeringDept,
-    ProgramCourseMaster $course
+
+    // ========================================================================
+    // ROSTER SOURCE
+    // ========================================================================
+
+
+  /**
+   * Execute the source defined by the rule.
+   */
+  protected function executeRosterSource(
+    StudentMaster $student,
+    $course,
+    StudentRosterRuleMapping $rule,
+    array $context = []
   ): bool {
-    if ($deliveryType === ProgramWiseSemesterCourse::DELIVERY_MAJOR_COMBO1) {
-      if ($isDual) {
-        // For dual-major, COMBO1 rows must still map to student's chosen/derived major.
-        return $combo1 > 0 && $singleMajorSubjectId > 0 && $singleMajorSubjectId === $combo1;
-      }
 
-      return $combo1 > 0 && $singleMajorSubjectId > 0 && $singleMajorSubjectId === $combo1;
+    switch ($rule->roster_source) {
+
+      /*
+             * COMBO1
+             */
+      case 'COMBO1':
+
+        return $this->qualifiesThroughCombo(
+          $student,
+          $course,
+          'COMBO1'
+        );
+
+
+        /*
+             * COMBO2
+             */
+      case 'COMBO2':
+
+        return $this->qualifiesThroughCombo(
+          $student,
+          $course,
+          'COMBO2'
+        );
+
+
+        /*
+             * Student-selected MDC/Common/etc.
+             */
+      case 'STUDENT_SELECTION':
+
+        return $this->qualifiesThroughStudentSelection(
+          $student,
+          $course
+        );
+
+
+        /*
+             * Curriculum applicability.
+             */
+      case 'CURRICULUM':
+
+        return $this->qualifiesThroughCurriculum(
+          $student,
+          $course
+        );
+
+
+        /*
+             * Explicit Teaching Group.
+             */
+      case 'TEACHING_GROUP':
+
+        return $this->isInTeachingGroup(
+          $student,
+          $course,
+          $context
+        );
+
+
+      default:
+
+        Log::warning(
+          'StudentRosterEngine: Unknown roster source',
+          [
+            'roster_source' =>
+            $rule->roster_source,
+
+            'rule_id' =>
+            $rule->id,
+
+            'student_id' =>
+            $student->id,
+
+            'course_id' =>
+            $course->id ?? null,
+          ]
+        );
+
+        return false;
+    }
+  }
+
+
+    // ========================================================================
+    // ACADEMIC PATHWAY
+    // ========================================================================
+
+
+  /**
+   * Get student's academic pathway.
+   *
+   * IMPORTANT:
+   * Adjust this method to your actual StudentMaster relationship/column.
+   */
+  protected function getAcademicPathwayId(
+    StudentMaster $student
+  ): ?int {
+
+    /*
+         * Preferred if StudentMaster has:
+         *
+         * academicPathway relationship
+         */
+
+    if (
+      isset($student->academic_pathway_id) &&
+      $student->academic_pathway_id
+    ) {
+      return (int) $student->academic_pathway_id;
     }
 
-    if ($deliveryType === ProgramWiseSemesterCourse::DELIVERY_MAJOR_COMBO2) {
-      if ($isDual) {
-        // For dual-major, COMBO2 rows must still map to student's chosen/derived major.
-        return $combo2 > 0 && $singleMajorSubjectId > 0 && $singleMajorSubjectId === $combo2;
-      }
-
-      return $combo2 > 0 && $singleMajorSubjectId > 0 && $singleMajorSubjectId === $combo2;
+    if (
+      isset($student->academicPathway) &&
+      $student->academicPathway
+    ) {
+      return (int) $student->academicPathway->id;
     }
 
-    if ($deliveryType === ProgramWiseSemesterCourse::DELIVERY_OPEN_CHOICE) {
-      if ($selectionType === ProgramWiseSemesterCourse::TYPE_STUDENT_CHOICE) {
-        if ($isDual && $this->violatesDualMajorMdcDepartmentConstraint($offeringDept, $combo1, $combo2, $course)) {
-          return false;
-        }
+    return null;
+  }
 
-        return true;
-      }
 
-      return $this->isDeliveryRowEligible(
-        ProgramWiseSemesterCourse::DELIVERY_MAJOR_COMBO1,
-        ProgramWiseSemesterCourse::TYPE_AUTO,
-        $isDual,
-        $combo1,
-        $combo2,
-        $singleMajorSubjectId,
-        $offeringDept,
-        $course
-      );
+  /**
+   * Get student's degree track.
+   *
+   * Adjust to your actual StudentMaster structure if necessary.
+   */
+  protected function getDegreeTrackId(
+    StudentMaster $student
+  ): ?int {
+
+    if (
+      isset($student->degree_track_id) &&
+      $student->degree_track_id
+    ) {
+      return (int) $student->degree_track_id;
     }
 
-    if ($deliveryType === ProgramWiseSemesterCourse::DELIVERY_PROGRAMME_COMMON) {
-      if ($selectionType === ProgramWiseSemesterCourse::TYPE_STUDENT_CHOICE) {
-        return true;
-      }
-
-      return $this->isDeliveryRowEligible(
-        ProgramWiseSemesterCourse::DELIVERY_MAJOR_COMBO1,
-        ProgramWiseSemesterCourse::TYPE_AUTO,
-        $isDual,
-        $combo1,
-        $combo2,
-        $singleMajorSubjectId,
-        $offeringDept,
-        $course
-      );
+    if (
+      isset($student->degreeTrack) &&
+      $student->degreeTrack
+    ) {
+      return (int) $student->degreeTrack->id;
     }
+
+    return null;
+  }
+
+
+  // ========================================================================
+  // SEMESTER
+  // ========================================================================
+
+
+  protected function passesSemesterScope(
+    StudentMaster $student,
+    $course,
+    StudentRosterRuleMapping $rule
+  ): bool {
+
+    if ($rule->semester_scope === 'ANY') {
+      return true;
+    }
+
+    if ($rule->semester_scope !== 'SAME') {
+      return true;
+    }
+
+    /*
+         * For normal course delivery:
+         *
+         * student semester must match course semester.
+         *
+         * Teaching Groups are already handled before this method.
+         */
+
+    if (
+      !isset($student->semester_id) ||
+      !isset($course->semester_id)
+    ) {
+      return true;
+    }
+
+    return (int) $student->semester_id ===
+      (int) $course->semester_id;
+  }
+
+
+  // ========================================================================
+  // BATCH
+  // ========================================================================
+
+
+  protected function passesBatchScope(
+    StudentMaster $student,
+    $course,
+    StudentRosterRuleMapping $rule
+  ): bool {
+
+    if ($rule->batch_scope === 'ANY') {
+      return true;
+    }
+
+    if ($rule->batch_scope !== 'SAME') {
+      return true;
+    }
+
+    if (
+      !isset($student->batch_id) ||
+      !isset($course->batch_id)
+    ) {
+      return true;
+    }
+
+    return (int) $student->batch_id ===
+      (int) $course->batch_id;
+  }
+
+
+  // ========================================================================
+  // SPECIALIZATION
+  // ========================================================================
+
+
+  protected function passesSpecializationScope(
+    StudentMaster $student,
+    $course,
+    StudentRosterRuleMapping $rule
+  ): bool {
+
+    /*
+         * Specialization is handled by your existing
+         * specialization/curriculum applicability system.
+         *
+         * Do not invent a second specialization algorithm here.
+         */
+
+    if ($rule->specialization_scope === 'ANY') {
+      return true;
+    }
+
+    /*
+         * If your existing curriculum engine already determines
+         * specialization applicability, call it here.
+         */
+
+    return $this->studentCourseSpecializationApplies(
+      $student,
+      $course,
+      $rule
+    );
+  }
+
+
+  protected function studentCourseSpecializationApplies(
+    StudentMaster $student,
+    $course,
+    StudentRosterRuleMapping $rule
+  ): bool {
+
+    /*
+         * Placeholder for your existing specialization logic.
+         *
+         * IMPORTANT:
+         * Do not return false here until connected to your existing
+         * specialization enrollment/curriculum logic.
+         */
 
     return true;
   }
 
-  private function violatesDualMajorMdcDepartmentConstraint(int $offeringDept, int $combo1, int $combo2, ProgramCourseMaster $course): bool
-  {
-    if ($offeringDept <= 0) {
-      $offeringDept = (int) ($course->department ?? 0);
-    }
 
-    if ($offeringDept <= 0) {
-      return false;
-    }
+  // ========================================================================
+  // MAJOR RESTRICTION
+  // ========================================================================
 
-    return ($combo1 > 0 && $offeringDept === $combo1)
-      || ($combo2 > 0 && $offeringDept === $combo2);
-  }
 
-  private function applyActiveStudentGuards(object $query, string $alias = 'sm'): void
-  {
-    $prefix = $alias !== '' ? $alias . '.' : '';
+  protected function passesMajorRestriction(
+    StudentMaster $student,
+    $course,
+    StudentRosterRuleMapping $rule
+  ): bool {
 
-    if (Schema::hasColumn('student_masters', 'is_deleted')) {
-      $query->where($prefix . 'is_deleted', 0);
-    }
-
-    if (Schema::hasColumn('student_masters', 'is_left')) {
-      $query->where(function ($leftScope) use ($prefix) {
-        $leftScope->whereNull($prefix . 'is_left')->orWhere($prefix . 'is_left', 0);
-      });
-    }
-
-    if (Schema::hasColumn('student_masters', 'where_is_left')) {
-      $query->where(function ($leftScope) use ($prefix) {
-        $leftScope->whereNull($prefix . 'where_is_left')->orWhere($prefix . 'where_is_left', 0);
-      });
-    }
-  }
-
-  private function loadStudentSpecializations(Collection $students): array
-  {
-    if (!Schema::hasTable('student_specializations')) {
-      return [];
-    }
-
-    $studentIds = $students->pluck('student_id')
-      ->map(fn($id) => (int) $id)
-      ->filter(fn($id) => $id > 0)
-      ->unique()
-      ->values();
-
-    if ($studentIds->isEmpty()) {
-      return [];
-    }
-
-    $query = StudentSpecialization::query()
-      ->whereIn('student_id', $studentIds->all())
-      ->select(['student_id', 'subject_has_student_program_id', 'specialization_id', 'semester_id']);
-
-    if (Schema::hasColumn('student_specializations', 'is_active')) {
-      $query->where('is_active', 1);
-    }
-
-    if (Schema::hasColumn('student_specializations', 'deleted_at')) {
-      $query->whereNull('deleted_at');
-    }
-
-    $rows = $query->get();
-    $lookup = [];
-
-    foreach ($rows as $row) {
-      $studentId = (int) ($row->student_id ?? 0);
-      $comboId = (int) ($row->subject_has_student_program_id ?? 0);
-      $specId = (int) ($row->specialization_id ?? 0);
-      $semesterId = (int) ($row->semester_id ?? 0);
-
-      if ($studentId <= 0 || $comboId <= 0 || $specId <= 0) {
-        continue;
-      }
-
-      $lookup[$studentId] = $lookup[$studentId] ?? [];
-      $lookup[$studentId][$comboId] = $lookup[$studentId][$comboId] ?? [];
-      $lookup[$studentId][$comboId][] = [
-        'specialization_id' => $specId,
-        'semester_id' => $semesterId,
-      ];
-    }
-
-    return $lookup;
-  }
-
-  private function passesSpecializationGate(object $curriculumRow, int $studentId, array $studentSpecs): bool
-  {
-    $mode = strtoupper(trim((string) ($curriculumRow->specialization_mode ?? 'COMMON')));
-    if (in_array($mode, ['COMMON', 'PROGRAMME_COMMON', 'PROGRAM_COMMON', 'ALL'], true)) {
+    if ($rule->major_restriction === 'NONE') {
       return true;
     }
 
-    $requiredSpecIds = [];
 
-    $singleId = (int) ($curriculumRow->specialization_master_id ?? 0);
-    if ($singleId > 0) {
-      $requiredSpecIds[] = $singleId;
+    if (
+      $rule->major_restriction ===
+      'EXCLUDE_MAJOR_DEPARTMENTS'
+    ) {
+
+      return !$this->courseBelongsToStudentsMajorDepartment(
+        $student,
+        $course
+      );
     }
 
-    $rawSpecIds = $curriculumRow->specialization_master_ids;
-    if (is_string($rawSpecIds) && trim($rawSpecIds) !== '') {
-      $decoded = json_decode($rawSpecIds, true);
-      if (is_array($decoded)) {
-        $rawSpecIds = $decoded;
-      }
-    }
 
-    if (is_array($rawSpecIds)) {
-      foreach ($rawSpecIds as $value) {
-        $specId = (int) $value;
-        if ($specId > 0) {
-          $requiredSpecIds[] = $specId;
-        }
-      }
-    }
+    return true;
+  }
 
-    $requiredSpecIds = array_values(array_unique($requiredSpecIds));
-    if (empty($requiredSpecIds)) {
-      return true;
-    }
 
-    $comboId = (int) ($curriculumRow->program_combo_refid ?? 0);
-    $studentComboSpecs = $studentSpecs[$studentId][$comboId] ?? [];
-    if (empty($studentComboSpecs)) {
-      return false;
-    }
+  /**
+   * Dual Major MDC student-choice rule:
+   *
+   * Student cannot select MDC from either of their
+   * two Major departments.
+   *
+   * Connect this to your existing Major/pathway structure.
+   */
+  protected function courseBelongsToStudentsMajorDepartment(
+    StudentMaster $student,
+    $course
+  ): bool {
 
-    $assignedSpecIds = array_values(array_unique(array_map(function ($row) {
-      return (int) ($row['specialization_id'] ?? 0);
-    }, $studentComboSpecs)));
+    /*
+         * IMPORTANT:
+         *
+         * Replace this with your existing major-department
+         * relationship.
+         *
+         * This is intentionally isolated so the main engine
+         * doesn't know your exact major implementation.
+         */
 
-    return !empty(array_intersect($requiredSpecIds, $assignedSpecIds));
+    return false;
+  }
+
+
+    // ========================================================================
+    // COMBO
+    // ========================================================================
+
+
+  /**
+   * Determine whether the student is applicable through
+   * COMBO1 or COMBO2.
+   *
+   * Connect this to your existing curriculum/enrollment logic.
+   */
+  protected function qualifiesThroughCombo(
+    StudentMaster $student,
+    $course,
+    string $combo
+  ): bool {
+
+    /*
+         * IMPORTANT:
+         *
+         * Your existing implementation already knows how to
+         * determine whether a student belongs to COMBO1/COMBO2.
+         *
+         * Move that existing logic into this method.
+         */
+
+    return false;
+  }
+
+
+    // ========================================================================
+    // STUDENT SELECTION
+    // ========================================================================
+
+
+  /**
+   * Check student's explicit course selection.
+   */
+  protected function qualifiesThroughStudentSelection(
+    StudentMaster $student,
+    $course
+  ): bool {
+
+    /*
+         * Connect this to the existing student selection table.
+         *
+         * Example conceptually:
+         *
+         * return StudentCourseSelection::query()
+         *     ->where('student_id', $student->id)
+         *     ->where('course_id', $course->id)
+         *     ->exists();
+         */
+
+    return false;
+  }
+
+
+  // ========================================================================
+  // CURRICULUM
+  // ========================================================================
+
+
+  protected function qualifiesThroughCurriculum(
+    StudentMaster $student,
+    $course
+  ): bool {
+
+    /*
+         * Use your existing CurriculumEngine applicability logic.
+         *
+         * The roster engine should NOT recreate the curriculum engine.
+         */
+
+    return true;
+  }
+
+
+  // ========================================================================
+  // TEACHING GROUP
+  // ========================================================================
+
+
+  protected function isInTeachingGroup(
+    StudentMaster $student,
+    $course,
+    array $context = []
+  ): bool {
+
+    /*
+         * Connect this to your existing Teaching Group implementation.
+         *
+         * Teaching Groups are allowed to combine:
+         *
+         * - courses
+         * - programs
+         * - semesters
+         * - batches
+         *
+         * Therefore this is intentionally evaluated before
+         * normal SAME semester/batch restrictions.
+         */
+
+    return false;
+  }
+
+
+  // ========================================================================
+  // CANDIDATE STUDENTS
+  // ========================================================================
+
+
+  protected function getCandidateStudents(
+    $course,
+    array $context = []
+  ): Collection {
+
+    /*
+         * IMPORTANT:
+         *
+         * This should be your broad candidate query.
+         *
+         * Do NOT put the complete roster logic here.
+         *
+         * The rule engine must decide eligibility.
+         */
+
+    return StudentMaster::query()
+
+      /*
+             * NEVER include students who have left.
+             */
+      ->where('is_left', '!=', 1)
+
+      ->get();
+  }
+
+
+  // ========================================================================
+  // DEBUGGING
+  // ========================================================================
+
+
+  protected function debugDecision(
+    StudentMaster $student,
+    $course,
+    ?StudentRosterRuleMapping $rule,
+    bool $included,
+    string $reasonCode,
+    string $reason,
+    array $extra = []
+  ): void {
+
+    /*
+         * During initial rollout, logging is extremely useful.
+         *
+         * This lets us identify exactly why a student disappeared
+         * from a roster.
+         */
+
+    Log::debug(
+      'StudentRosterEngine decision',
+      array_merge(
+        [
+          'student_id' =>
+          $student->id,
+
+          'course_id' =>
+          $course->id ?? null,
+
+          'included' =>
+          $included,
+
+          'reason_code' =>
+          $reasonCode,
+
+          'reason' =>
+          $reason,
+
+          'rule_id' =>
+          $rule?->id,
+
+          'rule_code' =>
+          $rule?->rule?->rule_code,
+
+          'academic_pathway_id' =>
+          $this->getAcademicPathwayId($student),
+
+          'degree_track_id' =>
+          $this->getDegreeTrackId($student),
+
+          'delivery_type' =>
+          $course->delivery_type ?? null,
+
+          'selection_type' =>
+          $course->selection_type ?? null,
+        ],
+        $extra
+      )
+    );
   }
 }
