@@ -3632,7 +3632,6 @@ class ITCellController extends Controller
         /** Single MAJOR RULES ENGINE
          * COMBO1 -- Full COMBO1 SCOPED
          */
-
         if (empty($ruleAppl)) {
 
             //without Specialization
@@ -3813,7 +3812,6 @@ class ITCellController extends Controller
          * MDC_STUDENT_STUDENT_CHOICE -- DONE
          */
 
-
         //COMBO1 -- Done
         if ($ruleAppl->roster_source == 'COMBO1' && $ruleAppl->delivery_type == 'COMBO1' && $selection_type == 'AUTO') {
             //find department 
@@ -3837,8 +3835,8 @@ class ITCellController extends Controller
             $studentsQuery = StudentMaster::query()
                 ->where('batch', (int) $batch_id)
                 ->where('campus_id', $campus_id)
-                ->whereIn('new_program_id', $programIds->all())
-                ->where('new_program_id', (int) $program_id);
+                ->whereIn('new_program_id', $programIds->all());
+
 
             if ((int) $academic_pathway_id > 0) {
                 $studentsQuery->where('academic_pathway_id', (int) $academic_pathway_id);
@@ -3904,8 +3902,8 @@ class ITCellController extends Controller
             $studentsQuery = StudentMaster::query()
                 ->where('campus_id', $campus_id)
                 ->where('batch', (int) $batch_id)
-                ->whereIn('new_program_id', $programIds->all())
-                ->where('new_program_id', (int) $program_id);
+                ->whereIn('new_program_id', $programIds->all());
+
 
             if ((int) $academic_pathway_id > 0) {
                 $studentsQuery->where('academic_pathway_id', (int) $academic_pathway_id);
@@ -3971,8 +3969,8 @@ class ITCellController extends Controller
             $studentsQuery = StudentMaster::query()
                 ->where('campus_id', $campus_id)
                 ->where('batch', (int) $batch_id)
-                ->whereIn('new_program_id', $programIds->all())
-                ->where('new_program_id', (int) $program_id);
+                ->whereIn('new_program_id', $programIds->all());
+
 
             if ((int) $academic_pathway_id > 0) {
                 $studentsQuery->where('academic_pathway_id', (int) $academic_pathway_id);
@@ -4038,8 +4036,8 @@ class ITCellController extends Controller
             $studentsQuery = StudentMaster::query()
                 ->where('campus_id', $campus_id)
                 ->where('batch', (int) $batch_id)
-                ->whereIn('new_program_id', $programIds->all())
-                ->where('new_program_id', (int) $program_id);
+                ->whereIn('new_program_id', $programIds->all());
+
 
             if ((int) $academic_pathway_id > 0) {
                 $studentsQuery->where('academic_pathway_id', (int) $academic_pathway_id);
