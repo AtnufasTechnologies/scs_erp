@@ -98,7 +98,6 @@ return asset('storage/' . $path);
             @endforeach
 
             <button type="submit" class="btn btn-success">Submit Quiz</button>
-            <a href="{{ route('student.fa1.lobby', $quiz->id) }}" class="btn btn-outline-secondary">Back</a>
           </div>
         </div>
       </form>

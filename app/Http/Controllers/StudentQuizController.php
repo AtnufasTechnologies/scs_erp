@@ -25,6 +25,11 @@ class StudentQuizController extends Controller
 
   public function accessPage()
   {
+    $student = $this->resolveCurrentStudent();
+    if ($student && $this->isRollNoVerified($student)) {
+      return redirect()->route('student.fa1.index');
+    }
+
     return view('student.quiz.entry');
   }
 
