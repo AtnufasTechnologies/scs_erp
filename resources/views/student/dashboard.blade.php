@@ -1066,6 +1066,9 @@
         $courseOfferingSubjectMap = $courseOfferingSubjectMap ?? [];
         $studentMajorDeliveryType = $studentMajorDeliveryType ?? 'COMMON';
         $programOfferingSubjectTitle = $programOfferingSubjectTitle ?? '—';
+        $faComponentNames = $faComponentNames ?? collect();
+        $faComponentNames = collect($faComponentNames)->values();
+        $faMarksBySemesterCourse = $faMarksBySemesterCourse ?? collect();
         $ctColors = [
         'CC' => ['bg'=>'#e8eaf6','color'=>'#1a237e'],
         'GE' => ['bg'=>'#e8f5e9','color'=>'#1b5e20'],
@@ -1170,8 +1173,11 @@
                 <th>Course Title</th>
                 <th>Course Type</th>
                 <th>Delivery</th>
-                <th>Offered By</th>
                 <th>Cr.</th>
+                @foreach($faComponentNames as $componentName)
+                <th>{{ $componentName }}</th>
+                @endforeach
+                <th>FA Total</th>
               </tr>
             </thead>
             <tbody>
@@ -1185,6 +1191,8 @@
               $deliveryKey = (string) ($course->semester ?? $course->coursemaster?->semester_id ?? '') . '_' . (string) ($course->course_id ?? '');
               $deliveryType = $courseDeliveryMap[$deliveryKey] ?? $studentMajorDeliveryType;
               $offeredBySubject = $courseOfferingSubjectMap[$deliveryKey] ?? $programOfferingSubjectTitle;
+              $faKey = (string) ((int) ($course->semester ?? $course->coursemaster?->semester_id ?? 0)) . '_' . (string) ((int) ($course->course_id ?? 0));
+              $faData = $faMarksBySemesterCourse->get($faKey);
               @endphp
               <tr>
                 <td style="color:#adb5bd;">{{ $i+1 }}</td>
@@ -1204,8 +1212,31 @@
                     {{ $deliveryType }}
                   </span>
                 </td>
-                <td style="font-size:.78rem;color:#374151;font-weight:600;white-space:nowrap;">{{ $offeredBySubject }}</td>
+
                 <td>{{ $course->coursemaster?->credits ?? '—' }}</td>
+                @foreach($faComponentNames as $componentName)
+                @php
+                $componentMark = $faData['components'][$componentName] ?? null;
+                @endphp
+                <td>
+                  @if($componentMark !== null)
+                  <span style="background:#fff3e0;color:#e65100;border-radius:4px;padding:.1rem .45rem;font-size:.76rem;font-weight:700;white-space:nowrap;">
+                    {{ rtrim(rtrim(number_format((float) $componentMark, 2, '.', ''), '0'), '.') }}
+                  </span>
+                  @else
+                  —
+                  @endif
+                </td>
+                @endforeach
+                <td>
+                  @if($faData)
+                  <span style="background:#e8f5e9;color:#1b5e20;border-radius:4px;padding:.1rem .45rem;font-size:.78rem;font-weight:700;white-space:nowrap;">
+                    {{ (int) ($faData['total'] ?? 0) }}
+                  </span>
+                  @else
+                  —
+                  @endif
+                </td>
               </tr>
               @endforeach
             </tbody>

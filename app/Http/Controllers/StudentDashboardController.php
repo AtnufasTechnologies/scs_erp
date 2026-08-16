@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\CiaMark;
 use App\Models\InterMark;
 use App\Models\BatchMaster;
 use App\Models\ProgramCourseMaster;
@@ -137,6 +138,64 @@ class StudentDashboardController extends Controller
 
     $deliveryContext = $this->resolveStudentDeliveryContext($student, $studentCourses);
     $electiveOptions = $this->resolveStudentElectiveOptions($student, $studentCourses);
+
+    $courseIds = $studentCourses
+      ->pluck('course_id')
+      ->map(fn($id) => (int) $id)
+      ->filter(fn($id) => $id > 0)
+      ->unique()
+      ->values();
+
+    $semesterIds = $studentCourses
+      ->map(fn($course) => (int) ($course->semester ?? $course->coursemaster?->semester_id ?? 0))
+      ->filter(fn($id) => $id > 0)
+      ->unique()
+      ->values();
+
+    $faMarkRows = CiaMark::where('STUDENT_ID', $studentId)
+      ->when($courseIds->isNotEmpty(), function ($query) use ($courseIds) {
+        $query->whereIn('COURSE_ID', $courseIds->all());
+      })
+      ->when($semesterIds->isNotEmpty(), function ($query) use ($semesterIds) {
+        $query->whereIn('SEMESTER_ID', $semesterIds->all());
+      })
+      ->with(['groupinfo.grouptype:id,name'])
+      ->get();
+
+    $faComponentNames = $faMarkRows
+      ->map(fn($m) => trim((string) ($m->groupinfo?->grouptype?->name ?? '')))
+      ->filter(fn($name) => $name !== '')
+      ->unique()
+      ->values();
+
+    $faMarksBySemesterCourse = $faMarkRows
+      ->groupBy(fn($m) => (string) ((int) ($m->SEMESTER_ID ?? 0)) . '_' . (string) ((int) ($m->COURSE_ID ?? 0)))
+      ->map(function ($rows) use ($faComponentNames) {
+        $total = 0.0;
+        $components = [];
+
+        foreach ($faComponentNames as $componentName) {
+          $components[$componentName] = null;
+        }
+
+        foreach ($rows as $cm) {
+          $rawCourseMark = trim((string) ($cm->COURSE_GROUP_MARK ?? ''));
+          $courseMark = is_numeric($rawCourseMark) ? (float) $rawCourseMark : 0.0;
+          $groupTypeId = (int) ($cm->groupinfo?->grouptype?->id ?? 0);
+          $componentName = trim((string) ($cm->groupinfo?->grouptype?->name ?? ''));
+
+          $total += $groupTypeId === 5 ? $courseMark : ($courseMark / 2);
+
+          if ($componentName !== '') {
+            $components[$componentName] = $courseMark;
+          }
+        }
+
+        return [
+          'total' => (int) round($total),
+          'components' => $components,
+        ];
+      });
 
     $timetable = StudentTimetableService::generate((int) $studentId);
 
@@ -284,6 +343,8 @@ class StudentDashboardController extends Controller
       'studentMajorDeliveryType'          => $deliveryContext['studentMajorDeliveryType'],
       'programOfferingSubjectTitle'       => $deliveryContext['programOfferingSubjectTitle'],
       'electiveCoursesBySemester'         => $electiveOptions,
+      'faComponentNames'                  => $faComponentNames,
+      'faMarksBySemesterCourse'           => $faMarksBySemesterCourse,
       'timetableByDay'                    => $timetableByDay,
       'attendanceSummary'                 => $attendanceSummary,
       'internalMarks'                     => $internalMarks,
