@@ -224,7 +224,7 @@ return 'RBT';
                           data-batch-label="{{ $batchName }}"
                           data-semester-label="{{ $semesterName }}"
                           data-roster-count="{{ $rosterCount }}">
-                          <i class="fas fa-users"></i>Students
+                          <i class="fas fa-users"></i>Students ({{ $rosterCount }})
                         </button>
                       </div>
                     </div>
@@ -585,6 +585,7 @@ return 'RBT';
                       data-roll-no="{{ $rosterStudent->roll_no ?? '-' }}"
                       data-register-no="{{ $rosterStudent->register_no ?? '-' }}"
                       data-student-name="{{ $rosterStudent->student_name ?? '-' }}"
+                      data-batch-name="{{ $rosterStudent->batch_name ?? $batchName ?? '-' }}"
                       data-batch-id="{{ $rosterStudent->batch_id ?? '-' }}"
                       data-semester-id="{{ $rosterStudent->semester_id ?? '-' }}"></span>
                     @endforeach
@@ -639,6 +640,9 @@ return 'RBT';
                 <span class="badge bg-light-info text-info" id="studentRosterBatchLabel">Batch: -</span>
                 <span class="badge bg-light-warning text-warning" id="studentRosterSemesterLabel">Semester: -</span>
                 <span class="badge bg-light-success text-success" id="studentRosterCountLabel"><i class="fas fa-user-graduate me-1"></i>0 Students</span>
+                <button type="button" class="btn btn-sm btn-outline-primary" id="studentRosterExportBtn" disabled>
+                  <i class="fas fa-file-csv me-1"></i>Export CSV
+                </button>
               </div>
             </div>
 
@@ -653,7 +657,6 @@ return 'RBT';
                   <tr>
                     <th class="text-center" style="width: 70px;">#</th>
                     <th style="width: 130px;">Roll No</th>
-                    <th style="width: 150px;">Register No</th>
                     <th>Student Name</th>
                     <th class="text-center" style="width: 100px;">Batch</th>
                     <th class="text-center" style="width: 110px;">Semester</th>
@@ -1474,6 +1477,55 @@ return 'RBT';
       const rosterTableWrap = document.getElementById('studentRosterTableWrap');
       const rosterTableBody = document.getElementById('studentRosterTableBody');
       const rosterEmptyState = document.getElementById('studentRosterEmptyState');
+      const rosterExportBtn = document.getElementById('studentRosterExportBtn');
+      let activeRosterRows = [];
+      let activeRosterMeta = {
+        courseLabel: '-',
+        batchLabel: '-',
+        semesterLabel: '-'
+      };
+
+      const csvEscape = function(value) {
+        const normalized = String(value ?? '').replace(/\r?\n|\r/g, ' ');
+        return '"' + normalized.replace(/"/g, '""') + '"';
+      };
+
+      const downloadRosterCsv = function() {
+        if (!activeRosterRows.length) return;
+
+        const headers = ['Roll No', 'Register No', 'Student Name', 'Batch', 'Semester'];
+        const lines = [headers.map(csvEscape).join(',')];
+
+        activeRosterRows.forEach(function(student) {
+          lines.push([
+            student.roll_no || '-',
+            student.register_no || '-',
+            student.student_name || '-',
+            student.batch_name || '-',
+            student.semester_id || '-'
+          ].map(csvEscape).join(','));
+        });
+
+        const csv = lines.join('\n');
+        const blob = new Blob([csv], {
+          type: 'text/csv;charset=utf-8;'
+        });
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        const safeCourse = (activeRosterMeta.courseLabel || 'course').replace(/[^a-z0-9]+/gi, '_').replace(/^_+|_+$/g, '').toLowerCase();
+        const safeBatch = (activeRosterMeta.batchLabel || 'batch').replace(/[^a-z0-9]+/gi, '_').replace(/^_+|_+$/g, '').toLowerCase();
+        const safeSemester = (activeRosterMeta.semesterLabel || 'semester').replace(/[^a-z0-9]+/gi, '_').replace(/^_+|_+$/g, '').toLowerCase();
+        link.href = url;
+        link.download = 'roster_' + safeCourse + '_' + safeBatch + '_' + safeSemester + '.csv';
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        URL.revokeObjectURL(url);
+      };
+
+      if (rosterExportBtn) {
+        rosterExportBtn.addEventListener('click', downloadRosterCsv);
+      }
 
       const renderRosterRows = function(rows) {
         if (!rosterTableBody) return;
@@ -1484,9 +1536,8 @@ return 'RBT';
           tr.innerHTML = [
             '<td class="text-center">' + (index + 1) + '</td>',
             '<td>' + (student.roll_no || '-') + '</td>',
-            '<td>' + (student.register_no || '-') + '</td>',
             '<td>' + (student.student_name || '-') + '</td>',
-            '<td class="text-center">' + (student.batch_id || '-') + '</td>',
+            '<td class="text-center">' + (student.batch_name || '-') + '</td>',
             '<td class="text-center">' + (student.semester_id || '-') + '</td>'
           ].join('');
           rosterTableBody.appendChild(tr);
@@ -1497,6 +1548,7 @@ return 'RBT';
         button.addEventListener('click', function() {
           const sourceId = button.getAttribute('data-roster-source');
           const sourceEl = sourceId ? document.getElementById(sourceId) : null;
+          const buttonBatchLabel = button.getAttribute('data-batch-label') || '-';
 
           let rows = [];
           if (sourceEl) {
@@ -1506,6 +1558,7 @@ return 'RBT';
                 roll_no: node.getAttribute('data-roll-no') || '-',
                 register_no: node.getAttribute('data-register-no') || '-',
                 student_name: node.getAttribute('data-student-name') || '-',
+                batch_name: node.getAttribute('data-batch-name') || buttonBatchLabel,
                 batch_id: node.getAttribute('data-batch-id') || '-',
                 semester_id: node.getAttribute('data-semester-id') || '-'
               };
@@ -1517,7 +1570,14 @@ return 'RBT';
           if (rosterBatchLabel) rosterBatchLabel.textContent = 'Batch: ' + (button.getAttribute('data-batch-label') || '-');
           if (rosterSemesterLabel) rosterSemesterLabel.textContent = 'Semester: ' + (button.getAttribute('data-semester-label') || '-');
 
-          const studentCount = Number(button.getAttribute('data-roster-count') || rows.length || 0);
+          activeRosterMeta = {
+            courseLabel: button.getAttribute('data-course-label') || '-',
+            batchLabel: button.getAttribute('data-batch-label') || '-',
+            semesterLabel: button.getAttribute('data-semester-label') || '-'
+          };
+          activeRosterRows = rows;
+
+          const studentCount = rows.length;
           if (rosterCountLabel) {
             rosterCountLabel.innerHTML = '<i class="fas fa-user-graduate me-1"></i>' + studentCount + ' Student' + (studentCount === 1 ? '' : 's');
           }
@@ -1525,11 +1585,13 @@ return 'RBT';
           if (rows.length > 0) {
             if (rosterTableWrap) rosterTableWrap.classList.remove('d-none');
             if (rosterEmptyState) rosterEmptyState.classList.add('d-none');
+            if (rosterExportBtn) rosterExportBtn.disabled = false;
             renderRosterRows(rows);
           } else {
             if (rosterTableWrap) rosterTableWrap.classList.add('d-none');
             if (rosterEmptyState) rosterEmptyState.classList.remove('d-none');
             if (rosterTableBody) rosterTableBody.innerHTML = '';
+            if (rosterExportBtn) rosterExportBtn.disabled = true;
           }
         });
       });

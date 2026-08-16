@@ -1201,6 +1201,47 @@ class StudentRosterEngine
       return $this->getTeachingGroupStudents($course, $context);
     }
 
+    $programIds = $this->resolveCandidateProgramIds($course, $context);
+    if ($programIds->isEmpty()) {
+      return $this->getLegacyEnrollmentCandidates($course);
+    }
+
+    $query = StudentMaster::query()->select('student_masters.*');
+
+    $query->where(function ($q) {
+      $q->whereNull('student_masters.is_left')
+        ->orWhere('student_masters.is_left', '!=', 1);
+    });
+
+    if (Schema::hasColumn('student_masters', 'is_deleted')) {
+      $query->where('student_masters.is_deleted', 0);
+    }
+
+    if ((int) ($course->batch_id ?? 0) > 0) {
+      $query->where('student_masters.batch', (int) $course->batch_id);
+    }
+
+    if ((int) ($course->semester_id ?? 0) > 0) {
+      $semesterId = (int) ($course->semester_id ?? 0);
+      $query->whereHas('activeSemesterConfig', function ($q) use ($semesterId) {
+        $q->where('semester_id', (string) $semesterId);
+      });
+    }
+
+    $query->whereIn('student_masters.new_program_id', $programIds->all());
+
+    $campusIds = $this->resolveCandidateCampusIds($course, $context);
+    if ($campusIds->isNotEmpty() && Schema::hasColumn('student_masters', 'campus_id')) {
+      $query->whereIn('student_masters.campus_id', $campusIds->all());
+    }
+
+    return $query
+      ->orderBy('student_masters.roll_no')
+      ->get();
+  }
+
+  protected function getLegacyEnrollmentCandidates($course): Collection
+  {
     $query = StudentMaster::query()
       ->join('student_course_infos as sci', 'sci.student_id', '=', 'student_masters.id')
       ->select('student_masters.*')
@@ -1238,6 +1279,117 @@ class StudentRosterEngine
     return $query
       ->orderBy('student_masters.roll_no')
       ->get();
+  }
+
+  protected function resolveCandidateProgramIds($course, array $context = []): Collection
+  {
+    $programIds = collect();
+
+    $directProgramId = (int) ($context['program_id'] ?? 0);
+    if ($directProgramId > 0) {
+      $programIds->push($directProgramId);
+    }
+
+    $comboRefId = (int) ($context['program_combo_refid'] ?? 0);
+    if ($comboRefId > 0 && Schema::hasTable('subject_has_student_progams')) {
+      $fromCombo = DB::table('subject_has_student_progams')
+        ->where('id', $comboRefId)
+        ->when(Schema::hasColumn('subject_has_student_progams', 'deleted_at'), function ($q) {
+          $q->whereNull('deleted_at');
+        })
+        ->pluck('student_program_id')
+        ->map(fn($id) => (int) $id)
+        ->filter(fn($id) => $id > 0)
+        ->values();
+
+      $programIds = $programIds->merge($fromCombo);
+    }
+
+    $table = (new ProgramWiseSemesterCourse())->getTable();
+    if (Schema::hasTable($table) && Schema::hasTable('subject_has_student_progams')) {
+      $query = DB::table($table . ' as ce')
+        ->join('subject_has_student_progams as shp', 'shp.id', '=', 'ce.program_combo_refid')
+        ->where('ce.course_id', (int) ($course->id ?? 0));
+
+      if (Schema::hasColumn($table, 'is_active')) {
+        $query->where('ce.is_active', 1);
+      }
+
+      if (Schema::hasColumn($table, 'deleted_at')) {
+        $query->whereNull('ce.deleted_at');
+      }
+
+      if ((int) ($course->batch_id ?? 0) > 0 && Schema::hasColumn($table, 'batch')) {
+        $query->where('ce.batch', (int) $course->batch_id);
+      }
+
+      if ((int) ($course->semester_id ?? 0) > 0 && Schema::hasColumn($table, 'semester')) {
+        $query->where('ce.semester', (int) $course->semester_id);
+      }
+
+      if ((int) ($context['subject_id'] ?? 0) > 0 && Schema::hasColumn('subject_has_student_progams', 'subject_id')) {
+        $query->where('shp.subject_id', (int) $context['subject_id']);
+      }
+
+      if ((int) ($course->batch_id ?? 0) > 0 && Schema::hasColumn('subject_has_student_progams', 'batch_id')) {
+        $query->where('shp.batch_id', (int) $course->batch_id);
+      }
+
+      if (!empty($context['program_type']) && Schema::hasColumn('subject_has_student_progams', 'program_type')) {
+        $query->whereRaw("UPPER(TRIM(COALESCE(shp.program_type, ''))) = ?", [strtoupper(trim((string) $context['program_type']))]);
+      }
+
+      if (Schema::hasColumn('subject_has_student_progams', 'deleted_at')) {
+        $query->whereNull('shp.deleted_at');
+      }
+
+      $fromCurriculum = $query
+        ->pluck('shp.student_program_id')
+        ->map(fn($id) => (int) $id)
+        ->filter(fn($id) => $id > 0)
+        ->values();
+
+      $programIds = $programIds->merge($fromCurriculum);
+    }
+
+    return $programIds
+      ->map(fn($id) => (int) $id)
+      ->filter(fn($id) => $id > 0)
+      ->unique()
+      ->values();
+  }
+
+  protected function resolveCandidateCampusIds($course, array $context = []): Collection
+  {
+    if (!Schema::hasTable('subject_has_student_progams') || !Schema::hasColumn('subject_has_student_progams', 'campus_id')) {
+      return collect();
+    }
+
+    $query = DB::table('subject_has_student_progams');
+
+    $programIds = $this->resolveCandidateProgramIds($course, $context);
+    if ($programIds->isNotEmpty()) {
+      $query->whereIn('student_program_id', $programIds->all());
+    }
+
+    if ((int) ($context['subject_id'] ?? 0) > 0 && Schema::hasColumn('subject_has_student_progams', 'subject_id')) {
+      $query->where('subject_id', (int) $context['subject_id']);
+    }
+
+    if ((int) ($course->batch_id ?? 0) > 0 && Schema::hasColumn('subject_has_student_progams', 'batch_id')) {
+      $query->where('batch_id', (int) $course->batch_id);
+    }
+
+    if (Schema::hasColumn('subject_has_student_progams', 'deleted_at')) {
+      $query->whereNull('deleted_at');
+    }
+
+    return $query
+      ->pluck('campus_id')
+      ->map(fn($id) => (int) $id)
+      ->filter(fn($id) => $id > 0)
+      ->unique()
+      ->values();
   }
 
   // ========================================================================
