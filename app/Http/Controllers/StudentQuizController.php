@@ -664,7 +664,7 @@ class StudentQuizController extends Controller
         ->count();
 
       $score = $totalQuestions > 0
-        ? round(($correctCount / $totalQuestions) * (float) $quiz->total_marks, 2)
+        ? (int) round(($correctCount / $totalQuestions) * (float) $quiz->total_marks)
         : 0;
 
       $attemptRow->update([

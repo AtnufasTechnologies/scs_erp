@@ -357,8 +357,6 @@ class QuizController extends Controller
       'total_marks' => 'required|numeric|min:1',
       'open_at' => 'required|date',
       'close_at' => 'nullable|date|after_or_equal:open_at',
-      'shuffle_questions' => 'nullable|boolean',
-      'shuffle_options' => 'nullable|boolean',
       'time_limit_minutes' => 'nullable|integer|min:1|max:300',
       'pre_start_countdown_seconds' => 'nullable|integer|min:0|max:300',
       'questions' => 'nullable|array|min:1',
@@ -465,8 +463,8 @@ class QuizController extends Controller
         'total_marks' => $request->total_marks,
         'open_at' => $request->open_at,
         'close_at' => $request->close_at,
-        'shuffle_questions' => $request->boolean('shuffle_questions'),
-        'shuffle_options' => $request->boolean('shuffle_options'),
+        'shuffle_questions' => 1,
+        'shuffle_options' => 1,
         'time_limit_minutes' => $request->input('time_limit_minutes'),
         'is_published' => true,
         'created_by' => Auth::id(),
@@ -645,6 +643,84 @@ class QuizController extends Controller
       'attemptCounts',
       'permissions'
     ));
+  }
+
+  public function exportResults($id)
+  {
+    $quiz = Quiz::where('id', $id)
+      ->where('created_by', Auth::id())
+      ->with([
+        'course:id,course_title,course_code',
+        'subject:id,title',
+      ])
+      ->firstOrFail();
+
+    $attempts = QuizAttempt::where('quiz_id', $quiz->id)
+      ->where('status', 'submitted')
+      ->with('student:id,first_name,last_name,roll_no,register_no')
+      ->orderByDesc('score')
+      ->orderBy('submitted_at')
+      ->get();
+
+    $spreadsheet = new Spreadsheet();
+    $sheet = $spreadsheet->getActiveSheet();
+    $sheet->setTitle('Quiz Results');
+
+    $sheet->setCellValue('A1', 'Quiz Title');
+    $sheet->setCellValue('B1', (string) ($quiz->title ?? 'N/A'));
+    $sheet->setCellValue('A2', 'Subject');
+    $sheet->setCellValue('B2', (string) ($quiz->subject->title ?? 'N/A'));
+    $sheet->setCellValue('A3', 'Course');
+    $sheet->setCellValue('B3', (string) (($quiz->course->course_title ?? 'N/A') . ' (' . ($quiz->course->course_code ?? 'N/A') . ')'));
+    $sheet->setCellValue('A4', 'Max Marks');
+    $sheet->setCellValue('B4', (int) ($quiz->total_marks ?? 0));
+
+    $headerRow = 6;
+    $headers = [
+      'Student Name',
+      'Roll No',
+      'Register No',
+      'Attempt No',
+      'Raw Score',
+      'Total Questions',
+      'Score (Rounded)',
+      'Submitted At',
+      'Mode',
+    ];
+
+    foreach ($headers as $index => $header) {
+      $sheet->setCellValueByColumnAndRow($index + 1, $headerRow, $header);
+    }
+
+    $row = $headerRow + 1;
+    foreach ($attempts as $attempt) {
+      $sheet->setCellValueByColumnAndRow(1, $row, trim((string) (($attempt->student->first_name ?? '') . ' ' . ($attempt->student->last_name ?? ''))));
+      $sheet->setCellValueByColumnAndRow(2, $row, (string) ($attempt->student->roll_no ?? 'N/A'));
+      $sheet->setCellValueByColumnAndRow(3, $row, (string) ($attempt->student->register_no ?? 'N/A'));
+      $sheet->setCellValueByColumnAndRow(4, $row, (int) ($attempt->attempt_no ?? 0));
+      $sheet->setCellValueByColumnAndRow(5, $row, (int) ($attempt->raw_score ?? 0));
+      $sheet->setCellValueByColumnAndRow(6, $row, (int) ($attempt->total_questions ?? 0));
+      $sheet->setCellValueByColumnAndRow(7, $row, (int) round((float) ($attempt->score ?? 0)));
+      $sheet->setCellValueByColumnAndRow(8, $row, (string) optional($attempt->submitted_at)->format('d M Y h:i A'));
+      $sheet->setCellValueByColumnAndRow(9, $row, $attempt->submitted_by_timeout ? 'Auto (timeout)' : 'Manual');
+      $row++;
+    }
+
+    foreach (range('A', 'I') as $column) {
+      $sheet->getColumnDimension($column)->setAutoSize(true);
+    }
+
+    $filename = 'fa1_quiz_results_' . (int) $quiz->id . '_' . now()->format('Ymd_His') . '.xlsx';
+
+    return response()->streamDownload(function () use ($spreadsheet) {
+      $writer = new Xlsx($spreadsheet);
+      $writer->save('php://output');
+    }, $filename, [
+      'Content-Type' => 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+      'Cache-Control' => 'max-age=0, no-cache, no-store, must-revalidate',
+      'Pragma' => 'no-cache',
+      'Expires' => '0',
+    ]);
   }
 
   public function allowAttempts(Request $request, $id)

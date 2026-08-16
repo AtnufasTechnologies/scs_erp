@@ -145,18 +145,7 @@
                 <label class="form-label fw-bold">Time Limit (Minutes)</label>
                 <input type="number" min="1" max="300" class="form-control" name="time_limit_minutes" value="{{ old('time_limit_minutes') }}" placeholder="e.g. 30">
               </div>
-              <div class="col-md-3 d-flex align-items-end">
-                <div class="form-check me-3">
-                  <input class="form-check-input" type="checkbox" name="shuffle_questions" id="shuffle_questions" value="1" @checked(old('shuffle_questions'))>
-                  <label class="form-check-label" for="shuffle_questions">Shuffle Questions</label>
-                </div>
-              </div>
-              <div class="col-md-3 d-flex align-items-end">
-                <div class="form-check">
-                  <input class="form-check-input" type="checkbox" name="shuffle_options" id="shuffle_options" value="1" @checked(old('shuffle_options'))>
-                  <label class="form-check-label" for="shuffle_options">Shuffle Options</label>
-                </div>
-              </div>
+
               <div class="col-md-3">
                 <label class="form-label fw-bold">Pre-Start Countdown (Seconds)</label>
                 <input type="number" min="0" max="300" class="form-control" name="pre_start_countdown_seconds" value="{{ old('pre_start_countdown_seconds', 10) }}" placeholder="e.g. 10">

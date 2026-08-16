@@ -1115,6 +1115,7 @@ Route::group(['prefix' => '/erp'], function () {
         Route::post('fa1/{id}/questions', [FacultyQuizController::class, 'storeQuestions'])->name('faculty.fa1.questions.store');
         Route::put('fa1/{id}/timing', [FacultyQuizController::class, 'updateTiming'])->name('faculty.fa1.timing.update');
         Route::get('fa1/{id}/results', [FacultyQuizController::class, 'results'])->name('faculty.fa1.results');
+        Route::get('fa1/{id}/results/export', [FacultyQuizController::class, 'exportResults'])->name('faculty.fa1.results.export');
         Route::post('fa1/{id}/allow-attempts', [FacultyQuizController::class, 'allowAttempts'])->name('faculty.fa1.allow-attempts');
     });
 

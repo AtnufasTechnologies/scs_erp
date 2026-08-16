@@ -74,7 +74,7 @@
                     @elseif($notYetOpen)
                     <span class="badge bg-info text-dark">Upcoming</span>
                     @elseif($latestAttempt && $latestAttempt->status === 'submitted')
-                    <span class="badge bg-success">Last Score: {{ $latestAttempt->score }}</span>
+                    <span class="badge bg-success">Last Score: {{ (int) round((float) $latestAttempt->score) }}</span>
                     @else
                     <span class="badge bg-primary">Not Started</span>
                     @endif

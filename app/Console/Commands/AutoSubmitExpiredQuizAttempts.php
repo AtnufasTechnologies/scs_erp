@@ -49,7 +49,7 @@ class AutoSubmitExpiredQuizAttempts extends Command
         }
 
         $score = $totalQuestions > 0
-          ? round(($correctCount / $totalQuestions) * (float) $quiz->total_marks, 2)
+          ? (int) round(($correctCount / $totalQuestions) * (float) $quiz->total_marks)
           : 0;
 
         $attempt->update([

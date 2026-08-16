@@ -91,11 +91,16 @@
         <div class="card-header bg-white py-3">
           <div class="d-flex justify-content-between align-items-center flex-wrap gap-2">
             <h5 class="mb-0 fw-bold">Eligible Students and Attempt Status</h5>
-            @if(($studentRosterSource ?? 'primary') === 'fallback')
-            <span class="badge bg-warning text-dark">Roster Source: Fallback (Course/Semester)</span>
-            @else
-            <span class="badge bg-success">Roster Source: Primary (Subject + Program Mapping)</span>
-            @endif
+            <div class="d-flex align-items-center gap-2 flex-wrap">
+              <a href="{{ route('faculty.fa1.results.export', $quiz->id) }}" class="btn btn-success btn-sm">
+                <i class="fas fa-file-excel me-1"></i>Export to Excel
+              </a>
+              @if(($studentRosterSource ?? 'primary') === 'fallback')
+              <span class="badge bg-warning text-dark">Roster Source: Fallback (Course/Semester)</span>
+              @else
+              <span class="badge bg-success">Roster Source: Primary (Subject + Program Mapping)</span>
+              @endif
+            </div>
           </div>
         </div>
         <div class="card-body table-responsive">
@@ -140,7 +145,7 @@
                 </td>
                 <td>
                   @if($latest)
-                  Score: {{ $latest->score }}
+                  Score: {{ (int) round((float) $latest->score) }}
                   <br>
                   <small class="text-muted">Submitted: {{ optional($latest->submitted_at)->format('d M Y h:i A') }}</small>
                   @else
@@ -186,7 +191,7 @@
                 <td>{{ $attempt->attempt_no }}</td>
                 <td>{{ $attempt->raw_score }}</td>
                 <td>{{ $attempt->total_questions }}</td>
-                <td>{{ $attempt->score }}</td>
+                <td>{{ (int) round((float) $attempt->score) }}</td>
                 <td>{{ optional($attempt->submitted_at)->format('d M Y h:i A') }}</td>
                 <td>
                   @if($attempt->submitted_by_timeout)
