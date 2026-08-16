@@ -156,6 +156,7 @@ class TestController extends Controller
 
                 $user_id =  User::insertGetId([
                     'name' => $item->first_name . ' ' . $item->last_name,
+                    'student_id' => $item->id,
                     'roll_no' => $item->roll_no,
                     'email' => $email,
                     'phone' => $mobile,
