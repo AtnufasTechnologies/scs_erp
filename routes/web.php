@@ -155,6 +155,9 @@ Route::group(['prefix' => '/erp'], function () {
         Route::post('itcell/student-mdc-selection', [ITCellController::class, 'studentMdcSelectionStore'])->name('itcell.student-mdc-selection.store');
         Route::get('itcell/student-roster-rules', [ITCellController::class, 'studentRosterRulesIndex'])->name('itcell.student-roster-rules.index');
         Route::get('itcell/resolve-student-list', [ITCellController::class, 'resolveStudentList'])->name('itcell.resolve.student.list');
+        Route::post('itcell/student-roster-rule-masters', [ITCellController::class, 'studentRosterRuleMastersStore'])->name('itcell.student-roster-rule-masters.store');
+        Route::put('itcell/student-roster-rule-masters/{id}', [ITCellController::class, 'studentRosterRuleMastersUpdate'])->name('itcell.student-roster-rule-masters.update');
+        Route::delete('itcell/student-roster-rule-masters/{id}', [ITCellController::class, 'studentRosterRuleMastersDestroy'])->name('itcell.student-roster-rule-masters.destroy');
         Route::post('itcell/student-roster-rules', [ITCellController::class, 'studentRosterRulesStore'])->name('itcell.student-roster-rules.store');
         Route::put('itcell/student-roster-rules/{id}', [ITCellController::class, 'studentRosterRulesUpdate'])->name('itcell.student-roster-rules.update');
         Route::delete('itcell/student-roster-rules/{id}', [ITCellController::class, 'studentRosterRulesDestroy'])->name('itcell.student-roster-rules.destroy');

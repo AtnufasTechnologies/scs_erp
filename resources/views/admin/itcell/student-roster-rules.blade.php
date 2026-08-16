@@ -25,6 +25,131 @@
   @endif
 
   <div class="card shadow-sm mb-4">
+    <div class="card-header bg-light d-flex justify-content-between align-items-center">
+      <h5 class="mb-0">Rule Masters</h5>
+      <span class="badge bg-secondary">{{ ($ruleMasters ?? collect())->count() }} Rule(s)</span>
+    </div>
+    <div class="card-body">
+      <form method="POST" action="{{ route('itcell.student-roster-rule-masters.store') }}" class="row g-3 align-items-end mb-4">
+        @csrf
+        <div class="col-md-3">
+          <label class="form-label">Rule Code</label>
+          <input type="text" name="rule_code" class="form-control" value="{{ old('rule_code') }}" placeholder="e.g. DUAL_COMBO1" required>
+        </div>
+        <div class="col-md-4">
+          <label class="form-label">Rule Name</label>
+          <input type="text" name="rule_name" class="form-control" value="{{ old('rule_name') }}" placeholder="Readable rule name" required>
+        </div>
+        <div class="col-md-2">
+          <label class="form-label">Active</label>
+          <select name="is_active" class="form-select" required>
+            <option value="1" {{ (string) old('is_active', '1') === '1' ? 'selected' : '' }}>Yes</option>
+            <option value="0" {{ (string) old('is_active', '1') === '0' ? 'selected' : '' }}>No</option>
+          </select>
+        </div>
+        <div class="col-md-12">
+          <label class="form-label">Description</label>
+          <textarea name="description" class="form-control" rows="2" placeholder="Optional description...">{{ old('description') }}</textarea>
+        </div>
+        <div class="col-12">
+          <button type="submit" class="btn btn-primary">Create Rule Master</button>
+        </div>
+      </form>
+
+      @if(($ruleMasters ?? collect())->isEmpty())
+      <div class="alert alert-info mb-0">No rule masters found.</div>
+      @else
+      <div class="table-responsive">
+        <table class="table table-bordered table-sm align-middle mb-0">
+          <thead class="table-light">
+            <tr>
+              <th style="width: 60px;">#</th>
+              <th>Rule Code</th>
+              <th>Rule Name</th>
+              <th>Description</th>
+              <th style="width: 110px;">Mappings</th>
+              <th style="width: 90px;">Active</th>
+              <th style="width: 220px;">Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            @foreach(($ruleMasters ?? collect()) as $index => $ruleMaster)
+            @php
+            $usedInMappings = (int) (($mappings ?? collect())->where('rule_id', (int) $ruleMaster->id)->count());
+            @endphp
+            <tr>
+              <td>{{ $index + 1 }}</td>
+              <td><strong>{{ $ruleMaster->rule_code ?? 'N/A' }}</strong></td>
+              <td>{{ $ruleMaster->rule_name ?? '-' }}</td>
+              <td>{{ $ruleMaster->description ?: '-' }}</td>
+              <td>{{ $usedInMappings }}</td>
+              <td>
+                <span class="badge {{ (int) ($ruleMaster->is_active ?? 0) === 1 ? 'bg-success' : 'bg-secondary' }}">
+                  {{ (int) ($ruleMaster->is_active ?? 0) === 1 ? 'Yes' : 'No' }}
+                </span>
+              </td>
+              <td>
+                <div class="d-flex gap-2 flex-wrap">
+                  <button type="button" class="btn btn-sm btn-outline-primary" data-bs-toggle="modal" data-bs-target="#editRuleMasterModal{{ (int) $ruleMaster->id }}">Edit</button>
+                  <form method="POST" action="{{ route('itcell.student-roster-rule-masters.destroy', (int) $ruleMaster->id) }}" onsubmit="return confirm('Delete this rule master?');">
+                    @csrf
+                    @method('DELETE')
+                    <button type="submit" class="btn btn-sm btn-outline-danger">Delete</button>
+                  </form>
+                </div>
+
+                <div class="modal fade" id="editRuleMasterModal{{ (int) $ruleMaster->id }}" tabindex="-1" aria-labelledby="editRuleMasterModalLabel{{ (int) $ruleMaster->id }}" aria-hidden="true">
+                  <div class="modal-dialog modal-lg">
+                    <div class="modal-content">
+                      <form method="POST" action="{{ route('itcell.student-roster-rule-masters.update', (int) $ruleMaster->id) }}">
+                        @csrf
+                        @method('PUT')
+                        <div class="modal-header">
+                          <h5 class="modal-title" id="editRuleMasterModalLabel{{ (int) $ruleMaster->id }}">Edit Rule Master</h5>
+                          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                        </div>
+                        <div class="modal-body">
+                          <div class="row g-3">
+                            <div class="col-md-4">
+                              <label class="form-label">Rule Code</label>
+                              <input type="text" name="rule_code" class="form-control" value="{{ (string) ($ruleMaster->rule_code ?? '') }}" required>
+                            </div>
+                            <div class="col-md-5">
+                              <label class="form-label">Rule Name</label>
+                              <input type="text" name="rule_name" class="form-control" value="{{ (string) ($ruleMaster->rule_name ?? '') }}" required>
+                            </div>
+                            <div class="col-md-3">
+                              <label class="form-label">Active</label>
+                              <select name="is_active" class="form-select" required>
+                                <option value="1" {{ (int) ($ruleMaster->is_active ?? 0) === 1 ? 'selected' : '' }}>Yes</option>
+                                <option value="0" {{ (int) ($ruleMaster->is_active ?? 0) === 0 ? 'selected' : '' }}>No</option>
+                              </select>
+                            </div>
+                            <div class="col-md-12">
+                              <label class="form-label">Description</label>
+                              <textarea name="description" class="form-control" rows="3" placeholder="Optional description...">{{ (string) ($ruleMaster->description ?? '') }}</textarea>
+                            </div>
+                          </div>
+                        </div>
+                        <div class="modal-footer">
+                          <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Cancel</button>
+                          <button type="submit" class="btn btn-success btn-sm">Save Changes</button>
+                        </div>
+                      </form>
+                    </div>
+                  </div>
+                </div>
+              </td>
+            </tr>
+            @endforeach
+          </tbody>
+        </table>
+      </div>
+      @endif
+    </div>
+  </div>
+
+  <div class="card shadow-sm mb-4">
     <div class="card-header bg-light">
       <h5 class="mb-0">Create New Rule Mapping</h5>
     </div>

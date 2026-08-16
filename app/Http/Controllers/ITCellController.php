@@ -1163,7 +1163,7 @@ class ITCellController extends Controller
 
         $ruleMasters = StudentRosterRuleMaster::query()
             ->orderBy('rule_code')
-            ->get(['id', 'rule_code', 'rule_name', 'is_active']);
+            ->get(['id', 'rule_code', 'rule_name', 'description', 'is_active', 'created_at']);
 
         $pathways = AcademicPathwayMaster::query()
             ->orderBy('name')
@@ -1231,6 +1231,65 @@ class ITCellController extends Controller
                 'EXCLUDE_MAJOR_DEPARTMENTS',
             ],
         ]);
+    }
+
+    public function studentRosterRuleMastersStore(Request $request)
+    {
+        if (!Schema::hasTable('student_roster_rule_masters')) {
+            return back()->with('error', 'Roster rule master table is missing. Please run migrations first.');
+        }
+
+        $payload = $this->validateStudentRosterRuleMasterPayload($request);
+        StudentRosterRuleMaster::query()->create($payload);
+
+        return redirect()
+            ->route('itcell.student-roster-rules.index')
+            ->with('success', 'Rule master created successfully.');
+    }
+
+    public function studentRosterRuleMastersUpdate(Request $request, int $id)
+    {
+        if (!Schema::hasTable('student_roster_rule_masters')) {
+            return back()->with('error', 'Roster rule master table is missing. Please run migrations first.');
+        }
+
+        $ruleMaster = StudentRosterRuleMaster::query()->find($id);
+        if (!$ruleMaster) {
+            return back()->with('error', 'Rule master not found.');
+        }
+
+        $payload = $this->validateStudentRosterRuleMasterPayload($request, $ruleMaster->id);
+        $ruleMaster->update($payload);
+
+        return redirect()
+            ->route('itcell.student-roster-rules.index')
+            ->with('success', 'Rule master updated successfully.');
+    }
+
+    public function studentRosterRuleMastersDestroy(int $id)
+    {
+        if (!Schema::hasTable('student_roster_rule_masters')) {
+            return back()->with('error', 'Roster rule master table is missing. Please run migrations first.');
+        }
+
+        $ruleMaster = StudentRosterRuleMaster::query()->find($id);
+        if (!$ruleMaster) {
+            return back()->with('error', 'Rule master not found.');
+        }
+
+        $mappingCount = StudentRosterRuleMapping::query()
+            ->where('rule_id', (int) $ruleMaster->id)
+            ->count();
+
+        if ($mappingCount > 0) {
+            return back()->with('error', 'Cannot delete rule master because it is used in ' . $mappingCount . ' mapping(s).');
+        }
+
+        $ruleMaster->delete();
+
+        return redirect()
+            ->route('itcell.student-roster-rules.index')
+            ->with('success', 'Rule master deleted successfully.');
     }
 
     public function studentRosterRulesStore(Request $request)
@@ -1324,6 +1383,28 @@ class ITCellController extends Controller
             'priority' => (int) $validated['priority'],
             'is_active' => (int) $validated['is_active'] === 1,
             'notes' => isset($validated['notes']) ? trim((string) $validated['notes']) : null,
+        ];
+    }
+
+    private function validateStudentRosterRuleMasterPayload(Request $request, ?int $ignoreId = null): array
+    {
+        $uniqueRuleCode = Rule::unique('student_roster_rule_masters', 'rule_code');
+        if (!is_null($ignoreId) && $ignoreId > 0) {
+            $uniqueRuleCode = $uniqueRuleCode->ignore($ignoreId);
+        }
+
+        $validated = $request->validate([
+            'rule_code' => ['required', 'string', 'max:100', $uniqueRuleCode],
+            'rule_name' => ['required', 'string', 'max:255'],
+            'description' => ['nullable', 'string', 'max:2000'],
+            'is_active' => ['required', 'in:0,1'],
+        ]);
+
+        return [
+            'rule_code' => strtoupper(trim((string) $validated['rule_code'])),
+            'rule_name' => trim((string) $validated['rule_name']),
+            'description' => isset($validated['description']) ? trim((string) $validated['description']) : null,
+            'is_active' => (int) $validated['is_active'] === 1,
         ];
     }
 
@@ -3517,7 +3598,7 @@ class ITCellController extends Controller
     function resolveStudentList(Request $request)
     {
 
-        //    return $request->all();
+        // return $request->all();
 
         $curriculam_id = $request->curriculum_row_id; //checked row
         $batch_id = $request->batch_id;
@@ -3525,7 +3606,7 @@ class ITCellController extends Controller
         $program_id  = $request->program_id; // use this to find the department info
 
         $cr = ProgramWiseSemesterCourse::with('courseinfo')->find($curriculam_id);
-        // return $cr;
+        return $cr;
 
         $academic_pathway_id = $cr->academic_pathway_id;
         $degree_track_id = $cr->degree_track_id;
@@ -3542,7 +3623,15 @@ class ITCellController extends Controller
             ->with('rule:id,rule_code')
             ->first();
 
-        $ruleAppl;
+        //return $ruleAppl;
+
+        /** Single MAJOR RULES ENGINE
+         * COMBO1 -- Full COMBO1 SCOPED
+         */
+
+        if (empty($ruleAppl)) {
+            return dd('His from Single Major');
+        }
 
         /** DUAL MAJOR RULES ENGINE
          * COMBO1 -- Done
@@ -3550,7 +3639,7 @@ class ITCellController extends Controller
          * COMMON_AUTO -- DONE
          * COMMON_STUDENT_CHOICE
          * MDC_AUTO -- Done
-         * MDC_STUDENT_STUDENT_CHOICE
+         * MDC_STUDENT_STUDENT_CHOICE -- DONE
          */
 
 
@@ -3620,6 +3709,7 @@ class ITCellController extends Controller
 
             return $this->redirectResolvedStudentsToRoster($request, $students);
         }
+
         //COMBO2 -- Done
         if ($ruleAppl->roster_source == 'COMBO2' && $ruleAppl->delivery_type == 'COMBO2' && $selection_type == 'AUTO') {
             //find department 
@@ -3685,6 +3775,7 @@ class ITCellController extends Controller
 
             return $this->redirectResolvedStudentsToRoster($request, $students);
         }
+
         //COMMON_AUTO -- Done
         if ($ruleAppl->roster_source == 'COMBO1' && $ruleAppl->delivery_type == 'COMMON' && $selection_type == 'AUTO') {
             //find department 
@@ -3750,6 +3841,7 @@ class ITCellController extends Controller
 
             return $this->redirectResolvedStudentsToRoster($request, $students);
         }
+
         //MDC_AUTO -- Done
         if ($ruleAppl->roster_source == 'COMBO1' && $ruleAppl->delivery_type == 'MDC' && $selection_type == 'AUTO') {
             //find department 
@@ -3818,6 +3910,56 @@ class ITCellController extends Controller
 
         //MDC_STUDENT_CHOICE
         if ($ruleAppl->roster_source == 'STUDENT_SELECTION' && $ruleAppl->delivery_type == 'MDC' && $selection_type == 'STUDENT_CHOICE') {
+            $comboInfo = StdProgComboMap::query()->where('student_program_id', $program_id)->first();
+            if (!$comboInfo) {
+                return collect();
+            }
+
+            $subjectInfo = Subject::query()->find((int) $comboInfo->combo_id_1);
+            if (!$subjectInfo) {
+                return collect();
+            }
+
+            $batchInfo = BatchMaster::query()->find((int) $batch_id);
+            if (!$batchInfo) {
+                return collect();
+            }
+
+            $campus_id = (int) ($subjectInfo->campus_id ?? 0);
+
+            $programIds = StudentCourseInfo::query()
+                ->where('course_id', $course_id)
+                ->where('semester', $semester_id)
+                ->where('campus_id', $campus_id)
+                ->where('academic_year', (string) $batchInfo->batch_name)
+                ->pluck('student_id')
+                ->map(fn($id) => (int) $id)
+                ->filter(fn($id) => $id > 0)
+                ->values();
+
+            $studentsQuery = StudentMaster::query()
+                ->whereIn('id', $programIds->all());
+
+            $students = $studentsQuery
+                ->orderBy('roll_no')
+                ->orderBy('first_name')
+                ->get([
+                    'id',
+                    'roll_no',
+                    'register_no',
+                    'first_name',
+                    'last_name',
+                    'new_program_id',
+                    'batch',
+                    'academic_pathway_id',
+                    'degree_track_id',
+                ]);
+
+            return $this->redirectResolvedStudentsToRoster($request, $students);
+        }
+
+        //COMMON_STUDENT_CHOICE
+        if ($ruleAppl->roster_source == 'STUDENT_SELECTION' && $ruleAppl->delivery_type == 'COMMON' && $selection_type == 'STUDENT_CHOICE') {
             $comboInfo = StdProgComboMap::query()->where('student_program_id', $program_id)->first();
             if (!$comboInfo) {
                 return collect();
