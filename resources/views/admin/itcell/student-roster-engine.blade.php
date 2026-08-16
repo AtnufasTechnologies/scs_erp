@@ -103,13 +103,23 @@
       <div class="row g-3 mb-3">
         <div class="col-md-8">
           <label class="form-label">Search Curriculum Rows</label>
-          <input
-            type="text"
-            name="curriculum_search"
-            id="curriculumRowsSearch"
-            class="form-control"
-            value="{{ $persistedCurriculumSearch }}"
-            placeholder="Search by course code/title, batch                                                                                                                                                                                                                                                                                                                                                                                                                                     name, semester, delivery, selection, program name, pathway, or department">
+          <div class="input-group">
+            <input
+              type="text"
+              name="curriculum_search"
+              id="curriculumRowsSearch"
+              class="form-control"
+              value="{{ $persistedCurriculumSearch }}"
+              placeholder="Search by course code/title, batch                                                                                                                                                                                                                                                                                                                                                                                                                                     name, semester, delivery, selection, program name, pathway, or department">
+            <button
+              type="button"
+              id="clearCurriculumRowsSearch"
+              class="btn btn-outline-secondary"
+              aria-label="Clear search"
+              title="Clear search">
+              &times;
+            </button>
+          </div>
         </div>
         <div class="col-md-4">
           <label class="form-label">Program Code (Quick Filter)</label>
@@ -549,6 +559,7 @@
     'use strict';
 
     const searchInput = document.getElementById('curriculumRowsSearch');
+    const clearSearchButton = document.getElementById('clearCurriculumRowsSearch');
     const programCodeFilter = document.getElementById('curriculumProgramCodeFilter');
     const tableBody = document.getElementById('curriculumRowsTableBody');
     const noMatchAlert = document.getElementById('curriculumRowsNoMatch');
@@ -578,6 +589,10 @@
       const selectedProgramCode = String(programCodeFilter ? (programCodeFilter.value || '') : '').trim().toUpperCase();
       let visibleCount = 0;
 
+      if (clearSearchButton) {
+        clearSearchButton.classList.toggle('d-none', query === '');
+      }
+
       rows.forEach(function(row) {
         const text = String(row.textContent || '').toLowerCase();
         const rowProgramCode = String(row.getAttribute('data-program-code') || '').trim().toUpperCase();
@@ -596,6 +611,15 @@
     };
 
     searchInput.addEventListener('input', applyFilter);
+
+    if (clearSearchButton) {
+      clearSearchButton.addEventListener('click', function() {
+        searchInput.value = '';
+        applyFilter();
+        searchInput.focus();
+      });
+    }
+
     if (programCodeFilter) {
       programCodeFilter.addEventListener('change', applyFilter);
     }
