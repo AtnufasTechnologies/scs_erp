@@ -3614,6 +3614,10 @@ class ITCellController extends Controller
         $selection_type = $cr->course_type; //AUTO
         $delivery_type = $cr->delivery_category; //COMBO1
 
+        //for SINGLE MAJOR exclusively
+        $specialization_master_id = $cr->specialization_master_id;
+        $specialization_master_ids = $cr->specialization_master_ids;
+
         //Lets Find Rule Applicable
 
         $ruleAppl = StudentRosterRuleMapping::where('academic_pathway_id', $academic_pathway_id)
@@ -3630,7 +3634,73 @@ class ITCellController extends Controller
          */
 
         if (empty($ruleAppl)) {
-            return dd('His from Single Major');
+
+            //without Specialization
+            if ($specialization_master_id == null) {
+
+                $comboInfo = StdProgComboMap::where('student_program_id', $program_id)->first();
+                if (!$comboInfo) {
+                    return collect(); // or return [];
+                }
+                $subjectInfo = Subject::find($comboInfo->combo_id_1);
+                $campus_id = $subjectInfo->campus_id;
+                $programIds = StdProgComboMap::where('combo_id_1', $comboInfo->combo_id_1)
+                    ->pluck('student_program_id')
+                    ->map(fn($id) => (int) $id)
+                    ->filter(fn($id) => $id > 0)
+                    ->unique()
+                    ->values();
+
+                $studentsQuery = StudentMaster::query()
+                    ->where('batch', (int) $batch_id)
+                    ->where('campus_id', $campus_id)
+                    ->whereIn('new_program_id', $programIds->all())
+                    ->where('new_program_id', (int) $program_id);
+
+                if ((int) $academic_pathway_id > 0) {
+                    $studentsQuery->where('academic_pathway_id', (int) $academic_pathway_id);
+                }
+
+                if ((int) $degree_track_id > 0) {
+                    $studentsQuery->where('degree_track_id', (int) $degree_track_id);
+                }
+
+                if (Schema::hasColumn('student_masters', 'is_deleted')) {
+                    $studentsQuery->where('is_deleted', 0);
+                }
+
+                if (Schema::hasColumn('student_masters', 'is_left')) {
+                    $studentsQuery->where(function ($q) {
+                        $q->whereNull('is_left')->orWhere('is_left', 0);
+                    });
+                }
+
+                if ((int) $semester_id > 0) {
+                    $studentsQuery->whereHas('activeSemesterConfig', function ($q) use ($semester_id) {
+                        $q->where('semester_id', (string) $semester_id);
+                    });
+                }
+
+                $students = $studentsQuery
+                    ->orderBy('roll_no')
+                    ->orderBy('first_name')
+                    ->get([
+                        'id',
+                        'roll_no',
+                        'register_no',
+                        'first_name',
+                        'last_name',
+                        'new_program_id',
+                        'batch',
+                        'academic_pathway_id',
+                        'degree_track_id',
+                    ]);
+
+                return $this->redirectResolvedStudentsToRoster($request, $students);
+            } else {
+                //with Sepcialization
+                return dd('Has Specsz');
+            }
         }
 
         /** DUAL MAJOR RULES ENGINE
@@ -3666,7 +3736,8 @@ class ITCellController extends Controller
             $studentsQuery = StudentMaster::query()
                 ->where('batch', (int) $batch_id)
                 ->where('campus_id', $campus_id)
-                ->whereIn('new_program_id', $programIds->all());
+                ->whereIn('new_program_id', $programIds->all())
+                ->where('new_program_id', (int) $program_id);
 
             if ((int) $academic_pathway_id > 0) {
                 $studentsQuery->where('academic_pathway_id', (int) $academic_pathway_id);
@@ -3732,7 +3803,8 @@ class ITCellController extends Controller
             $studentsQuery = StudentMaster::query()
                 ->where('campus_id', $campus_id)
                 ->where('batch', (int) $batch_id)
-                ->whereIn('new_program_id', $programIds->all());
+                ->whereIn('new_program_id', $programIds->all())
+                ->where('new_program_id', (int) $program_id);
 
             if ((int) $academic_pathway_id > 0) {
                 $studentsQuery->where('academic_pathway_id', (int) $academic_pathway_id);
@@ -3798,7 +3870,8 @@ class ITCellController extends Controller
             $studentsQuery = StudentMaster::query()
                 ->where('campus_id', $campus_id)
                 ->where('batch', (int) $batch_id)
-                ->whereIn('new_program_id', $programIds->all());
+                ->whereIn('new_program_id', $programIds->all())
+                ->where('new_program_id', (int) $program_id);
 
             if ((int) $academic_pathway_id > 0) {
                 $studentsQuery->where('academic_pathway_id', (int) $academic_pathway_id);
@@ -3864,7 +3937,8 @@ class ITCellController extends Controller
             $studentsQuery = StudentMaster::query()
                 ->where('campus_id', $campus_id)
                 ->where('batch', (int) $batch_id)
-                ->whereIn('new_program_id', $programIds->all());
+                ->whereIn('new_program_id', $programIds->all())
+                ->where('new_program_id', (int) $program_id);
 
             if ((int) $academic_pathway_id > 0) {
                 $studentsQuery->where('academic_pathway_id', (int) $academic_pathway_id);
@@ -3938,7 +4012,8 @@ class ITCellController extends Controller
                 ->values();
 
             $studentsQuery = StudentMaster::query()
-                ->whereIn('id', $programIds->all());
+                ->whereIn('id', $programIds->all())
+                ->where('new_program_id', (int) $program_id);
 
             $students = $studentsQuery
                 ->orderBy('roll_no')
@@ -3988,7 +4063,8 @@ class ITCellController extends Controller
                 ->values();
 
             $studentsQuery = StudentMaster::query()
-                ->whereIn('id', $programIds->all());
+                ->whereIn('id', $programIds->all())
+                ->where('new_program_id', (int) $program_id);
 
             $students = $studentsQuery
                 ->orderBy('roll_no')
