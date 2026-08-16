@@ -30,6 +30,15 @@ $roleType = UserHasRole::where('user_id', $userId)->value('role_name');
       </a>
     </li>
 
+    <li>
+      <a href="{{ route('central-office.dashboard') }}">
+        <div class="parent-icon">
+          <i class="fas fa-building"></i>
+        </div>
+        <div class="menu-title">Central Office</div>
+      </a>
+    </li>
+
     <!-- Master -->
     <li>
       <a class="has-arrow" href="javascript:;">

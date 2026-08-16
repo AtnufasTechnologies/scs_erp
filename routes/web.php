@@ -73,6 +73,7 @@ use App\Http\Controllers\TestController;
 use App\Http\Controllers\TimetableController;
 use App\Http\Controllers\ITCellController;
 use App\Http\Controllers\TrainingPlacementController;
+use App\Http\Controllers\CentralOfficeController;
 use App\Http\Controllers\Dean\AttendanceMonitoringController as DeanAttendanceMonitoringController;
 use App\Http\Controllers\Dean\AttendanceRegularizationController as DeanAttendanceRegularizationController;
 use App\Http\Controllers\Dean\ClubsController as DeanClubsController;
@@ -1388,6 +1389,18 @@ Route::group(['prefix' => '/erp'], function () {
         Route::get('student-360', [DeanStudent360Controller::class, 'index'])->name('dean.student360.index');
 
         Route::get('reports', [DeanReportsController::class, 'index'])->name('dean.reports.index');
+    });
+
+    // ========================================================
+    // Central Office Module
+    Route::group(['prefix' => '/central-office'], function () {
+        Route::get('dashboard', [CentralOfficeController::class, 'dashboard'])->name('central-office.dashboard');
+        Route::get('students', [CentralOfficeController::class, 'students'])->name('central-office.students.index');
+        Route::get('students/export', [CentralOfficeController::class, 'exportStudents'])->name('central-office.students.export');
+        Route::post('students/{id}/mark-left', [CentralOfficeController::class, 'markLeft'])->name('central-office.students.mark-left');
+        Route::post('students/{id}/reactivate', [CentralOfficeController::class, 'reactivate'])->name('central-office.students.reactivate');
+        Route::get('admissions/batch-wise', [CentralOfficeController::class, 'admissionsBatchWise'])->name('central-office.admissions.batch-wise');
+        Route::get('admissions/batch-wise/export', [CentralOfficeController::class, 'exportAdmissionsBatchWise'])->name('central-office.admissions.batch-wise.export');
     });
 
     // ========================================================
