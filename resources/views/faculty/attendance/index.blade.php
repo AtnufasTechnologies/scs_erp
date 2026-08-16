@@ -121,6 +121,10 @@
                 <span class="k">Delivery Type</span>
                 <span class="v">Select a subject to view</span>
               </div>
+              <div class="subject-meta mb-3 js-student-count-meta">
+                <span class="k">Students</span>
+                <span class="v">Select a subject to load count</span>
+              </div>
 
 
               <div class="row">
@@ -200,6 +204,10 @@
               <div class="subject-meta mb-3 js-subject-meta">
                 <span class="k">Delivery Type</span>
                 <span class="v">Select a subject to view</span>
+              </div>
+              <div class="subject-meta mb-3 js-student-count-meta">
+                <span class="k">Students</span>
+                <span class="v">Select a subject to load count</span>
               </div>
 
 
@@ -282,6 +290,7 @@
 <script>
   document.addEventListener('DOMContentLoaded', function() {
     const hoursEndpoint = `{{ route('faculty.attendance.hours') }}`;
+    const studentCountEndpoint = `{{ route('faculty.attendance.student-count') }}`;
     const generateQrEndpoint = `{{ route('faculty.attendance.qr.generate') }}`;
     const finalizeQrEndpoint = `{{ route('faculty.attendance.qr.finalize') }}`;
     const deleteQrEndpoint = `{{ route('faculty.attendance.qr.delete') }}`;
@@ -452,6 +461,7 @@
     function wireAttendanceCard(card) {
       const subjectSelect = card.querySelector('.js-subject-select');
       const subjectMeta = card.querySelector('.js-subject-meta .v');
+      const studentCountMeta = card.querySelector('.js-student-count-meta .v');
       const hourSelect = card.querySelector('.js-hour-select');
       const attendanceDate = card.querySelector('.js-attendance-date');
       const attendanceTypeSelect = card.querySelector('.js-attendance-type');
@@ -472,6 +482,51 @@
         }
         const selectedOption = subjectSelect.options[subjectSelect.selectedIndex];
         subjectMeta.textContent = selectedOption?.dataset?.deliveryType || 'Select a subject to view';
+      }
+
+      async function loadResolvedStudentCount() {
+        if (!studentCountMeta) {
+          return;
+        }
+
+        const selectedOption = subjectSelect.options[subjectSelect.selectedIndex];
+        const recId = subjectSelect.value || '';
+        const syllabusId = selectedOption?.dataset?.syllabusId || '';
+        const batchId = selectedOption?.dataset?.batchId || '';
+        const semesterId = selectedOption?.dataset?.semesterId || '';
+
+        if (!recId || !syllabusId) {
+          studentCountMeta.textContent = 'Select a subject to load count';
+          return;
+        }
+
+        studentCountMeta.textContent = 'Resolving student count...';
+
+        try {
+          const query = new URLSearchParams({
+            rec_id: recId,
+            syllabus_id: syllabusId,
+            batch_id: batchId,
+            semester_id: semesterId,
+          });
+
+          const response = await fetch(`${studentCountEndpoint}?${query.toString()}`, {
+            headers: {
+              'X-Requested-With': 'XMLHttpRequest',
+              'Accept': 'application/json'
+            }
+          });
+
+          const result = await response.json();
+          if (!response.ok || !result.success) {
+            throw new Error(result.message || 'Unable to resolve student count.');
+          }
+
+          const count = Number(result?.data?.count || 0);
+          studentCountMeta.textContent = `${count} Student${count === 1 ? '' : 's'}`;
+        } catch (error) {
+          studentCountMeta.textContent = 'Count unavailable';
+        }
       }
 
       async function loadHoursForSelectedSubject() {
@@ -523,6 +578,7 @@
 
       subjectSelect.addEventListener('change', function() {
         loadHoursForSelectedSubject();
+        loadResolvedStudentCount();
         updateDeliveryMeta();
         checkEnableButton();
       });
@@ -530,6 +586,9 @@
       hourSelect.addEventListener('change', checkEnableButton);
       attendanceDate.addEventListener('change', checkEnableButton);
       updateDeliveryMeta();
+      if (studentCountMeta) {
+        studentCountMeta.textContent = 'Select a subject to load count';
+      }
 
       attendanceDate.addEventListener('input', function() {
         const selectedDate = new Date(this.value);

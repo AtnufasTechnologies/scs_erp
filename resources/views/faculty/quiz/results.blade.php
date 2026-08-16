@@ -107,6 +107,7 @@
           <table class="table table-bordered align-middle">
             <thead>
               <tr>
+                <th>#</th>
                 <th>Student</th>
                 <th>Roll No</th>
                 <th>Register No</th>
@@ -124,6 +125,7 @@
               $latest = $latestSubmittedByStudent[$student->id] ?? null;
               @endphp
               <tr>
+                <td>{{$loop->iteration}}</td>
                 <td>{{ $student->first_name }} {{ $student->last_name }}</td>
                 <td>{{ $student->roll_no ?? 'N/A' }}</td>
                 <td>{{ $student->register_no ?? 'N/A' }}</td>

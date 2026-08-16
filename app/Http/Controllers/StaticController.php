@@ -642,6 +642,10 @@ class StaticController extends Controller
     $cr = ProgramWiseSemesterCourse::with('courseinfo')->find($curriculam_id);
     // return $cr;
 
+    if (!$cr) {
+      return self::redirectResolvedStudentsToRoster($request, collect());
+    }
+
     $academic_pathway_id = $cr->academic_pathway_id;
     $degree_track_id = $cr->degree_track_id;
     $course_id = $cr->course_id;

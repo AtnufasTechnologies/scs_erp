@@ -2,6 +2,7 @@
 
 namespace App\Faculty\Http\Controllers;
 
+use App\Http\Controllers\StaticController;
 use App\Http\Controllers\Controller;
 use App\Models\BatchMaster;
 use App\Models\AttendanceQrMaster;
@@ -10,6 +11,7 @@ use App\Models\HourMaster;
 use App\Models\StudentAttendance;
 use App\Models\StudentCourseInfo;
 use App\Models\ProgramCourseMaster;
+use App\Models\ProgramWiseSemesterCourse;
 use App\Models\SyllabusHasFaculty;
 use App\Models\StudentMaster;
 use App\Models\SubjectFacultyMaster;
@@ -207,6 +209,86 @@ class AttendanceController extends Controller
       return response()->json([
         'success' => false,
         'message' => 'Failed to fetch hours: ' . $e->getMessage(),
+      ], 500);
+    }
+  }
+
+  public function getResolvedStudentCount(Request $request)
+  {
+    try {
+      $recId = (int) $request->get('rec_id', 0);
+      $syllabusId = (int) $request->get('syllabus_id', 0);
+      $batchId = (int) $request->get('batch_id', 0);
+      $semesterId = (int) $request->get('semester_id', 0);
+
+      if ($recId <= 0 || $syllabusId <= 0) {
+        return response()->json([
+          'success' => false,
+          'message' => 'Invalid attendance context.',
+        ], 422);
+      }
+
+      $facultyId = $this->getCurrentFacultyId();
+      if (!$this->getAccessibleRoutineIds($facultyId)->contains($recId)) {
+        return response()->json([
+          'success' => false,
+          'message' => 'Unauthorized routine access.',
+        ], 403);
+      }
+
+      $record = SubjectHasSyllabus::with('subject')->find($syllabusId);
+      if (!$record) {
+        return response()->json([
+          'success' => false,
+          'message' => 'Invalid syllabus selected.',
+        ], 404);
+      }
+
+      $routine = SubjectHasRoutine::with([
+        'teachingAssignment:id,allocation_group,delivery_type',
+        'teachingAllocation:id,allocation_group,delivery_type'
+      ])->find($recId);
+
+      if (!$routine) {
+        return response()->json([
+          'success' => false,
+          'message' => 'Invalid routine selected.',
+        ], 404);
+      }
+
+      $effectiveBatchId = $batchId > 0 ? $batchId : (int) ($record->batch_id ?? 0);
+      $effectiveSemesterId = $semesterId > 0 ? $semesterId : (int) ($record->semester_id ?? 0);
+      $courseId = (int) ($record->course_id ?? 0);
+
+      if ($effectiveBatchId <= 0 || $effectiveSemesterId <= 0 || $courseId <= 0) {
+        return response()->json([
+          'success' => false,
+          'message' => 'Missing batch, semester, or course context.',
+        ], 422);
+      }
+
+      $students = $this->getEligibleStudentsForRoutine(
+        $record,
+        $routine,
+        $effectiveBatchId,
+        $effectiveSemesterId,
+        $courseId,
+        false
+      );
+
+      return response()->json([
+        'success' => true,
+        'data' => [
+          'count' => (int) $students->count(),
+          'batch_id' => $effectiveBatchId,
+          'semester_id' => $effectiveSemesterId,
+          'course_id' => $courseId,
+        ],
+      ]);
+    } catch (\Throwable $e) {
+      return response()->json([
+        'success' => false,
+        'message' => 'Failed to resolve student count: ' . $e->getMessage(),
       ], 500);
     }
   }
@@ -427,6 +509,17 @@ class AttendanceController extends Controller
     int $courseId,
     bool $withProfile = false
   ) {
+    $resolved = $this->resolveStudentsViaStaticController(
+      $record,
+      $effectiveBatchId,
+      $effectiveSemesterId,
+      $withProfile
+    );
+
+    if ($resolved->isNotEmpty()) {
+      return $resolved;
+    }
+
     $campusId = (int) ($record->subject->campus_id ?? 0);
 
     return $this->attendanceEligibilityService->getEligibleStudents(
@@ -438,6 +531,118 @@ class AttendanceController extends Controller
       (int) ($record->subject_id ?? 0),
       $withProfile
     );
+  }
+
+  private function resolveStudentsViaStaticController(
+    SubjectHasSyllabus $record,
+    int $batchId,
+    int $semesterId,
+    bool $withProfile = false
+  ) {
+    $curriculumTable = (new ProgramWiseSemesterCourse())->getTable();
+    if (!Schema::hasTable($curriculumTable)) {
+      return collect();
+    }
+
+    $courseId = (int) ($record->course_id ?? 0);
+    $subjectId = (int) ($record->subject_id ?? 0);
+    if ($courseId <= 0 || $batchId <= 0 || $semesterId <= 0 || $subjectId <= 0) {
+      return collect();
+    }
+
+    $joinedProgramCombo = false;
+    $curriculumQuery = DB::table($curriculumTable . ' as ce')
+      ->where('ce.course_id', $courseId)
+      ->where('ce.batch', $batchId)
+      ->where('ce.semester', $semesterId);
+
+    if (Schema::hasColumn($curriculumTable, 'program_combo_refid') && Schema::hasTable('subject_has_student_progams')) {
+      $joinedProgramCombo = true;
+      $curriculumQuery->join('subject_has_student_progams as shp', 'shp.id', '=', 'ce.program_combo_refid')
+        ->where('shp.subject_id', $subjectId);
+
+      if (Schema::hasColumn('subject_has_student_progams', 'batch_id')) {
+        $curriculumQuery->where('shp.batch_id', $batchId);
+      }
+    }
+
+    $curriculumSelect = [
+      'ce.id',
+      'ce.program_combo_refid',
+    ];
+
+    if ($joinedProgramCombo && Schema::hasColumn('subject_has_student_progams', 'student_program_id')) {
+      $curriculumSelect[] = 'shp.student_program_id';
+    }
+
+    $curriculumRows = $curriculumQuery
+      ->select($curriculumSelect)
+      ->orderBy('ce.id')
+      ->get();
+
+    if ($curriculumRows->isEmpty()) {
+      return collect();
+    }
+
+    $students = collect();
+
+    foreach ($curriculumRows as $curriculumRow) {
+      $programId = (int) ($curriculumRow->student_program_id ?? 0);
+      if ($programId <= 0 && (int) ($curriculumRow->program_combo_refid ?? 0) > 0 && Schema::hasTable('subject_has_student_progams')) {
+        $programId = (int) DB::table('subject_has_student_progams')
+          ->where('id', (int) ($curriculumRow->program_combo_refid ?? 0))
+          ->value('student_program_id');
+      }
+
+      if ($programId <= 0) {
+        continue;
+      }
+
+      $resolverRequest = Request::create('/erp/itcell/resolve-student-list', 'GET', [
+        'curriculum_row_id' => (int) ($curriculumRow->id ?? 0),
+        'batch_id' => $batchId,
+        'semester_id' => $semesterId,
+        'program_id' => $programId,
+      ]);
+      $resolverRequest->headers->set('Accept', 'application/json');
+      $resolverRequest->headers->set('X-Requested-With', 'XMLHttpRequest');
+
+      $resolverResponse = StaticController::resolveStudentList($resolverRequest);
+      if (!($resolverResponse instanceof \Illuminate\Http\JsonResponse)) {
+        continue;
+      }
+
+      $payload = $resolverResponse->getData(true);
+      $resolvedRows = collect($payload['students'] ?? []);
+      if ($resolvedRows->isEmpty()) {
+        continue;
+      }
+
+      $students = $students->merge($resolvedRows->map(function ($row) use ($withProfile) {
+        $student = (object) [
+          'id' => (int) ($row['id'] ?? 0),
+          'new_program_id' => (int) ($row['new_program_id'] ?? 0),
+          'batch' => (int) ($row['batch'] ?? 0),
+          'academic_pathway_id' => (int) ($row['academic_pathway_id'] ?? 0),
+          'degree_track_id' => (int) ($row['degree_track_id'] ?? 0),
+        ];
+
+        if ($withProfile) {
+          $student->roll_no = (string) ($row['roll_no'] ?? '');
+          $student->register_no = (string) ($row['register_no'] ?? '');
+          $student->first_name = (string) ($row['first_name'] ?? '');
+          $student->last_name = (string) ($row['last_name'] ?? '');
+        }
+
+        return $student;
+      }));
+    }
+
+    return $students
+      ->filter(fn($student) => (int) ($student->id ?? 0) > 0)
+      ->unique('id')
+      ->sortBy('roll_no')
+      ->values();
   }
 
   public function finalizeQrAttendance(Request $request)
