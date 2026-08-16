@@ -3606,7 +3606,7 @@ class ITCellController extends Controller
         $program_id  = $request->program_id; // use this to find the department info
 
         $cr = ProgramWiseSemesterCourse::with('courseinfo')->find($curriculam_id);
-        return $cr;
+        // return $cr;
 
         $academic_pathway_id = $cr->academic_pathway_id;
         $degree_track_id = $cr->degree_track_id;
