@@ -30,4 +30,9 @@ class StudentCourseInfo extends Model
     {
         return  $this->hasOne(ProgramCourseMaster::class, 'id', 'course_id')->with('papertypemaster');
     }
+
+    function studentInfo()
+    {
+        return $this->hasOne(StudentMaster::class, 'id', 'student_id');
+    }
 }

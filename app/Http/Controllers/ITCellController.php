@@ -3517,7 +3517,7 @@ class ITCellController extends Controller
     function resolveStudentList(Request $request)
     {
 
-        // return $request->all();
+        //    return $request->all();
 
         $curriculam_id = $request->curriculum_row_id; //checked row
         $batch_id = $request->batch_id;
@@ -3525,7 +3525,8 @@ class ITCellController extends Controller
         $program_id  = $request->program_id; // use this to find the department info
 
         $cr = ProgramWiseSemesterCourse::with('courseinfo')->find($curriculam_id);
-        //    return $cr;
+        // return $cr;
+
         $academic_pathway_id = $cr->academic_pathway_id;
         $degree_track_id = $cr->degree_track_id;
         $course_id = $cr->course_id;
@@ -3563,7 +3564,9 @@ class ITCellController extends Controller
             if (!$comboInfo) {
                 return collect(); // or return [];
             }
-
+            //campus_info 
+            $subjectInfo = Subject::find($comboInfo->combo_id_1);
+            $campus_id = $subjectInfo->campus_id;
             $programIds = StdProgComboMap::where('combo_id_1', $comboInfo->combo_id_1)
                 ->pluck('student_program_id')
                 ->map(fn($id) => (int) $id)
@@ -3573,6 +3576,7 @@ class ITCellController extends Controller
 
             $studentsQuery = StudentMaster::query()
                 ->where('batch', (int) $batch_id)
+                ->where('campus_id', $campus_id)
                 ->whereIn('new_program_id', $programIds->all());
 
             if ((int) $academic_pathway_id > 0) {
@@ -3625,7 +3629,9 @@ class ITCellController extends Controller
             if (!$comboInfo) {
                 return collect(); // or return [];
             }
-
+            //campus_info 
+            $subjectInfo = Subject::find($comboInfo->combo_id_2);
+            $campus_id = $subjectInfo->campus_id;
             $programIds = StdProgComboMap::where('combo_id_2', $comboInfo->combo_id_2)
                 ->pluck('student_program_id')
                 ->map(fn($id) => (int) $id)
@@ -3634,6 +3640,7 @@ class ITCellController extends Controller
                 ->values();
 
             $studentsQuery = StudentMaster::query()
+                ->where('campus_id', $campus_id)
                 ->where('batch', (int) $batch_id)
                 ->whereIn('new_program_id', $programIds->all());
 
@@ -3678,7 +3685,7 @@ class ITCellController extends Controller
 
             return $this->redirectResolvedStudentsToRoster($request, $students);
         }
-        //COMMON_AUTO
+        //COMMON_AUTO -- Done
         if ($ruleAppl->roster_source == 'COMBO1' && $ruleAppl->delivery_type == 'COMMON' && $selection_type == 'AUTO') {
             //find department 
             $comboInfo = StdProgComboMap::where('student_program_id', $program_id)->first();
@@ -3687,7 +3694,9 @@ class ITCellController extends Controller
             if (!$comboInfo) {
                 return collect(); // or return [];
             }
-
+            //campus_info 
+            $subjectInfo = Subject::find($comboInfo->combo_id_1);
+            $campus_id = $subjectInfo->campus_id;
             $programIds = StdProgComboMap::where('combo_id_1', $comboInfo->combo_id_1)
                 ->pluck('student_program_id')
                 ->map(fn($id) => (int) $id)
@@ -3696,6 +3705,7 @@ class ITCellController extends Controller
                 ->values();
 
             $studentsQuery = StudentMaster::query()
+                ->where('campus_id', $campus_id)
                 ->where('batch', (int) $batch_id)
                 ->whereIn('new_program_id', $programIds->all());
 
@@ -3749,7 +3759,9 @@ class ITCellController extends Controller
             if (!$comboInfo) {
                 return collect(); // or return [];
             }
-
+            //campus_info 
+            $subjectInfo = Subject::find($comboInfo->combo_id_1);
+            $campus_id = $subjectInfo->campus_id;
             $programIds = StdProgComboMap::where('combo_id_1', $comboInfo->combo_id_1)
                 ->pluck('student_program_id')
                 ->map(fn($id) => (int) $id)
@@ -3758,6 +3770,7 @@ class ITCellController extends Controller
                 ->values();
 
             $studentsQuery = StudentMaster::query()
+                ->where('campus_id', $campus_id)
                 ->where('batch', (int) $batch_id)
                 ->whereIn('new_program_id', $programIds->all());
 
@@ -3805,26 +3818,52 @@ class ITCellController extends Controller
 
         //MDC_STUDENT_CHOICE
         if ($ruleAppl->roster_source == 'STUDENT_SELECTION' && $ruleAppl->delivery_type == 'MDC' && $selection_type == 'STUDENT_CHOICE') {
-            //fetch all when this for this batch  checking pathway/degree whoever is enrolled irrespective of program
-            return redirect()
-                ->route('itcell.student-roster-engine.index', array_filter([
-                    'batch_id' => (int) $batch_id,
-                    'semester_id' => (int) $semester_id,
-                    'curriculum_row_id' => (int) $curriculam_id,
-                    'curriculum_search' => trim((string) $request->input('curriculum_search', '')),
-                    'program_code_filter' => strtoupper(trim((string) $request->input('program_code_filter', ''))),
-                ], fn($value) => (is_string($value) ? $value !== '' : (int) $value > 0)))
-                ->with('error', 'Student choice flow is not implemented yet for MDC.');
-        }
+            $comboInfo = StdProgComboMap::query()->where('student_program_id', $program_id)->first();
+            if (!$comboInfo) {
+                return collect();
+            }
 
-        return redirect()
-            ->route('itcell.student-roster-engine.index', array_filter([
-                'batch_id' => (int) $batch_id,
-                'semester_id' => (int) $semester_id,
-                'curriculum_row_id' => (int) $curriculam_id,
-                'curriculum_search' => trim((string) $request->input('curriculum_search', '')),
-                'program_code_filter' => strtoupper(trim((string) $request->input('program_code_filter', ''))),
-            ], fn($value) => (is_string($value) ? $value !== '' : (int) $value > 0)))
-            ->with('error', 'No matching roster rule found for selected context.');
+            $subjectInfo = Subject::query()->find((int) $comboInfo->combo_id_1);
+            if (!$subjectInfo) {
+                return collect();
+            }
+
+            $batchInfo = BatchMaster::query()->find((int) $batch_id);
+            if (!$batchInfo) {
+                return collect();
+            }
+
+            $campus_id = (int) ($subjectInfo->campus_id ?? 0);
+
+            $programIds = StudentCourseInfo::query()
+                ->where('course_id', $course_id)
+                ->where('semester', $semester_id)
+                ->where('campus_id', $campus_id)
+                ->where('academic_year', (string) $batchInfo->batch_name)
+                ->pluck('student_id')
+                ->map(fn($id) => (int) $id)
+                ->filter(fn($id) => $id > 0)
+                ->values();
+
+            $studentsQuery = StudentMaster::query()
+                ->whereIn('id', $programIds->all());
+
+            $students = $studentsQuery
+                ->orderBy('roll_no')
+                ->orderBy('first_name')
+                ->get([
+                    'id',
+                    'roll_no',
+                    'register_no',
+                    'first_name',
+                    'last_name',
+                    'new_program_id',
+                    'batch',
+                    'academic_pathway_id',
+                    'degree_track_id',
+                ]);
+
+            return $this->redirectResolvedStudentsToRoster($request, $students);
+        }
     }
 }
