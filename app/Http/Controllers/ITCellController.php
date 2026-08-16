@@ -20,6 +20,7 @@ use App\Models\ProgramCourseMaster;
 use App\Models\ProgramWiseSemesterCourse;
 use App\Models\ReligionMaster;
 use App\Models\Semester;
+use App\Models\StdProgComboMap;
 use App\Models\StudentCourseInfo;
 use App\Models\StudentCampusTransferLog;
 use App\Models\StudentRosterRuleMapping;
@@ -1861,6 +1862,7 @@ class ITCellController extends Controller
                     'bm.batch_name',
 
                     'shp.program_type',
+                    'shp.student_program_id as program_id',
 
                     'sp.code as program_code',
                     'sp.name as program_name',
@@ -1902,73 +1904,149 @@ class ITCellController extends Controller
 
         if ($selectedCurriculumRow) {
 
-            $decisionStartId = 0;
-            if (Schema::hasTable('student_roster_rule_results')) {
-                $decisionStartId = (int) (DB::table('student_roster_rule_results')->max('id') ?? 0);
-            }
-
             $courseContext = [
-
-                'id' =>
-                (int) $selectedCurriculumRow->course_id,
-
-                'curriculum_row_id' =>
-                (int) $selectedCurriculumRow->curriculum_row_id,
-
-                'course_id' =>
-                (int) $selectedCurriculumRow->course_id,
-
-                'batch_id' =>
-                (int) $selectedCurriculumRow->batch,
-
-                'semester_id' =>
-                (int) $selectedCurriculumRow->semester,
-
-                'academic_pathway_id' =>
-                (int) $selectedCurriculumRow->academic_pathway_id,
-
-                'degree_track_id' =>
-                (int) $selectedCurriculumRow->degree_track_id,
-
-                'program_combo_refid' =>
-                (int) $selectedCurriculumRow->program_combo_refid,
-
-                'program_type' =>
-                strtoupper(
-                    trim(
-                        (string) $selectedCurriculumRow->program_type
-                    )
-                ),
-
-                'delivery_type' =>
-                strtoupper(
-                    trim(
-                        (string) $selectedCurriculumRow->delivery_category
-                    )
-                ),
-
-                'selection_type' =>
-                strtoupper(
-                    trim(
-                        (string) $selectedCurriculumRow->course_type
-                    )
-                ),
-
-                'offering_dept' =>
-                (int) $selectedCurriculumRow->offering_dept,
+                'id' => (int) $selectedCurriculumRow->course_id,
+                'curriculum_row_id' => (int) $selectedCurriculumRow->curriculum_row_id,
+                'course_id' => (int) $selectedCurriculumRow->course_id,
+                'batch_id' => (int) $selectedCurriculumRow->batch,
+                'semester_id' => (int) $selectedCurriculumRow->semester,
+                'academic_pathway_id' => (int) $selectedCurriculumRow->academic_pathway_id,
+                'degree_track_id' => (int) $selectedCurriculumRow->degree_track_id,
+                'program_combo_refid' => (int) $selectedCurriculumRow->program_combo_refid,
+                'program_type' => strtoupper(trim((string) $selectedCurriculumRow->program_type)),
+                'delivery_type' => strtoupper(trim((string) $selectedCurriculumRow->delivery_category)),
+                'selection_type' => strtoupper(trim((string) $selectedCurriculumRow->course_type)),
+                'offering_dept' => (int) $selectedCurriculumRow->offering_dept,
             ];
 
             $rosterContext = $courseContext;
 
-            /*
-         * The engine is now the SINGLE source of truth
-         * for deciding which students attend this course.
-         */
+            $programId = (int) ($selectedCurriculumRow->program_id ?? 0);
+            $academicPathwayId = (int) ($selectedCurriculumRow->academic_pathway_id ?? 0);
+            $degreeTrackId = (int) ($selectedCurriculumRow->degree_track_id ?? 0);
+            $selectionType = (string) ($selectedCurriculumRow->course_type ?? '');
+            $deliveryType = (string) ($selectedCurriculumRow->delivery_category ?? '');
 
-            $resolvedStudents =
-                $studentRosterEngine
-                ->getStudentsForCourse($courseContext, $courseContext)
-                ->values();
+            $ruleAppl = StudentRosterRuleMapping::query()
+                ->where('academic_pathway_id', $academicPathwayId)
+                ->where('degree_track_id', $degreeTrackId)
+                ->where('selection_type', $selectionType)
+                ->where('delivery_type', $deliveryType)
+                ->with('rule:id,rule_code')
+                ->first();
+
+            $resolvedStudents = collect();
+
+            $buildStudentsByProgramIds = function ($programIds) use ($batchId, $semesterId, $academicPathwayId, $degreeTrackId) {
+                if ($programIds->isEmpty()) {
+                    return collect();
+                }
+
+                $studentsQuery = StudentMaster::query()
+                    ->where('batch', (int) $batchId)
+                    ->whereIn('new_program_id', $programIds->all());
+
+                if ((int) $academicPathwayId > 0) {
+                    $studentsQuery->where('academic_pathway_id', (int) $academicPathwayId);
+                }
+
+                if ((int) $degreeTrackId > 0) {
+                    $studentsQuery->where('degree_track_id', (int) $degreeTrackId);
+                }
+
+                if (Schema::hasColumn('student_masters', 'is_deleted')) {
+                    $studentsQuery->where('is_deleted', 0);
+                }
+
+                if (Schema::hasColumn('student_masters', 'is_left')) {
+                    $studentsQuery->where(function ($q) {
+                        $q->whereNull('is_left')->orWhere('is_left', 0);
+                    });
+                }
+
+                if ((int) $semesterId > 0) {
+                    $studentsQuery->whereHas('activeSemesterConfig', function ($q) use ($semesterId) {
+                        $q->where('semester_id', (string) $semesterId);
+                    });
+                }
+
+                return $studentsQuery
+                    ->orderBy('roll_no')
+                    ->orderBy('first_name')
+                    ->get([
+                        'id',
+                        'roll_no',
+                        'register_no',
+                        'first_name',
+                        'last_name',
+                        'new_program_id',
+                        'batch',
+                        'academic_pathway_id',
+                        'degree_track_id',
+                    ]);
+            };
+
+            if ($ruleAppl) {
+                if ($ruleAppl->roster_source == 'COMBO1' && $ruleAppl->delivery_type == 'COMBO1' && $selectionType == 'AUTO') {
+                    $comboInfo = StdProgComboMap::query()->where('student_program_id', $programId)->first();
+                    $programIds = collect();
+                    if ($comboInfo) {
+                        $programIds = StdProgComboMap::query()
+                            ->where('combo_id_1', $comboInfo->combo_id_1)
+                            ->pluck('student_program_id')
+                            ->map(fn($id) => (int) $id)
+                            ->filter(fn($id) => $id > 0)
+                            ->unique()
+                            ->values();
+                    }
+                    $resolvedStudents = $buildStudentsByProgramIds($programIds);
+                }
+
+                if ($ruleAppl->roster_source == 'COMBO2' && $ruleAppl->delivery_type == 'COMBO2' && $selectionType == 'AUTO') {
+                    $comboInfo = StdProgComboMap::query()->where('student_program_id', $programId)->first();
+                    $programIds = collect();
+                    if ($comboInfo) {
+                        $programIds = StdProgComboMap::query()
+                            ->where('combo_id_2', $comboInfo->combo_id_2)
+                            ->pluck('student_program_id')
+                            ->map(fn($id) => (int) $id)
+                            ->filter(fn($id) => $id > 0)
+                            ->unique()
+                            ->values();
+                    }
+                    $resolvedStudents = $buildStudentsByProgramIds($programIds);
+                }
+
+                if ($ruleAppl->roster_source == 'COMBO1' && $ruleAppl->delivery_type == 'COMMON' && $selectionType == 'AUTO') {
+                    $comboInfo = StdProgComboMap::query()->where('student_program_id', $programId)->first();
+                    $programIds = collect();
+                    if ($comboInfo) {
+                        $programIds = StdProgComboMap::query()
+                            ->where('combo_id_1', $comboInfo->combo_id_1)
+                            ->pluck('student_program_id')
+                            ->map(fn($id) => (int) $id)
+                            ->filter(fn($id) => $id > 0)
+                            ->unique()
+                            ->values();
+                    }
+                    $resolvedStudents = $buildStudentsByProgramIds($programIds);
+                }
+
+                if ($ruleAppl->roster_source == 'COMBO1' && $ruleAppl->delivery_type == 'MDC' && $selectionType == 'AUTO') {
+                    $comboInfo = StdProgComboMap::query()->where('student_program_id', $programId)->first();
+                    $programIds = collect();
+                    if ($comboInfo) {
+                        $programIds = StdProgComboMap::query()
+                            ->where('combo_id_1', $comboInfo->combo_id_1)
+                            ->pluck('student_program_id')
+                            ->map(fn($id) => (int) $id)
+                            ->filter(fn($id) => $id > 0)
+                            ->unique()
+                            ->values();
+                    }
+                    $resolvedStudents = $buildStudentsByProgramIds($programIds);
+                }
+            }
 
             $resolvedProgramIds = $resolvedStudents
                 ->pluck('new_program_id')
@@ -2041,127 +2119,6 @@ class ITCellController extends Controller
                 })
                 ->sortBy('program_code')
                 ->values();
-
-            $deliveryScopedProgramIds = collect();
-            $deliveryType = strtoupper(trim((string) ($courseContext['delivery_type'] ?? '')));
-
-            if (
-                in_array($deliveryType, ['COMBO1', 'COMBO2'], true)
-                && Schema::hasTable('subject_has_student_progams')
-                && Schema::hasTable('std_prog_combo_maps')
-            ) {
-                $curriculumTable = (new ProgramWiseSemesterCourse())->getTable();
-
-                $deliveryScopeQuery = DB::table($curriculumTable . ' as ce')
-                    ->join('subject_has_student_progams as shp', 'shp.id', '=', 'ce.program_combo_refid')
-                    ->join('std_prog_combo_maps as spcm', 'spcm.student_program_id', '=', 'shp.student_program_id')
-                    ->where('ce.course_id', (int) ($courseContext['course_id'] ?? 0))
-                    ->whereRaw('UPPER(TRIM(COALESCE(ce.delivery_category, ""))) = ?', [$deliveryType]);
-
-                if (Schema::hasColumn($curriculumTable, 'batch') && (int) ($courseContext['batch_id'] ?? 0) > 0) {
-                    $deliveryScopeQuery->where('ce.batch', (int) $courseContext['batch_id']);
-                }
-
-                if (Schema::hasColumn($curriculumTable, 'semester') && (int) ($courseContext['semester_id'] ?? 0) > 0) {
-                    $deliveryScopeQuery->where('ce.semester', (int) $courseContext['semester_id']);
-                }
-
-                if (Schema::hasColumn($curriculumTable, 'is_active')) {
-                    $deliveryScopeQuery->where('ce.is_active', 1);
-                }
-
-                if (Schema::hasColumn($curriculumTable, 'deleted_at')) {
-                    $deliveryScopeQuery->whereNull('ce.deleted_at');
-                }
-
-                if (Schema::hasColumn('subject_has_student_progams', 'deleted_at')) {
-                    $deliveryScopeQuery->whereNull('shp.deleted_at');
-                }
-
-                if ($deliveryType === 'COMBO1') {
-                    $deliveryScopeQuery->whereColumn('spcm.combo_id_1', 'shp.subject_id');
-                } else {
-                    $deliveryScopeQuery->whereColumn('spcm.combo_id_2', 'shp.subject_id');
-                }
-
-                $deliveryScopedProgramIds = $deliveryScopeQuery
-                    ->pluck('shp.student_program_id')
-                    ->map(fn($id) => (int) $id)
-                    ->filter(fn($id) => $id > 0)
-                    ->unique()
-                    ->values();
-            }
-
-            if (Schema::hasTable('student_roster_rule_results')) {
-                $reasonQuery = DB::table('student_roster_rule_results as srr')
-                    ->join('student_masters as sm', 'sm.id', '=', 'srr.student_id')
-                    ->where('srr.id', '>', $decisionStartId)
-                    ->where('srr.subject_course_id', (int) ($courseContext['course_id'] ?? 0))
-                    ->where('srr.included', 0)
-                    ->select([
-                        'srr.reason_code',
-                        DB::raw('COUNT(*) as total'),
-                    ])
-                    ->groupBy('srr.reason_code')
-                    ->orderByDesc('total');
-
-                if ($deliveryScopedProgramIds->isNotEmpty()) {
-                    $reasonQuery->whereIn('sm.new_program_id', $deliveryScopedProgramIds->all());
-                }
-
-                $rosterExclusionReasons = $reasonQuery->get()->map(function ($row) {
-                    return [
-                        'reason_code' => (string) ($row->reason_code ?? 'UNKNOWN'),
-                        'total' => (int) ($row->total ?? 0),
-                    ];
-                })->values();
-
-                $rosterExcludedStudents = DB::table('student_roster_rule_results as srr')
-                    ->join('student_masters as sm', 'sm.id', '=', 'srr.student_id')
-                    ->leftJoin('student_program as sp', 'sp.id', '=', 'sm.new_program_id')
-                    ->leftJoin('academic_pathway_masters as ap', 'ap.id', '=', 'sm.academic_pathway_id')
-                    ->leftJoin('degree_track_masters as dt', 'dt.id', '=', 'sm.degree_track_id')
-                    ->leftJoin('batch_masters as bm', 'bm.id', '=', 'sm.batch')
-                    ->where('srr.id', '>', $decisionStartId)
-                    ->where('srr.subject_course_id', (int) ($courseContext['course_id'] ?? 0))
-                    ->where('srr.included', 0)
-                    ->orderBy('srr.reason_code')
-                    ->orderBy('sm.roll_no')
-                    ->select([
-                        'sm.id as student_id',
-                        'sm.roll_no',
-                        'sm.register_no',
-                        'sm.first_name',
-                        'sm.last_name',
-                        'sp.code as program_code',
-                        'sp.name as program_name',
-                        'bm.batch_name',
-                        'ap.name as pathway_name',
-                        'dt.name as degree_track_name',
-                        'srr.reason_code',
-                        'srr.reason',
-                    ])
-                    ->when($deliveryScopedProgramIds->isNotEmpty(), function ($q) use ($deliveryScopedProgramIds) {
-                        $q->whereIn('sm.new_program_id', $deliveryScopedProgramIds->all());
-                    })
-                    ->get()
-                    ->map(function ($row) {
-                        return [
-                            'student_id' => (int) ($row->student_id ?? 0),
-                            'student_name' => trim((string) ($row->first_name ?? '') . ' ' . (string) ($row->last_name ?? '')),
-                            'roll_no' => (string) ($row->roll_no ?? ''),
-                            'register_no' => (string) ($row->register_no ?? ''),
-                            'program_code' => trim((string) ($row->program_code ?? '')),
-                            'program_name' => trim((string) ($row->program_name ?? '')),
-                            'batch_name' => trim((string) ($row->batch_name ?? '')),
-                            'academic_pathway' => trim((string) ($row->pathway_name ?? '')),
-                            'degree_track' => trim((string) ($row->degree_track_name ?? '')),
-                            'reason_code' => (string) ($row->reason_code ?? 'UNKNOWN'),
-                            'reason' => (string) ($row->reason ?? ''),
-                        ];
-                    })
-                    ->values();
-            }
         }
 
         /*
@@ -3838,5 +3795,303 @@ class ITCellController extends Controller
 
         $filename = 'student-list-batch-' . $batch . '-campus-' . $campus_id . '-' . date('Y-m-d') . '.xlsx';
         return Excel::download(new StudentDataExport($students), $filename);
+    }
+
+    function resolveStudentList(Request $request)
+    {
+
+        // return $request->all();
+
+        $curriculam_id = $request->curriculum_row_id; //checked row
+        $batch_id = $request->batch_id;
+        $semester_id = $request->semester_id;
+        $program_id  = $request->program_id; // use this to find the department info
+
+        $cr = ProgramWiseSemesterCourse::with('courseinfo')->find($curriculam_id);
+        //    return $cr;
+        $academic_pathway_id = $cr->academic_pathway_id;
+        $degree_track_id = $cr->degree_track_id;
+        $course_id = $cr->course_id;
+        $selection_type = $cr->course_type; //AUTO
+        $delivery_type = $cr->delivery_category; //COMBO1
+
+        //Lets Find Rule Applicable
+
+        $ruleAppl = StudentRosterRuleMapping::where('academic_pathway_id', $academic_pathway_id)
+            ->where('degree_track_id', $degree_track_id)
+            ->where('selection_type', $selection_type)
+            ->where('delivery_type', $delivery_type)
+            ->with('rule:id,rule_code')
+            ->first();
+
+        $ruleAppl;
+
+        /** DUAL MAJOR RULES ENGINE
+         * COMBO1 -- Done
+         * COMBO2 -- Done
+         * COMMON_AUTO -- DONE
+         * COMMON_STUDENT_CHOICE
+         * MDC_AUTO -- Done
+         * MDC_STUDENT_STUDENT_CHOICE
+         */
+
+
+        //COMBO1 -- Done
+        if ($ruleAppl->roster_source == 'COMBO1' && $ruleAppl->delivery_type == 'COMBO1' && $selection_type == 'AUTO') {
+            //find department 
+            $comboInfo = StdProgComboMap::where('student_program_id', $program_id)->first();
+
+            //now send the programs to find the student having batch,semester, academic_pathway, Degree to add them in the roster
+
+            if (!$comboInfo) {
+                return collect(); // or return [];
+            }
+
+            $programIds = StdProgComboMap::where('combo_id_1', $comboInfo->combo_id_1)
+                ->pluck('student_program_id')
+                ->map(fn($id) => (int) $id)
+                ->filter(fn($id) => $id > 0)
+                ->unique()
+                ->values();
+
+            $studentsQuery = StudentMaster::query()
+                ->where('batch', (int) $batch_id)
+                ->whereIn('new_program_id', $programIds->all());
+
+            if ((int) $academic_pathway_id > 0) {
+                $studentsQuery->where('academic_pathway_id', (int) $academic_pathway_id);
+            }
+
+            if ((int) $degree_track_id > 0) {
+                $studentsQuery->where('degree_track_id', (int) $degree_track_id);
+            }
+
+            if (Schema::hasColumn('student_masters', 'is_deleted')) {
+                $studentsQuery->where('is_deleted', 0);
+            }
+
+            if (Schema::hasColumn('student_masters', 'is_left')) {
+                $studentsQuery->where(function ($q) {
+                    $q->whereNull('is_left')->orWhere('is_left', 0);
+                });
+            }
+
+            if ((int) $semester_id > 0) {
+                $studentsQuery->whereHas('activeSemesterConfig', function ($q) use ($semester_id) {
+                    $q->where('semester_id', (string) $semester_id);
+                });
+            }
+
+            $students = $studentsQuery
+                ->orderBy('roll_no')
+                ->orderBy('first_name')
+                ->get([
+                    'id',
+                    'roll_no',
+                    'register_no',
+                    'first_name',
+                    'last_name',
+                    'new_program_id',
+                    'batch',
+                    'academic_pathway_id',
+                    'degree_track_id',
+                ]);
+
+            return $students;
+        }
+        //COMBO2 -- Done
+        if ($ruleAppl->roster_source == 'COMBO2' && $ruleAppl->delivery_type == 'COMBO2' && $selection_type == 'AUTO') {
+            //find department 
+            $comboInfo = StdProgComboMap::where('student_program_id', $program_id)->first();
+            //   $programs =  StdProgComboMap::where('combo_id_2', $comboInfo->combo_id_2)->with('stdprograms')->get();
+            //now send the programs to find the student having batch,semester, academic_pathway, Degree to add them in the roster
+            if (!$comboInfo) {
+                return collect(); // or return [];
+            }
+
+            $programIds = StdProgComboMap::where('combo_id_2', $comboInfo->combo_id_2)
+                ->pluck('student_program_id')
+                ->map(fn($id) => (int) $id)
+                ->filter(fn($id) => $id > 0)
+                ->unique()
+                ->values();
+
+            $studentsQuery = StudentMaster::query()
+                ->where('batch', (int) $batch_id)
+                ->whereIn('new_program_id', $programIds->all());
+
+            if ((int) $academic_pathway_id > 0) {
+                $studentsQuery->where('academic_pathway_id', (int) $academic_pathway_id);
+            }
+
+            if ((int) $degree_track_id > 0) {
+                $studentsQuery->where('degree_track_id', (int) $degree_track_id);
+            }
+
+            if (Schema::hasColumn('student_masters', 'is_deleted')) {
+                $studentsQuery->where('is_deleted', 0);
+            }
+
+            if (Schema::hasColumn('student_masters', 'is_left')) {
+                $studentsQuery->where(function ($q) {
+                    $q->whereNull('is_left')->orWhere('is_left', 0);
+                });
+            }
+
+            if ((int) $semester_id > 0) {
+                $studentsQuery->whereHas('activeSemesterConfig', function ($q) use ($semester_id) {
+                    $q->where('semester_id', (string) $semester_id);
+                });
+            }
+
+            $students = $studentsQuery
+                ->orderBy('roll_no')
+                ->orderBy('first_name')
+                ->get([
+                    'id',
+                    'roll_no',
+                    'register_no',
+                    'first_name',
+                    'last_name',
+                    'new_program_id',
+                    'batch',
+                    'academic_pathway_id',
+                    'degree_track_id',
+                ]);
+
+            return $students; //
+
+        }
+        //COMMON_AUTO
+        if ($ruleAppl->roster_source == 'COMBO1' && $ruleAppl->delivery_type == 'COMMON' && $selection_type == 'AUTO') {
+            //find department 
+            $comboInfo = StdProgComboMap::where('student_program_id', $program_id)->first();
+            $programs =  StdProgComboMap::where('combo_id_1', $comboInfo->combo_id_1)->with('stdprograms')->get();
+            //now send the programs to find the student having batch,semester, academic_pathway, Degree to add them in the roster
+            if (!$comboInfo) {
+                return collect(); // or return [];
+            }
+
+            $programIds = StdProgComboMap::where('combo_id_1', $comboInfo->combo_id_1)
+                ->pluck('student_program_id')
+                ->map(fn($id) => (int) $id)
+                ->filter(fn($id) => $id > 0)
+                ->unique()
+                ->values();
+
+            $studentsQuery = StudentMaster::query()
+                ->where('batch', (int) $batch_id)
+                ->whereIn('new_program_id', $programIds->all());
+
+            if ((int) $academic_pathway_id > 0) {
+                $studentsQuery->where('academic_pathway_id', (int) $academic_pathway_id);
+            }
+
+            if ((int) $degree_track_id > 0) {
+                $studentsQuery->where('degree_track_id', (int) $degree_track_id);
+            }
+
+            if (Schema::hasColumn('student_masters', 'is_deleted')) {
+                $studentsQuery->where('is_deleted', 0);
+            }
+
+            if (Schema::hasColumn('student_masters', 'is_left')) {
+                $studentsQuery->where(function ($q) {
+                    $q->whereNull('is_left')->orWhere('is_left', 0);
+                });
+            }
+
+            if ((int) $semester_id > 0) {
+                $studentsQuery->whereHas('activeSemesterConfig', function ($q) use ($semester_id) {
+                    $q->where('semester_id', (string) $semester_id);
+                });
+            }
+
+            $students = $studentsQuery
+                ->orderBy('roll_no')
+                ->orderBy('first_name')
+                ->get([
+                    'id',
+                    'roll_no',
+                    'register_no',
+                    'first_name',
+                    'last_name',
+                    'new_program_id',
+                    'batch',
+                    'academic_pathway_id',
+                    'degree_track_id',
+                ]);
+
+            return $students; //
+
+        }
+        //MDC_AUTO -- Done
+        if ($ruleAppl->roster_source == 'COMBO1' && $ruleAppl->delivery_type == 'MDC' && $selection_type == 'AUTO') {
+            //find department 
+            $comboInfo = StdProgComboMap::where('student_program_id', $program_id)->first();
+            $programs =  StdProgComboMap::where('combo_id_1', $comboInfo->combo_id_1)->with('stdprograms')->get();
+            //now send the programs to find the student having batch,semester, academic_pathway, Degree to add them in the roster
+            if (!$comboInfo) {
+                return collect(); // or return [];
+            }
+
+            $programIds = StdProgComboMap::where('combo_id_1', $comboInfo->combo_id_1)
+                ->pluck('student_program_id')
+                ->map(fn($id) => (int) $id)
+                ->filter(fn($id) => $id > 0)
+                ->unique()
+                ->values();
+
+            $studentsQuery = StudentMaster::query()
+                ->where('batch', (int) $batch_id)
+                ->whereIn('new_program_id', $programIds->all());
+
+            if ((int) $academic_pathway_id > 0) {
+                $studentsQuery->where('academic_pathway_id', (int) $academic_pathway_id);
+            }
+
+            if ((int) $degree_track_id > 0) {
+                $studentsQuery->where('degree_track_id', (int) $degree_track_id);
+            }
+
+            if (Schema::hasColumn('student_masters', 'is_deleted')) {
+                $studentsQuery->where('is_deleted', 0);
+            }
+
+            if (Schema::hasColumn('student_masters', 'is_left')) {
+                $studentsQuery->where(function ($q) {
+                    $q->whereNull('is_left')->orWhere('is_left', 0);
+                });
+            }
+
+            if ((int) $semester_id > 0) {
+                $studentsQuery->whereHas('activeSemesterConfig', function ($q) use ($semester_id) {
+                    $q->where('semester_id', (string) $semester_id);
+                });
+            }
+
+            $students = $studentsQuery
+                ->orderBy('roll_no')
+                ->orderBy('first_name')
+                ->get([
+                    'id',
+                    'roll_no',
+                    'register_no',
+                    'first_name',
+                    'last_name',
+                    'new_program_id',
+                    'batch',
+                    'academic_pathway_id',
+                    'degree_track_id',
+                ]);
+
+            return $students; // s
+        }
+
+        //MDC_STUDENT_CHOICE
+        if ($ruleAppl->roster_source == 'STUDENT_SELECTION' && $ruleAppl->delivery_type == 'MDC' && $selection_type == 'STUDENT_CHOICE') {
+            //fetch all when this for this batch  checking pathway/degree whoever is enrolled irrespective of program
+            dd('TEST MDC SC');
+        }
     }
 }

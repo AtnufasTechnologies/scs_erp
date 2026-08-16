@@ -25,4 +25,9 @@ class StdProgComboMap extends Model
     {
         return $this->hasOne(Subject::class, 'id', 'combo_id_2');
     }
+
+    function stdprograms()
+    {
+        return $this->hasOne(StudentProgram::class, 'id', 'student_program_id');
+    }
 }

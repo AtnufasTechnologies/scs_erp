@@ -82,11 +82,13 @@
     @elseif(($curriculumRows ?? collect())->isEmpty())
     <div class="alert alert-warning mb-0">No curriculum rows found for selected filters.</div>
     @else
-    <form method="GET" action="{{ route('itcell.student-roster-engine.index') }}" id="resolveRosterForm">
+    <form method="GET" action="{{ route('itcell.resolve.student.list') }}" id="resolveRosterForm">
       <input type="hidden" name="batch_id" value="{{ (int) $selectedBatchId }}">
       <input type="hidden" name="semester_id" value="{{ (int) $selectedSemesterId }}">
       <input type="hidden" name="teaching_group_id" value="{{ (int) ($teachingGroupId ?? 0) }}">
       <input type="hidden" name="teaching_assignment_id" value="{{ (int) ($teachingAssignmentId ?? 0) }}">
+      <input type="hidden" name="curriculum_id" id="selectedCurriculumId" value="{{ (int) ($selectedCurriculumRowId ?? 0) }}">
+      <input type="hidden" name="program_id" id="selectedProgramId" value="{{ (int) ($selectedCurriculumRow->program_id ?? 0) }}">
 
       @php
       $programCodeOptions = collect($curriculumRows ?? [])
@@ -137,13 +139,13 @@
           <thead class="table-light">
             <tr>
               <th style="width: 70px;">Use</th>
+              <th style="width: 120px;">Curriculum ID</th>
               <th>Course</th>
               <th>Course Type</th>
               <th>Batch</th>
               <th>Semester</th>
               <th>Delivery</th>
               <th>Selection</th>
-
               <th>Program Code</th>
               <th>Program Name</th>
               <th>Program Type</th>
@@ -157,8 +159,10 @@
             @endphp
             <tr class="curriculum-row-item" data-program-code="{{ strtoupper(trim((string) ($row->program_code ?? ''))) }}">
               <td class="text-center">
-                <input type="radio" name="curriculum_row_id" value="{{ $rowId }}" {{ (int) $selectedCurriculumRowId === $rowId ? 'checked' : '' }} required>
+                <input type="radio" name="curriculum_row_id" value="{{ $rowId }}" data-program-id="{{ (int) ($row->program_id ?? 0) }}" {{ (int) $selectedCurriculumRowId === $rowId ? 'checked' : '' }} required>
               </td>
+
+              <td><span class="badge bg-light text-dark border">{{ $rowId }}</span></td>
 
               <td>
                 <strong>{{ $row->course_code ?? 'N/A' }}</strong>
@@ -564,6 +568,8 @@
     const tableBody = document.getElementById('curriculumRowsTableBody');
     const noMatchAlert = document.getElementById('curriculumRowsNoMatch');
     const resolveForm = document.getElementById('resolveRosterForm');
+    const selectedCurriculumIdField = document.getElementById('selectedCurriculumId');
+    const selectedProgramIdField = document.getElementById('selectedProgramId');
     const resolveButton = document.getElementById('resolveRosterButton');
     const excludedReasonFilter = document.getElementById('excludedReasonFilter');
     const excludedStudentsTableBody = document.getElementById('excludedStudentsTableBody');
@@ -583,6 +589,23 @@
     }
 
     const rows = Array.from(tableBody.querySelectorAll('.curriculum-row-item'));
+    const curriculumRadioButtons = Array.from(document.querySelectorAll('input[name="curriculum_row_id"]'));
+
+    const syncSelectedCurriculumId = function() {
+      if (!selectedCurriculumIdField) {
+        return;
+      }
+
+      const selectedRadio = curriculumRadioButtons.find(function(radio) {
+        return radio.checked;
+      });
+
+      selectedCurriculumIdField.value = selectedRadio ? String(selectedRadio.value || '') : '';
+
+      if (selectedProgramIdField) {
+        selectedProgramIdField.value = selectedRadio ? String(selectedRadio.getAttribute('data-program-id') || '') : '';
+      }
+    };
 
     const applyFilter = function() {
       const query = String(searchInput.value || '').trim().toLowerCase();
@@ -626,6 +649,11 @@
 
     // Reapply persisted filters after page reload (e.g., after Resolve Student Roster).
     applyFilter();
+
+    curriculumRadioButtons.forEach(function(radio) {
+      radio.addEventListener('change', syncSelectedCurriculumId);
+    });
+    syncSelectedCurriculumId();
 
     const applyExcludedStudentFilter = function() {
       if (!excludedReasonFilter || !excludedStudentsTableBody) {
@@ -838,6 +866,7 @@
 
     if (resolveForm && resolveButton) {
       resolveForm.addEventListener('submit', function() {
+        syncSelectedCurriculumId();
         resolveButton.disabled = true;
         const defaultLabel = resolveButton.querySelector('.resolve-label-default');
         const loadingLabel = resolveButton.querySelector('.resolve-label-loading');

@@ -154,6 +154,7 @@ Route::group(['prefix' => '/erp'], function () {
         Route::get('itcell/student-mdc-selection/export', [ITCellController::class, 'studentMdcSelectionExport'])->name('itcell.student-mdc-selection.export');
         Route::post('itcell/student-mdc-selection', [ITCellController::class, 'studentMdcSelectionStore'])->name('itcell.student-mdc-selection.store');
         Route::get('itcell/student-roster-rules', [ITCellController::class, 'studentRosterRulesIndex'])->name('itcell.student-roster-rules.index');
+        Route::get('itcell/resolve-student-list', [ITCellController::class, 'resolveStudentList'])->name('itcell.resolve.student.list');
         Route::post('itcell/student-roster-rules', [ITCellController::class, 'studentRosterRulesStore'])->name('itcell.student-roster-rules.store');
         Route::put('itcell/student-roster-rules/{id}', [ITCellController::class, 'studentRosterRulesUpdate'])->name('itcell.student-roster-rules.update');
         Route::delete('itcell/student-roster-rules/{id}', [ITCellController::class, 'studentRosterRulesDestroy'])->name('itcell.student-roster-rules.destroy');
