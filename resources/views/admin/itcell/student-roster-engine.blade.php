@@ -213,6 +213,7 @@
       <div class="col-md-2"><strong>Semester:</strong> {{ $rosterContext['semester_id'] ?? '-' }}</div>
       <div class="col-md-2"><strong>Delivery:</strong> {{ strtoupper((string) ($rosterContext['delivery_type'] ?? '')) }}</div>
       <div class="col-md-2"><strong>Selection:</strong> {{ strtoupper((string) ($rosterContext['selection_type'] ?? '')) }}</div>
+      <div class="col-md-12"><strong>Rule Applied:</strong> {{ $rosterContext['rule_code'] ?? 'NO_RULE' }} - {{ $rosterContext['rule_name'] ?? 'No rule matched' }} @if((int) ($rosterContext['rule_mapping_id'] ?? 0) > 0)<span class="text-muted">(Mapping ID: {{ (int) $rosterContext['rule_mapping_id'] }})</span>@endif</div>
       <div class="col-md-3"><strong>Course Type:</strong> {{ trim((string) ($selectedCurriculumRow->course_type_name ?? '')) !== '' ? $selectedCurriculumRow->course_type_name : strtoupper((string) ($selectedCurriculumRow->course_type ?? '-')) }}</div>
       <div class="col-md-12"><strong>Program Source:</strong> {{ $selectedCurriculumRow->program_name ?? '-' }} ({{ $selectedCurriculumRow->program_code ?? '-' }})</div>
     </div>

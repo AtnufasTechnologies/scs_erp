@@ -1603,8 +1603,12 @@ class ITCellController extends Controller
                 ->where('degree_track_id', $degreeTrackId)
                 ->where('selection_type', $selectionType)
                 ->where('delivery_type', $deliveryType)
-                ->with('rule:id,rule_code')
+                ->with('rule:id,rule_code,rule_name')
                 ->first();
+
+            $rosterContext['rule_mapping_id'] = (int) ($ruleAppl->id ?? 0);
+            $rosterContext['rule_code'] = (string) ($ruleAppl->rule->rule_code ?? 'NO_RULE');
+            $rosterContext['rule_name'] = (string) ($ruleAppl->rule->rule_name ?? 'No rule matched');
 
             if ($resolvedStudents->isEmpty()) {
 
@@ -3483,6 +3487,8 @@ class ITCellController extends Controller
         $semesterId = (int) $request->input('semester_id', 0);
         $teachingGroupId = (int) $request->input('teaching_group_id', 0);
         $teachingAssignmentId = (int) $request->input('teaching_assignment_id', 0);
+        $curriculumSearch = trim((string) $request->input('curriculum_search', ''));
+        $programCodeFilter = strtoupper(trim((string) $request->input('program_code_filter', '')));
 
         $query = array_filter([
             'batch_id' => $batchId,
@@ -3491,6 +3497,14 @@ class ITCellController extends Controller
             'teaching_group_id' => $teachingGroupId,
             'teaching_assignment_id' => $teachingAssignmentId,
         ], fn($value) => (int) $value > 0);
+
+        if ($curriculumSearch !== '') {
+            $query['curriculum_search'] = $curriculumSearch;
+        }
+
+        if ($programCodeFilter !== '') {
+            $query['program_code_filter'] = $programCodeFilter;
+        }
 
         return redirect()
             ->route('itcell.student-roster-engine.index', $query)
@@ -3797,7 +3811,9 @@ class ITCellController extends Controller
                     'batch_id' => (int) $batch_id,
                     'semester_id' => (int) $semester_id,
                     'curriculum_row_id' => (int) $curriculam_id,
-                ], fn($value) => (int) $value > 0))
+                    'curriculum_search' => trim((string) $request->input('curriculum_search', '')),
+                    'program_code_filter' => strtoupper(trim((string) $request->input('program_code_filter', ''))),
+                ], fn($value) => (is_string($value) ? $value !== '' : (int) $value > 0)))
                 ->with('error', 'Student choice flow is not implemented yet for MDC.');
         }
 
@@ -3806,7 +3822,9 @@ class ITCellController extends Controller
                 'batch_id' => (int) $batch_id,
                 'semester_id' => (int) $semester_id,
                 'curriculum_row_id' => (int) $curriculam_id,
-            ], fn($value) => (int) $value > 0))
+                'curriculum_search' => trim((string) $request->input('curriculum_search', '')),
+                'program_code_filter' => strtoupper(trim((string) $request->input('program_code_filter', ''))),
+            ], fn($value) => (is_string($value) ? $value !== '' : (int) $value > 0)))
             ->with('error', 'No matching roster rule found for selected context.');
     }
 }
