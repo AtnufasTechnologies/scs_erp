@@ -145,6 +145,10 @@ return 'RBT';
                   $courseMaster = $syllabus->courseLink->courseMaster ?? null;
                   $courseType = $courseMaster->coursetypemaster ?? null;
                   $syllabusUnits = $syllabus->syllabusunits ?? collect();
+                  $rosterStudents = collect($syllabus->roster_students ?? []);
+                  $rosterCount = (int) ($syllabus->roster_count ?? $rosterStudents->count());
+                  $studentModalKey = 'studentRoster' . $semesterSlug . $batchSlug . $index;
+                  $courseLabel = trim((string) ($courseMaster->course_code ?? 'N/A') . ' - ' . (string) ($courseMaster->course_title ?? 'N/A'));
 
                   $completedUnits = $syllabusUnits->where('is_completed', 1)->count();
                   $totalUnits = $syllabusUnits->count();
@@ -152,10 +156,11 @@ return 'RBT';
                   @endphp
 
                   <div class="accordion-item border-0">
-                    <h2 class="accordion-header" id="heading{{ $semesterSlug }}{{ $batchSlug }}{{ $index }}">
+                    <div class="accordion-header scs-accordion-header" id="heading{{ $semesterSlug }}{{ $batchSlug }}{{ $index }}">
                       <button class="accordion-button collapsed px-4 py-3" type="button" data-bs-toggle="collapse"
                         data-bs-target="#collapse{{ $semesterSlug }}{{ $batchSlug }}{{ $index }}"
-                        aria-expanded="false">
+                        aria-expanded="false"
+                        aria-controls="collapse{{ $semesterSlug }}{{ $batchSlug }}{{ $index }}">
                         <div class="d-flex align-items-center justify-content-between w-100 me-3">
                           <div class="flex-grow-1">
                             <div class="d-flex align-items-center gap-3 mb-2">
@@ -163,6 +168,9 @@ return 'RBT';
                               <span class="badge bg-primary">{{ $courseType->title }}</span>
                               @endif
                               <span class="badge bg-light-info text-info">{{ strtoupper((string) ($syllabus->program_type ?? 'UG')) === 'PG' ? 'PG' : 'UG' }}</span>
+                              <span class="badge bg-light-success text-success">
+                                <i class="fas fa-user-graduate me-1"></i>{{ $rosterCount }} Student{{ $rosterCount !== 1 ? 's' : '' }}
+                              </span>
                               <h6 class="mb-0 fw-bold">{{ $subject->title ?? 'N/A' }}</h6>
                             </div>
                             <div class="d-flex align-items-center gap-3 text-muted">
@@ -204,7 +212,22 @@ return 'RBT';
                           </div>
                         </div>
                       </button>
-                    </h2>
+                      <div class="scs-roster-cta-wrap">
+                        <button
+                          type="button"
+                          class="btn btn-outline-success btn-sm js-open-roster-modal scs-roster-cta"
+                          data-bs-toggle="modal"
+                          data-bs-target="#studentRosterModal"
+                          data-roster-source="{{ $studentModalKey }}"
+                          data-course-label="{{ $courseLabel }}"
+                          data-subject-label="{{ $subject->title ?? 'N/A' }}"
+                          data-batch-label="{{ $batchName }}"
+                          data-semester-label="{{ $semesterName }}"
+                          data-roster-count="{{ $rosterCount }}">
+                          <i class="fas fa-users"></i>Students ({{ $rosterCount }})
+                        </button>
+                      </div>
+                    </div>
                     <div id="collapse{{ $semesterSlug }}{{ $batchSlug }}{{ $index }}"
                       class="accordion-collapse collapse"
                       data-bs-parent="#{{ $accordionId }}">
@@ -245,7 +268,7 @@ return 'RBT';
                                       <div class="d-flex align-items-center justify-content-between">
                                         <div>
                                           <i class="fas fa-bullseye me-2"></i>
-                                          <span class="text-primary">CSO {{ $csoGroupIndex + 1 }}:</span>
+                                          <span class="text-primary">CO {{ $csoGroupIndex + 1 }}:</span>
                                           {{ $csoGroup['cso']->title }}
                                         </div>
                                         @if($csoGroup['cso']->lectures_needed)
@@ -555,6 +578,18 @@ return 'RBT';
                       </div>
                     </div>
                   </div>
+                  <div class="d-none" id="{{ $studentModalKey }}">
+                    @foreach($rosterStudents as $rosterStudent)
+                    <span
+                      class="js-roster-student"
+                      data-roll-no="{{ $rosterStudent->roll_no ?? '-' }}"
+                      data-register-no="{{ $rosterStudent->register_no ?? '-' }}"
+                      data-student-name="{{ $rosterStudent->student_name ?? '-' }}"
+                      data-batch-name="{{ $rosterStudent->batch_name ?? $batchName ?? '-' }}"
+                      data-batch-id="{{ $rosterStudent->batch_id ?? '-' }}"
+                      data-semester-id="{{ $rosterStudent->semester_id ?? '-' }}"></span>
+                    @endforeach
+                  </div>
                   @endforeach
                 </div>
               </div>
@@ -586,6 +621,53 @@ return 'RBT';
         </div>
       </div>
       @endif
+    </div>
+
+    <div class="modal fade" id="studentRosterModal" tabindex="-1" aria-hidden="true">
+      <div class="modal-dialog modal-lg modal-dialog-scrollable">
+        <div class="modal-content scs-modal">
+          <div class="modal-header scs-modal-header-teal">
+            <div>
+              <h5 class="modal-title mb-0"><i class="fas fa-user-check me-2"></i>Course Student Roster</h5>
+              <small class="opacity-75" id="studentRosterCourseLabel">-</small>
+            </div>
+            <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+          </div>
+          <div class="modal-body p-0">
+            <div class="p-3 border-bottom bg-light">
+              <div class="d-flex flex-wrap gap-2 align-items-center">
+                <span class="badge bg-primary" id="studentRosterSubjectLabel">-</span>
+                <span class="badge bg-light-info text-info" id="studentRosterBatchLabel">Batch: -</span>
+                <span class="badge bg-light-warning text-warning" id="studentRosterSemesterLabel">Semester: -</span>
+                <span class="badge bg-light-success text-success" id="studentRosterCountLabel"><i class="fas fa-user-graduate me-1"></i>0 Students</span>
+                <button type="button" class="btn btn-sm btn-outline-primary" id="studentRosterExportBtn" disabled>
+                  <i class="fas fa-file-csv me-1"></i>Export CSV
+                </button>
+              </div>
+            </div>
+
+            <div class="scs-empty-state py-4 d-none" id="studentRosterEmptyState">
+              <i class="fas fa-users-slash fa-2x mb-2 text-muted"></i>
+              <p class="mb-0 text-muted">No students found in roster for this context.</p>
+            </div>
+
+            <div class="table-responsive" id="studentRosterTableWrap">
+              <table class="table table-sm table-striped mb-0 align-middle">
+                <thead class="table-light">
+                  <tr>
+                    <th class="text-center" style="width: 70px;">#</th>
+                    <th style="width: 130px;">Roll No</th>
+                    <th>Student Name</th>
+                    <th class="text-center" style="width: 100px;">Batch</th>
+                    <th class="text-center" style="width: 110px;">Semester</th>
+                  </tr>
+                </thead>
+                <tbody id="studentRosterTableBody"></tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      </div>
     </div>
   </main>
   <!--end main wrapper-->
@@ -1183,6 +1265,29 @@ return 'RBT';
     border-color: rgba(0, 0, 0, .125);
   }
 
+  .scs-accordion-header {
+    display: flex;
+    align-items: stretch;
+    gap: 10px;
+    background: #fff;
+    padding-right: 12px;
+  }
+
+  .scs-accordion-header .accordion-button {
+    flex: 1 1 auto;
+  }
+
+  .scs-roster-cta-wrap {
+    display: flex;
+    align-items: center;
+    flex-shrink: 0;
+    padding: 0;
+  }
+
+  .scs-roster-cta {
+    white-space: nowrap;
+  }
+
   .semester-section:last-child {
     border-bottom: none !important;
   }
@@ -1212,6 +1317,18 @@ return 'RBT';
     .scs-qb-add-panel {
       border-right: none;
       border-bottom: 1px solid #e2e8f0;
+    }
+
+    .scs-accordion-header {
+      flex-direction: column;
+      align-items: stretch;
+      gap: 8px;
+      padding-right: 0;
+    }
+
+    .scs-roster-cta-wrap {
+      justify-content: flex-start;
+      padding: 0 1rem 1rem;
     }
   }
 
@@ -1350,6 +1467,135 @@ return 'RBT';
     // ============================================================
     document.addEventListener('DOMContentLoaded', function() {
 
+      // Shared student roster modal renderer
+      const rosterButtons = document.querySelectorAll('.js-open-roster-modal');
+      const rosterCourseLabel = document.getElementById('studentRosterCourseLabel');
+      const rosterSubjectLabel = document.getElementById('studentRosterSubjectLabel');
+      const rosterBatchLabel = document.getElementById('studentRosterBatchLabel');
+      const rosterSemesterLabel = document.getElementById('studentRosterSemesterLabel');
+      const rosterCountLabel = document.getElementById('studentRosterCountLabel');
+      const rosterTableWrap = document.getElementById('studentRosterTableWrap');
+      const rosterTableBody = document.getElementById('studentRosterTableBody');
+      const rosterEmptyState = document.getElementById('studentRosterEmptyState');
+      const rosterExportBtn = document.getElementById('studentRosterExportBtn');
+      let activeRosterRows = [];
+      let activeRosterMeta = {
+        courseLabel: '-',
+        batchLabel: '-',
+        semesterLabel: '-'
+      };
+
+      const csvEscape = function(value) {
+        const normalized = String(value ?? '').replace(/\r?\n|\r/g, ' ');
+        return '"' + normalized.replace(/"/g, '""') + '"';
+      };
+
+      const downloadRosterCsv = function() {
+        if (!activeRosterRows.length) return;
+
+        const headers = ['Roll No', 'Register No', 'Student Name', 'Batch', 'Semester'];
+        const lines = [headers.map(csvEscape).join(',')];
+
+        activeRosterRows.forEach(function(student) {
+          lines.push([
+            student.roll_no || '-',
+            student.register_no || '-',
+            student.student_name || '-',
+            student.batch_name || '-',
+            student.semester_id || '-'
+          ].map(csvEscape).join(','));
+        });
+
+        const csv = lines.join('\n');
+        const blob = new Blob([csv], {
+          type: 'text/csv;charset=utf-8;'
+        });
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        const safeCourse = (activeRosterMeta.courseLabel || 'course').replace(/[^a-z0-9]+/gi, '_').replace(/^_+|_+$/g, '').toLowerCase();
+        const safeBatch = (activeRosterMeta.batchLabel || 'batch').replace(/[^a-z0-9]+/gi, '_').replace(/^_+|_+$/g, '').toLowerCase();
+        const safeSemester = (activeRosterMeta.semesterLabel || 'semester').replace(/[^a-z0-9]+/gi, '_').replace(/^_+|_+$/g, '').toLowerCase();
+        link.href = url;
+        link.download = 'roster_' + safeCourse + '_' + safeBatch + '_' + safeSemester + '.csv';
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        URL.revokeObjectURL(url);
+      };
+
+      if (rosterExportBtn) {
+        rosterExportBtn.addEventListener('click', downloadRosterCsv);
+      }
+
+      const renderRosterRows = function(rows) {
+        if (!rosterTableBody) return;
+        rosterTableBody.innerHTML = '';
+
+        rows.forEach(function(student, index) {
+          const tr = document.createElement('tr');
+          tr.innerHTML = [
+            '<td class="text-center">' + (index + 1) + '</td>',
+            '<td>' + (student.roll_no || '-') + '</td>',
+            '<td>' + (student.student_name || '-') + '</td>',
+            '<td class="text-center">' + (student.batch_name || '-') + '</td>',
+            '<td class="text-center">' + (student.semester_id || '-') + '</td>'
+          ].join('');
+          rosterTableBody.appendChild(tr);
+        });
+      };
+
+      rosterButtons.forEach(function(button) {
+        button.addEventListener('click', function() {
+          const sourceId = button.getAttribute('data-roster-source');
+          const sourceEl = sourceId ? document.getElementById(sourceId) : null;
+          const buttonBatchLabel = button.getAttribute('data-batch-label') || '-';
+
+          let rows = [];
+          if (sourceEl) {
+            const studentNodes = sourceEl.querySelectorAll('.js-roster-student');
+            rows = Array.from(studentNodes).map(function(node) {
+              return {
+                roll_no: node.getAttribute('data-roll-no') || '-',
+                register_no: node.getAttribute('data-register-no') || '-',
+                student_name: node.getAttribute('data-student-name') || '-',
+                batch_name: node.getAttribute('data-batch-name') || buttonBatchLabel,
+                batch_id: node.getAttribute('data-batch-id') || '-',
+                semester_id: node.getAttribute('data-semester-id') || '-'
+              };
+            });
+          }
+
+          if (rosterCourseLabel) rosterCourseLabel.textContent = button.getAttribute('data-course-label') || '-';
+          if (rosterSubjectLabel) rosterSubjectLabel.textContent = button.getAttribute('data-subject-label') || '-';
+          if (rosterBatchLabel) rosterBatchLabel.textContent = 'Batch: ' + (button.getAttribute('data-batch-label') || '-');
+          if (rosterSemesterLabel) rosterSemesterLabel.textContent = 'Semester: ' + (button.getAttribute('data-semester-label') || '-');
+
+          activeRosterMeta = {
+            courseLabel: button.getAttribute('data-course-label') || '-',
+            batchLabel: button.getAttribute('data-batch-label') || '-',
+            semesterLabel: button.getAttribute('data-semester-label') || '-'
+          };
+          activeRosterRows = rows;
+
+          const studentCount = rows.length;
+          if (rosterCountLabel) {
+            rosterCountLabel.innerHTML = '<i class="fas fa-user-graduate me-1"></i>' + studentCount + ' Student' + (studentCount === 1 ? '' : 's');
+          }
+
+          if (rows.length > 0) {
+            if (rosterTableWrap) rosterTableWrap.classList.remove('d-none');
+            if (rosterEmptyState) rosterEmptyState.classList.add('d-none');
+            if (rosterExportBtn) rosterExportBtn.disabled = false;
+            renderRosterRows(rows);
+          } else {
+            if (rosterTableWrap) rosterTableWrap.classList.add('d-none');
+            if (rosterEmptyState) rosterEmptyState.classList.remove('d-none');
+            if (rosterTableBody) rosterTableBody.innerHTML = '';
+            if (rosterExportBtn) rosterExportBtn.disabled = true;
+          }
+        });
+      });
+
       // Smooth-scroll accordions
       document.querySelectorAll('.accordion-button').forEach(function(btn) {
         btn.addEventListener('click', function() {
@@ -1374,6 +1620,11 @@ return 'RBT';
         modal.addEventListener('show.bs.modal', function() {
           const textarea = document.getElementById(textareaId);
           if (!textarea || qbEditors.has(unitId)) return;
+
+          if (typeof ClassicEditor === 'undefined') {
+            console.warn('ClassicEditor is not available on this page.');
+            return;
+          }
 
           ClassicEditor.create(textarea, CK_CONFIG)
             .then(function(editor) {

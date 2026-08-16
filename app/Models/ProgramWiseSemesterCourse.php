@@ -65,6 +65,11 @@ class ProgramWiseSemesterCourse extends Model
         return $this->hasOne(Semester::class, 'id', 'semester');
     }
 
+    function courseinfo()
+    {
+        return $this->hasOne(ProgramCourseMaster::class, 'id', 'course_id');
+    }
+
     function programinfo()
     {
         return $this->hasOne(ProgramCourseMaster::class, 'id', 'course_id');

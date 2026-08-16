@@ -332,6 +332,33 @@ $roleType = UserHasRole::where('user_id', $userId)->value('role_name');
     </li>
 
     <li>
+      <a href="{{ route('itcell.student-roster-engine.index') }}">
+        <div class="parent-icon">
+          <i class="fas fa-users-cog"></i>
+        </div>
+        <div class="menu-title">Student Roster Engine</div>
+      </a>
+    </li>
+
+    <li>
+      <a href="{{ route('itcell.student-roster-rules.index') }}">
+        <div class="parent-icon">
+          <i class="fas fa-sitemap"></i>
+        </div>
+        <div class="menu-title">Student Roster Rules </div>
+      </a>
+    </li>
+
+    <li>
+      <a href="{{ route('itcell.subject-program-enrollment-inspector.index') }}">
+        <div class="parent-icon">
+          <i class="fas fa-analytics"></i>
+        </div>
+        <div class="menu-title">Subject Program Enrollment Inspector</div>
+      </a>
+    </li>
+
+    <li>
       <a href="{{ route('itcell.lateral-entry.index') }}">
         <div class="parent-icon">
           <i class="fas fa-user-plus"></i>

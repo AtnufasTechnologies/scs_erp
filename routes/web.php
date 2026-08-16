@@ -133,6 +133,7 @@ Route::group(['prefix' => '/erp'], function () {
         Route::get('student/subjects/by-campus', [AdminController::class, 'fetchSubjectsByCampus'])->name('admin.student.subjects-by-campus');
         Route::get('student/enrolled-programs/by-batch-subject', [AdminController::class, 'fetchEnrolledProgramsByBatchAndSubject'])->name('admin.student.enrolled-programs');
         Route::put('{id}/std-update', [AdminController::class, 'stdUpdate'])->name('admin.student.update');
+        Route::put('{id}/std-semester-update', [AdminController::class, 'stdSemesterUpdate'])->name('admin.student.semester.update');
         Route::post('{studentId}/courses', [AdminController::class, 'stdCourseStore'])->name('admin.student.courses.store');
         Route::put('{studentId}/courses/{sciId}', [AdminController::class, 'stdCourseUpdate'])->name('admin.student.courses.update');
         Route::delete('{studentId}/courses/{sciId}', [AdminController::class, 'stdCourseDestroy'])->name('admin.student.courses.destroy');
@@ -152,6 +153,17 @@ Route::group(['prefix' => '/erp'], function () {
         Route::get('itcell/student-mdc-selection', [ITCellController::class, 'studentMdcSelectionIndex'])->name('itcell.student-mdc-selection.index');
         Route::get('itcell/student-mdc-selection/export', [ITCellController::class, 'studentMdcSelectionExport'])->name('itcell.student-mdc-selection.export');
         Route::post('itcell/student-mdc-selection', [ITCellController::class, 'studentMdcSelectionStore'])->name('itcell.student-mdc-selection.store');
+        Route::get('itcell/student-roster-rules', [ITCellController::class, 'studentRosterRulesIndex'])->name('itcell.student-roster-rules.index');
+        Route::get('itcell/resolve-student-list', [ITCellController::class, 'resolveStudentList'])->name('itcell.resolve.student.list');
+        Route::post('itcell/student-roster-rule-masters', [ITCellController::class, 'studentRosterRuleMastersStore'])->name('itcell.student-roster-rule-masters.store');
+        Route::put('itcell/student-roster-rule-masters/{id}', [ITCellController::class, 'studentRosterRuleMastersUpdate'])->name('itcell.student-roster-rule-masters.update');
+        Route::delete('itcell/student-roster-rule-masters/{id}', [ITCellController::class, 'studentRosterRuleMastersDestroy'])->name('itcell.student-roster-rule-masters.destroy');
+        Route::post('itcell/student-roster-rules', [ITCellController::class, 'studentRosterRulesStore'])->name('itcell.student-roster-rules.store');
+        Route::put('itcell/student-roster-rules/{id}', [ITCellController::class, 'studentRosterRulesUpdate'])->name('itcell.student-roster-rules.update');
+        Route::delete('itcell/student-roster-rules/{id}', [ITCellController::class, 'studentRosterRulesDestroy'])->name('itcell.student-roster-rules.destroy');
+        Route::get('itcell/student-roster-engine', [ITCellController::class, 'studentRosterEngineIndex'])->name('itcell.student-roster-engine.index');
+        Route::post('itcell/student-roster-engine/fix-pathway', [ITCellController::class, 'fixNoAcademicPathwayInRoster'])->name('itcell.student-roster-engine.fix-pathway');
+        Route::get('itcell/subject-program-enrollment-inspector', [ITCellController::class, 'subjectProgramEnrollmentInspectorIndex'])->name('itcell.subject-program-enrollment-inspector.index');
         Route::get('itcell/lateral-entry', [ITCellController::class, 'lateralEntryIndex'])->name('itcell.lateral-entry.index');
         Route::get('itcell/lateral-entry/programs', [ITCellController::class, 'getProgramsForLateralEntry'])->name('itcell.lateral-entry.programs');
         Route::get('itcell/lateral-entry/application-data', [ITCellController::class, 'getLateralEntryApplicationData'])->name('itcell.lateral-entry.application-data');
@@ -1001,6 +1013,7 @@ Route::group(['prefix' => '/erp'], function () {
         Route::delete('attendance/{id}', [FacultyAttendanceController::class, 'deleteAttendance'])->name('faculty.attendance.delete');
         Route::get('attendance/create', [FacultyAttendanceController::class, 'getStudentList'])->name('faculty.attendance.create');
         Route::get('attendance/hours', [FacultyAttendanceController::class, 'getHoursByShift'])->name('faculty.attendance.hours');
+        Route::get('attendance/student-count', [FacultyAttendanceController::class, 'getResolvedStudentCount'])->name('faculty.attendance.student-count');
         Route::post('attendance/qr/generate', [FacultyAttendanceController::class, 'generateStudentAttendanceQr'])->name('faculty.attendance.qr.generate');
         Route::post('attendance/qr/finalize', [FacultyAttendanceController::class, 'finalizeQrAttendance'])->name('faculty.attendance.qr.finalize');
         Route::post('attendance/qr/delete', [FacultyAttendanceController::class, 'deleteQrRecord'])->name('faculty.attendance.qr.delete');

@@ -17,17 +17,27 @@ use App\Models\Subject;
 use App\Models\SubjectFacultyMaster;
 use App\Models\SubjectHasRoutine;
 use App\Models\SubjectHasSyllabus;
+use App\Models\ProgramWiseSemesterCourse;
 use App\Models\SyllabusManager;
 use App\Models\SyllabusSubunit;
 use App\Models\UserHasRole;
 use App\Models\WorkDiary;
+use App\Services\StudentRosterEngine;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Facades\Storage;
 
 class FacultyDashboardController extends Controller
 {
+  private StudentRosterEngine $studentRosterEngine;
+
+  public function __construct(StudentRosterEngine $studentRosterEngine)
+  {
+    $this->studentRosterEngine = $studentRosterEngine;
+  }
+
   public function index()
   {
     $userId = Auth::user()->id;
@@ -519,6 +529,11 @@ class FacultyDashboardController extends Controller
     $requestedProgramType = strtoupper(trim((string) $request->query('program_type', 'ALL')));
     $programType = in_array($requestedProgramType, ['UG', 'PG', 'ALL'], true) ? $requestedProgramType : 'ALL';
 
+    $routineSelectColumns = ['syllabus_id', 'shift', 'teaching_group_id', 'teaching_assignment_id'];
+    if ($hasTeachingAllocationLink) {
+      $routineSelectColumns[] = 'teaching_allocation_id';
+    }
+
     $assignedRoutines = SubjectHasRoutine::where(function ($query) use ($facultyId) {
       $query->where('faculty_id', $facultyId)
         ->orWhereHas('teachingAssignment', function ($assignmentQuery) use ($facultyId) {
@@ -543,7 +558,7 @@ class FacultyDashboardController extends Controller
         });
       })
       ->whereNotNull('syllabus_id')
-      ->get(['syllabus_id', 'shift']);
+      ->get($routineSelectColumns);
 
     $syllabusShiftMap = $assignedRoutines
       ->groupBy('syllabus_id')
@@ -554,6 +569,16 @@ class FacultyDashboardController extends Controller
           ->filter()
           ->unique()
           ->values();
+      });
+
+    $syllabusContextMap = $assignedRoutines
+      ->groupBy('syllabus_id')
+      ->map(function ($rows) {
+        $first = $rows->first();
+        return [
+          'teaching_group_id' => (int) ($first->teaching_group_id ?? 0),
+          'teaching_assignment_id' => (int) (($first->teaching_assignment_id ?? 0) ?: ($first->teaching_allocation_id ?? 0)),
+        ];
       });
 
     $assignedSyllabusIds = $assignedRoutines
@@ -614,8 +639,13 @@ class FacultyDashboardController extends Controller
     $data = collect($subjectsPaginator->items());
 
     // Load all syllabus managers (CSOs) with their units for each subject
-    $data->each(function ($syllabus) use ($syllabusShiftMap) {
-      $courseId = (int) ($syllabus->course_id ?? 0);
+    $data->each(function ($syllabus) use ($syllabusShiftMap, $syllabusContextMap) {
+      $courseId = (int) (
+        $syllabus->course_id
+        ?? data_get($syllabus, 'courseLink.course_id')
+        ?? data_get($syllabus, 'courseLink.courseMaster.id')
+        ?? 0
+      );
       $assignedShifts = collect($syllabusShiftMap->get((int) $syllabus->id, []))
         ->map(fn($shift) => strtolower(trim((string) $shift)))
         ->filter()
@@ -692,6 +722,165 @@ class FacultyDashboardController extends Controller
         ->flatten(1)
         ->unique('id')
         ->values();
+
+      $roster = collect();
+
+      if ($courseId > 0) {
+        $curriculumRows = collect();
+        $curriculumTable = (new ProgramWiseSemesterCourse())->getTable();
+
+        if (Schema::hasTable($curriculumTable)) {
+          $joinedProgramCombo = false;
+          $curriculumQuery = DB::table($curriculumTable . ' as ce')
+            ->where('ce.course_id', $courseId)
+            ->where('ce.batch', (int) ($syllabus->batch_id ?? 0))
+            ->where('ce.semester', (int) ($syllabus->semester_id ?? 0));
+
+          if (Schema::hasColumn($curriculumTable, 'is_active')) {
+            $curriculumQuery->where('ce.is_active', 1);
+          }
+
+          if (Schema::hasColumn($curriculumTable, 'deleted_at')) {
+            $curriculumQuery->whereNull('ce.deleted_at');
+          }
+
+          if (Schema::hasColumn($curriculumTable, 'program_combo_refid') && Schema::hasTable('subject_has_student_progams')) {
+            $joinedProgramCombo = true;
+            $curriculumQuery->join('subject_has_student_progams as shp', 'shp.id', '=', 'ce.program_combo_refid')
+              ->where('shp.subject_id', (int) ($syllabus->subject_id ?? 0));
+
+            if (Schema::hasColumn('subject_has_student_progams', 'batch_id')) {
+              $curriculumQuery->where('shp.batch_id', (int) ($syllabus->batch_id ?? 0));
+            }
+
+            if (!empty($syllabus->program_type) && Schema::hasColumn('subject_has_student_progams', 'program_type')) {
+              $curriculumQuery->whereRaw("UPPER(TRIM(COALESCE(shp.program_type, ''))) = ?", [strtoupper(trim((string) $syllabus->program_type))]);
+            }
+
+            if (Schema::hasColumn('subject_has_student_progams', 'deleted_at')) {
+              $curriculumQuery->whereNull('shp.deleted_at');
+            }
+          }
+
+          $curriculumSelect = [
+            'ce.id',
+            'ce.program_combo_refid',
+            'ce.delivery_category',
+            'ce.course_type',
+            'ce.offering_dept',
+            'ce.batch',
+            'ce.semester',
+          ];
+
+          if ($joinedProgramCombo && Schema::hasColumn('subject_has_student_progams', 'student_program_id')) {
+            $curriculumSelect[] = 'shp.student_program_id';
+          }
+
+          $curriculumRows = $curriculumQuery
+            ->select($curriculumSelect)
+            ->orderBy('ce.id')
+            ->get();
+        }
+
+        if ($curriculumRows->isNotEmpty()) {
+          foreach ($curriculumRows as $curriculumRow) {
+            $courseContext = (object) [
+              'id' => $courseId,
+              'delivery_type' => strtoupper(trim((string) ($curriculumRow->delivery_category ?? ''))),
+              'selection_type' => strtoupper(trim((string) ($curriculumRow->course_type ?? ''))),
+              'semester_id' => (int) ($curriculumRow->semester ?? $syllabus->semester_id ?? 0),
+              'batch_id' => (int) ($curriculumRow->batch ?? $syllabus->batch_id ?? 0),
+              'offering_dept' => (int) ($curriculumRow->offering_dept ?? 0),
+            ];
+
+            $programId = (int) ($curriculumRow->student_program_id ?? 0);
+            if ($programId <= 0 && (int) ($curriculumRow->program_combo_refid ?? 0) > 0 && Schema::hasTable('subject_has_student_progams')) {
+              $programId = (int) DB::table('subject_has_student_progams')
+                ->where('id', (int) ($curriculumRow->program_combo_refid ?? 0))
+                ->value('student_program_id');
+            }
+
+            $resolvedRosterRows = collect();
+            if ($programId > 0) {
+              $resolverRequest = Request::create('/erp/itcell/resolve-student-list', 'GET', [
+                'curriculum_row_id' => (int) ($curriculumRow->id ?? 0),
+                'batch_id' => (int) ($courseContext->batch_id ?? 0),
+                'semester_id' => (int) ($courseContext->semester_id ?? 0),
+                'program_id' => $programId,
+              ]);
+              $resolverRequest->headers->set('Accept', 'application/json');
+              $resolverRequest->headers->set('X-Requested-With', 'XMLHttpRequest');
+
+              $resolverResponse = StaticController::resolveStudentList($resolverRequest);
+              if ($resolverResponse instanceof \Illuminate\Http\JsonResponse) {
+                $payload = $resolverResponse->getData(true);
+                $resolvedRosterRows = collect($payload['students'] ?? []);
+              }
+            }
+
+            if ($resolvedRosterRows->isNotEmpty()) {
+              $roster = $roster->merge($resolvedRosterRows->map(function ($row) {
+                return (object) [
+                  'id' => (int) ($row['id'] ?? 0),
+                  'roll_no' => (string) ($row['roll_no'] ?? ''),
+                  'register_no' => (string) ($row['register_no'] ?? ''),
+                  'first_name' => (string) ($row['first_name'] ?? ''),
+                  'last_name' => (string) ($row['last_name'] ?? ''),
+                  'new_program_id' => (int) ($row['new_program_id'] ?? 0),
+                  'batch' => (int) ($row['batch'] ?? 0),
+                ];
+              }));
+              continue;
+            }
+
+            $roster = $roster->merge($this->studentRosterEngine->getStudentsForCourse($courseContext, [
+              'subject_id' => (int) ($syllabus->subject_id ?? 0),
+              'batch_id' => (int) ($courseContext->batch_id ?? 0),
+              'semester_id' => (int) ($courseContext->semester_id ?? 0),
+              'program_type' => (string) ($syllabus->program_type ?? ''),
+              'program_combo_refid' => (int) ($curriculumRow->program_combo_refid ?? 0),
+              'curriculum_row_id' => (int) ($curriculumRow->id ?? 0),
+              'delivery_type' => (string) ($courseContext->delivery_type ?? ''),
+              'selection_type' => (string) ($courseContext->selection_type ?? ''),
+              'offering_dept' => (int) ($courseContext->offering_dept ?? 0),
+            ]));
+          }
+        } else {
+          $courseContext = (object) [
+            'id' => $courseId,
+            'delivery_type' => '',
+            'selection_type' => '',
+            'semester_id' => (int) ($syllabus->semester_id ?? 0),
+            'batch_id' => (int) ($syllabus->batch_id ?? 0),
+          ];
+
+          $roster = $this->studentRosterEngine->getStudentsForCourse($courseContext, [
+            'subject_id' => (int) ($syllabus->subject_id ?? 0),
+            'batch_id' => (int) ($syllabus->batch_id ?? 0),
+            'semester_id' => (int) ($syllabus->semester_id ?? 0),
+            'program_type' => (string) ($syllabus->program_type ?? ''),
+          ]);
+        }
+      }
+
+      $syllabus->roster_students = $roster
+        ->map(function ($row) use ($syllabus) {
+          return (object) [
+            'student_id' => (int) ($row->id ?? 0),
+            'roll_no' => (string) ($row->roll_no ?? ''),
+            'register_no' => (string) ($row->register_no ?? ''),
+            'student_name' => trim((string) ($row->first_name ?? '') . ' ' . (string) ($row->last_name ?? '')),
+            'program_id' => (int) ($row->new_program_id ?? 0),
+            'batch_id' => (int) ($row->batch ?? 0),
+            'semester_id' => (int) ($syllabus->semester_id ?? 0),
+          ];
+        })
+        ->filter(fn($student) => (int) ($student->student_id ?? 0) > 0)
+        ->unique('student_id')
+        ->sortBy(fn($student) => strtoupper(trim((string) ($student->roll_no ?? ''))))
+        ->values();
+
+      $syllabus->roster_count = (int) $syllabus->roster_students->count();
     });
 
     // Group by semester first, then batch.
