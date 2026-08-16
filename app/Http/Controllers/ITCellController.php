@@ -3699,7 +3699,108 @@ class ITCellController extends Controller
                 return $this->redirectResolvedStudentsToRoster($request, $students);
             } else {
                 //with Sepcialization
-                return dd('Has Specsz');
+                $comboInfo = StdProgComboMap::where('student_program_id', $program_id)->first();
+                if (!$comboInfo) {
+                    return collect(); // or return [];
+                }
+                $subjectInfo = Subject::find($comboInfo->combo_id_1);
+                $campus_id = $subjectInfo->campus_id;
+                $programIds = StdProgComboMap::where('combo_id_1', $comboInfo->combo_id_1)
+                    ->pluck('student_program_id')
+                    ->map(fn($id) => (int) $id)
+                    ->filter(fn($id) => $id > 0)
+                    ->unique()
+                    ->values();
+
+                $studentsQuery = StudentMaster::query()
+                    ->where('batch', (int) $batch_id)
+                    ->where('campus_id', $campus_id)
+                    ->whereIn('new_program_id', $programIds->all())
+                    ->where('new_program_id', (int) $program_id);
+
+                if ((int) $academic_pathway_id > 0) {
+                    $studentsQuery->where('academic_pathway_id', (int) $academic_pathway_id);
+                }
+
+                if ((int) $degree_track_id > 0) {
+                    $studentsQuery->where('degree_track_id', (int) $degree_track_id);
+                }
+
+                if (Schema::hasColumn('student_masters', 'is_deleted')) {
+                    $studentsQuery->where('is_deleted', 0);
+                }
+
+                if (Schema::hasColumn('student_masters', 'is_left')) {
+                    $studentsQuery->where(function ($q) {
+                        $q->whereNull('is_left')->orWhere('is_left', 0);
+                    });
+                }
+
+                if ((int) $semester_id > 0) {
+                    $studentsQuery->whereHas('activeSemesterConfig', function ($q) use ($semester_id) {
+                        $q->where('semester_id', (string) $semester_id);
+                    });
+                }
+
+                $rawSpecializationIds = $specialization_master_ids;
+                if (is_string($rawSpecializationIds) && trim($rawSpecializationIds) !== '') {
+                    $decodedSpecializationIds = json_decode($rawSpecializationIds, true);
+                    if (is_array($decodedSpecializationIds)) {
+                        $rawSpecializationIds = $decodedSpecializationIds;
+                    }
+                }
+
+                $requiredSpecializationIds = collect([(int) $specialization_master_id])
+                    ->merge(collect((array) $rawSpecializationIds)->map(fn($id) => (int) $id))
+                    ->filter(fn($id) => $id > 0)
+                    ->unique()
+                    ->values();
+
+                if ($requiredSpecializationIds->isNotEmpty()) {
+                    if (Schema::hasTable('student_specializations')) {
+                        $studentsQuery->whereExists(function ($query) use ($requiredSpecializationIds, $semester_id) {
+                            $query->select(DB::raw(1))
+                                ->from('student_specializations as ss')
+                                ->whereColumn('ss.student_id', 'student_masters.id')
+                                ->whereIn('ss.specialization_id', $requiredSpecializationIds->all());
+
+                            if (Schema::hasColumn('student_specializations', 'semester_id') && (int) $semester_id > 0) {
+                                $query->where(function ($q) use ($semester_id) {
+                                    $q->whereNull('ss.semester_id')->orWhere('ss.semester_id', (int) $semester_id);
+                                });
+                            }
+
+                            if (Schema::hasColumn('student_specializations', 'is_active')) {
+                                $query->where('ss.is_active', 1);
+                            }
+
+                            if (Schema::hasColumn('student_specializations', 'deleted_at')) {
+                                $query->whereNull('ss.deleted_at');
+                            }
+                        });
+                    } elseif (Schema::hasColumn('student_masters', 'specialization_master_id')) {
+                        $studentsQuery->whereIn('specialization_master_id', $requiredSpecializationIds->all());
+                    } elseif (Schema::hasColumn('student_masters', 'specialization_id')) {
+                        $studentsQuery->whereIn('specialization_id', $requiredSpecializationIds->all());
+                    }
+                }
+
+                $students = $studentsQuery
+                    ->orderBy('roll_no')
+                    ->orderBy('first_name')
+                    ->get([
+                        'id',
+                        'roll_no',
+                        'register_no',
+                        'first_name',
+                        'last_name',
+                        'new_program_id',
+                        'batch',
+                        'academic_pathway_id',
+                        'degree_track_id',
+                    ]);
+
+                return $this->redirectResolvedStudentsToRoster($request, $students);
             }
         }
 
