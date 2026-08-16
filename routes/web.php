@@ -1554,7 +1554,7 @@ Route::group(['prefix' => '/erp'], function () {
         Route::get('fix-courses', [TestController::class, 'courseFix']);
         // Route::get('fix-admission-enrollment', [TestController::class, 'fixAdmissionEnrollment']); //run once to fix enrollment number in student master table
         // Route::get('fee-issue-fix', [TestController::class, 'feesIssueFixing']); //run once to test fee structure creation logic
-        // Route::get('create-student-login', [TestController::class, 'createStudentLogin']); //run once to create student login for all students in student master
+        Route::get('create-student-login', [TestController::class, 'createStudentLogin']); //run once to create student login for all students in student master
         // Route::get('delete-student-login', [TestController::class, 'delAllStudentAccount']); //run once to delete all student login (if needed)
         // Route::get('fix', [TestController::class, 'rollnoFixStudentPayment']);   //run once to fix rollno in student payment table
         // Route::get('dept-campus-mapping', [TestController::class, 'DeptCampusMapping']); //run once to fix department campus mapping
