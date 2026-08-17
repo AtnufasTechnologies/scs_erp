@@ -149,6 +149,7 @@ return 'RBT';
                   $rosterCount = (int) ($syllabus->roster_count ?? $rosterStudents->count());
                   $studentModalKey = 'studentRoster' . $semesterSlug . $batchSlug . $index;
                   $courseLabel = trim((string) ($courseMaster->course_code ?? 'N/A') . ' - ' . (string) ($courseMaster->course_title ?? 'N/A'));
+                  $deliveryType = trim((string) ($syllabus->assigned_delivery_type ?? ''));
 
                   $completedUnits = $syllabusUnits->where('is_completed', 1)->count();
                   $totalUnits = $syllabusUnits->count();
@@ -166,6 +167,9 @@ return 'RBT';
                             <div class="d-flex align-items-center gap-3 mb-2">
                               @if($courseType)
                               <span class="badge bg-primary">{{ $courseType->title }}</span>
+                              @endif
+                              @if($deliveryType !== '')
+                              <span class="badge bg-light-warning text-warning">{{ $deliveryType }}</span>
                               @endif
                               <span class="badge bg-light-info text-info">{{ strtoupper((string) ($syllabus->program_type ?? 'UG')) === 'PG' ? 'PG' : 'UG' }}</span>
                               <span class="badge bg-light-success text-success">
@@ -617,7 +621,7 @@ return 'RBT';
       @if(isset($subjectsPaginator) && $subjectsPaginator->hasPages())
       <div class="row mb-4">
         <div class="col-12 d-flex justify-content-end">
-          {{ $subjectsPaginator->links() }}
+          {{ $subjectsPaginator->links('vendor.pagination.bootstrap-5') }}
         </div>
       </div>
       @endif

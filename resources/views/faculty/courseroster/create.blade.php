@@ -96,7 +96,7 @@ $courseTitle = trim((string) ($courseMaster->course_title ?? ($record->course->c
             @csrf
             <div class="col-md-9">
               <label class="form-label fw-semibold">Source Course Roster</label>
-              <select class="form-select" name="source_routine_id" id="sourceRoutineId" required>
+              <select class="dselect-example" name="source_routine_id" id="sourceRoutineId" required>
                 <option value="">-- Select source course --</option>
                 @foreach($safeCopySourceRows as $source)
                 <option value="{{ $source['routine_id'] }}">{{ $source['label'] }}</option>

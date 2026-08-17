@@ -1639,9 +1639,11 @@ class AttendanceController extends Controller
     $copySourceRows = $this->applyFacultyRoutineAccess(SubjectHasRoutine::query(), $facultyId)
       ->with([
         'syllabus.subject:id,title',
+        'syllabus.batchmaster:id,batch_name',
+        'syllabus.semestermaster:id,title',
         'syllabus.courseLink.courseMaster:id,course_code,course_title',
-        'teachingAssignment:id,course_id',
-        'teachingAllocation:id,course_id',
+        'teachingAssignment:id,course_id,delivery_type',
+        'teachingAllocation:id,course_id,delivery_type',
       ])
       ->orderBy('syllabus_id')
       ->orderBy('shift')
@@ -1656,10 +1658,21 @@ class AttendanceController extends Controller
         $candidateCourseTitle = trim((string) ($candidateCourseMaster->course_title ?? 'N/A'));
         $candidateCourseId = (int) ($candidate->syllabus->course_id ?? ($candidateAssignment->course_id ?? 0));
         $candidateAssignmentId = (int) ($candidateAssignment->id ?? 0);
+        $candidateBatchName = trim((string) ($candidate->syllabus->batchmaster->batch_name ?? 'N/A'));
+        $candidateSemesterTitle = trim((string) ($candidate->syllabus->semestermaster->title ?? 'N/A'));
+        $candidateDeliveryType = strtoupper(trim((string) (
+          $candidateAssignment->delivery_type
+          ?? $candidate->teachingAssignment->delivery_type
+          ?? $candidate->teachingAllocation->delivery_type
+          ?? 'N/A'
+        )));
+        $candidateShift = ucfirst(strtolower(trim((string) ($candidate->shift ?? 'common'))));
 
         if ($candidateAssignmentId <= 0 || $candidateCourseId <= 0) {
           return null;
         }
+
+        $candidateKey = $candidateAssignmentId . '_' . $candidateCourseId;
 
         $rosterCount = StudentCourseRoster::query()
           ->where('ta_id', $candidateAssignmentId)
@@ -1667,15 +1680,31 @@ class AttendanceController extends Controller
           ->count();
 
         return [
+          'key' => $candidateKey,
           'routine_id' => (int) ($candidate->id ?? 0),
+          'assignment_id' => $candidateAssignmentId,
+          'course_id' => $candidateCourseId,
           'course_code' => $candidateCourseCode,
           'course_title' => $candidateCourseTitle,
+          'batch_name' => $candidateBatchName,
+          'semester_title' => $candidateSemesterTitle,
+          'delivery_type' => $candidateDeliveryType,
+          'shift' => $candidateShift,
           'subject_title' => trim((string) ($candidate->syllabus->subject->title ?? 'N/A')),
           'roster_count' => (int) $rosterCount,
-          'label' => $candidateCourseCode . ' - ' . $candidateCourseTitle . ' (' . $rosterCount . ' students)',
+          'label' => $candidateCourseCode . ' - ' . $candidateCourseTitle
+            . ' | Batch: ' . $candidateBatchName
+            . ' | Semester: ' . $candidateSemesterTitle
+            . ' | Delivery: ' . $candidateDeliveryType
+            . ' | Shift: ' . $candidateShift
+            . ' (' . $rosterCount . ' students)',
         ];
       })
       ->filter()
+      ->groupBy('key')
+      ->map(function ($groupedRows) {
+        return $groupedRows->first();
+      })
       ->sortByDesc('roster_count')
       ->values();
 

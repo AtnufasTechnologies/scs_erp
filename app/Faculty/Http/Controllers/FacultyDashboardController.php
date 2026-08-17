@@ -18,6 +18,7 @@ use App\Models\StudentCourseRoster;
 use App\Models\SubjectFacultyMaster;
 use App\Models\SubjectHasRoutine;
 use App\Models\SubjectHasSyllabus;
+use App\Models\TeachingAssignment;
 use App\Models\ProgramWiseSemesterCourse;
 use App\Models\SyllabusManager;
 use App\Models\SyllabusSubunit;
@@ -25,6 +26,7 @@ use App\Models\UserHasRole;
 use App\Models\WorkDiary;
 use App\Services\StudentRosterEngine;
 use Illuminate\Http\Request;
+use Illuminate\Pagination\LengthAwarePaginator;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
@@ -561,41 +563,36 @@ class FacultyDashboardController extends Controller
       ->whereNotNull('syllabus_id')
       ->get($routineSelectColumns);
 
-    $syllabusShiftMap = $assignedRoutines
-      ->groupBy('syllabus_id')
-      ->map(function ($rows) {
-        return $rows
-          ->pluck('shift')
-          ->map(fn($shift) => strtolower(trim((string) $shift)))
-          ->filter()
-          ->unique()
-          ->values();
-      });
-
-    $syllabusContextMap = $assignedRoutines
-      ->groupBy('syllabus_id')
-      ->map(function ($rows) {
-        $assignmentIds = $rows
-          ->map(function ($row) {
-            return (int) (($row->teaching_assignment_id ?? 0) ?: ($row->teaching_allocation_id ?? 0));
-          })
-          ->filter(fn($id) => $id > 0)
-          ->unique()
-          ->values();
+    $assignmentContexts = $assignedRoutines
+      ->map(function ($row) {
+        $assignmentId = (int) (($row->teaching_assignment_id ?? 0) ?: ($row->teaching_allocation_id ?? 0));
+        $syllabusId = (int) ($row->syllabus_id ?? 0);
 
         return [
-          'teaching_group_id' => (int) ($rows->first()->teaching_group_id ?? 0),
-          'teaching_assignment_id' => (int) ($assignmentIds->first() ?? 0),
-          'teaching_assignment_ids' => $assignmentIds,
+          'syllabus_id' => $syllabusId,
+          'shift' => strtolower(trim((string) ($row->shift ?? ''))),
+          'teaching_group_id' => (int) ($row->teaching_group_id ?? 0),
+          'teaching_assignment_id' => $assignmentId,
+          'key' => $syllabusId . '_' . $assignmentId,
         ];
-      });
+      })
+      ->filter(fn($ctx) => (int) ($ctx['syllabus_id'] ?? 0) > 0 && (int) ($ctx['teaching_assignment_id'] ?? 0) > 0)
+      ->unique('key')
+      ->values();
 
-    $assignedSyllabusIds = $assignedRoutines
+    $assignedSyllabusIds = $assignmentContexts
       ->pluck('syllabus_id')
       ->filter()
       ->map(fn($id) => (int) $id)
       ->unique()
       ->values();
+
+    $assignmentDeliveryTypeMap = TeachingAssignment::query()
+      ->whereIn('id', $assignmentContexts->pluck('teaching_assignment_id')->all())
+      ->pluck('delivery_type', 'id')
+      ->map(function ($deliveryType) {
+        return strtoupper(trim((string) $deliveryType));
+      });
 
     // Prefer exact syllabus assignments from routines. Fallback to subject-level mapping if no routines exist.
     if ($assignedSyllabusIds->isNotEmpty()) {
@@ -640,22 +637,56 @@ class FacultyDashboardController extends Controller
       });
     }
 
-    $subjectsPaginator = $dataQuery
+    $syllabusRows = $dataQuery
       ->orderByDesc('id')
-      ->paginate(8)
-      ->withQueryString();
+      ->get();
+
+    $syllabusById = $syllabusRows->keyBy('id');
+
+    $expandedRows = $assignmentContexts
+      ->filter(fn($ctx) => $syllabusById->has((int) ($ctx['syllabus_id'] ?? 0)))
+      ->map(function ($ctx) use ($syllabusById, $assignmentDeliveryTypeMap) {
+        $base = $syllabusById->get((int) $ctx['syllabus_id']);
+        $row = clone $base;
+        $assignmentId = (int) ($ctx['teaching_assignment_id'] ?? 0);
+        $row->assigned_shift = (string) ($ctx['shift'] ?? '');
+        $row->teaching_group_id = (int) ($ctx['teaching_group_id'] ?? 0);
+        $row->teaching_assignment_id = $assignmentId;
+        $row->teaching_assignment_ids = collect([$assignmentId]);
+        $row->assigned_delivery_type = (string) ($assignmentDeliveryTypeMap[$assignmentId] ?? '');
+        return $row;
+      })
+      ->values();
+
+    $perPage = 12;
+    $currentPage = LengthAwarePaginator::resolveCurrentPage();
+    $total = $expandedRows->count();
+    $items = $expandedRows
+      ->slice(($currentPage - 1) * $perPage, $perPage)
+      ->values();
+
+    $subjectsPaginator = new LengthAwarePaginator(
+      $items,
+      $total,
+      $perPage,
+      $currentPage,
+      [
+        'path' => $request->url(),
+        'query' => $request->query(),
+      ]
+    );
 
     $data = collect($subjectsPaginator->items());
 
     // Load all syllabus managers (CSOs) with their units for each subject
-    $data->each(function ($syllabus) use ($syllabusShiftMap, $syllabusContextMap) {
+    $data->each(function ($syllabus) {
       $courseId = (int) (
         $syllabus->course_id
         ?? data_get($syllabus, 'courseLink.course_id')
         ?? data_get($syllabus, 'courseLink.courseMaster.id')
         ?? 0
       );
-      $assignedShifts = collect($syllabusShiftMap->get((int) $syllabus->id, []))
+      $assignedShifts = collect([(string) ($syllabus->assigned_shift ?? '')])
         ->map(fn($shift) => strtolower(trim((string) $shift)))
         ->filter()
         ->unique()
@@ -732,8 +763,7 @@ class FacultyDashboardController extends Controller
         ->unique('id')
         ->values();
 
-      $context = $syllabusContextMap->get((int) $syllabus->id, []);
-      $assignmentIds = collect($context['teaching_assignment_ids'] ?? [])
+      $assignmentIds = collect($syllabus->teaching_assignment_ids ?? [(int) ($syllabus->teaching_assignment_id ?? 0)])
         ->map(fn($id) => (int) $id)
         ->filter(fn($id) => $id > 0)
         ->unique()

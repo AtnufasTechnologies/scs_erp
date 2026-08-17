@@ -13,6 +13,7 @@ use App\Models\SubjectFacultyMaster;
 use App\Models\SubjectHasRoutine;
 use App\Models\SubjectHasSyllabus;
 use App\Models\SupCiaComponent;
+use App\Models\TeachingAssignment;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
@@ -27,27 +28,75 @@ class QuizController extends Controller
   {
     $facultyId = SubjectFacultyMaster::where('access_id', Auth::id())->value('faculty_id');
 
-    $syllabusIds = collect();
-    if ($facultyId) {
-      $syllabusIds = SubjectHasRoutine::where('faculty_id', $facultyId)
-        ->pluck('syllabus_id')
-        ->unique()
-        ->values();
+    $hasTeachingAllocationLink = Schema::hasColumn('subject_has_routines', 'teaching_allocation_id');
+    $routineSelectColumns = ['id', 'syllabus_id', 'shift', 'teaching_assignment_id'];
+    if ($hasTeachingAllocationLink) {
+      $routineSelectColumns[] = 'teaching_allocation_id';
     }
 
-    $syllabi = SubjectHasSyllabus::whereIn('id', $syllabusIds)
-      ->with([
-        'subject:id,title',
-        'coursemaster:id,course_title,course_code',
-        'semestermaster:id,title',
-        'batchmaster:id,batch_name',
-      ])
-      ->orderByDesc('id')
-      ->get();
+    $assignedRoutines = collect();
+    if ($facultyId) {
+      $assignedRoutines = $this->queryFacultyAssignedRoutines((int) $facultyId)
+        ->whereNotNull('syllabus_id')
+        ->with([
+          'syllabus.subject:id,title',
+          'syllabus.coursemaster:id,course_title,course_code',
+          'syllabus.semestermaster:id,title',
+          'syllabus.batchmaster:id,batch_name',
+          'teachingAssignment:id,delivery_type,allocation_group',
+          'teachingAllocation:id,delivery_type,allocation_group',
+        ])
+        ->get($routineSelectColumns);
+    }
+
+    $assignmentOptions = $assignedRoutines
+      ->map(function ($routine) {
+        $syllabus = $routine->syllabus;
+        if (!$syllabus) {
+          return null;
+        }
+
+        $assignment = $routine->teachingAssignment ?: $routine->teachingAllocation;
+        $assignmentId = (int) (($routine->teaching_assignment_id ?? 0) ?: ($routine->teaching_allocation_id ?? 0));
+        if ($assignmentId <= 0) {
+          $assignmentId = (int) ($assignment->id ?? 0);
+        }
+
+        if ($assignmentId <= 0) {
+          return null;
+        }
+
+        $syllabusId = (int) ($syllabus->id ?? 0);
+        $shift = ucfirst(strtolower(trim((string) ($routine->shift ?? 'common'))));
+        $deliveryType = strtoupper(trim((string) (
+          $assignment->delivery_type
+          ?? $routine->teachingAssignment->delivery_type
+          ?? $routine->teachingAllocation->delivery_type
+          ?? 'N/A'
+        )));
+
+        return [
+          'value' => $syllabusId . ':' . $assignmentId,
+          'subject_title' => (string) ($syllabus->subject->title ?? 'N/A'),
+          'course_title' => (string) ($syllabus->coursemaster->course_title ?? 'N/A'),
+          'course_code' => (string) ($syllabus->coursemaster->course_code ?? 'NA'),
+          'semester_title' => (string) ($syllabus->semestermaster->title ?? 'Semester'),
+          'batch_name' => (string) ($syllabus->batchmaster->batch_name ?? 'Batch'),
+          'shift' => $shift,
+          'delivery_type' => $deliveryType,
+          'key' => $syllabusId . '_' . $assignmentId,
+        ];
+      })
+      ->filter()
+      ->unique('key')
+      ->sortBy(function ($row) {
+        return strtoupper(trim((string) ($row['course_code'] ?? ''))) . '|' . strtoupper(trim((string) ($row['subject_title'] ?? '')));
+      })
+      ->values();
 
     $fa1Component = $this->resolveFa1Component();
 
-    return view('faculty.quiz.index', compact('syllabi', 'fa1Component'));
+    return view('faculty.quiz.index', compact('assignmentOptions', 'fa1Component'));
   }
 
   public function myQuizzes()
@@ -483,7 +532,7 @@ class QuizController extends Controller
   public function store(Request $request)
   {
     $request->validate([
-      'syllabus_id' => 'required|integer|exists:subject_has_syllabi,id',
+      'syllabus_assignment' => 'required|string',
       'sup_cia_component_id' => 'required|integer|exists:sup_cia_components,id',
       'total_marks' => 'required|numeric|min:1',
       'open_at' => 'required|date',
@@ -499,6 +548,17 @@ class QuizController extends Controller
       'bulk_questions_file' => 'nullable|file|mimes:xlsx,xls,csv|max:5120',
     ]);
 
+    $assignmentToken = trim((string) $request->input('syllabus_assignment', ''));
+    if (!preg_match('/^\d+:\d+$/', $assignmentToken)) {
+      return redirect()->back()->with('error', 'Please select a valid teaching assignment context.')->withInput();
+    }
+
+    [$selectedSyllabusId, $selectedAssignmentId] = array_map('intval', explode(':', $assignmentToken, 2));
+
+    if ($selectedSyllabusId <= 0 || $selectedAssignmentId <= 0) {
+      return redirect()->back()->with('error', 'Invalid syllabus/assignment selection.')->withInput();
+    }
+
     $fa1Component = $this->resolveFa1Component();
     if (!$fa1Component) {
       return redirect()->back()->with('error', 'FA1 component is not configured. Please contact administrator.')->withInput();
@@ -513,15 +573,24 @@ class QuizController extends Controller
       return redirect()->back()->with('error', 'Faculty mapping not found for this account.');
     }
 
-    $syllabusAllowed = SubjectHasRoutine::where('faculty_id', $facultyId)
-      ->where('syllabus_id', $request->syllabus_id)
+    $hasTeachingAllocationLink = Schema::hasColumn('subject_has_routines', 'teaching_allocation_id');
+
+    $syllabusAllowed = $this->queryFacultyAssignedRoutines((int) $facultyId)
+      ->where('syllabus_id', $selectedSyllabusId)
+      ->where(function ($query) use ($selectedAssignmentId, $hasTeachingAllocationLink) {
+        $query->where('teaching_assignment_id', $selectedAssignmentId);
+
+        if ($hasTeachingAllocationLink) {
+          $query->orWhere('teaching_allocation_id', $selectedAssignmentId);
+        }
+      })
       ->exists();
 
     if (!$syllabusAllowed) {
       return redirect()->back()->with('error', 'You can only create quizzes for your allotted subjects.');
     }
 
-    $syllabus = SubjectHasSyllabus::findOrFail($request->syllabus_id);
+    $syllabus = SubjectHasSyllabus::findOrFail($selectedSyllabusId);
 
     $manualQuestions = collect($request->input('questions', []))
       ->filter(function ($question) {
@@ -888,6 +957,36 @@ class QuizController extends Controller
       ->first(function ($component) {
         $normalized = preg_replace('/[^A-Z0-9]/', '', strtoupper((string) $component->name));
         return in_array($normalized, ['FA1', 'FAI'], true);
+      });
+  }
+
+  private function queryFacultyAssignedRoutines(int $facultyId)
+  {
+    $hasTeachingAllocationLink = Schema::hasColumn('subject_has_routines', 'teaching_allocation_id');
+
+    return SubjectHasRoutine::query()
+      ->where(function ($query) use ($facultyId) {
+        $query->where('faculty_id', $facultyId)
+          ->orWhereHas('teachingAssignment', function ($assignmentQuery) use ($facultyId) {
+            $assignmentQuery->where('faculty_id', $facultyId)
+              ->orWhereHas('facultyAssignments', function ($facultyAssignmentQuery) use ($facultyId) {
+                $facultyAssignmentQuery->where('faculty_id', $facultyId);
+              })
+              ->orWhereHas('coFacultyMembers', function ($coFacultyQuery) use ($facultyId) {
+                $coFacultyQuery->where('faculties.id', $facultyId);
+              });
+          });
+      })
+      ->when($hasTeachingAllocationLink, function ($query) use ($facultyId) {
+        $query->orWhereHas('teachingAllocation', function ($assignmentQuery) use ($facultyId) {
+          $assignmentQuery->where('faculty_id', $facultyId)
+            ->orWhereHas('facultyAssignments', function ($facultyAssignmentQuery) use ($facultyId) {
+              $facultyAssignmentQuery->where('faculty_id', $facultyId);
+            })
+            ->orWhereHas('coFacultyMembers', function ($coFacultyQuery) use ($facultyId) {
+              $coFacultyQuery->where('faculties.id', $facultyId);
+            });
+        });
       });
   }
 

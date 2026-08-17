@@ -117,17 +117,18 @@
                 <input type="number" step="0.01" min="1" class="form-control" name="total_marks" value="{{ old('total_marks') }}" required>
               </div>
 
-              <div class="col-md-4">
+              <div class="col-md-6">
                 <label class="form-label fw-bold">Allotted Subject / Course</label>
-                <select class="form-select" name="syllabus_id" required>
+                <select class="dselect-example" name="syllabus_assignment" required>
                   <option value="">Select</option>
-                  @foreach($syllabi as $syllabus)
-                  <option value="{{ $syllabus->id }}" @selected(old('syllabus_id')==$syllabus->id)>
-                    {{ $syllabus->subject->title ?? 'N/A' }}
-                    - {{ $syllabus->coursemaster->course_title ?? 'N/A' }}
-                    ({{ $syllabus->coursemaster->course_code ?? 'NA' }})
-                    | {{ $syllabus->semestermaster->title ?? 'Semester' }}
-                    | {{ $syllabus->batchmaster->batch_name ?? 'Batch' }}
+                  @foreach(($assignmentOptions ?? collect()) as $option)
+                  <option value="{{ $option['value'] }}" @selected(old('syllabus_assignment')==$option['value'])>
+                    {{ $option['course_code'] ?? 'NA' }}
+                    - {{ $option['course_title'] ?? 'N/A' }}
+                    | {{ $option['semester_title'] ?? 'Semester' }}
+                    | {{ $option['batch_name'] ?? 'Batch' }}
+                    | {{ $option['delivery_type'] ?? 'N/A' }}
+                    | Shift: {{ $option['shift'] ?? 'Common' }}
                   </option>
                   @endforeach
                 </select>
