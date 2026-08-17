@@ -121,8 +121,8 @@
         <div class="card fa1-entry-card border-0">
 
           <div class="card-header bg-white">
-            <h4 class="fw-bold mb-0 text-center fa1-title">Online Examinations</h4>
-            <p class="text-center mb-0 mt-1 fa1-subtitle">Salesian College Autonomous - FA 1 Access</p>
+            <h4 class="fw-bold mb-0 text-center fa1-title">Password Reset</h4>
+            <p class="text-center mb-0 mt-1 fa1-subtitle">Salesian College Autonomous - Student Portal</p>
           </div>
           <div class="card-body">
             <div class="text-center mb-3">
@@ -160,24 +160,29 @@
             </div>
             @endif
             <hr>
-            <form method="POST" action="{{ route('student.fa1.access.verify') }}">
+            <form method="POST" action="{{ route('update.quiz.password') }}" id="passwordResetForm">
               @csrf
               <div class="mb-3">
                 <label class="form-label fw-bold">Enter Your Roll Number</label>
                 <input type="text" name="roll_no" class="form-control text-uppercase" value="{{ old('roll_no') }}" placeholder="e.g. BSC24001" required>
               </div>
               <div class="mb-3">
-                <label class="form-label fw-bold">Enter Password</label>
-                <div class="input-group">
-                  <input type="password" id="fa1Password" name="password" class="form-control" placeholder="Your student account password" required>
-                  <button type="button" class="btn btn-outline-secondary" id="toggleFa1Password" aria-label="Toggle password visibility">Show</button>
-                </div>
+                <label class="form-label fw-bold">Enter Your Old Password</label>
+                <input type="text" name="old_password" class="form-control" value="{{ old('roll_no') }}" required placeholder="Enter here...">
+              </div>
+              <div class="mb-3">
+                <label class="form-label fw-bold">New Password</label>
+                <input type="text" id="password" name="password" class="form-control" placeholder="Enter new password" required>
+              </div>
+
+              <div class="mb-3">
+                <label class="form-label fw-bold">Confirm Password</label>
+                <input type="password" id="password_confirmation" name="confirm_password" class="form-control" placeholder="Re-enter your new password" required>
               </div>
               <div class="row justify-content-center">
-                <button type="submit" class="btn btn-success mb-3">Submit</button>
+                <button type="submit" class="btn btn-success">Verify & Update Password</button>
               </div>
             </form>
-            <a href="{{route('reset.quiz.password')}}" class="mt-3">Reset Password (Recommended)</a>
           </div>
         </div>
       </div>
@@ -187,18 +192,25 @@
 
 <script>
   (function() {
-    const passwordInput = document.getElementById('fa1Password');
-    const toggleButton = document.getElementById('toggleFa1Password');
+    const form = document.getElementById('passwordResetForm');
+    const password = document.getElementById('password');
+    const confirmation = document.getElementById('password_confirmation');
 
-    if (!passwordInput || !toggleButton) {
+    if (!form || !password || !confirmation) {
       return;
     }
 
-    toggleButton.addEventListener('click', function() {
-      const isPassword = passwordInput.type === 'password';
-      passwordInput.type = isPassword ? 'text' : 'password';
-      toggleButton.textContent = isPassword ? 'Hide' : 'Show';
-    });
+    function validateMatch() {
+      if (confirmation.value !== password.value) {
+        confirmation.setCustomValidity('Password and confirm password must match.');
+      } else {
+        confirmation.setCustomValidity('');
+      }
+    }
+
+    password.addEventListener('input', validateMatch);
+    confirmation.addEventListener('input', validateMatch);
+    form.addEventListener('submit', validateMatch);
   })();
 </script>
 

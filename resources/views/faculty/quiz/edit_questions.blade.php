@@ -78,6 +78,8 @@ return asset('storage/' . ltrim((string) $path, '/'));
     </div>
 
     <div class="container-fluid mt-4">
+      <div id="ajaxDeleteMessage"></div>
+
       @if(session('success'))
       <div class="alert alert-success alert-dismissible fade show" role="alert">
         {{ session('success') }}
@@ -171,13 +173,20 @@ return asset('storage/' . ltrim((string) $path, '/'));
             });
             $correctIndex = $correctIndex === false ? 0 : (int) $correctIndex;
             @endphp
-            <div class="card question-card mb-3">
+            <div class="card question-card existing-question-card mb-3" data-existing-question="1">
               <div class="card-body">
                 <input type="hidden" name="existing_questions[{{ $qIndex }}][id]" value="{{ $question->id }}">
 
                 <div class="d-flex justify-content-between align-items-center mb-2">
                   <h6 class="mb-0">Existing Question {{ $qIndex + 1 }}</h6>
-                  <span class="badge bg-light text-dark border">Position: {{ $question->position ?? ($qIndex + 1) }}</span>
+                  <div class="d-flex align-items-center gap-2">
+                    <span class="badge bg-light text-dark border">Position: {{ $question->position ?? ($qIndex + 1) }}</span>
+                    <form method="POST" action="{{ route('faculty.fa1.questions.destroy', ['id' => $quiz->id, 'questionId' => $question->id]) }}" onsubmit="return confirm('Delete this question? This will also remove related answers from attempts.');" class="d-inline js-question-delete-form">
+                      @csrf
+                      @method('DELETE')
+                      <button type="submit" class="btn btn-sm btn-outline-danger">Delete Question</button>
+                    </form>
+                  </div>
                 </div>
 
                 <div class="mb-2">
@@ -240,7 +249,7 @@ return asset('storage/' . ltrim((string) $path, '/'));
             @endforelse
 
             <div class="mb-3">
-              <label class="form-label fw-bold">Bulk Upload Questions (Excel/CSV)</label>
+              <label class="form-label fw-bold">Bulk Upload Questions (Excel/CSV) </label> <small class="text-danger">Do Not Include Uploaded Questions or it will be Double</small>
               <input type="file" class="form-control" name="bulk_questions_file" accept=".xlsx,.xls,.csv">
               <small class="text-muted">
                 Columns required: <strong>question_text, option_1, option_2, option_3, option_4, correct_option</strong>.
@@ -274,6 +283,91 @@ return asset('storage/' . ltrim((string) $path, '/'));
 
 <script>
   (function() {
+    const messageBox = document.getElementById('ajaxDeleteMessage');
+
+    function showMessage(type, text) {
+      if (!messageBox) {
+        return;
+      }
+      messageBox.innerHTML = `
+        <div class="alert alert-${type} alert-dismissible fade show" role="alert">
+          ${text}
+          <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+        </div>
+      `;
+    }
+
+    function renumberExistingQuestions() {
+      const cards = document.querySelectorAll('.existing-question-card');
+      cards.forEach(function(card, index) {
+        const heading = card.querySelector('h6.mb-0');
+        if (heading) {
+          heading.textContent = 'Existing Question ' + (index + 1);
+        }
+
+        const positionBadge = card.querySelector('.badge.bg-light.text-dark.border');
+        if (positionBadge) {
+          positionBadge.textContent = 'Position: ' + (index + 1);
+        }
+      });
+    }
+
+    function bindQuestionDelete() {
+      document.querySelectorAll('.js-question-delete-form').forEach(function(form) {
+        if (form.dataset.boundDeleteHandler === '1') {
+          return;
+        }
+
+        form.dataset.boundDeleteHandler = '1';
+
+        form.addEventListener('submit', async function(event) {
+          event.preventDefault();
+
+          const formData = new FormData(form);
+          const submitBtn = form.querySelector('button[type="submit"]');
+
+          if (submitBtn) {
+            submitBtn.disabled = true;
+          }
+
+          try {
+            const response = await fetch(form.action, {
+              method: 'POST',
+              headers: {
+                'X-Requested-With': 'XMLHttpRequest',
+                'Accept': 'application/json'
+              },
+              body: formData
+            });
+
+            const payload = await response.json().catch(function() {
+              return {};
+            });
+
+            if (!response.ok || payload.status !== true) {
+              throw new Error(payload.message || 'Failed to delete question.');
+            }
+
+            const card = form.closest('.existing-question-card');
+            if (card) {
+              card.remove();
+            }
+
+            renumberExistingQuestions();
+            showMessage('success', payload.message || 'Question deleted successfully.');
+          } catch (error) {
+            showMessage('danger', error.message || 'Unable to delete question.');
+          } finally {
+            if (submitBtn) {
+              submitBtn.disabled = false;
+            }
+          }
+        });
+      });
+    }
+
+    bindQuestionDelete();
+
     let questionIndex = 0;
     const questionsWrapper = document.getElementById('questionsWrapper');
     const addQuestionBtn = document.getElementById('addQuestionBtn');

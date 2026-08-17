@@ -146,10 +146,6 @@
                 <input type="number" min="1" max="300" class="form-control" name="time_limit_minutes" value="{{ old('time_limit_minutes') }}" placeholder="e.g. 30">
               </div>
 
-              <div class="col-md-3">
-                <label class="form-label fw-bold">Pre-Start Countdown (Seconds)</label>
-                <input type="number" min="0" max="300" class="form-control" name="pre_start_countdown_seconds" value="{{ old('pre_start_countdown_seconds', 10) }}" placeholder="e.g. 10">
-              </div>
               <div class="col-md-6">
                 <label class="form-label fw-bold">Bulk Upload Questions (Excel/CSV)</label>
                 <input type="file" class="form-control" name="bulk_questions_file" accept=".xlsx,.xls,.csv">

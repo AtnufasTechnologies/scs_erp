@@ -827,6 +827,8 @@ Route::group(['prefix' => '/erp'], function () {
         Route::get('fa1/{id}', [StudentQuizController::class, 'show'])->name('student.fa1.show');
         Route::post('fa1/{id}/save-answer', [StudentQuizController::class, 'saveAnswer'])->name('student.fa1.save-answer');
         Route::post('fa1/{id}/submit', [StudentQuizController::class, 'submit'])->name('student.fa1.submit');
+        Route::get('reset-password', [StudentQuizController::class, 'resetQuizPassword'])->name('reset.quiz.password');
+        Route::post('update-quiz-password', [StudentQuizController::class, 'updateQuizPassword'])->name('update.quiz.password');
     });
 
     //admission
@@ -1114,16 +1116,19 @@ Route::group(['prefix' => '/erp'], function () {
         Route::get('fa1/{id}/review', [FacultyQuizController::class, 'review'])->name('faculty.fa1.review');
         Route::get('fa1/{id}/questions/edit', [FacultyQuizController::class, 'editQuestions'])->name('faculty.fa1.questions.edit');
         Route::post('fa1/{id}/questions', [FacultyQuizController::class, 'storeQuestions'])->name('faculty.fa1.questions.store');
+        Route::delete('fa1/{id}/questions/{questionId}', [FacultyQuizController::class, 'destroyQuestion'])->name('faculty.fa1.questions.destroy');
         Route::put('fa1/{id}/timing', [FacultyQuizController::class, 'updateTiming'])->name('faculty.fa1.timing.update');
         Route::get('fa1/{id}/results', [FacultyQuizController::class, 'results'])->name('faculty.fa1.results');
         Route::get('fa1/{id}/results/export', [FacultyQuizController::class, 'exportResults'])->name('faculty.fa1.results.export');
         Route::post('fa1/{id}/allow-attempts', [FacultyQuizController::class, 'allowAttempts'])->name('faculty.fa1.allow-attempts');
+        Route::delete('fa1/{id}', [FacultyQuizController::class, 'destroy'])->name('faculty.fa1.destroy');
 
         //student class roster
         Route::get('student-course-roster', [FacultyAttendanceController::class, 'studentCourseRoster'])->name('faculty.student.course.roster');
         Route::get('course-roster/{id}/{code}', [FacultyAttendanceController::class, 'createCourseRoster'])->name('faculty.course.roster.create');
         Route::get('course-roster/{id}/{code}/list', [FacultyAttendanceController::class, 'viewCourseRoster'])->name('faculty.course.roster.list');
         Route::get('course-roster/{id}/{code}/export', [FacultyAttendanceController::class, 'exportCourseRoster'])->name('faculty.course.roster.export');
+        Route::post('course-roster/{id}/{code}/copy', [FacultyAttendanceController::class, 'copyCourseRosterFromAssigned'])->name('faculty.course.roster.copy');
         Route::post('course-roster/{id}/{code}', [FacultyAttendanceController::class, 'storeCourseRoster'])->name('faculty.course.roster.store');
         Route::delete('course-roster/{id}/{code}/student/{studentId}', [FacultyAttendanceController::class, 'removeCourseRosterStudent'])->name('faculty.course.roster.student.remove');
     });

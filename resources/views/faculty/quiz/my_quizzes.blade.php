@@ -113,6 +113,8 @@
     </div>
 
     <div class="container-fluid mt-4">
+      <div id="ajaxDeleteMessage"></div>
+
       @if(session('success'))
       <div class="alert alert-success alert-dismissible fade show" role="alert">
         {{ session('success') }}
@@ -140,7 +142,7 @@
         <div class="card-body text-center text-muted">No quizzes created yet.</div>
       </div>
       @else
-      <div class="quiz-grid row">
+      <div class="row">
         @foreach($quizzes as $quiz)
         <div class="col-lg-4">
           <div class="quiz-item-card">
@@ -187,10 +189,6 @@
                   <div>{{ $quiz->time_limit_minutes ? $quiz->time_limit_minutes . ' mins' : 'No limit' }}</div>
                 </div>
                 <div>
-                  <div class="k">Start Delay</div>
-                  <div>{{ (int) ($quiz->pre_start_countdown_seconds ?? 10) }} sec</div>
-                </div>
-                <div>
                   <div class="k">Shuffle Questions</div>
                   <div>{{ $quiz->shuffle_questions ? 'Yes' : 'No' }}</div>
                 </div>
@@ -207,7 +205,6 @@
                   <input type="datetime-local" name="open_at" class="form-control form-control-sm" value="{{ optional($quiz->open_at)->format('Y-m-d\\TH:i') }}" required>
                   <input type="datetime-local" name="close_at" class="form-control form-control-sm" value="{{ $quiz->close_at ? optional($quiz->close_at)->format('Y-m-d\\TH:i') : '' }}">
                   <input type="number" name="time_limit_minutes" min="1" max="300" class="form-control form-control-sm" value="{{ $quiz->time_limit_minutes ?? '' }}" placeholder="Time limit (mins)">
-                  <input type="number" name="pre_start_countdown_seconds" min="0" max="300" class="form-control form-control-sm" value="{{ (int) ($quiz->pre_start_countdown_seconds ?? 10) }}" placeholder="Start delay (sec)">
                   <button type="submit" class="btn btn-sm btn-warning">Reset Time</button>
                 </form>
               </div>
@@ -216,6 +213,11 @@
                 <a href="{{ route('faculty.fa1.results', $quiz->id) }}" class="btn btn-sm btn-success">View Results</a>
                 <a href="{{ route('faculty.fa1.review', $quiz->id) }}" class="btn btn-sm btn-primary">Review Full Quiz</a>
                 <a href="{{ route('faculty.fa1.questions.edit', $quiz->id) }}" class="btn btn-sm btn-dark">Edit Questions</a>
+                <form method="POST" action="{{ route('faculty.fa1.destroy', $quiz->id) }}" onsubmit="return confirm('Delete this quiz and all related attempts, questions, answers, and marks data?');" class="js-quiz-delete-form">
+                  @csrf
+                  @method('DELETE')
+                  <button type="submit" class="btn btn-sm btn-outline-danger w-100">Delete Quiz</button>
+                </form>
               </div>
             </div>
           </div>
@@ -226,5 +228,87 @@
     </div>
   </main>
 </div>
+
+<script>
+  (function() {
+    const messageBox = document.getElementById('ajaxDeleteMessage');
+
+    function showMessage(type, text) {
+      if (!messageBox) {
+        return;
+      }
+      messageBox.innerHTML = `
+        <div class="alert alert-${type} alert-dismissible fade show" role="alert">
+          ${text}
+          <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+        </div>
+      `;
+    }
+
+    function ensureEmptyState() {
+      const grid = document.querySelector('.quiz-grid');
+      if (!grid) {
+        return;
+      }
+
+      const cards = grid.querySelectorAll('.quiz-item-card');
+      if (cards.length > 0) {
+        return;
+      }
+
+      grid.outerHTML = `
+        <div class="card shadow-sm border-0">
+          <div class="card-body text-center text-muted">No quizzes created yet.</div>
+        </div>
+      `;
+    }
+
+    document.querySelectorAll('.js-quiz-delete-form').forEach(function(form) {
+      form.addEventListener('submit', async function(event) {
+        event.preventDefault();
+
+        const formData = new FormData(form);
+        const submitBtn = form.querySelector('button[type="submit"]');
+
+        if (submitBtn) {
+          submitBtn.disabled = true;
+        }
+
+        try {
+          const response = await fetch(form.action, {
+            method: 'POST',
+            headers: {
+              'X-Requested-With': 'XMLHttpRequest',
+              'Accept': 'application/json'
+            },
+            body: formData
+          });
+
+          const payload = await response.json().catch(function() {
+            return {};
+          });
+
+          if (!response.ok || payload.status !== true) {
+            throw new Error(payload.message || 'Failed to delete quiz.');
+          }
+
+          const cardColumn = form.closest('.col-lg-4');
+          if (cardColumn) {
+            cardColumn.remove();
+          }
+
+          ensureEmptyState();
+          showMessage('success', payload.message || 'Quiz deleted successfully.');
+        } catch (error) {
+          showMessage('danger', error.message || 'Unable to delete quiz.');
+        } finally {
+          if (submitBtn) {
+            submitBtn.disabled = false;
+          }
+        }
+      });
+    });
+  })();
+</script>
 
 @include('includes.footer')

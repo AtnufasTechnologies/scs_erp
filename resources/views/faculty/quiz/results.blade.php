@@ -43,10 +43,9 @@
           <div class="d-flex gap-2 flex-wrap">
             <span class="badge bg-info text-dark">Component Group: {{ $quiz->cia_group_id }}</span>
             <span class="badge bg-secondary">Time Limit: {{ $quiz->time_limit_minutes ? $quiz->time_limit_minutes . ' mins' : 'No limit' }}</span>
-            <span class="badge bg-primary">Start Delay: {{ (int) ($quiz->pre_start_countdown_seconds ?? 10) }} sec</span>
             <span class="badge bg-dark">Shuffle Q: {{ $quiz->shuffle_questions ? 'Yes' : 'No' }}</span>
             <span class="badge bg-dark">Shuffle O: {{ $quiz->shuffle_options ? 'Yes' : 'No' }}</span>
-            <span class="badge bg-warning text-dark">Expected Students (Course + Batch + Semester): {{ $expectedStudentCount ?? 0 }}</span>
+            <span class="badge bg-warning text-dark">Expected Students: {{ $expectedStudentCount ?? 0 }}</span>
             <span class="badge bg-success">Attempted Students: {{ $attemptedStudentCount ?? 0 }}</span>
           </div>
         </div>
@@ -66,7 +65,7 @@
               </div>
               <div class="col-md-8">
                 <label class="form-label fw-bold">Select Students (Mulit Select)</label>
-                <select class="select-multiple" name="student_ids[]" multiple size="8" required>
+                <select class="select-multiple" name="student_ids[]" multiple size="8" @if($enrolledStudents->isNotEmpty()) required @else disabled @endif>
                   @foreach($enrolledStudents as $student)
                   @php
                   $used = (int) ($attemptCounts[$student->id] ?? 0);
@@ -78,10 +77,13 @@
                   </option>
                   @endforeach
                 </select>
+                @if($enrolledStudents->isEmpty())
+                <small class="text-muted d-block mt-2">No students found in StudentCourseRoster for this quiz.</small>
+                @endif
               </div>
             </div>
             <div class="mt-3">
-              <button type="submit" class="btn btn-primary">Update Attempt Permission</button>
+              <button type="submit" class="btn btn-primary" @disabled($enrolledStudents->isEmpty())>Update Attempt Permission</button>
             </div>
           </form>
         </div>
@@ -95,18 +97,14 @@
               <a href="{{ route('faculty.fa1.results.export', $quiz->id) }}" class="btn btn-success btn-sm">
                 <i class="fas fa-file-excel me-1"></i>Export to Excel
               </a>
-              @if(($studentRosterSource ?? 'primary') === 'fallback')
-              <span class="badge bg-warning text-dark">Roster Source: Fallback (Course/Semester)</span>
-              @else
-              <span class="badge bg-success">Roster Source: Primary (Subject + Program Mapping)</span>
-              @endif
+              <span class="badge bg-success">Roster Source: Student Course Roster</span>
             </div>
           </div>
         </div>
         <div class="card-body table-responsive">
-          @if(($studentRosterSource ?? 'primary') === 'fallback')
+          @if($enrolledStudents->isEmpty())
           <div class="alert alert-warning py-2">
-            Subject-program mapping returned no records for this quiz, so student list is populated using course/semester mapping fallback.
+            No students found in StudentCourseRoster for this quiz.
           </div>
           @endif
           <table class="table table-bordered align-middle">
@@ -155,7 +153,7 @@
               </tr>
               @empty
               <tr>
-                <td colspan="7" class="text-center text-muted">No enrolled students found for this quiz mapping.</td>
+                <td colspan="8" class="text-center text-muted">No students found in StudentCourseRoster for this quiz.</td>
               </tr>
               @endforelse
             </tbody>

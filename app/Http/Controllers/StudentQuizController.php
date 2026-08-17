@@ -8,6 +8,7 @@ use App\Models\QuizAttemptAnswer;
 use App\Models\QuizAttemptPermission;
 use App\Models\StudentMaster;
 use App\Models\StudentMasterUserPivot;
+use App\Models\StudentPasswordReset;
 use App\Models\SupCiaComponent;
 use App\Models\User;
 use App\Models\UserHasRole;
@@ -184,7 +185,6 @@ class StudentQuizController extends Controller
 
     $hasRemainingAttempts = $submittedCount < $maxAttempts || (bool) $inProgressAttempt;
     $secondsUntilOpen = now()->lt($quiz->open_at) ? now()->diffInSeconds($quiz->open_at, false) : 0;
-    $preStartCountdown = max(0, (int) ($quiz->pre_start_countdown_seconds ?? 10));
 
     return view('student.quiz.lobby', compact(
       'quiz',
@@ -192,8 +192,7 @@ class StudentQuizController extends Controller
       'submittedCount',
       'inProgressAttempt',
       'hasRemainingAttempts',
-      'secondsUntilOpen',
-      'preStartCountdown'
+      'secondsUntilOpen'
     ));
   }
 
@@ -545,8 +544,12 @@ class StudentQuizController extends Controller
   {
     $now = now();
     $fa1ComponentId = $this->fa1ComponentId();
+    $hasTeachingAssignmentColumn = Schema::hasColumn('subject_has_routines', 'teaching_assignment_id');
+    $hasTeachingAllocationColumn = Schema::hasColumn('subject_has_routines', 'teaching_allocation_id');
+    $hasRoutineDeletedAtColumn = Schema::hasColumn('subject_has_routines', 'deleted_at');
+    $hasRosterDeletedAtColumn = Schema::hasColumn('student_course_rosters', 'deleted_at');
 
-    return Quiz::query()
+    $query = Quiz::query()
       ->where('is_published', true)
       ->where(function ($query) use ($now) {
         $query->whereNull('close_at')->orWhere('close_at', '>=', $now);
@@ -558,24 +561,50 @@ class StudentQuizController extends Controller
         }
 
         $query->whereRaw('1 = 0');
-      })
-      ->whereExists(function ($query) use ($student) {
-        $query->select(DB::raw(1))
-          ->from('student_course_infos')
-          ->whereColumn('student_course_infos.course_id', 'quizzes.course_id')
-          ->where('student_course_infos.student_id', $student->id)
-          ->where(function ($semesterQuery) {
-            $semesterQuery->whereColumn('student_course_infos.semester', 'quizzes.semester_id')
-              ->orWhereNull('quizzes.semester_id');
-          });
-      })
-      ->whereExists(function ($query) use ($student) {
-        $query->select(DB::raw(1))
-          ->from('subject_has_student_progams')
-          ->whereColumn('subject_has_student_progams.subject_id', 'quizzes.subject_id')
-          ->whereColumn('subject_has_student_progams.batch_id', 'quizzes.batch_id')
-          ->where('subject_has_student_progams.student_program_id', $student->new_program_id);
       });
+
+    if (!$hasTeachingAssignmentColumn && !$hasTeachingAllocationColumn) {
+      return $query->whereRaw('1 = 0');
+    }
+
+    return $query->whereExists(function ($existsQuery) use (
+      $student,
+      $hasTeachingAssignmentColumn,
+      $hasTeachingAllocationColumn,
+      $hasRoutineDeletedAtColumn,
+      $hasRosterDeletedAtColumn
+    ) {
+      $existsQuery->select(DB::raw(1))
+        ->from('student_course_rosters as scr')
+        ->join('subject_has_routines as shr', function ($join) use ($hasTeachingAssignmentColumn, $hasTeachingAllocationColumn) {
+          $hasJoinCondition = false;
+
+          if ($hasTeachingAssignmentColumn) {
+            $join->on('scr.ta_id', '=', 'shr.teaching_assignment_id');
+            $hasJoinCondition = true;
+          }
+
+          if ($hasTeachingAllocationColumn) {
+            if ($hasJoinCondition) {
+              $join->orOn('scr.ta_id', '=', 'shr.teaching_allocation_id');
+            } else {
+              $join->on('scr.ta_id', '=', 'shr.teaching_allocation_id');
+            }
+          }
+        })
+        ->where('scr.student_id', (int) $student->id)
+        ->whereColumn('scr.course_id', 'quizzes.course_id')
+        ->whereColumn('shr.syllabus_id', 'quizzes.syllabus_id')
+        ->whereColumn('shr.faculty_id', 'quizzes.faculty_id');
+
+      if ($hasRoutineDeletedAtColumn) {
+        $existsQuery->whereNull('shr.deleted_at');
+      }
+
+      if ($hasRosterDeletedAtColumn) {
+        $existsQuery->whereNull('scr.deleted_at');
+      }
+    });
   }
 
   private function fa1ComponentId(): ?int
@@ -777,5 +806,37 @@ class StudentQuizController extends Controller
     session([$optionOrderKey => $sessionOptionOrders]);
 
     return $result;
+  }
+
+  function resetQuizPassword()
+  {
+    return view('student.quiz.password-reset');
+  }
+
+  function updateQuizPassword(Request $request)
+  {
+    $request->validate([
+      'roll_no' => 'required',
+      'old_password' => 'required',
+      'password' => 'required|string|min:6|max:190',
+      'confirm_password' => 'required|same:password',
+    ]);
+
+    $enteredRollNo = strtolower(trim((string) $request->input('roll_no')));
+
+    $authUser = User::whereRaw('LOWER(TRIM(roll_no)) = ?', [$enteredRollNo])
+      ->where('status', 'ACTIVE')
+      ->first();
+
+    if (!$authUser || !Hash::check((string) $request->input('old_password'), (string) $authUser->password)) {
+      return redirect()->back()
+        ->with('error', 'Invalid login credentials. Please check roll number and password.');
+    }
+
+    User::where('roll_no', $enteredRollNo)->update([
+      'password' => Hash::make($request->password),
+      'decrypted_password' => $request->password
+    ]);
+    return redirect()->route('student.fa1.access')->with('success', 'Password Reset Successful');
   }
 }

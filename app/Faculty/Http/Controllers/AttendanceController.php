@@ -1616,7 +1616,7 @@ class AttendanceController extends Controller
     $studentsQuery = StudentMaster::query()
       ->where('is_deleted', 0)
       ->where('is_left', 0)
-      ->where('batch', $batchId)
+      // ->where('batch', $batchId)
       ->orderBy('roll_no')
       ->orderBy('first_name');
 
@@ -1636,14 +1636,170 @@ class AttendanceController extends Controller
       ->map(fn($studentId) => (int) $studentId)
       ->all();
 
+    $copySourceRows = $this->applyFacultyRoutineAccess(SubjectHasRoutine::query(), $facultyId)
+      ->with([
+        'syllabus.subject:id,title',
+        'syllabus.courseLink.courseMaster:id,course_code,course_title',
+        'teachingAssignment:id,course_id',
+        'teachingAllocation:id,course_id',
+      ])
+      ->orderBy('syllabus_id')
+      ->orderBy('shift')
+      ->get()
+      ->filter(function ($candidate) use ($routineId) {
+        return (int) ($candidate->id ?? 0) !== $routineId;
+      })
+      ->map(function ($candidate) {
+        $candidateAssignment = $candidate->teachingAssignment ?: $candidate->teachingAllocation;
+        $candidateCourseMaster = $candidate->syllabus->courseLink->courseMaster ?? null;
+        $candidateCourseCode = trim((string) ($candidateCourseMaster->course_code ?? 'N/A'));
+        $candidateCourseTitle = trim((string) ($candidateCourseMaster->course_title ?? 'N/A'));
+        $candidateCourseId = (int) ($candidate->syllabus->course_id ?? ($candidateAssignment->course_id ?? 0));
+        $candidateAssignmentId = (int) ($candidateAssignment->id ?? 0);
+
+        if ($candidateAssignmentId <= 0 || $candidateCourseId <= 0) {
+          return null;
+        }
+
+        $rosterCount = StudentCourseRoster::query()
+          ->where('ta_id', $candidateAssignmentId)
+          ->where('course_id', $candidateCourseId)
+          ->count();
+
+        return [
+          'routine_id' => (int) ($candidate->id ?? 0),
+          'course_code' => $candidateCourseCode,
+          'course_title' => $candidateCourseTitle,
+          'subject_title' => trim((string) ($candidate->syllabus->subject->title ?? 'N/A')),
+          'roster_count' => (int) $rosterCount,
+          'label' => $candidateCourseCode . ' - ' . $candidateCourseTitle . ' (' . $rosterCount . ' students)',
+        ];
+      })
+      ->filter()
+      ->sortByDesc('roster_count')
+      ->values();
+
     return view('faculty.courseroster.create', [
       'routine' => $routine,
       'students' => $students,
       'record' => $record,
       'existingStudentIds' => $existingStudentIds,
+      'copySourceRows' => $copySourceRows,
       'courseId' => $courseId,
       'batchId' => $batchId,
       'semesterId' => $semesterId,
+    ]);
+  }
+
+  public function copyCourseRosterFromAssigned(Request $request, $id, $code)
+  {
+    $facultyId = $this->getCurrentFacultyId();
+    $targetRoutineId = (int) $id;
+
+    $request->validate([
+      'source_routine_id' => 'required|integer|exists:subject_has_routines,id',
+    ]);
+
+    $sourceRoutineId = (int) $request->input('source_routine_id');
+    if ($sourceRoutineId === $targetRoutineId) {
+      return response()->json(['success' => false, 'message' => 'Source and target course cannot be the same.'], 422);
+    }
+
+    $targetRoutine = SubjectHasRoutine::with([
+      'syllabus:id,course_id',
+      'teachingAssignment:id,course_id,faculty_id',
+      'teachingAllocation:id,course_id,faculty_id',
+    ])->find($targetRoutineId);
+
+    $sourceRoutine = SubjectHasRoutine::with([
+      'syllabus:id,course_id',
+      'teachingAssignment:id,course_id,faculty_id',
+      'teachingAllocation:id,course_id,faculty_id',
+      'syllabus.courseLink.courseMaster:id,course_code,course_title',
+    ])->find($sourceRoutineId);
+
+    if (!$targetRoutine || !$targetRoutine->syllabus || !$sourceRoutine || !$sourceRoutine->syllabus) {
+      return response()->json(['success' => false, 'message' => 'Invalid source/target routine selected.'], 404);
+    }
+
+    $targetRecord = $targetRoutine->teachingAssignment ?: $targetRoutine->teachingAllocation;
+    $sourceRecord = $sourceRoutine->teachingAssignment ?: $sourceRoutine->teachingAllocation;
+
+    if (!$targetRecord || !$sourceRecord) {
+      return response()->json(['success' => false, 'message' => 'Teaching assignment context missing for source/target course.'], 422);
+    }
+
+    $hasTargetAccess = (int) ($targetRecord->faculty_id ?? 0) === $facultyId
+      || $targetRecord->facultyAssignments()->where('faculty_id', $facultyId)->exists()
+      || $targetRecord->coFacultyMembers()->where('faculties.id', $facultyId)->exists();
+
+    $hasSourceAccess = (int) ($sourceRecord->faculty_id ?? 0) === $facultyId
+      || $sourceRecord->facultyAssignments()->where('faculty_id', $facultyId)->exists()
+      || $sourceRecord->coFacultyMembers()->where('faculties.id', $facultyId)->exists();
+
+    if ($facultyId <= 0 || !$hasTargetAccess || !$hasSourceAccess) {
+      return response()->json(['success' => false, 'message' => 'You are not allotted to source/target teaching assignment.'], 403);
+    }
+
+    $targetCourseId = (int) ($targetRoutine->syllabus->course_id ?? ($targetRecord->course_id ?? 0));
+    $sourceCourseId = (int) ($sourceRoutine->syllabus->course_id ?? ($sourceRecord->course_id ?? 0));
+
+    if ($targetCourseId <= 0 || $sourceCourseId <= 0) {
+      return response()->json(['success' => false, 'message' => 'Invalid course mapping in source/target routine.'], 422);
+    }
+
+    $sourceStudentIds = StudentCourseRoster::query()
+      ->where('ta_id', (int) $sourceRecord->id)
+      ->where('course_id', $sourceCourseId)
+      ->pluck('student_id')
+      ->map(fn($studentId) => (int) $studentId)
+      ->filter(fn($studentId) => $studentId > 0)
+      ->unique()
+      ->values();
+
+    if ($sourceStudentIds->isEmpty()) {
+      return response()->json(['success' => false, 'message' => 'No students found in the selected source roster.'], 422);
+    }
+
+    $existingTargetIds = StudentCourseRoster::query()
+      ->where('ta_id', (int) $targetRecord->id)
+      ->where('course_id', $targetCourseId)
+      ->whereIn('student_id', $sourceStudentIds->all())
+      ->pluck('student_id')
+      ->map(fn($studentId) => (int) $studentId)
+      ->all();
+
+    $existingMap = array_flip($existingTargetIds);
+    $added = 0;
+    $skipped = 0;
+
+    foreach ($sourceStudentIds as $studentId) {
+      if (isset($existingMap[$studentId])) {
+        $skipped++;
+        continue;
+      }
+
+      StudentCourseRoster::create([
+        'ta_id' => (int) $targetRecord->id,
+        'course_id' => $targetCourseId,
+        'student_id' => (int) $studentId,
+      ]);
+      $added++;
+    }
+
+    $sourceCourseCode = trim((string) ($sourceRoutine->syllabus->courseLink->courseMaster->course_code ?? 'source course'));
+    $message = $added . ' student(s) copied from ' . $sourceCourseCode . '.';
+    if ($skipped > 0) {
+      $message .= ' ' . $skipped . ' already present (skipped).';
+    }
+
+    return response()->json([
+      'success' => true,
+      'message' => $message,
+      'data' => [
+        'added' => $added,
+        'skipped' => $skipped,
+      ],
     ]);
   }
 

@@ -89,7 +89,7 @@
                 </tr>
                 @empty
                 <tr>
-                  <td colspan="8" class="text-center text-muted">No FA1 exams available for your enrolled subjects.</td>
+                  <td colspan="8" class="text-center text-muted">No FA1 exams available in your Portal.</td>
                 </tr>
                 @endforelse
             </tbody>

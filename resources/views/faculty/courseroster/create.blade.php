@@ -4,6 +4,7 @@
 $safeStudents = collect($students ?? []);
 $safeExistingStudentIds = collect($existingStudentIds ?? [])->map(fn($id) => (int) $id)->all();
 $existingMap = array_fill_keys($safeExistingStudentIds, true);
+$safeCopySourceRows = collect($copySourceRows ?? []);
 
 $courseMaster = $routine->syllabus->courseLink->courseMaster ?? null;
 $courseCode = trim((string) ($courseMaster->course_code ?? ($record->course->course_code ?? 'N/A')));
@@ -77,9 +78,38 @@ $courseTitle = trim((string) ($courseMaster->course_title ?? ($record->course->c
               </p>
             </div>
             <div class="col-md-3 text-end">
-              <span class="badge bg-primary">{{ $safeStudents->count() }} Students Found in Batch {{ $routine->syllabus->batchmaster->batch_name ?? $batchId }}</span>
+              <span class="badge bg-primary">{{ $safeStudents->count() }} Students Found </span>
             </div>
           </div>
+        </div>
+      </div>
+
+      <div class="card shadow-sm border-0 mb-4">
+        <div class="card-header bg-white py-3">
+          <h6 class="mb-0 fw-bold"><i class="fas fa-copy text-primary me-2"></i>Copy Students From Another Assigned Course</h6>
+        </div>
+        <div class="card-body">
+          @if($safeCopySourceRows->isEmpty())
+          <div class="text-muted">No other assigned course roster available to copy.</div>
+          @else
+          <form id="copyRosterForm" action="{{ route('faculty.course.roster.copy', ['id' => $routine->id, 'code' => $courseCode]) }}" method="POST" class="row g-2 align-items-end">
+            @csrf
+            <div class="col-md-9">
+              <label class="form-label fw-semibold">Source Course Roster</label>
+              <select class="form-select" name="source_routine_id" id="sourceRoutineId" required>
+                <option value="">-- Select source course --</option>
+                @foreach($safeCopySourceRows as $source)
+                <option value="{{ $source['routine_id'] }}">{{ $source['label'] }}</option>
+                @endforeach
+              </select>
+            </div>
+            <div class="col-md-3 d-grid">
+              <button type="submit" class="btn btn-primary" id="copyRosterBtn">
+                <i class="fas fa-copy me-1"></i>Copy Students
+              </button>
+            </div>
+          </form>
+          @endif
         </div>
       </div>
 
@@ -156,12 +186,66 @@ $courseTitle = trim((string) ($courseMaster->course_title ?? ($record->course->c
       const clearAllBtn = document.getElementById('clearAllBtn');
       const rosterForm = document.getElementById('rosterForm');
       const submitAddBtn = document.getElementById('submitAddBtn');
+      const copyRosterForm = document.getElementById('copyRosterForm');
+      const copyRosterBtn = document.getElementById('copyRosterBtn');
+      const sourceRoutineId = document.getElementById('sourceRoutineId');
       const ajaxMessage = document.getElementById('ajaxMessage');
 
       function showMessage(type, message) {
         if (!ajaxMessage) return;
         const safeType = type === 'success' ? 'success' : 'danger';
         ajaxMessage.innerHTML = `\n          <div class="alert alert-${safeType} alert-dismissible fade show" role="alert">\n            ${message}\n            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>\n          </div>\n        `;
+      }
+
+      if (copyRosterForm) {
+        copyRosterForm.addEventListener('submit', async function(event) {
+          event.preventDefault();
+
+          if (!sourceRoutineId || !sourceRoutineId.value) {
+            showMessage('error', 'Please select a source course roster.');
+            return;
+          }
+
+          if (copyRosterBtn) {
+            copyRosterBtn.disabled = true;
+            copyRosterBtn.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i>Copying...';
+          }
+
+          try {
+            const formData = new FormData(copyRosterForm);
+            const response = await fetch(copyRosterForm.action, {
+              method: 'POST',
+              headers: {
+                'Accept': 'application/json',
+                'X-Requested-With': 'XMLHttpRequest',
+              },
+              body: formData,
+            });
+
+            const payload = await response.json();
+
+            if (!response.ok || !payload.success) {
+              let errorMessage = payload.message || 'Failed to copy students.';
+              if (payload.errors) {
+                errorMessage = Object.values(payload.errors).flat().join(' ');
+              }
+              showMessage('error', errorMessage);
+              return;
+            }
+
+            showMessage('success', payload.message || 'Students copied successfully.');
+            window.setTimeout(function() {
+              window.location.reload();
+            }, 900);
+          } catch (error) {
+            showMessage('error', 'Copy request failed. Please try again.');
+          } finally {
+            if (copyRosterBtn) {
+              copyRosterBtn.disabled = false;
+              copyRosterBtn.innerHTML = '<i class="fas fa-copy me-1"></i>Copy Students';
+            }
+          }
+        });
       }
 
       if (rosterForm) {

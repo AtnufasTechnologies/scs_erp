@@ -8,6 +8,7 @@ use App\Models\Quiz;
 use App\Models\QuizAttempt;
 use App\Models\QuizAttemptPermission;
 use App\Models\QuizQuestion;
+use App\Models\StudentCourseRoster;
 use App\Models\SubjectFacultyMaster;
 use App\Models\SubjectHasRoutine;
 use App\Models\SubjectHasSyllabus;
@@ -104,7 +105,6 @@ class QuizController extends Controller
       'open_at' => 'required|date',
       'close_at' => 'nullable|date|after_or_equal:open_at',
       'time_limit_minutes' => 'nullable|integer|min:1|max:300',
-      'pre_start_countdown_seconds' => 'nullable|integer|min:0|max:300',
     ]);
 
     $payload = [
@@ -112,10 +112,6 @@ class QuizController extends Controller
       'close_at' => $request->input('close_at'),
       'time_limit_minutes' => $request->input('time_limit_minutes') ?: null,
     ];
-
-    if (Schema::hasColumn('quizzes', 'pre_start_countdown_seconds')) {
-      $payload['pre_start_countdown_seconds'] = $request->input('pre_start_countdown_seconds', 10);
-    }
 
     $quiz->update($payload);
 
@@ -323,6 +319,141 @@ class QuizController extends Controller
       ->with('success', 'Quiz updated successfully. Existing questions edited and new questions added.');
   }
 
+  public function destroyQuestion(Request $request, $id, $questionId)
+  {
+    $quiz = Quiz::where('id', $id)
+      ->where('created_by', Auth::id())
+      ->firstOrFail();
+
+    $question = QuizQuestion::where('id', $questionId)
+      ->where('quiz_id', $quiz->id)
+      ->firstOrFail();
+
+    DB::transaction(function () use ($quiz, $question) {
+      DB::table('quiz_attempt_answers')
+        ->where('quiz_question_id', $question->id)
+        ->delete();
+
+      DB::table('quiz_question_options')
+        ->where('quiz_question_id', $question->id)
+        ->delete();
+
+      DB::table('quiz_questions')
+        ->where('id', $question->id)
+        ->delete();
+
+      $remainingQuestionIds = DB::table('quiz_questions')
+        ->where('quiz_id', $quiz->id)
+        ->orderBy('position')
+        ->orderBy('id')
+        ->pluck('id')
+        ->values();
+
+      foreach ($remainingQuestionIds as $index => $remainingQuestionId) {
+        DB::table('quiz_questions')
+          ->where('id', (int) $remainingQuestionId)
+          ->update(['position' => $index + 1]);
+      }
+    });
+
+    $message = 'Question deleted successfully.';
+
+    if ($request->expectsJson() || $request->ajax()) {
+      return response()->json([
+        'status' => true,
+        'message' => $message,
+        'quiz_id' => (int) $quiz->id,
+        'question_id' => (int) $questionId,
+      ]);
+    }
+
+    return redirect()->route('faculty.fa1.questions.edit', $quiz->id)
+      ->with('success', $message);
+  }
+
+  public function destroy(Request $request, $id)
+  {
+    $quiz = Quiz::where('id', $id)
+      ->where('created_by', Auth::id())
+      ->firstOrFail();
+
+    DB::transaction(function () use ($quiz) {
+      $questionIds = DB::table('quiz_questions')
+        ->where('quiz_id', $quiz->id)
+        ->pluck('id')
+        ->map(fn($id) => (int) $id)
+        ->values();
+
+      $attemptIds = DB::table('quiz_attempts')
+        ->where('quiz_id', $quiz->id)
+        ->pluck('id')
+        ->map(fn($id) => (int) $id)
+        ->values();
+
+      if ($attemptIds->isNotEmpty()) {
+        DB::table('quiz_attempt_answers')
+          ->whereIn('quiz_attempt_id', $attemptIds->all())
+          ->delete();
+      }
+
+      if ($questionIds->isNotEmpty()) {
+        DB::table('quiz_attempt_answers')
+          ->whereIn('quiz_question_id', $questionIds->all())
+          ->delete();
+
+        DB::table('quiz_question_options')
+          ->whereIn('quiz_question_id', $questionIds->all())
+          ->delete();
+
+        DB::table('quiz_questions')
+          ->whereIn('id', $questionIds->all())
+          ->delete();
+      }
+
+      DB::table('quiz_attempt_permissions')
+        ->where('quiz_id', $quiz->id)
+        ->delete();
+
+      DB::table('quiz_attempts')
+        ->where('quiz_id', $quiz->id)
+        ->delete();
+
+      if (Schema::hasTable('cia_marks')) {
+        $ciaMarksQuery = DB::table('cia_marks')
+          ->where('COURSE_GROUP_ID', (int) $quiz->cia_group_id);
+
+        if (Schema::hasColumn('cia_marks', 'SUP_CIA_COMPONENT_ID')) {
+          $ciaMarksQuery->where('SUP_CIA_COMPONENT_ID', (int) $quiz->sup_cia_component_id);
+        }
+
+        $ciaMarksQuery->delete();
+      }
+
+      if (Schema::hasTable('cia_group_component')) {
+        DB::table('cia_group_component')
+          ->where('CIA_GROUP_ID', (int) $quiz->cia_group_id)
+          ->delete();
+      }
+
+      DB::table('quizzes')
+        ->where('id', $quiz->id)
+        ->delete();
+    });
+
+    $message = 'Quiz and all related data deleted successfully.';
+
+    if ($request->expectsJson() || $request->ajax()) {
+      return response()->json([
+        'status' => true,
+        'message' => $message,
+        'quiz_id' => (int) $quiz->id,
+      ]);
+    }
+
+    return redirect()->route('faculty.fa1.my-quizzes')
+      ->with('success', $message);
+  }
+
   public function downloadBulkTemplate()
   {
     $spreadsheet = new Spreadsheet();
@@ -358,7 +489,6 @@ class QuizController extends Controller
       'open_at' => 'required|date',
       'close_at' => 'nullable|date|after_or_equal:open_at',
       'time_limit_minutes' => 'nullable|integer|min:1|max:300',
-      'pre_start_countdown_seconds' => 'nullable|integer|min:0|max:300',
       'questions' => 'nullable|array|min:1',
       'questions.*.question_text' => 'required_with:questions|string',
       'questions.*.question_image' => 'nullable|image|mimes:jpg,jpeg,png,webp|max:4096',
@@ -469,10 +599,6 @@ class QuizController extends Controller
         'is_published' => true,
         'created_by' => Auth::id(),
       ];
-
-      if (Schema::hasColumn('quizzes', 'pre_start_countdown_seconds')) {
-        $quizPayload['pre_start_countdown_seconds'] = $request->input('pre_start_countdown_seconds', 10);
-      }
 
       $quiz = Quiz::create($quizPayload);
 
@@ -767,91 +893,90 @@ class QuizController extends Controller
 
   private function resolveQuizEligibleStudents(Quiz $quiz): array
   {
-    $baseQuery = DB::table('student_masters as sm')
-      ->join('student_course_infos as sci', function ($join) use ($quiz) {
-        $join->on('sci.student_id', '=', 'sm.id')
-          ->where('sci.course_id', $quiz->course_id);
-      })
-      ->join('subject_has_student_progams as shsp', function ($join) use ($quiz) {
-        $join->on('shsp.student_program_id', '=', 'sm.new_program_id')
-          ->where('shsp.subject_id', $quiz->subject_id);
-      })
-      ->when(!empty($quiz->semester_id), function ($query) use ($quiz) {
-        $query->where('sci.semester', $quiz->semester_id);
-      })
-      ->when(!empty($quiz->batch_id), function ($query) use ($quiz) {
-        $query->where('shsp.batch_id', $quiz->batch_id);
-      })
-      ->where(function ($query) {
-        $query->where('sm.is_deleted', 0)
-          ->orWhereNull('sm.is_deleted');
-      })
-      ->where(function ($query) {
-        $query->where('sm.is_left', 0)
-          ->orWhereNull('sm.is_left');
-      })
-      ->select('sm.id', 'sm.first_name', 'sm.last_name', 'sm.roll_no', 'sm.register_no')
-      ->distinct()
-      ->orderBy('sm.roll_no');
+    $hasTeachingAssignmentColumn = Schema::hasColumn('subject_has_routines', 'teaching_assignment_id');
+    $hasTeachingAllocationColumn = Schema::hasColumn('subject_has_routines', 'teaching_allocation_id');
 
-    $students = $baseQuery->get();
-    if ($students->isNotEmpty()) {
+    if (!$hasTeachingAssignmentColumn && !$hasTeachingAllocationColumn) {
       return [
-        'source' => 'primary',
-        'students' => $students,
+        'source' => 'roster',
+        'students' => collect(),
       ];
     }
 
-    // Fallback for legacy setups where subject-to-program mapping is incomplete.
-    $fallbackStudents = DB::table('student_masters as sm')
-      ->join('student_course_infos as sci', function ($join) use ($quiz) {
-        $join->on('sci.student_id', '=', 'sm.id')
-          ->where('sci.course_id', $quiz->course_id);
+    $routineQuery = SubjectHasRoutine::query()
+      ->where('syllabus_id', (int) $quiz->syllabus_id)
+      ->where('faculty_id', (int) $quiz->faculty_id);
+
+    if (Schema::hasColumn('subject_has_routines', 'deleted_at')) {
+      $routineQuery->whereNull('deleted_at');
+    }
+
+    $selectColumns = [];
+    if ($hasTeachingAssignmentColumn) {
+      $selectColumns[] = 'teaching_assignment_id';
+    }
+    if ($hasTeachingAllocationColumn) {
+      $selectColumns[] = 'teaching_allocation_id';
+    }
+
+    $assignmentIds = $routineQuery
+      ->get($selectColumns)
+      ->flatMap(function ($routine) use ($hasTeachingAssignmentColumn, $hasTeachingAllocationColumn) {
+        $ids = [];
+
+        if ($hasTeachingAssignmentColumn) {
+          $ids[] = (int) ($routine->teaching_assignment_id ?? 0);
+        }
+
+        if ($hasTeachingAllocationColumn) {
+          $ids[] = (int) ($routine->teaching_allocation_id ?? 0);
+        }
+
+        return $ids;
       })
-      ->when(!empty($quiz->semester_id), function ($query) use ($quiz) {
-        $query->where('sci.semester', $quiz->semester_id);
-      })
-      ->where(function ($query) {
-        $query->where('sm.is_deleted', 0)
-          ->orWhereNull('sm.is_deleted');
-      })
-      ->where(function ($query) {
-        $query->where('sm.is_left', 0)
-          ->orWhereNull('sm.is_left');
-      })
-      ->select('sm.id', 'sm.first_name', 'sm.last_name', 'sm.roll_no', 'sm.register_no')
-      ->distinct()
-      ->orderBy('sm.roll_no')
-      ->get();
+      ->filter(fn($id) => $id > 0)
+      ->unique()
+      ->values();
+
+    $students = collect();
+
+    if ($assignmentIds->isNotEmpty()) {
+      $studentIds = StudentCourseRoster::query()
+        ->whereIn('ta_id', $assignmentIds->all())
+        ->where('course_id', (int) $quiz->course_id)
+        ->pluck('student_id')
+        ->map(fn($studentId) => (int) $studentId)
+        ->filter(fn($studentId) => $studentId > 0)
+        ->unique()
+        ->values();
+
+      if ($studentIds->isNotEmpty()) {
+        $students = DB::table('student_masters as sm')
+          ->whereIn('sm.id', $studentIds->all())
+          ->where(function ($query) {
+            $query->where('sm.is_deleted', 0)
+              ->orWhereNull('sm.is_deleted');
+          })
+          ->where(function ($query) {
+            $query->where('sm.is_left', 0)
+              ->orWhereNull('sm.is_left');
+          })
+          ->select('sm.id', 'sm.first_name', 'sm.last_name', 'sm.roll_no', 'sm.register_no')
+          ->orderBy('sm.roll_no')
+          ->orderBy('sm.first_name')
+          ->get();
+      }
+    }
 
     return [
-      'source' => 'fallback',
-      'students' => $fallbackStudents,
+      'source' => 'roster',
+      'students' => $students,
     ];
   }
 
   private function expectedStudentCountForQuiz(Quiz $quiz): int
   {
-    $query = DB::table('student_course_infos as sci')
-      ->join('student_masters as sm', 'sm.id', '=', 'sci.student_id')
-      ->where('sci.course_id', $quiz->course_id)
-      ->where(function ($builder) {
-        $builder->where('sm.is_deleted', 0)
-          ->orWhereNull('sm.is_deleted');
-      })
-      ->where(function ($builder) {
-        $builder->where('sm.is_left', 0)
-          ->orWhereNull('sm.is_left');
-      });
-
-    if (!empty($quiz->semester_id)) {
-      $query->where('sci.semester', $quiz->semester_id);
-    }
-
-    if (!empty($quiz->batch_id)) {
-      $query->where('sm.batch', $quiz->batch_id);
-    }
-
-    return (int) $query->distinct('sci.student_id')->count('sci.student_id');
+    $rosterData = $this->resolveQuizEligibleStudents($quiz);
+    return (int) collect($rosterData['students'] ?? [])->count();
   }
 }
