@@ -38,6 +38,15 @@
       </a>
     </li>
 
+    <li>
+      <a href="{{route('faculty.student.course.roster')}}">
+        <div class="parent-icon">
+          <i class="far fa-clipboard-user"></i>
+        </div>
+        <div class="menu-title">Student Course Roster </div>
+      </a>
+    </li>
+
 
 
     <li>

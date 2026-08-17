@@ -2,6 +2,7 @@
 
 namespace App\Faculty\Http\Controllers;
 
+use App\Exports\CourseRosterExport;
 use App\Http\Controllers\StaticController;
 use App\Http\Controllers\Controller;
 use App\Models\BatchMaster;
@@ -14,9 +15,11 @@ use App\Models\ProgramCourseMaster;
 use App\Models\ProgramWiseSemesterCourse;
 use App\Models\SyllabusHasFaculty;
 use App\Models\StudentMaster;
+use App\Models\StudentCourseRoster;
 use App\Models\SubjectFacultyMaster;
 use App\Models\SubjectHasRoutine;
 use App\Models\SubjectHasSyllabus;
+use App\Models\TeachingAssignment;
 use App\Models\ShiftMaster;
 use App\Services\AttendanceEligibilityService;
 use Carbon\Carbon;
@@ -28,6 +31,7 @@ use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Facades\URL;
 use Illuminate\Support\Str;
+use Maatwebsite\Excel\Facades\Excel;
 
 class AttendanceController extends Controller
 {
@@ -103,6 +107,28 @@ class AttendanceController extends Controller
       ?? $routine->teachingAllocation->allocation_group
       ?? 0
     );
+  }
+
+  private function getRoutineDeliveryType(?SubjectHasRoutine $routine): string
+  {
+    if (!$routine) {
+      return '';
+    }
+
+    return strtoupper(trim((string) (
+      $routine->teachingAssignment->delivery_type
+      ?? $routine->teachingAllocation->delivery_type
+      ?? ''
+    )));
+  }
+
+  private function buildRoutineIdentityKey(?SubjectHasRoutine $routine): string
+  {
+    $syllabusId = (int) ($routine->syllabus_id ?? 0);
+    $shift = strtolower(trim((string) ($routine->shift ?? 'common')));
+    $deliveryType = $this->getRoutineDeliveryType($routine);
+
+    return $syllabusId . '_' . $shift . '_' . $deliveryType;
   }
 
   private function getShiftTeachingHours(string $shiftSlug)
@@ -509,6 +535,11 @@ class AttendanceController extends Controller
     int $courseId,
     bool $withProfile = false
   ) {
+    $rosterResolved = $this->resolveStudentsViaCourseRoster($routine, $courseId, $withProfile);
+    if ($rosterResolved->isNotEmpty()) {
+      return $rosterResolved;
+    }
+
     $resolved = $this->resolveStudentsViaStaticController(
       $record,
       $effectiveBatchId,
@@ -643,6 +674,49 @@ class AttendanceController extends Controller
       ->unique('id')
       ->sortBy('roll_no')
       ->values();
+  }
+
+  private function resolveStudentsViaCourseRoster(
+    SubjectHasRoutine $routine,
+    int $courseId,
+    bool $withProfile = false
+  ) {
+    if (!Schema::hasTable('student_course_rosters')) {
+      return collect();
+    }
+
+    $assignment = $routine->teachingAssignment ?: $routine->teachingAllocation;
+    $assignmentId = (int) ($assignment->id ?? 0);
+
+    if ($assignmentId <= 0 || $courseId <= 0) {
+      return collect();
+    }
+
+    $studentIds = StudentCourseRoster::query()
+      ->where('ta_id', $assignmentId)
+      ->where('course_id', $courseId)
+      ->pluck('student_id')
+      ->map(fn($studentId) => (int) $studentId)
+      ->filter(fn($studentId) => $studentId > 0)
+      ->unique()
+      ->values();
+
+    if ($studentIds->isEmpty()) {
+      return collect();
+    }
+
+    $studentQuery = StudentMaster::query()
+      ->whereIn('id', $studentIds->all())
+      ->where('is_deleted', 0)
+      ->where('is_left', 0)
+      ->orderBy('roll_no')
+      ->orderBy('first_name');
+
+    if ($withProfile) {
+      return $studentQuery->get(['id', 'first_name', 'last_name', 'roll_no', 'register_no']);
+    }
+
+    return $studentQuery->get(['id']);
   }
 
   public function finalizeQrAttendance(Request $request)
@@ -978,14 +1052,15 @@ class AttendanceController extends Controller
         'syllabus.subject:id,title',
         'syllabus.batchmaster:id,batch_name',
         'syllabus.semestermaster:id,title',
-        'syllabus.courseLink.courseMaster:id,course_title,course_code',
+        'syllabus.courseLink.courseMaster:id,course_title,course_code,course_type',
+        'syllabus.courseLink.courseMaster.coursetypemaster:id,title',
         'teachingAssignment:id,delivery_type',
         'teachingAllocation:id,delivery_type',
       ])
       ->orderBy('syllabus_id')
       ->orderBy('shift')
       ->get()
-      // ->unique(fn($routine) => (string) ($routine->syllabus_id ?? '0') . '_' . strtolower(trim((string) ($routine->shift ?? 'common'))))
+      ->unique(fn($routine) => $this->buildRoutineIdentityKey($routine))
       ->values();
 
     return view('faculty.attendance.index', [
@@ -1072,7 +1147,7 @@ class AttendanceController extends Controller
       ->orderBy('syllabus_id')
       ->orderBy('shift')
       ->get()
-      ->unique(fn($routine) => (string) ($routine->syllabus_id ?? '0') . '_' . strtolower(trim((string) ($routine->shift ?? 'common'))))
+      ->unique(fn($routine) => $this->buildRoutineIdentityKey($routine))
       ->values();
 
     $accessibleRoutineIds = $this->getAccessibleRoutineIds($facultyId);
@@ -1289,9 +1364,11 @@ class AttendanceController extends Controller
         'syllabus.batchmaster:id,batch_name',
         'syllabus.semestermaster:id,title',
         'syllabus.courseLink.courseMaster:id,course_title,course_code',
+        'teachingAssignment:id,delivery_type',
+        'teachingAllocation:id,delivery_type',
       ])
       ->get()
-      ->unique('syllabus_id');
+      ->unique(fn($routine) => $this->buildRoutineIdentityKey($routine));
 
     return view('faculty.attendance.extra.index', [
       'syllabusAssignments' => $syllabusAssignments
@@ -1380,9 +1457,11 @@ class AttendanceController extends Controller
         'syllabus.batchmaster:id,batch_name',
         'syllabus.semestermaster:id,title',
         'syllabus.courseLink.courseMaster:id,course_title,course_code',
+        'teachingAssignment:id,delivery_type',
+        'teachingAllocation:id,delivery_type',
       ])
       ->get()
-      ->unique('syllabus_id');
+      ->unique(fn($routine) => $this->buildRoutineIdentityKey($routine));
 
 
     $accessibleRoutineIds = $this->getAccessibleRoutineIds($facultyId);
@@ -1406,5 +1485,468 @@ class AttendanceController extends Controller
       'attendanceRecords' => $data,
 
     ]);
+  }
+
+  //Student Course Roster
+  function studentCourseRoster()
+  {
+    $facultyId = $this->getCurrentFacultyId();
+
+    if ($facultyId <= 0) {
+      return view('faculty.courseroster.index', [
+        'assignmentRows' => collect(),
+      ]);
+    }
+
+    // Get all subjects assigned to this faculty
+    $syllabusAssignments = $this->applyFacultyRoutineAccess(SubjectHasRoutine::query(), $facultyId)
+      ->with([
+        'syllabus.subject:id,title',
+        'syllabus.batchmaster:id,batch_name',
+        'syllabus.semestermaster:id,title',
+        'syllabus.courseLink.courseMaster:id,course_title,course_code',
+        'teachingAssignment:id,delivery_type',
+        'teachingAllocation:id,delivery_type',
+      ])
+      ->orderBy('syllabus_id')
+      ->orderBy('shift')
+      ->get()
+      ->unique(fn($routine) => $this->buildRoutineIdentityKey($routine))
+      ->values();
+
+    $assignmentRows = $syllabusAssignments->map(function ($routine) use ($facultyId) {
+      $assignment = $routine->teachingAssignment ?: $routine->teachingAllocation;
+      $courseMaster = $routine->syllabus->courseLink->courseMaster ?? null;
+      $courseCode = trim((string) ($courseMaster->course_code ?? ''));
+      $courseTitle = trim((string) ($courseMaster->course_title ?? 'N/A'));
+      $courseType = trim((string) ($courseMaster->coursetypemaster->title ?? ''));
+      $assignmentId = (int) ($assignment->id ?? 0);
+      $courseId = (int) ($routine->syllabus->course_id ?? ($assignment->course_id ?? 0));
+
+      $studentCount = 0;
+      if ($assignmentId > 0 && $courseId > 0) {
+        $studentCount = StudentCourseRoster::query()
+          ->where('ta_id', $assignmentId)
+          ->where('course_id', $courseId)
+          ->count();
+      }
+
+      $deliveryType = strtoupper(trim((string) (
+        $assignment->delivery_type
+        ?? $routine->teachingAssignment->delivery_type
+        ?? $routine->teachingAllocation->delivery_type
+        ?? ''
+      )));
+
+      $roles = [];
+      if ((int) ($assignment->faculty_id ?? 0) === (int) $facultyId) {
+        $roles[] = TeachingAssignment::ROLE_PRIMARY;
+      }
+      if (empty($roles)) {
+        $roles[] = TeachingAssignment::ROLE_CO_FACULTY;
+      }
+
+      return [
+        'id' => (int) ($routine->id ?? 0),
+        'assignment_id' => $assignmentId,
+        'course_id' => $courseId,
+        'course_code' => $courseCode,
+        'course_title' => $courseTitle,
+        'course_type' => $courseType,
+        'course_label' => trim($courseCode . ($courseCode !== '' ? ' - ' : '') . $courseTitle),
+        'subject_title' => trim((string) ($routine->syllabus->subject->title ?? 'N/A')),
+        'roles' => $roles,
+        'delivery_type' => $deliveryType,
+        'allocation_group' => trim((string) (isset($assignment->allocation_group_label)
+          ? $assignment->allocation_group_label
+          : ('Group ' . (int) ($assignment->allocation_group ?? 0)))),
+        'student_count' => (int) $studentCount,
+        'shift' => ucfirst(strtolower(trim((string) ($routine->shift ?? 'common')))),
+        'room' => trim((string) ($assignment->room ?? '')),
+        'primary_faculty' => trim((string) ($assignment->faculty->FIRST_NAME ?? '') . ' ' . (string) ($assignment->faculty->LAST_NAME ?? '')),
+      ];
+    })->values();
+
+
+    return view('faculty.courseroster.index', [
+      'assignmentRows' => $assignmentRows,
+    ]);
+  }
+
+  function createCourseRoster($id, $code)
+  {
+    $facultyId = $this->getCurrentFacultyId();
+    $routineId = (int) $id;
+
+    $routine = SubjectHasRoutine::with([
+      'syllabus.subject:id,campus_id,title',
+      'syllabus.batchmaster:id,batch_name',
+      'syllabus.semestermaster:id,title',
+      'syllabus.courseLink.courseMaster:id,course_code,course_title',
+      'teachingAssignment:id,course_id,allocation_group',
+      'teachingAllocation:id,course_id,allocation_group',
+    ])->find($routineId);
+
+    if (!$routine || !$routine->syllabus) {
+      return redirect()->route('faculty.student.course.roster')->with('error', 'Invalid routine selected.');
+    }
+
+    $record = $routine->teachingAssignment ?: $routine->teachingAllocation;
+    if (!$record) {
+      return redirect()->route('faculty.student.course.roster')->with('error', 'No teaching assignment found for this routine.');
+    }
+
+    $hasAssignmentAccess = (int) ($record->faculty_id ?? 0) === $facultyId
+      || $record->facultyAssignments()->where('faculty_id', $facultyId)->exists()
+      || $record->coFacultyMembers()->where('faculties.id', $facultyId)->exists();
+
+    if ($facultyId <= 0 || !$hasAssignmentAccess) {
+      return redirect()->route('faculty.student.course.roster')->with('error', 'You are not allotted for this teaching assignment.');
+    }
+
+    $courseId = (int) ($routine->syllabus->course_id ?? ($record->course_id ?? 0));
+    $batchId = (int) ($routine->syllabus->batch_id ?? 0);
+    $semesterId = (int) ($routine->syllabus->semester_id ?? 0);
+    $campusId = (int) ($routine->syllabus->subject->campus_id ?? 0);
+
+    if ($courseId <= 0 || $batchId <= 0 || $semesterId <= 0) {
+      return redirect()->route('faculty.student.course.roster')->with('error', 'Missing course, batch, or semester context.');
+    }
+
+    $studentsQuery = StudentMaster::query()
+      ->where('is_deleted', 0)
+      ->where('is_left', 0)
+      ->where('batch', $batchId)
+      ->orderBy('roll_no')
+      ->orderBy('first_name');
+
+    if ($campusId > 0) {
+      $studentsQuery->where('campus_id', $campusId);
+    }
+
+    $students = $studentsQuery
+      ->get(['id', 'first_name', 'last_name', 'roll_no', 'register_no', 'campus_id'])
+      ->values();
+
+    $existingStudentIds = StudentCourseRoster::query()
+      ->where('ta_id', (int) $record->id)
+      ->where('course_id', $courseId)
+      ->whereIn('student_id', $students->pluck('id')->all())
+      ->pluck('student_id')
+      ->map(fn($studentId) => (int) $studentId)
+      ->all();
+
+    return view('faculty.courseroster.create', [
+      'routine' => $routine,
+      'students' => $students,
+      'record' => $record,
+      'existingStudentIds' => $existingStudentIds,
+      'courseId' => $courseId,
+      'batchId' => $batchId,
+      'semesterId' => $semesterId,
+    ]);
+  }
+
+  public function storeCourseRoster(Request $request, $id, $code)
+  {
+    $facultyId = $this->getCurrentFacultyId();
+    $routineId = (int) $id;
+
+    $routine = SubjectHasRoutine::with([
+      'syllabus.subject:id,campus_id',
+      'syllabus.batchmaster:id,batch_name',
+      'teachingAssignment:id,allocation_group',
+      'teachingAllocation:id,allocation_group',
+    ])->find($routineId);
+
+    if (!$routine || !$routine->syllabus) {
+      if ($request->expectsJson() || $request->ajax()) {
+        return response()->json(['success' => false, 'message' => 'Invalid routine selected.'], 404);
+      }
+      return redirect()->route('faculty.student.course.roster')->with('error', 'Invalid routine selected.');
+    }
+
+    $record = $routine->teachingAssignment ?: $routine->teachingAllocation;
+    if (!$record) {
+      if ($request->expectsJson() || $request->ajax()) {
+        return response()->json(['success' => false, 'message' => 'No teaching assignment found for this routine.'], 422);
+      }
+      return redirect()->route('faculty.student.course.roster')->with('error', 'No teaching assignment found for this routine.');
+    }
+
+    $hasAssignmentAccess = (int) ($record->faculty_id ?? 0) === $facultyId
+      || $record->facultyAssignments()->where('faculty_id', $facultyId)->exists()
+      || $record->coFacultyMembers()->where('faculties.id', $facultyId)->exists();
+
+    if ($facultyId <= 0 || !$hasAssignmentAccess) {
+      if ($request->expectsJson() || $request->ajax()) {
+        return response()->json(['success' => false, 'message' => 'You are not allotted for this teaching assignment.'], 403);
+      }
+      return redirect()->route('faculty.student.course.roster')->with('error', 'You are not allotted for this teaching assignment.');
+    }
+
+    $courseId = (int) ($routine->syllabus->course_id ?? 0);
+    $batchId = (int) ($routine->syllabus->batch_id ?? 0);
+    $semesterId = (int) ($routine->syllabus->semester_id ?? 0);
+    $campusId = (int) ($routine->syllabus->subject->campus_id ?? 0);
+    $academicYear = (string) ($routine->syllabus->batchmaster->batch_name ?? '');
+
+    if ($courseId <= 0 || $batchId <= 0 || $semesterId <= 0 || $academicYear === '') {
+      if ($request->expectsJson() || $request->ajax()) {
+        return response()->json(['success' => false, 'message' => 'Course roster context is incomplete.'], 422);
+      }
+      return redirect()->route('faculty.student.course.roster')->with('error', 'Course roster context is incomplete.');
+    }
+
+    $request->validate([
+      'student_ids' => 'required|array|min:1',
+      'student_ids.*' => 'integer|exists:student_masters,id',
+    ]);
+
+    $selectedStudentIds = collect($request->input('student_ids', []))
+      ->map(fn($studentId) => (int) $studentId)
+      ->filter(fn($studentId) => $studentId > 0)
+      ->unique()
+      ->values();
+
+    if ($selectedStudentIds->isEmpty()) {
+      if ($request->expectsJson() || $request->ajax()) {
+        return response()->json(['success' => false, 'message' => 'Please select at least one student.'], 422);
+      }
+      return back()->with('error', 'Please select at least one student.')->withInput();
+    }
+
+    $eligibleStudentsQuery = StudentMaster::query()
+      ->whereIn('id', $selectedStudentIds->all())
+      ->where('is_deleted', 0)
+      ->where('is_left', 0)
+      ->where('batch', $batchId);
+
+    if ($campusId > 0) {
+      $eligibleStudentsQuery->where('campus_id', $campusId);
+    }
+
+    $eligibleStudents = $eligibleStudentsQuery->get(['id', 'campus_id']);
+    $eligibleStudentIds = $eligibleStudents->pluck('id')->map(fn($studentId) => (int) $studentId)->all();
+
+    if (count($eligibleStudentIds) === 0) {
+      if ($request->expectsJson() || $request->ajax()) {
+        return response()->json(['success' => false, 'message' => 'No valid students were selected for this course roster.'], 422);
+      }
+      return back()->with('error', 'No valid students were selected for this course roster.')->withInput();
+    }
+
+    $existingStudentIds = StudentCourseRoster::query()
+      ->where('ta_id', (int) $record->id)
+      ->where('course_id', $courseId)
+      ->whereIn('student_id', $eligibleStudentIds)
+      ->pluck('student_id')
+      ->map(fn($studentId) => (int) $studentId)
+      ->all();
+
+    $existingMap = array_flip($existingStudentIds);
+    $affected = 0;
+    $skipped = 0;
+    foreach ($eligibleStudentIds as $studentId) {
+      if (isset($existingMap[$studentId])) {
+        $skipped++;
+        continue;
+      }
+
+      StudentCourseRoster::create([
+        'ta_id' => (int) $record->id,
+        'course_id' => $courseId,
+        'student_id' => $studentId,
+      ]);
+      $affected++;
+    }
+
+    $message = $affected . ' student(s) added to course roster.';
+    if ($skipped > 0) {
+      $message .= ' ' . $skipped . ' already present (skipped).';
+    }
+
+    if ($request->expectsJson() || $request->ajax()) {
+      return response()->json([
+        'success' => true,
+        'message' => $message,
+        'data' => [
+          'added' => $affected,
+          'skipped' => $skipped,
+        ],
+      ]);
+    }
+
+    return redirect()
+      ->route('faculty.course.roster.create', ['id' => $routineId, 'code' => $code])
+      ->with('success', $message);
+  }
+
+  public function viewCourseRoster($id, $code)
+  {
+    $facultyId = $this->getCurrentFacultyId();
+    $routineId = (int) $id;
+
+    $routine = SubjectHasRoutine::with([
+      'syllabus.subject:id,campus_id,title',
+      'syllabus.batchmaster:id,batch_name',
+      'syllabus.semestermaster:id,title',
+      'syllabus.courseLink.courseMaster:id,course_code,course_title',
+      'teachingAssignment:id,course_id,allocation_group,faculty_id',
+      'teachingAllocation:id,course_id,allocation_group,faculty_id',
+    ])->find($routineId);
+
+    if (!$routine || !$routine->syllabus) {
+      return redirect()->route('faculty.student.course.roster')->with('error', 'Invalid routine selected.');
+    }
+
+    $record = $routine->teachingAssignment ?: $routine->teachingAllocation;
+    if (!$record) {
+      return redirect()->route('faculty.student.course.roster')->with('error', 'No teaching assignment found for this routine.');
+    }
+
+    $hasAssignmentAccess = (int) ($record->faculty_id ?? 0) === $facultyId
+      || $record->facultyAssignments()->where('faculty_id', $facultyId)->exists()
+      || $record->coFacultyMembers()->where('faculties.id', $facultyId)->exists();
+
+    if ($facultyId <= 0 || !$hasAssignmentAccess) {
+      return redirect()->route('faculty.student.course.roster')->with('error', 'You are not allotted for this teaching assignment.');
+    }
+
+    $courseId = (int) ($routine->syllabus->course_id ?? ($record->course_id ?? 0));
+    if ($courseId <= 0) {
+      return redirect()->route('faculty.student.course.roster')->with('error', 'Invalid course context for roster list.');
+    }
+
+    $rosterRows = StudentCourseRoster::query()
+      ->with('studentmaster:id,roll_no,register_no,first_name,last_name')
+      ->where('ta_id', (int) $record->id)
+      ->where('course_id', $courseId)
+      ->orderByDesc('id')
+      ->get();
+
+    return view('faculty.courseroster.list', [
+      'routine' => $routine,
+      'record' => $record,
+      'courseId' => $courseId,
+      'rosterRows' => $rosterRows,
+    ]);
+  }
+
+  public function exportCourseRoster($id, $code)
+  {
+    $facultyId = $this->getCurrentFacultyId();
+    $routineId = (int) $id;
+
+    $routine = SubjectHasRoutine::with([
+      'syllabus.subject:id,title',
+      'syllabus.batchmaster:id,batch_name',
+      'syllabus.semestermaster:id,title',
+      'syllabus.courseLink.courseMaster:id,course_code,course_title',
+      'teachingAssignment:id,course_id,faculty_id',
+      'teachingAllocation:id,course_id,faculty_id',
+    ])->find($routineId);
+
+    if (!$routine || !$routine->syllabus) {
+      return redirect()->route('faculty.student.course.roster')->with('error', 'Invalid routine selected.');
+    }
+
+    $record = $routine->teachingAssignment ?: $routine->teachingAllocation;
+    if (!$record) {
+      return redirect()->route('faculty.student.course.roster')->with('error', 'No teaching assignment found for this routine.');
+    }
+
+    $hasAssignmentAccess = (int) ($record->faculty_id ?? 0) === $facultyId
+      || $record->facultyAssignments()->where('faculty_id', $facultyId)->exists()
+      || $record->coFacultyMembers()->where('faculties.id', $facultyId)->exists();
+
+    if ($facultyId <= 0 || !$hasAssignmentAccess) {
+      return redirect()->route('faculty.student.course.roster')->with('error', 'You are not allotted for this teaching assignment.');
+    }
+
+    $courseId = (int) ($routine->syllabus->course_id ?? ($record->course_id ?? 0));
+
+    $rows = StudentCourseRoster::query()
+      ->with('studentmaster:id,roll_no,register_no,first_name,last_name')
+      ->where('ta_id', (int) $record->id)
+      ->where('course_id', $courseId)
+      ->orderBy('id')
+      ->get();
+
+    $courseCode = trim((string) ($routine->syllabus->courseLink->courseMaster->course_code ?? (string) $code));
+    $safeCode = preg_replace('/[^A-Za-z0-9_\-]/', '_', $courseCode ?: 'course');
+    $fileName = 'course_roster_' . $safeCode . '_' . now()->format('Ymd_His') . '.xlsx';
+
+    return Excel::download(new CourseRosterExport($rows), $fileName);
+  }
+
+  public function removeCourseRosterStudent(Request $request, $id, $code, $studentId)
+  {
+    $facultyId = $this->getCurrentFacultyId();
+    $routineId = (int) $id;
+    $targetStudentId = (int) $studentId;
+
+    $routine = SubjectHasRoutine::with([
+      'syllabus:id,course_id',
+      'teachingAssignment:id,course_id,faculty_id',
+      'teachingAllocation:id,course_id,faculty_id',
+    ])->find($routineId);
+
+    if (!$routine || !$routine->syllabus) {
+      if ($request->expectsJson() || $request->ajax()) {
+        return response()->json(['success' => false, 'message' => 'Invalid routine selected.'], 404);
+      }
+      return redirect()->route('faculty.student.course.roster')->with('error', 'Invalid routine selected.');
+    }
+
+    $record = $routine->teachingAssignment ?: $routine->teachingAllocation;
+    if (!$record) {
+      if ($request->expectsJson() || $request->ajax()) {
+        return response()->json(['success' => false, 'message' => 'No teaching assignment found for this routine.'], 422);
+      }
+      return redirect()->route('faculty.student.course.roster')->with('error', 'No teaching assignment found for this routine.');
+    }
+
+    $hasAssignmentAccess = (int) ($record->faculty_id ?? 0) === $facultyId
+      || $record->facultyAssignments()->where('faculty_id', $facultyId)->exists()
+      || $record->coFacultyMembers()->where('faculties.id', $facultyId)->exists();
+
+    if ($facultyId <= 0 || !$hasAssignmentAccess) {
+      if ($request->expectsJson() || $request->ajax()) {
+        return response()->json(['success' => false, 'message' => 'You are not allotted for this teaching assignment.'], 403);
+      }
+      return redirect()->route('faculty.student.course.roster')->with('error', 'You are not allotted for this teaching assignment.');
+    }
+
+    $courseId = (int) ($routine->syllabus->course_id ?? ($record->course_id ?? 0));
+
+    $deleted = StudentCourseRoster::query()
+      ->where('ta_id', (int) $record->id)
+      ->where('course_id', $courseId)
+      ->where('student_id', $targetStudentId)
+      ->delete();
+
+    if ($deleted <= 0) {
+      if ($request->expectsJson() || $request->ajax()) {
+        return response()->json(['success' => false, 'message' => 'Student is not present in this roster.'], 404);
+      }
+      return redirect()
+        ->route('faculty.course.roster.list', ['id' => $routineId, 'code' => $code])
+        ->with('error', 'Student is not present in this roster.');
+    }
+
+    if ($request->expectsJson() || $request->ajax()) {
+      return response()->json([
+        'success' => true,
+        'message' => 'Student removed from roster.',
+        'data' => [
+          'student_id' => $targetStudentId,
+        ],
+      ]);
+    }
+
+    return redirect()
+      ->route('faculty.course.roster.list', ['id' => $routineId, 'code' => $code])
+      ->with('success', 'Student removed from roster.');
   }
 }

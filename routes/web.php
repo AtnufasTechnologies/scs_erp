@@ -1118,6 +1118,14 @@ Route::group(['prefix' => '/erp'], function () {
         Route::get('fa1/{id}/results', [FacultyQuizController::class, 'results'])->name('faculty.fa1.results');
         Route::get('fa1/{id}/results/export', [FacultyQuizController::class, 'exportResults'])->name('faculty.fa1.results.export');
         Route::post('fa1/{id}/allow-attempts', [FacultyQuizController::class, 'allowAttempts'])->name('faculty.fa1.allow-attempts');
+
+        //student class roster
+        Route::get('student-course-roster', [FacultyAttendanceController::class, 'studentCourseRoster'])->name('faculty.student.course.roster');
+        Route::get('course-roster/{id}/{code}', [FacultyAttendanceController::class, 'createCourseRoster'])->name('faculty.course.roster.create');
+        Route::get('course-roster/{id}/{code}/list', [FacultyAttendanceController::class, 'viewCourseRoster'])->name('faculty.course.roster.list');
+        Route::get('course-roster/{id}/{code}/export', [FacultyAttendanceController::class, 'exportCourseRoster'])->name('faculty.course.roster.export');
+        Route::post('course-roster/{id}/{code}', [FacultyAttendanceController::class, 'storeCourseRoster'])->name('faculty.course.roster.store');
+        Route::delete('course-roster/{id}/{code}/student/{studentId}', [FacultyAttendanceController::class, 'removeCourseRosterStudent'])->name('faculty.course.roster.student.remove');
     });
 
 
