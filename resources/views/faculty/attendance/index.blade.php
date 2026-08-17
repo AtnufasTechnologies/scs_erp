@@ -90,10 +90,10 @@
               <!-- Subject Selection Dropdown -->
               <div class="mb-4">
                 <label for="subjectSelectQr" class="form-label fw-bold">
-                  <i class="fa fa-book me-2"></i>Select Subject
+                  <i class="fa fa-book me-2"></i>Select Course
                 </label>
                 <select class="form-select js-subject-select" id="subjectSelectQr">
-                  <option value="" selected disabled>Choose a subject...</option>
+                  <option value="" selected disabled>Choose a Course...</option>
                   @foreach($syllabusAssignments as $item)
                   @php
                   $deliveryType = trim((string) ($item->teachingAssignment->delivery_type ?? $item->teachingAllocation->delivery_type ?? 'Regular'));
@@ -155,12 +155,14 @@
                   </div>
                 </div>
               </div>
-
               <div class="mb-4 text-center">
+                <button type="button" class="btn btn-danger btn-lg mt-3" disabled>Coming Soon...</button>
+              </div>
+              <!-- <div class="mb-4 text-center">
                 <button type="button" class="btn btn-success btn-lg mt-3 js-load-students" id="btnLoadStudentsQr" disabled>
                   Generate QR <i class="fal fa-qrcode"></i>
                 </button>
-              </div>
+              </div> -->
 
             </div>
           </div>
@@ -174,10 +176,10 @@
 
               <div class="mb-4">
                 <label for="subjectSelectManual" class="form-label fw-bold">
-                  <i class="fa fa-book me-2"></i>Select Subject
+                  <i class="fa fa-book me-2"></i>Select Course
                 </label>
                 <select class="form-select js-subject-select" id="subjectSelectManual">
-                  <option value="" selected disabled>Choose a subject...</option>
+                  <option value="" selected disabled>Choose a Course...</option>
                   @foreach($syllabusAssignments as $item)
                   @php
                   $deliveryType = trim((string) ($item->teachingAssignment->delivery_type ?? $item->teachingAllocation->delivery_type ?? 'Regular'));

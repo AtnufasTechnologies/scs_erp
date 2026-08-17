@@ -985,7 +985,7 @@ class AttendanceController extends Controller
       ->orderBy('syllabus_id')
       ->orderBy('shift')
       ->get()
-      ->unique(fn($routine) => (string) ($routine->syllabus_id ?? '0') . '_' . strtolower(trim((string) ($routine->shift ?? 'common'))))
+      // ->unique(fn($routine) => (string) ($routine->syllabus_id ?? '0') . '_' . strtolower(trim((string) ($routine->shift ?? 'common'))))
       ->values();
 
     return view('faculty.attendance.index', [
