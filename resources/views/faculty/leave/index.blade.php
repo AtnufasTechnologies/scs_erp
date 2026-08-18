@@ -29,7 +29,7 @@
     <!-- Stats Cards -->
     <div class="row mb-4 g-3">
       <div class="col-md-3 col-sm-6">
-        <div class="card shadow-sm border-0 h-100 hover-lift">
+        <div class="stat-card   hover-lift">
           <div class="card-body">
             <div class="d-flex align-items-center justify-content-between">
               <div>
@@ -37,8 +37,8 @@
                 <h3 class="mb-0 fw-bold text-warning">{{ $stats['pending'] }}</h3>
                 <small class="text-muted mt-1 d-block">Awaiting approval</small>
               </div>
-              <div class="icon-wrapper bg-warning bg-opacity-10 rounded-circle p-3" style="width: 60px; height: 60px; display: flex; align-items: center; justify-content: center;">
-                <i class="fas fa-clock text-warning"></i>
+              <div class="icon-wrapper bg-secondary bg-opacity-10 rounded-circle p-3" style="width: 60px; height: 60px; display: flex; align-items: center; justify-content: center;">
+                <i class="fas fa-clock " style="font-size: 2.5rem;"></i>
               </div>
             </div>
           </div>
@@ -52,7 +52,7 @@
       </div>
 
       <div class="col-md-3 col-sm-6">
-        <div class="card shadow-sm border-0 h-100 hover-lift">
+        <div class="stat-card   hover-lift">
           <div class="card-body">
             <div class="d-flex align-items-center justify-content-between">
               <div>
@@ -60,7 +60,7 @@
                 <h3 class="mb-0 fw-bold text-success">{{ $stats['approved'] }}</h3>
                 <small class="text-muted mt-1 d-block">This session</small>
               </div>
-              <div class="icon-wrapper bg-success bg-opacity-10 rounded-circle p-3" style="width: 60px; height: 60px; display: flex; align-items: center; justify-content: center;">
+              <div class="icon-wrapper bg-secondary bg-opacity-10 rounded-circle p-3" style="width: 60px; height: 60px; display: flex; align-items: center; justify-content: center;">
                 <i class="fas fa-check-circle text-success" style="font-size: 2.5rem;"></i>
               </div>
             </div>
@@ -75,7 +75,7 @@
       </div>
 
       <div class="col-md-3 col-sm-6">
-        <div class="card shadow-sm border-0 h-100 hover-lift">
+        <div class="stat-card   hover-lift">
           <div class="card-body">
             <div class="d-flex align-items-center justify-content-between">
               <div>
@@ -83,7 +83,7 @@
                 <h3 class="mb-0 fw-bold text-danger">{{ $stats['rejected'] }}</h3>
                 <small class="text-muted mt-1 d-block">Not approved</small>
               </div>
-              <div class="icon-wrapper bg-danger bg-opacity-10 rounded-circle p-3" style="width: 60px; height: 60px; display: flex; align-items: center; justify-content: center;">
+              <div class="icon-wrapper bg-secondary bg-opacity-10 rounded-circle p-3" style="width: 60px; height: 60px; display: flex; align-items: center; justify-content: center;">
                 <i class="fas fa-times-circle text-danger" style="font-size: 2.5rem;"></i>
               </div>
             </div>
@@ -98,7 +98,7 @@
       </div>
 
       <div class="col-md-3 col-sm-6">
-        <div class="card shadow-sm border-0 h-100 hover-lift">
+        <div class="stat-card   hover-lift">
           <div class="card-body">
             <div class="d-flex align-items-center justify-content-between">
               <div>
@@ -106,7 +106,7 @@
                 <h3 class="mb-0 fw-bold text-primary">{{ $stats['total'] }}</h3>
                 <small class="text-muted mt-1 d-block">All applications</small>
               </div>
-              <div class="icon-wrapper bg-primary bg-opacity-10 rounded-circle p-3" style="width: 60px; height: 60px; display: flex; align-items: center; justify-content: center;">
+              <div class="icon-wrapper bg-secondary bg-opacity-10 rounded-circle p-3" style="width: 60px; height: 60px; display: flex; align-items: center; justify-content: center;">
                 <i class="fas fa-file-alt text-primary" style="font-size: 2.5rem;"></i>
               </div>
             </div>
@@ -145,116 +145,80 @@
           </div>
           <div class="card-body p-4">
             <div class="row g-4">
-              <!-- Casual Leave -->
-              <div class="col-md-4">
-                <div class="leave-card p-4 border-start border-primary border-4 bg-light rounded-3 h-100">
-                  <div class="d-flex align-items-start justify-content-between mb-3">
-                    <div>
-                      <div class="d-flex align-items-center gap-2 mb-1">
-                        <i class="fas fa-umbrella-beach text-primary" style="font-size: 1.25rem;"></i>
-                        <h6 class="mb-0 fw-bold text-primary">Casual Leave</h6>
+              @forelse($leaveDaysByType as $leaveType)
+              @php
+              $allowedDays = $leaveType['allowed'];
+              $takenDays = (float) ($leaveType['taken'] ?? 0);
+              $isUnlimited = is_null($allowedDays);
+              $badgeColor = (string) ($leaveType['badge_color'] ?? 'primary');
+              $code = strtoupper((string) ($leaveType['code'] ?? ''));
+              $normalizedCode = strtolower((string) ($leaveType['code'] ?? ''));
+              $remainingDays = $isUnlimited ? null : max(0, (float) $allowedDays - $takenDays);
+              $progressPercent = $isUnlimited
+              ? min(100, $takenDays > 0 ? ($takenDays / 15) * 100 : 0)
+              : ((float) $allowedDays > 0 ? min(100, ($takenDays / (float) $allowedDays) * 100) : 0);
+              $utilizedPercent = $isUnlimited || (float) $allowedDays <= 0
+                ? null
+                : number_format(($takenDays / (float) $allowedDays) * 100, 0);
+                $isLimitReached=!$isUnlimited && (float) $allowedDays> 0 && $takenDays >= (float) $allowedDays;
+                $iconClass = match ($normalizedCode) {
+                'casual', 'cl' => 'fa-umbrella-beach',
+                'sick', 'sl' => 'fa-notes-medical',
+                'earned', 'el' => 'fa-award',
+                default => 'fa-calendar-check',
+                };
+                @endphp
+                <div class="col-lg-4 col-md-6">
+                  <div class="leave-card p-4 border-start border-{{ $badgeColor }} border-4 bg-light rounded-3 h-100">
+                    <div class="d-flex align-items-start justify-content-between mb-3">
+                      <div>
+                        <div class="d-flex align-items-center gap-2 mb-1">
+                          <i class="fas {{ $iconClass }} text-{{ $badgeColor }}" style="font-size: 1.25rem;"></i>
+                          <h6 class="mb-0 fw-bold text-{{ $badgeColor }}">{{ $leaveType['name'] }}</h6>
+                        </div>
+                        <small class="text-muted">{{ $code !== '' ? $code : 'LEAVE' }}</small>
                       </div>
-                      <small class="text-muted">CL</small>
+                      <span class="badge bg-{{ $badgeColor }} rounded-pill px-3 py-2" style="font-size: 0.85rem;">
+                        @if($isUnlimited)
+                        Unlimited
+                        @else
+                        {{ number_format($remainingDays, 0) }} left
+                        @endif
+                      </span>
                     </div>
-                    <span class="badge bg-primary rounded-pill px-3 py-2" style="font-size: 0.85rem;">
-                      {{ max(0, 10 - $casualLeaves) }} left
-                    </span>
-                  </div>
-                  <div class="mb-3">
-                    <div class="d-flex justify-content-between mb-2">
-                      <span class="text-muted small">Used</span>
-                      <span class="fw-bold text-primary">{{ $casualLeaves }} / 10 days</span>
-                    </div>
-                    <div class="progress" style="height: 10px; border-radius: 10px;">
-                      <div class="progress-bar bg-primary" role="progressbar"
-                        style="width: {{ min(100, ($casualLeaves / 10) * 100) }}%; border-radius: 10px;">
+                    <div class="mb-3">
+                      <div class="d-flex justify-content-between mb-2">
+                        <span class="text-muted small">Used</span>
+                        <span class="fw-bold text-{{ $badgeColor }}">
+                          @if($isUnlimited)
+                          {{ number_format($takenDays, 0) }} days
+                          @else
+                          {{ number_format($takenDays, 0) }} / {{ number_format((float) $allowedDays, 0) }} days
+                          @endif
+                        </span>
+                      </div>
+                      <div class="progress" style="height: 10px; border-radius: 10px;">
+                        <div class="progress-bar bg-{{ $badgeColor }}" role="progressbar"
+                          style="width: {{ $progressPercent }}%; border-radius: 10px;">
+                        </div>
                       </div>
                     </div>
-                  </div>
-                  <div class="d-flex justify-content-between align-items-center">
-                    <small class="text-muted">
-                      <i class="fas fa-circle" style="font-size: 6px;"></i>
-                      {{ number_format((($casualLeaves / 10) * 100), 0) }}% utilized
-                    </small>
-                    @if($casualLeaves >= 10)
-                    <small class="text-danger fw-bold"><i class="fas fa-exclamation-triangle"></i> Limit reached</small>
-                    @endif
+                    <div class="d-flex justify-content-between align-items-center">
+                      <small class="text-muted">
+                        <i class="fas fa-circle" style="font-size: 6px;"></i>
+                        {{ $isUnlimited ? 'No limit applicable' : $utilizedPercent . '% utilized' }}
+                      </small>
+                      @if($isLimitReached)
+                      <small class="text-danger fw-bold"><i class="fas fa-exclamation-triangle"></i> Limit reached</small>
+                      @endif
+                    </div>
                   </div>
                 </div>
-              </div>
-
-              <!-- Sick Leave -->
-              <div class="col-md-4">
-                <div class="leave-card p-4 border-start border-danger border-4 bg-light rounded-3 h-100">
-                  <div class="d-flex align-items-start justify-content-between mb-3">
-                    <div>
-                      <div class="d-flex align-items-center gap-2 mb-1">
-                        <i class="fas fa-notes-medical text-danger" style="font-size: 1.25rem;"></i>
-                        <h6 class="mb-0 fw-bold text-danger">Sick Leave</h6>
-                      </div>
-                      <small class="text-muted">SL</small>
-                    </div>
-                    <span class="badge bg-danger rounded-pill px-3 py-2" style="font-size: 0.85rem;">
-                      Unlimited
-                    </span>
-                  </div>
-                  <div class="mb-3">
-                    <div class="d-flex justify-content-between mb-2">
-                      <span class="text-muted small">Used</span>
-                      <span class="fw-bold text-danger">{{ $sickLeaves }} days</span>
-                    </div>
-                    <div class="progress" style="height: 10px; border-radius: 10px;">
-                      <div class="progress-bar bg-danger bg-gradient" role="progressbar"
-                        style="width: {{ min(100, ($sickLeaves / 15) * 100) }}%; border-radius: 10px;">
-                      </div>
-                    </div>
-                  </div>
-                  <div class="d-flex justify-content-between align-items-center">
-                    <small class="text-muted">
-                      <i class="fas fa-circle" style="font-size: 6px;"></i>
-                      No limit applicable
-                    </small>
-                  </div>
+                @empty
+                <div class="col-12">
+                  <div class="alert alert-info mb-0">No active leave types configured in HR setup.</div>
                 </div>
-              </div>
-
-              <!-- Earned Leave -->
-              <div class="col-md-4">
-                <div class="leave-card p-4 border-start border-success border-4 bg-light rounded-3 h-100">
-                  <div class="d-flex align-items-start justify-content-between mb-3">
-                    <div>
-                      <div class="d-flex align-items-center gap-2 mb-1">
-                        <i class="fas fa-award text-success" style="font-size: 1.25rem;"></i>
-                        <h6 class="mb-0 fw-bold text-success">Earned Leave</h6>
-                      </div>
-                      <small class="text-muted">EL</small>
-                    </div>
-                    <span class="badge bg-success rounded-pill px-3 py-2" style="font-size: 0.85rem;">
-                      {{ max(0, 25 - $earnedLeaves) }} left
-                    </span>
-                  </div>
-                  <div class="mb-3">
-                    <div class="d-flex justify-content-between mb-2">
-                      <span class="text-muted small">Used</span>
-                      <span class="fw-bold text-success">{{ $earnedLeaves }} / 25 days</span>
-                    </div>
-                    <div class="progress" style="height: 10px; border-radius: 10px;">
-                      <div class="progress-bar bg-success" role="progressbar"
-                        style="width: {{ min(100, ($earnedLeaves / 25) * 100) }}%; border-radius: 10px;">
-                      </div>
-                    </div>
-                  </div>
-                  <div class="d-flex justify-content-between align-items-center">
-                    <small class="text-muted">
-                      <i class="fas fa-circle" style="font-size: 6px;"></i>
-                      {{ number_format((($earnedLeaves / 25) * 100), 0) }}% utilized
-                    </small>
-                    @if($earnedLeaves >= 25)
-                    <small class="text-danger fw-bold"><i class="fas fa-exclamation-triangle"></i> Limit reached</small>
-                    @endif
-                  </div>
-                </div>
-              </div>
+                @endforelse
             </div>
           </div>
         </div>

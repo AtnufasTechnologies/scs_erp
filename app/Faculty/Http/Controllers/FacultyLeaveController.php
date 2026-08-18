@@ -76,47 +76,10 @@ class FacultyLeaveController extends Controller
       ];
     }
 
-    // For backward compatibility - calculate old leave type stats
-    $casualLeaves = FacultyLeaveApplication::where('faculty_id', $facultyId)
-      ->currentSession()
-      ->approved()
-      ->where(function ($q) {
-        $q->where('leave_type', 'casual')
-          ->orWhereHas('leaveMaster', function ($sq) {
-            $sq->where('leave_type_code', 'CL');
-          });
-      })
-      ->sum('total_days');
-
-    $sickLeaves = FacultyLeaveApplication::where('faculty_id', $facultyId)
-      ->currentSession()
-      ->approved()
-      ->where(function ($q) {
-        $q->where('leave_type', 'sick')
-          ->orWhereHas('leaveMaster', function ($sq) {
-            $sq->where('leave_type_code', 'SL');
-          });
-      })
-      ->sum('total_days');
-
-    $earnedLeaves = FacultyLeaveApplication::where('faculty_id', $facultyId)
-      ->currentSession()
-      ->approved()
-      ->where(function ($q) {
-        $q->where('leave_type', 'earned')
-          ->orWhereHas('leaveMaster', function ($sq) {
-            $sq->where('leave_type_code', 'EL');
-          });
-      })
-      ->sum('total_days');
-
     return view('faculty.leave.index', compact(
       'leaveApplications',
       'stats',
       'filter',
-      'casualLeaves',
-      'sickLeaves',
-      'earnedLeaves',
       'leaveDaysByType'
     ));
   }
