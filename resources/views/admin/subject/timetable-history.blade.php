@@ -101,6 +101,10 @@
     text-align: left;
     font-size: 12px;
   }
+
+  .tt-hidden {
+    display: none !important;
+  }
 </style>
 
 <div class="main-content tt-history-shell">
@@ -116,11 +120,25 @@
       </div>
     </div>
 
+    <div class="card border-0 shadow-sm mb-3">
+      <div class="card-body py-3">
+        <div class="row g-2 align-items-center">
+          <div class="col-md-8 col-lg-6">
+            <label for="historyCourseSearch" class="form-label mb-1 fw-semibold">Search Course In History</label>
+            <input type="text" id="historyCourseSearch" class="form-control" placeholder="Type course code or title...">
+          </div>
+          <div class="col-md-4 col-lg-6 d-flex align-items-end">
+            <small class="text-muted" id="historySearchMeta">Showing all timetable slots</small>
+          </div>
+        </div>
+      </div>
+    </div>
+
     @if(($groups ?? collect())->isEmpty())
     <div class="alert alert-info">No timetable records found for any batch/semester.</div>
     @else
     @foreach($groups as $group)
-    <div class="card tt-history-card">
+    <div class="card tt-history-card" data-history-group>
       <div class="card-header d-flex flex-wrap justify-content-between align-items-center gap-2">
         <div class="fw-semibold">
           {{ $group['batch_name'] ?? 'Batch' }} | {{ $group['semester_title'] ?? 'Semester' }}
@@ -155,7 +173,10 @@
                   @else
                   <div class="tt-cell-count">{{ count($slots) }} item(s)</div>
                   @foreach($slots as $slot)
-                  <div class="tt-slot">
+                  @php
+                  $slotCourseSearch = strtolower(trim((string) ($slot['course'] ?? '')));
+                  @endphp
+                  <div class="tt-slot" data-course-search="{{ $slotCourseSearch }}">
                     <div class="fw-semibold">
                       {{ $slot['course'] ?? '-' }}
                       @if(!empty($slot['is_group_teaching']))
@@ -197,5 +218,73 @@
     @endif
   </div>
 </div>
+
+<script>
+  (function() {
+    const searchInput = document.getElementById('historyCourseSearch');
+    const searchMeta = document.getElementById('historySearchMeta');
+    const groups = Array.from(document.querySelectorAll('[data-history-group]'));
+
+    if (!searchInput || groups.length === 0) {
+      return;
+    }
+
+    function updateCellCounter(cell) {
+      const countLabel = cell.querySelector('.tt-cell-count');
+      if (!countLabel) {
+        return;
+      }
+
+      const visibleSlots = cell.querySelectorAll('.tt-slot:not(.tt-hidden)').length;
+      if (visibleSlots > 0) {
+        countLabel.classList.remove('tt-hidden');
+        countLabel.textContent = visibleSlots + ' item(s)';
+      } else {
+        countLabel.classList.add('tt-hidden');
+      }
+    }
+
+    function applyFilter() {
+      const term = (searchInput.value || '').trim().toLowerCase();
+      let visibleSlotCount = 0;
+      let visibleGroupCount = 0;
+
+      groups.forEach((group) => {
+        const slots = Array.from(group.querySelectorAll('.tt-slot'));
+        let groupHasVisibleSlots = false;
+
+        slots.forEach((slot) => {
+          const haystack = (slot.getAttribute('data-course-search') || '').toLowerCase();
+          const matched = term === '' || haystack.includes(term);
+          slot.classList.toggle('tt-hidden', !matched);
+
+          if (matched) {
+            groupHasVisibleSlots = true;
+            visibleSlotCount += 1;
+          }
+        });
+
+        const cells = Array.from(group.querySelectorAll('.tt-period-cell'));
+        cells.forEach((cell) => {
+          updateCellCounter(cell);
+        });
+
+        group.classList.toggle('tt-hidden', term !== '' && !groupHasVisibleSlots);
+        if (!group.classList.contains('tt-hidden')) {
+          visibleGroupCount += 1;
+        }
+      });
+
+      if (term === '') {
+        searchMeta.textContent = 'Showing all timetable slots';
+      } else {
+        searchMeta.textContent = 'Matched ' + visibleSlotCount + ' slot(s) in ' + visibleGroupCount + ' batch/semester group(s)';
+      }
+    }
+
+    searchInput.addEventListener('input', applyFilter);
+    applyFilter();
+  })();
+</script>
 
 @include('includes.footer')
