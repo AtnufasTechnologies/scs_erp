@@ -102,6 +102,7 @@ class QuizController extends Controller
   public function myQuizzes()
   {
     $fa1Component = $this->resolveFa1Component();
+    $facultyId = SubjectFacultyMaster::where('access_id', Auth::id())->value('faculty_id');
 
     $quizzes = Quiz::where('created_by', Auth::id())
       ->when($fa1Component, function ($query) use ($fa1Component) {
@@ -122,6 +123,93 @@ class QuizController extends Controller
       ])
       ->orderByDesc('id')
       ->get();
+
+    $deliveryTypeByAssignmentId = TeachingAssignment::query()
+      ->whereIn(
+        'id',
+        $quizzes
+          ->pluck('teaching_assignment_id')
+          ->map(fn($id) => (int) $id)
+          ->filter(fn($id) => $id > 0)
+          ->unique()
+          ->values()
+          ->all()
+      )
+      ->pluck('delivery_type', 'id')
+      ->map(function ($type) {
+        return strtoupper(trim((string) $type));
+      })
+      ->all();
+
+    $deliveryTypeBySyllabusId = [];
+    $syllabusIds = $quizzes
+      ->pluck('syllabus_id')
+      ->map(fn($id) => (int) $id)
+      ->filter(fn($id) => $id > 0)
+      ->unique()
+      ->values();
+
+    if ($facultyId && $syllabusIds->isNotEmpty()) {
+      $hasDeletedAtColumn = Schema::hasColumn('subject_has_routines', 'deleted_at');
+      $hasTeachingAllocationColumn = Schema::hasColumn('subject_has_routines', 'teaching_allocation_id');
+
+      $routineRelations = [
+        'teachingAssignment:id,delivery_type',
+      ];
+
+      if ($hasTeachingAllocationColumn) {
+        $routineRelations[] = 'teachingAllocation:id,delivery_type';
+      }
+
+      $routineSelectColumns = ['id', 'syllabus_id', 'teaching_assignment_id'];
+      if ($hasTeachingAllocationColumn) {
+        $routineSelectColumns[] = 'teaching_allocation_id';
+      }
+
+      $routines = $this->queryFacultyAssignedRoutines((int) $facultyId)
+        ->whereIn('syllabus_id', $syllabusIds->all())
+        ->with($routineRelations)
+        ->when($hasDeletedAtColumn, function ($query) {
+          $query->whereNull('deleted_at');
+        })
+        ->get($routineSelectColumns);
+
+      $deliveryTypeBySyllabusId = $routines
+        ->groupBy(function ($routine) {
+          return (int) ($routine->syllabus_id ?? 0);
+        })
+        ->map(function ($syllabusRoutines) {
+          return $syllabusRoutines
+            ->flatMap(function ($routine) {
+              return [
+                strtoupper(trim((string) ($routine->teachingAssignment->delivery_type ?? ''))),
+                strtoupper(trim((string) ($routine->teachingAllocation->delivery_type ?? ''))),
+              ];
+            })
+            ->filter(fn($type) => $type !== '')
+            ->unique()
+            ->values()
+            ->first() ?? 'N/A';
+        })
+        ->all();
+    }
+
+    $quizzes->transform(function ($quiz) use ($deliveryTypeByAssignmentId, $deliveryTypeBySyllabusId) {
+      $assignmentId = (int) ($quiz->teaching_assignment_id ?? 0);
+      $deliveryType = '';
+
+      if ($assignmentId > 0) {
+        $deliveryType = (string) ($deliveryTypeByAssignmentId[$assignmentId] ?? '');
+      }
+
+      if ($deliveryType === '') {
+        $deliveryType = (string) ($deliveryTypeBySyllabusId[(int) ($quiz->syllabus_id ?? 0)] ?? 'N/A');
+      }
+
+      $quiz->application_delivery_type = $deliveryType;
+      $quiz->expected_attendees = $this->expectedStudentCountForQuiz($quiz);
+      return $quiz;
+    });
 
     return view('faculty.quiz.my_quizzes', compact('quizzes'));
   }
@@ -627,7 +715,9 @@ class QuizController extends Controller
 
     $createdQuizId = null;
 
-    DB::transaction(function () use ($request, $syllabus, $facultyId, $fa1Component, &$createdQuizId, $allQuestions) {
+    $hasQuizTeachingAssignmentColumn = Schema::hasColumn('quizzes', 'teaching_assignment_id');
+
+    DB::transaction(function () use ($request, $syllabus, $facultyId, $fa1Component, $selectedAssignmentId, $hasQuizTeachingAssignmentColumn, &$createdQuizId, $allQuestions) {
       $nextCiaGroupId = ((int) DB::table('cia_group_component')->lockForUpdate()->max('CIA_GROUP_ID')) + 1;
       $nextOrderId = ((int) DB::table('cia_group_component')->lockForUpdate()->max('ORDER_ID')) + 1;
 
@@ -668,6 +758,10 @@ class QuizController extends Controller
         'is_published' => true,
         'created_by' => Auth::id(),
       ];
+
+      if ($hasQuizTeachingAssignmentColumn) {
+        $quizPayload['teaching_assignment_id'] = $selectedAssignmentId;
+      }
 
       $quiz = Quiz::create($quizPayload);
 
@@ -1002,9 +1096,8 @@ class QuizController extends Controller
       ];
     }
 
-    $routineQuery = SubjectHasRoutine::query()
-      ->where('syllabus_id', (int) $quiz->syllabus_id)
-      ->where('faculty_id', (int) $quiz->faculty_id);
+    $routineQuery = $this->queryFacultyAssignedRoutines((int) $quiz->faculty_id)
+      ->where('syllabus_id', (int) $quiz->syllabus_id);
 
     if (Schema::hasColumn('subject_has_routines', 'deleted_at')) {
       $routineQuery->whereNull('deleted_at');
@@ -1018,7 +1111,7 @@ class QuizController extends Controller
       $selectColumns[] = 'teaching_allocation_id';
     }
 
-    $assignmentIds = $routineQuery
+    $candidateAssignmentIds = $routineQuery
       ->get($selectColumns)
       ->flatMap(function ($routine) use ($hasTeachingAssignmentColumn, $hasTeachingAllocationColumn) {
         $ids = [];
@@ -1036,6 +1129,20 @@ class QuizController extends Controller
       ->filter(fn($id) => $id > 0)
       ->unique()
       ->values();
+
+    $selectedAssignmentId = (int) ($quiz->teaching_assignment_id ?? 0);
+
+    if ($selectedAssignmentId <= 0 && $candidateAssignmentIds->count() > 1) {
+      $selectedAssignmentId = $this->inferQuizAssignmentIdFromRoster($quiz, $candidateAssignmentIds);
+    }
+
+    if ($selectedAssignmentId <= 0) {
+      $selectedAssignmentId = (int) ($candidateAssignmentIds->first() ?? 0);
+    }
+
+    $assignmentIds = $selectedAssignmentId > 0
+      ? collect([$selectedAssignmentId])
+      : collect();
 
     $students = collect();
 
@@ -1071,6 +1178,43 @@ class QuizController extends Controller
       'source' => 'roster',
       'students' => $students,
     ];
+  }
+
+  private function inferQuizAssignmentIdFromRoster(Quiz $quiz, $candidateAssignmentIds): int
+  {
+    $candidateIds = collect($candidateAssignmentIds)
+      ->map(fn($id) => (int) $id)
+      ->filter(fn($id) => $id > 0)
+      ->unique()
+      ->values();
+
+    if ($candidateIds->count() < 2) {
+      return 0;
+    }
+
+    $attemptedStudentIds = QuizAttempt::query()
+      ->where('quiz_id', (int) $quiz->id)
+      ->pluck('student_id')
+      ->map(fn($id) => (int) $id)
+      ->filter(fn($id) => $id > 0)
+      ->unique()
+      ->values();
+
+    if ($attemptedStudentIds->isEmpty()) {
+      return 0;
+    }
+
+    $bestAssignmentId = StudentCourseRoster::query()
+      ->whereIn('ta_id', $candidateIds->all())
+      ->where('course_id', (int) $quiz->course_id)
+      ->whereIn('student_id', $attemptedStudentIds->all())
+      ->select('ta_id', DB::raw('COUNT(DISTINCT student_id) as matched_students'))
+      ->groupBy('ta_id')
+      ->orderByDesc('matched_students')
+      ->orderBy('ta_id')
+      ->value('ta_id');
+
+    return (int) ($bestAssignmentId ?? 0);
   }
 
   private function expectedStudentCountForQuiz(Quiz $quiz): int

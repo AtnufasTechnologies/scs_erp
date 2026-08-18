@@ -1,0 +1,28 @@
+<?php
+
+use Illuminate\Database\Migrations\Migration;
+use Illuminate\Database\Schema\Blueprint;
+use Illuminate\Support\Facades\Schema;
+
+return new class extends Migration
+{
+  public function up(): void
+  {
+    Schema::table('quizzes', function (Blueprint $table) {
+      if (!Schema::hasColumn('quizzes', 'teaching_assignment_id')) {
+        $table->unsignedBigInteger('teaching_assignment_id')->nullable()->after('syllabus_id');
+        $table->index('teaching_assignment_id');
+      }
+    });
+  }
+
+  public function down(): void
+  {
+    Schema::table('quizzes', function (Blueprint $table) {
+      if (Schema::hasColumn('quizzes', 'teaching_assignment_id')) {
+        $table->dropIndex(['teaching_assignment_id']);
+        $table->dropColumn('teaching_assignment_id');
+      }
+    });
+  }
+};

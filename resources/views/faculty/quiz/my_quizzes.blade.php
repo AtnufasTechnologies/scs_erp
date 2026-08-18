@@ -76,9 +76,20 @@
   }
 
   .quiz-page .quiz-actions {
-    display: grid;
-    grid-template-columns: 1fr;
+    display: flex;
+    flex-wrap: nowrap;
     gap: 0.35rem;
+    overflow-x: auto;
+    padding-bottom: 2px;
+  }
+
+  .quiz-page .quiz-actions .btn,
+  .quiz-page .quiz-actions form {
+    flex: 0 0 auto;
+  }
+
+  .quiz-page .quiz-actions .btn {
+    white-space: nowrap;
   }
 
   .quiz-page .timing-form {
@@ -169,12 +180,20 @@
                   <div>{{ $quiz->semestermaster->title ?? 'N/A' }}</div>
                 </div>
                 <div>
+                  <div class="k">Application Delivery Type</div>
+                  <div>{{ $quiz->application_delivery_type ?? 'N/A' }}</div>
+                </div>
+                <div>
                   <div class="k">Total Marks</div>
                   <div>{{ $quiz->total_marks }}</div>
                 </div>
                 <div>
                   <div class="k">Questions / Attempts</div>
                   <div>{{ $quiz->questions_count }} / {{ $quiz->submitted_attempts_count }}</div>
+                </div>
+                <div>
+                  <div class="k">Expected Attendees</div>
+                  <div>{{ (int) ($quiz->expected_attendees ?? 0) }}</div>
                 </div>
                 <div>
                   <div class="k">Open At</div>
@@ -216,7 +235,7 @@
                 <form method="POST" action="{{ route('faculty.fa1.destroy', $quiz->id) }}" onsubmit="return confirm('Delete this quiz and all related attempts, questions, answers, and marks data?');" class="js-quiz-delete-form">
                   @csrf
                   @method('DELETE')
-                  <button type="submit" class="btn btn-sm btn-outline-danger w-100">Delete Quiz</button>
+                  <button type="submit" class="btn btn-sm btn-outline-danger">Delete Quiz</button>
                 </form>
               </div>
             </div>

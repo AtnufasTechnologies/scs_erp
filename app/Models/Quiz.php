@@ -15,6 +15,7 @@ class Quiz extends Model
     'subject_id',
     'course_id',
     'syllabus_id',
+    'teaching_assignment_id',
     'batch_id',
     'semester_id',
     'faculty_id',
@@ -89,5 +90,10 @@ class Quiz extends Model
   public function creator()
   {
     return $this->belongsTo(User::class, 'created_by');
+  }
+
+  public function teachingAssignment()
+  {
+    return $this->belongsTo(TeachingAssignment::class, 'teaching_assignment_id');
   }
 }
