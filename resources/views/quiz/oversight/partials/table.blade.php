@@ -166,21 +166,51 @@
 
       <div class="d-flex align-items-center gap-2 flex-wrap">
         <span class="metric-chip">Total Quizzes: {{ $quizzes->total() }}</span>
+        <span class="metric-chip">Completed: {{ (int) ($statusCounts['completed'] ?? 0) }}</span>
 
-        @if($canFilterDepartments ?? false)
-        <form method="GET" action="{{ route('principal.quizzes.index') }}" class="d-flex gap-2">
-          <select name="department" class="form-select form-select-sm" style="min-width: 240px;">
+        @php
+        $indexRouteName = $monitorIndexRoute ?? (($role ?? '') === 'principal' ? 'principal.quizzes.index' : 'department.quizzes.index');
+        @endphp
+
+        <form method="GET" action="{{ route($indexRouteName) }}" class="d-flex gap-2 align-items-center flex-wrap">
+          @if($canFilterDepartments ?? false)
+          <select name="department" class="form-select form-select-sm" style="min-width: 220px;">
             <option value="">All Departments</option>
             @foreach($departmentOptions as $department)
             <option value="{{ $department }}" {{ $selectedDepartment === $department ? 'selected' : '' }}>{{ $department }}</option>
             @endforeach
           </select>
-          <button class="btn btn-sm btn-primary" type="submit">Filter</button>
-          @if($selectedDepartment !== '')
-          <a class="btn btn-sm btn-outline-secondary" href="{{ route('principal.quizzes.index') }}">Clear</a>
+          @endif
+
+          <select name="status" class="form-select form-select-sm" style="min-width: 160px;">
+            <option value="all" {{ ($selectedStatus ?? 'all') === 'all' ? 'selected' : '' }}>All Quizzes</option>
+            <option value="upcoming" {{ ($selectedStatus ?? 'all') === 'upcoming' ? 'selected' : '' }}>Upcoming</option>
+            <option value="live" {{ ($selectedStatus ?? 'all') === 'live' ? 'selected' : '' }}>Live</option>
+            <option value="completed" {{ ($selectedStatus ?? 'all') === 'completed' ? 'selected' : '' }}>Completed</option>
+          </select>
+
+          <input
+            type="date"
+            name="completed_from"
+            value="{{ $completedFrom ?? '' }}"
+            class="form-control form-control-sm"
+            style="min-width: 150px;"
+            title="Completed From (close date)">
+
+          <input
+            type="date"
+            name="completed_to"
+            value="{{ $completedTo ?? '' }}"
+            class="form-control form-control-sm"
+            style="min-width: 150px;"
+            title="Completed To (close date)">
+
+          <button class="btn btn-sm btn-primary" type="submit">Apply</button>
+          @if(($selectedDepartment ?? '') !== '' || ($selectedStatus ?? 'all') !== 'all' || ($completedFrom ?? '') !== '' || ($completedTo ?? '') !== '')
+          <a class="btn btn-sm btn-outline-secondary" href="{{ route($indexRouteName) }}">Clear</a>
           @endif
         </form>
-        @endif
+
       </div>
     </div>
 
@@ -193,6 +223,11 @@
         if ($facultyName === '') {
         $facultyName = optional($quiz->creator)->name ?? 'N/A';
         }
+        $now = now();
+        $isUpcoming = $quiz->open_at && $quiz->open_at->gt($now);
+        $isCompleted = $quiz->close_at && $quiz->close_at->lt($now);
+        $statusLabel = $isCompleted ? 'Completed' : ($isUpcoming ? 'Upcoming' : 'Live');
+        $statusBadge = $isCompleted ? 'bg-secondary' : ($isUpcoming ? 'bg-info text-dark' : 'bg-success');
         $collapseId = 'quiz-questions-' . $quiz->id;
         @endphp
 
@@ -201,7 +236,10 @@
             <div class="quiz-card-header">
               <div class="d-flex justify-content-between align-items-start gap-2">
                 <h6 class="quiz-title">{{ $quiz->title }}</h6>
-                <span class="badge bg-light text-dark border">#{{ $quizzes->firstItem() + $loop->index }}</span>
+                <div class="d-flex align-items-center gap-1">
+                  <span class="badge {{ $statusBadge }}">{{ $statusLabel }}</span>
+                  <span class="badge bg-light text-dark border">#{{ $quizzes->firstItem() + $loop->index }}</span>
+                </div>
               </div>
               <div class="quiz-meta">
                 Total Marks: {{ $quiz->total_marks }}
@@ -238,6 +276,12 @@
               </div>
 
               <div class="mt-2">
+                @php
+                $resultsRouteName = $monitorResultsRoute ?? (($role ?? '') === 'principal' ? 'principal.quizzes.results' : 'department.quizzes.results');
+                @endphp
+                <a href="{{ route($resultsRouteName, $quiz->id) }}" class="btn btn-sm btn-outline-primary mb-2 w-100">
+                  View Results ({{ (int) ($quiz->submitted_attempts_count ?? 0) }} Attempts)
+                </a>
                 <button class="question-toggle" type="button" data-bs-toggle="collapse" data-bs-target="#{{ $collapseId }}" aria-expanded="false" aria-controls="{{ $collapseId }}">
                   Questions ({{ $quiz->questions_count }})
                 </button>

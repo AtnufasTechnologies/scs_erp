@@ -854,6 +854,7 @@ Route::group(['prefix' => '/erp'], function () {
     Route::group(['prefix' => '/deptartment',], function () {
         Route::get('dashboard', [SubjectController::class, 'departmentDashboard'])->name('department.dashboard');
         Route::get('fa1-quizzes', [QuizOversightController::class, 'index'])->name('department.quizzes.index');
+        Route::get('fa1-quizzes/{quizId}/results', [QuizOversightController::class, 'results'])->name('department.quizzes.results');
         Route::get('enrolled-programs/by-batch', [SubjectController::class, 'fetchEnrolledProgramsByBatch'])->name('department.batch.enrolled-programs');
         Route::get('combo-master', [SubjectController::class, 'comboMaster'])->name('department.combo.master');
         Route::delete('combination/{id}/delete', [SubjectController::class, 'deleteCombination'])->name('department.combination.delete');
@@ -1260,6 +1261,7 @@ Route::group(['prefix' => '/erp'], function () {
         Route::get('classes', [PrincipalController::class, 'classes'])->name('principal.classes.index');
         Route::get('admissions', [PrincipalController::class, 'admissions'])->name('principal.admissions.index');
         Route::get('fa1-quizzes', [QuizOversightController::class, 'index'])->name('principal.quizzes.index');
+        Route::get('fa1-quizzes/{quizId}/results', [QuizOversightController::class, 'results'])->name('principal.quizzes.results');
 
         // Fee Management
         Route::get('fees', [PrincipalController::class, 'studentFees'])->name('principal.fees.index');
