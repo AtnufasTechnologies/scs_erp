@@ -394,6 +394,17 @@ $roleType = UserHasRole::where('user_id', $userId)->value('role_name');
       </a>
     </li>
 
+    @if($roleType === 'super-admin')
+    <li>
+      <a href="{{ route('itcell.active-users.index') }}">
+        <div class="parent-icon">
+          <i class="fas fa-user-clock"></i>
+        </div>
+        <div class="menu-title">Active Logged-in Users</div>
+      </a>
+    </li>
+    @endif
+
     <li>
       <a href="{{ route('itcell.integrated-sublayer-settings.index') }}">
         <div class="parent-icon">

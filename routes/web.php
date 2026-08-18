@@ -174,6 +174,7 @@ Route::group(['prefix' => '/erp'], function () {
         Route::get('itcell/student-campus-transfer/programs', [ITCellController::class, 'getStudentCampusTransferPrograms'])->name('itcell.student-campus-transfer.programs');
         Route::post('itcell/student-campus-transfer', [ITCellController::class, 'storeStudentCampusTransfer'])->name('itcell.student-campus-transfer.store');
         Route::get('itcell/student-login-access', [ITCellController::class, 'studentLoginAccessIndex'])->name('itcell.student-login-access.index');
+        Route::get('itcell/active-users', [ITCellController::class, 'activeUsersIndex'])->name('itcell.active-users.index');
         Route::post('itcell/student-login-access/{studentId}/reset-default-password', [ITCellController::class, 'resetStudentDefaultPassword'])->name('itcell.student-login-access.reset-default-password');
         Route::post('itcell/student-login-access/bulk-reset-default-password', [ITCellController::class, 'bulkResetStudentDefaultPassword'])->name('itcell.student-login-access.bulk-reset-default-password');
         Route::get('itcell/integrated-program-sublayers', [ITCellController::class, 'integratedProgramSublayersIndex'])->name('itcell.integrated-sublayer-settings.index');

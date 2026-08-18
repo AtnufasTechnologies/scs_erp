@@ -36,6 +36,7 @@ use App\Services\StudentRosterEngine;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\File;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Schema;
@@ -45,6 +46,150 @@ use Maatwebsite\Excel\Facades\Excel;
 
 class ITCellController extends Controller
 {
+
+    public function activeUsersIndex(Request $request)
+    {
+        $userRole = StaticController::fetchUserRole((int) Auth::id());
+        if ($userRole !== 'super-admin') {
+            abort(403, 'Only super-admin can access this page.');
+        }
+
+        $sessionDriver = (string) config('session.driver', 'file');
+        $sessionLifetimeMinutes = (int) config('session.lifetime', 120);
+        $activeUsers = collect();
+        $warnings = [];
+
+        if ($sessionDriver === 'file') {
+            $sessionPath = (string) config('session.files', storage_path('framework/sessions'));
+            if (!is_dir($sessionPath)) {
+                $warnings[] = 'Session storage path not found: ' . $sessionPath;
+            } else {
+                $threshold = now()->subMinutes($sessionLifetimeMinutes)->timestamp;
+                $sessionFiles = collect(File::files($sessionPath));
+
+                $activeSessions = $sessionFiles
+                    ->filter(function ($file) use ($threshold) {
+                        return (int) $file->getMTime() >= $threshold;
+                    })
+                    ->values();
+
+                $sessionRows = $activeSessions
+                    ->map(function ($file) {
+                        $sessionPayload = '';
+                        try {
+                            $sessionPayload = (string) File::get($file->getPathname());
+                        } catch (\Throwable) {
+                            return null;
+                        }
+
+                        $attributes = @unserialize($sessionPayload);
+                        if (!is_array($attributes)) {
+                            return null;
+                        }
+
+                        $resolvedUserId = 0;
+                        foreach ($attributes as $key => $value) {
+                            if (str_starts_with((string) $key, 'login_') && is_numeric($value)) {
+                                $resolvedUserId = (int) $value;
+                                break;
+                            }
+                        }
+
+                        if ($resolvedUserId <= 0) {
+                            return null;
+                        }
+
+                        return [
+                            'session_id' => (string) $file->getFilename(),
+                            'user_id' => $resolvedUserId,
+                            'last_activity_at' => date('Y-m-d H:i:s', (int) $file->getMTime()),
+                        ];
+                    })
+                    ->filter()
+                    ->values();
+
+                $userIds = $sessionRows->pluck('user_id')->unique()->values();
+                $usersById = User::query()
+                    ->whereIn('id', $userIds->all())
+                    ->select(['id', 'name', 'email', 'roll_no', 'status'])
+                    ->get()
+                    ->keyBy('id');
+
+                $rolesByUserId = UserHasRole::query()
+                    ->whereIn('user_id', $userIds->all())
+                    ->select(['user_id', 'role_name'])
+                    ->get()
+                    ->groupBy('user_id')
+                    ->map(fn($rows) => $rows->pluck('role_name')->filter()->unique()->values()->all());
+
+                $activeUsers = $sessionRows
+                    ->map(function ($row) use ($usersById, $rolesByUserId) {
+                        $user = $usersById->get((int) $row['user_id']);
+                        return [
+                            'session_id' => (string) $row['session_id'],
+                            'user_id' => (int) $row['user_id'],
+                            'name' => (string) ($user->name ?? '-'),
+                            'email' => (string) ($user->email ?? '-'),
+                            'roll_no' => (string) ($user->roll_no ?? '-'),
+                            'status' => (string) ($user->status ?? '-'),
+                            'roles' => $rolesByUserId->get((int) $row['user_id'], []),
+                            'last_activity_at' => (string) $row['last_activity_at'],
+                        ];
+                    })
+                    ->sortByDesc('last_activity_at')
+                    ->values();
+            }
+        } elseif ($sessionDriver === 'database' && Schema::hasTable((string) config('session.table', 'sessions'))) {
+            $table = (string) config('session.table', 'sessions');
+            $threshold = now()->subMinutes($sessionLifetimeMinutes)->timestamp;
+
+            $sessionRows = DB::table($table)
+                ->whereNotNull('user_id')
+                ->where('last_activity', '>=', $threshold)
+                ->select(['id', 'user_id', 'ip_address', 'user_agent', 'last_activity'])
+                ->orderByDesc('last_activity')
+                ->get();
+
+            $userIds = $sessionRows->pluck('user_id')->map(fn($id) => (int) $id)->unique()->values();
+            $usersById = User::query()
+                ->whereIn('id', $userIds->all())
+                ->select(['id', 'name', 'email', 'roll_no', 'status'])
+                ->get()
+                ->keyBy('id');
+
+            $rolesByUserId = UserHasRole::query()
+                ->whereIn('user_id', $userIds->all())
+                ->select(['user_id', 'role_name'])
+                ->get()
+                ->groupBy('user_id')
+                ->map(fn($rows) => $rows->pluck('role_name')->filter()->unique()->values()->all());
+
+            $activeUsers = $sessionRows->map(function ($row) use ($usersById, $rolesByUserId) {
+                $userId = (int) ($row->user_id ?? 0);
+                $user = $usersById->get($userId);
+
+                return [
+                    'session_id' => (string) ($row->id ?? ''),
+                    'user_id' => $userId,
+                    'name' => (string) ($user->name ?? '-'),
+                    'email' => (string) ($user->email ?? '-'),
+                    'roll_no' => (string) ($user->roll_no ?? '-'),
+                    'status' => (string) ($user->status ?? '-'),
+                    'roles' => $rolesByUserId->get($userId, []),
+                    'last_activity_at' => date('Y-m-d H:i:s', (int) ($row->last_activity ?? 0)),
+                ];
+            })->values();
+        } else {
+            $warnings[] = 'Current session driver is "' . $sessionDriver . '". Active-user listing supports file/database session storage.';
+        }
+
+        return view('admin.itcell.active-users', [
+            'activeUsers' => $activeUsers,
+            'warnings' => $warnings,
+            'sessionDriver' => $sessionDriver,
+            'sessionLifetimeMinutes' => $sessionLifetimeMinutes,
+        ]);
+    }
 
     public function studentLoginAccessIndex(Request $request)
     {
