@@ -173,6 +173,9 @@ Route::group(['prefix' => '/erp'], function () {
         Route::get('itcell/student-campus-transfer', [ITCellController::class, 'studentCampusTransferIndex'])->name('itcell.student-campus-transfer.index');
         Route::get('itcell/student-campus-transfer/programs', [ITCellController::class, 'getStudentCampusTransferPrograms'])->name('itcell.student-campus-transfer.programs');
         Route::post('itcell/student-campus-transfer', [ITCellController::class, 'storeStudentCampusTransfer'])->name('itcell.student-campus-transfer.store');
+        Route::get('itcell/student-login-access', [ITCellController::class, 'studentLoginAccessIndex'])->name('itcell.student-login-access.index');
+        Route::post('itcell/student-login-access/{studentId}/reset-default-password', [ITCellController::class, 'resetStudentDefaultPassword'])->name('itcell.student-login-access.reset-default-password');
+        Route::post('itcell/student-login-access/bulk-reset-default-password', [ITCellController::class, 'bulkResetStudentDefaultPassword'])->name('itcell.student-login-access.bulk-reset-default-password');
         Route::get('itcell/integrated-program-sublayers', [ITCellController::class, 'integratedProgramSublayersIndex'])->name('itcell.integrated-sublayer-settings.index');
         Route::post('itcell/integrated-program-sublayers', [ITCellController::class, 'integratedProgramSublayersStore'])->name('itcell.integrated-sublayer-settings.store');
         Route::put('itcell/integrated-program-sublayers/{id}', [ITCellController::class, 'integratedProgramSublayersUpdate'])->name('itcell.integrated-sublayer-settings.update');

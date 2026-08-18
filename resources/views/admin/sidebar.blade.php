@@ -386,6 +386,15 @@ $roleType = UserHasRole::where('user_id', $userId)->value('role_name');
     </li>
 
     <li>
+      <a href="{{ route('itcell.student-login-access.index') }}">
+        <div class="parent-icon">
+          <i class="fas fa-user-shield"></i>
+        </div>
+        <div class="menu-title">Student Login Access</div>
+      </a>
+    </li>
+
+    <li>
       <a href="{{ route('itcell.integrated-sublayer-settings.index') }}">
         <div class="parent-icon">
           <i class="fas fa-layer-group"></i>

@@ -30,11 +30,13 @@ use App\Models\StudentMaster;
 use App\Models\StudentProgram;
 use App\Models\Subject;
 use App\Models\SubjectHasStudentProgam;
+use App\Models\User;
 use App\Models\UserHasRole;
 use App\Services\StudentRosterEngine;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Validation\Rule;
@@ -43,6 +45,248 @@ use Maatwebsite\Excel\Facades\Excel;
 
 class ITCellController extends Controller
 {
+
+    public function studentLoginAccessIndex(Request $request)
+    {
+        $userRole = StaticController::fetchUserRole((int) Auth::id());
+        if (!in_array($userRole, ['itcell', 'super-admin'], true)) {
+            abort(403, 'Only ITCELL can access this page.');
+        }
+
+        $search = trim((string) $request->input('search', ''));
+
+        $studentsQuery = StudentMaster::query()
+            ->where(function ($query) {
+                $query->where('is_deleted', 0)->orWhereNull('is_deleted');
+            })
+            ->where(function ($query) {
+                $query->where('is_left', 0)->orWhereNull('is_left');
+            })
+            ->select([
+                'id',
+                'first_name',
+                'last_name',
+                'roll_no',
+                'register_no',
+                'mail_id',
+                'batch',
+                'new_program_id',
+            ])
+            ->with([
+                'batchmaster:id,batch_name',
+                'stdprogramenrolled:id,code,name',
+            ]);
+
+        if ($search !== '') {
+            $studentsQuery->where(function ($query) use ($search) {
+                $query->where('roll_no', 'like', '%' . $search . '%')
+                    ->orWhere('register_no', 'like', '%' . $search . '%')
+                    ->orWhere('user_code', 'like', '%' . $search . '%')
+                    ->orWhere('first_name', 'like', '%' . $search . '%')
+                    ->orWhere('last_name', 'like', '%' . $search . '%')
+                    ->orWhere('mail_id', 'like', '%' . $search . '%');
+            });
+        }
+
+        $students = $studentsQuery
+            ->orderBy('roll_no')
+            ->orderBy('first_name')
+            ->paginate(30)
+            ->appends($request->query());
+
+        $studentIds = $students->getCollection()->pluck('id')->map(fn($id) => (int) $id)->values();
+        $emails = $students->getCollection()
+            ->pluck('mail_id')
+            ->filter(fn($email) => is_string($email) && trim($email) !== '')
+            ->map(fn($email) => strtolower(trim((string) $email)))
+            ->values();
+
+        $matchedUsers = User::query()
+            ->where(function ($query) use ($studentIds, $emails) {
+                if ($studentIds->isNotEmpty()) {
+                    $query->whereIn('student_id', $studentIds->all());
+                }
+                if ($emails->isNotEmpty()) {
+                    $query->orWhereIn(DB::raw('LOWER(TRIM(email))'), $emails->all());
+                }
+            })
+            ->select(['id', 'student_id', 'email', 'roll_no', 'status', 'decrypted_password'])
+            ->get();
+
+        $usersByStudentId = $matchedUsers
+            ->filter(fn($user) => (int) ($user->student_id ?? 0) > 0)
+            ->keyBy(fn($user) => (int) $user->student_id);
+
+        $usersByEmail = $matchedUsers
+            ->filter(fn($user) => trim((string) ($user->email ?? '')) !== '')
+            ->keyBy(fn($user) => strtolower(trim((string) $user->email)));
+
+        $students->getCollection()->transform(function ($student) use ($usersByStudentId, $usersByEmail) {
+            $studentUser = $usersByStudentId->get((int) $student->id);
+            if (!$studentUser) {
+                $emailKey = strtolower(trim((string) ($student->mail_id ?? '')));
+                if ($emailKey !== '') {
+                    $studentUser = $usersByEmail->get($emailKey);
+                }
+            }
+
+            $student->access_user = $studentUser;
+            $student->has_login_access = (bool) $studentUser;
+
+            return $student;
+        });
+
+        return view('admin.itcell.student-login-access', [
+            'students' => $students,
+            'search' => $search,
+        ]);
+    }
+
+    public function resetStudentDefaultPassword(int $studentId)
+    {
+        $userRole = StaticController::fetchUserRole((int) Auth::id());
+        if (!in_array($userRole, ['itcell', 'super-admin'], true)) {
+            abort(403, 'Only ITCELL can reset student login credentials.');
+        }
+
+        $student = StudentMaster::query()->findOrFail($studentId);
+        $result = $this->upsertStudentDefaultAccess($student);
+
+        if (!$result['ok']) {
+            return back()->with('error', (string) $result['message']);
+        }
+
+        return back()->with('success', (string) $result['message']);
+    }
+
+    public function bulkResetStudentDefaultPassword(Request $request)
+    {
+        $userRole = StaticController::fetchUserRole((int) Auth::id());
+        if (!in_array($userRole, ['itcell', 'super-admin'], true)) {
+            abort(403, 'Only ITCELL can reset student login credentials.');
+        }
+
+        $validated = $request->validate([
+            'student_ids' => 'required|array|min:1',
+            'student_ids.*' => 'required|integer|exists:student_masters,id',
+        ]);
+
+        $studentIds = collect($validated['student_ids'] ?? [])
+            ->map(fn($id) => (int) $id)
+            ->filter(fn($id) => $id > 0)
+            ->unique()
+            ->values();
+
+        if ($studentIds->isEmpty()) {
+            return back()->with('error', 'No valid students selected for bulk update.');
+        }
+
+        $students = StudentMaster::query()
+            ->whereIn('id', $studentIds->all())
+            ->get();
+
+        $successCount = 0;
+        $createdCount = 0;
+        $failedCount = 0;
+        $failedRollNos = [];
+
+        foreach ($students as $student) {
+            $result = $this->upsertStudentDefaultAccess($student);
+
+            if ($result['ok']) {
+                $successCount++;
+                if (!empty($result['created'])) {
+                    $createdCount++;
+                }
+                continue;
+            }
+
+            $failedCount++;
+            $failedRollNos[] = trim((string) ($student->roll_no ?? 'ID ' . $student->id));
+        }
+
+        $resetCount = $successCount - $createdCount;
+        $message = 'Bulk update completed. Reset: ' . $resetCount . ', Created: ' . $createdCount . ', Failed: ' . $failedCount . '.';
+
+        if ($failedCount > 0) {
+            $message .= ' Failed students: ' . implode(', ', array_slice($failedRollNos, 0, 10));
+            if (count($failedRollNos) > 10) {
+                $message .= ' ...';
+            }
+            return back()->with('error', $message);
+        }
+
+        return back()->with('success', $message);
+    }
+
+    private function upsertStudentDefaultAccess(StudentMaster $student): array
+    {
+        $studentId = (int) $student->id;
+        $plainPassword = trim((string) ($student->roll_no ?? ''));
+
+        if ($plainPassword === '') {
+            return [
+                'ok' => false,
+                'created' => false,
+                'message' => 'Roll number is missing for student ID ' . $studentId . '. Default password cannot be generated.',
+            ];
+        }
+
+        $existing = User::query()->where('student_id', $studentId)->first();
+        if (!$existing && !empty($student->mail_id)) {
+            $existing = User::query()->where('email', $student->mail_id)->first();
+        }
+
+        if ($existing) {
+            $existing->update([
+                'student_id' => $studentId,
+                'roll_no' => $student->roll_no,
+                'password' => Hash::make($plainPassword),
+                'decrypted_password' => $plainPassword,
+                'status' => 'ACTIVE',
+            ]);
+
+            UserHasRole::updateOrCreate(
+                ['user_id' => $existing->id],
+                ['role_name' => 'student']
+            );
+
+            return [
+                'ok' => true,
+                'created' => false,
+                'message' => 'Default password reset to roll number for ' . ($student->roll_no ?: 'selected student') . '.',
+            ];
+        }
+
+        if (empty($student->mail_id)) {
+            return [
+                'ok' => false,
+                'created' => false,
+                'message' => 'No login account found and student email is missing for ' . ($student->roll_no ?: 'student ID ' . $studentId) . '.',
+            ];
+        }
+
+        $user = User::query()->create([
+            'student_id' => $studentId,
+            'name' => trim((string) (($student->first_name ?? '') . ' ' . ($student->last_name ?? ''))),
+            'email' => $student->mail_id,
+            'roll_no' => $student->roll_no,
+            'password' => Hash::make($plainPassword),
+            'decrypted_password' => $plainPassword,
+            'status' => 'ACTIVE',
+        ]);
+
+        UserHasRole::create([
+            'user_id' => $user->id,
+            'role_name' => 'student',
+        ]);
+
+        return [
+            'ok' => true,
+            'created' => true,
+            'message' => 'Student login created with default password (roll number).',
+        ];
+    }
 
     public function integratedProgramSublayersIndex()
     {
