@@ -181,11 +181,12 @@ return asset('storage/' . ltrim((string) $path, '/'));
                   <h6 class="mb-0">Existing Question {{ $qIndex + 1 }}</h6>
                   <div class="d-flex align-items-center gap-2">
                     <span class="badge bg-light text-dark border">Position: {{ $question->position ?? ($qIndex + 1) }}</span>
-                    <form method="POST" action="{{ route('faculty.fa1.questions.destroy', ['id' => $quiz->id, 'questionId' => $question->id]) }}" onsubmit="return confirm('Delete this question? This will also remove related answers from attempts.');" class="d-inline js-question-delete-form">
-                      @csrf
-                      @method('DELETE')
-                      <button type="submit" class="btn btn-sm btn-outline-danger">Delete Question</button>
-                    </form>
+                    <button
+                      type="button"
+                      class="btn btn-sm btn-outline-danger js-question-delete-btn"
+                      data-action="{{ route('faculty.fa1.questions.destroy', ['id' => $quiz->id, 'questionId' => $question->id]) }}">
+                      Delete Question
+                    </button>
                   </div>
                 </div>
 
@@ -283,6 +284,7 @@ return asset('storage/' . ltrim((string) $path, '/'));
 
 <script>
   (function() {
+    const csrfToken = '{{ csrf_token() }}';
     const messageBox = document.getElementById('ajaxDeleteMessage');
 
     function showMessage(type, text) {
@@ -313,25 +315,28 @@ return asset('storage/' . ltrim((string) $path, '/'));
     }
 
     function bindQuestionDelete() {
-      document.querySelectorAll('.js-question-delete-form').forEach(function(form) {
-        if (form.dataset.boundDeleteHandler === '1') {
+      document.querySelectorAll('.js-question-delete-btn').forEach(function(button) {
+        if (button.dataset.boundDeleteHandler === '1') {
           return;
         }
 
-        form.dataset.boundDeleteHandler = '1';
+        button.dataset.boundDeleteHandler = '1';
 
-        form.addEventListener('submit', async function(event) {
-          event.preventDefault();
-
-          const formData = new FormData(form);
-          const submitBtn = form.querySelector('button[type="submit"]');
-
-          if (submitBtn) {
-            submitBtn.disabled = true;
+        button.addEventListener('click', async function() {
+          const confirmed = window.confirm('Delete this question? This will also remove related answers from attempts.');
+          if (!confirmed) {
+            return;
           }
 
+          const formData = new FormData();
+          formData.append('_token', csrfToken);
+          formData.append('_method', 'DELETE');
+          const actionUrl = button.dataset.action;
+
+          button.disabled = true;
+
           try {
-            const response = await fetch(form.action, {
+            const response = await fetch(actionUrl, {
               method: 'POST',
               headers: {
                 'X-Requested-With': 'XMLHttpRequest',
@@ -348,7 +353,7 @@ return asset('storage/' . ltrim((string) $path, '/'));
               throw new Error(payload.message || 'Failed to delete question.');
             }
 
-            const card = form.closest('.existing-question-card');
+            const card = button.closest('.existing-question-card');
             if (card) {
               card.remove();
             }
@@ -358,9 +363,7 @@ return asset('storage/' . ltrim((string) $path, '/'));
           } catch (error) {
             showMessage('danger', error.message || 'Unable to delete question.');
           } finally {
-            if (submitBtn) {
-              submitBtn.disabled = false;
-            }
+            button.disabled = false;
           }
         });
       });
