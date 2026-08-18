@@ -197,6 +197,23 @@ $courseTitle = trim((string) ($courseMaster->course_title ?? ($record->course->c
         ajaxMessage.innerHTML = `\n          <div class="alert alert-${safeType} alert-dismissible fade show" role="alert">\n            ${message}\n            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>\n          </div>\n        `;
       }
 
+      function markRowsAsEnrolled(selectedCheckboxes) {
+        selectedCheckboxes.forEach(function(checkbox) {
+          checkbox.checked = true;
+          checkbox.disabled = true;
+
+          const row = checkbox.closest('tr');
+          if (!row) {
+            return;
+          }
+
+          const statusCell = row.querySelector('td:last-child');
+          if (statusCell) {
+            statusCell.innerHTML = '<span class="badge badge-success"> Enrolled</span>';
+          }
+        });
+      }
+
       if (copyRosterForm) {
         copyRosterForm.addEventListener('submit', async function(event) {
           event.preventDefault();
@@ -286,9 +303,7 @@ $courseTitle = trim((string) ($courseMaster->course_title ?? ($record->course->c
             }
 
             showMessage('success', payload.message || 'Students added successfully.');
-            window.setTimeout(function() {
-              window.location.reload();
-            }, 900);
+            markRowsAsEnrolled(selected);
           } catch (error) {
             showMessage('error', 'Request failed. Please try again.');
           } finally {

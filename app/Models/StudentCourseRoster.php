@@ -11,6 +11,7 @@ class StudentCourseRoster extends Model
     use HasFactory, SoftDeletes;
 
     protected $fillable = [
+        'routine_id',
         'ta_id',
         'course_id',
         'student_id',

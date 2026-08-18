@@ -46,6 +46,7 @@ $safeAssignmentRows = collect($assignmentRows ?? []);
                   <th class="ps-4">#</th>
                   <th>Course Code</th>
                   <th>Course Title</th>
+                  <th>Program Type</th>
                   <th>Students</th>
                   <th>Delivery</th>
                   <th>Group</th>
@@ -67,6 +68,7 @@ $safeAssignmentRows = collect($assignmentRows ?? []);
                     <small class="text-muted">Primary Faculty: {{ $row['primary_faculty'] }}</small>
                     @endif
                   </td>
+                  <td>{{ $row['program_type'] ?? '-' }}</td>
                   <td>
                     <span class="badge bg-info text-dark">{{ (int) ($row['student_count'] ?? 0) }}</span>
                   </td>
@@ -88,7 +90,7 @@ $safeAssignmentRows = collect($assignmentRows ?? []);
                 </tr>
                 @empty
                 <tr>
-                  <td colspan="11" class="text-center py-5">
+                  <td colspan="12" class="text-center py-5">
                     <div class="text-muted">
                       <i class="fas fa-info-circle me-2"></i>No teaching assignments found for this faculty.
                     </div>

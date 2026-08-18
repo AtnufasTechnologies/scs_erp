@@ -122,13 +122,71 @@ class AttendanceController extends Controller
     )));
   }
 
+  private function normalizeProgramTypeLabel($programType): string
+  {
+    $value = strtoupper(trim((string) $programType));
+    if (str_starts_with($value, 'PG')) {
+      return 'PG';
+    }
+    if (str_starts_with($value, 'UG')) {
+      return 'UG';
+    }
+
+    return $value;
+  }
+
   private function buildRoutineIdentityKey(?SubjectHasRoutine $routine): string
   {
     $syllabusId = (int) ($routine->syllabus_id ?? 0);
     $shift = strtolower(trim((string) ($routine->shift ?? 'common')));
     $deliveryType = $this->getRoutineDeliveryType($routine);
+    $programType = $this->normalizeProgramTypeLabel($routine->program_type ?? $routine->syllabus->program_type ?? 'UG');
 
-    return $syllabusId . '_' . $shift . '_' . $deliveryType;
+    return $syllabusId . '_' . $programType . '_' . $shift . '_' . $deliveryType;
+  }
+
+  private function hasStudentRosterRoutineScope(): bool
+  {
+    static $hasRoutineColumn = null;
+    if ($hasRoutineColumn === null) {
+      $hasRoutineColumn = Schema::hasTable('student_course_rosters')
+        && Schema::hasColumn('student_course_rosters', 'routine_id');
+    }
+
+    return (bool) $hasRoutineColumn;
+  }
+
+  private function scopeStudentRosterQuery($query, int $assignmentId, int $courseId, int $routineId, bool $includeLegacyNullRoutine = false)
+  {
+    $query->where('ta_id', $assignmentId)
+      ->where('course_id', $courseId);
+
+    if ($this->hasStudentRosterRoutineScope()) {
+      $query->where(function ($routineScope) use ($routineId, $includeLegacyNullRoutine) {
+        $routineScope->where('routine_id', $routineId);
+
+        if ($includeLegacyNullRoutine) {
+          $routineScope->orWhereNull('routine_id');
+        }
+      });
+    }
+
+    return $query;
+  }
+
+  private function buildStudentRosterPayload(int $assignmentId, int $courseId, int $studentId, int $routineId): array
+  {
+    $payload = [
+      'ta_id' => $assignmentId,
+      'course_id' => $courseId,
+      'student_id' => $studentId,
+    ];
+
+    if ($this->hasStudentRosterRoutineScope()) {
+      $payload['routine_id'] = $routineId;
+    }
+
+    return $payload;
   }
 
   private function getShiftTeachingHours(string $shiftSlug)
@@ -693,8 +751,9 @@ class AttendanceController extends Controller
     }
 
     $studentIds = StudentCourseRoster::query()
-      ->where('ta_id', $assignmentId)
-      ->where('course_id', $courseId)
+      ->when(true, function ($query) use ($assignmentId, $courseId, $routine) {
+        return $this->scopeStudentRosterQuery($query, $assignmentId, $courseId, (int) ($routine->id ?? 0), true);
+      })
       ->pluck('student_id')
       ->map(fn($studentId) => (int) $studentId)
       ->filter(fn($studentId) => $studentId > 0)
@@ -1523,12 +1582,17 @@ class AttendanceController extends Controller
       $courseType = trim((string) ($courseMaster->coursetypemaster->title ?? ''));
       $assignmentId = (int) ($assignment->id ?? 0);
       $courseId = (int) ($routine->syllabus->course_id ?? ($assignment->course_id ?? 0));
+      $programType = $this->normalizeProgramTypeLabel($routine->program_type ?? $routine->syllabus->program_type ?? 'UG');
 
       $studentCount = 0;
       if ($assignmentId > 0 && $courseId > 0) {
-        $studentCount = StudentCourseRoster::query()
-          ->where('ta_id', $assignmentId)
-          ->where('course_id', $courseId)
+        $studentCount = $this->scopeStudentRosterQuery(
+          StudentCourseRoster::query(),
+          $assignmentId,
+          $courseId,
+          (int) ($routine->id ?? 0),
+          true
+        )
           ->count();
       }
 
@@ -1556,6 +1620,7 @@ class AttendanceController extends Controller
         'course_title' => $courseTitle,
         'course_type' => $courseType,
         'course_label' => trim($courseCode . ($courseCode !== '' ? ' - ' : '') . $courseTitle),
+        'program_type' => $programType !== '' ? $programType : '-',
         'subject_title' => trim((string) ($routine->syllabus->subject->title ?? 'N/A')),
         'roles' => $roles,
         'delivery_type' => $deliveryType,
@@ -1609,7 +1674,6 @@ class AttendanceController extends Controller
     $courseId = (int) ($routine->syllabus->course_id ?? ($record->course_id ?? 0));
     $batchId = (int) ($routine->syllabus->batch_id ?? 0);
     $semesterId = (int) ($routine->syllabus->semester_id ?? 0);
-    $campusId = (int) ($routine->syllabus->subject->campus_id ?? 0);
 
     if ($courseId <= 0 || $batchId <= 0 || $semesterId <= 0) {
       return redirect()->route('faculty.student.course.roster')->with('error', 'Missing course, batch, or semester context.');
@@ -1618,21 +1682,17 @@ class AttendanceController extends Controller
     $studentsQuery = StudentMaster::query()
       ->where('is_deleted', 0)
       ->where('is_left', 0)
-      // ->where('batch', $batchId)
       ->orderBy('roll_no')
       ->orderBy('first_name');
-
-    if ($campusId > 0) {
-      $studentsQuery->where('campus_id', $campusId);
-    }
 
     $students = $studentsQuery
       ->get(['id', 'first_name', 'last_name', 'roll_no', 'register_no', 'campus_id'])
       ->values();
 
     $existingStudentIds = StudentCourseRoster::query()
-      ->where('ta_id', (int) $record->id)
-      ->where('course_id', $courseId)
+      ->when(true, function ($query) use ($record, $courseId, $routineId) {
+        return $this->scopeStudentRosterQuery($query, (int) $record->id, $courseId, $routineId, true);
+      })
       ->whereIn('student_id', $students->pluck('id')->all())
       ->pluck('student_id')
       ->map(fn($studentId) => (int) $studentId)
@@ -1662,6 +1722,7 @@ class AttendanceController extends Controller
         $candidateAssignmentId = (int) ($candidateAssignment->id ?? 0);
         $candidateBatchName = trim((string) ($candidate->syllabus->batchmaster->batch_name ?? 'N/A'));
         $candidateSemesterTitle = trim((string) ($candidate->syllabus->semestermaster->title ?? 'N/A'));
+        $candidateProgramType = $this->normalizeProgramTypeLabel($candidate->program_type ?? $candidate->syllabus->program_type ?? 'UG');
         $candidateDeliveryType = strtoupper(trim((string) (
           $candidateAssignment->delivery_type
           ?? $candidate->teachingAssignment->delivery_type
@@ -1674,11 +1735,16 @@ class AttendanceController extends Controller
           return null;
         }
 
-        $candidateKey = $candidateAssignmentId . '_' . $candidateCourseId;
+        $candidateKey = $candidateAssignmentId . '_' . $candidateCourseId . '_' . (int) ($candidate->id ?? 0);
 
-        $rosterCount = StudentCourseRoster::query()
-          ->where('ta_id', $candidateAssignmentId)
-          ->where('course_id', $candidateCourseId)
+        $candidateRoutineId = (int) ($candidate->id ?? 0);
+        $rosterCount = $this->scopeStudentRosterQuery(
+          StudentCourseRoster::query(),
+          $candidateAssignmentId,
+          $candidateCourseId,
+          $candidateRoutineId,
+          true
+        )
           ->count();
 
         return [
@@ -1690,12 +1756,14 @@ class AttendanceController extends Controller
           'course_title' => $candidateCourseTitle,
           'batch_name' => $candidateBatchName,
           'semester_title' => $candidateSemesterTitle,
+          'program_type' => $candidateProgramType !== '' ? $candidateProgramType : '-',
           'delivery_type' => $candidateDeliveryType,
           'shift' => $candidateShift,
           'subject_title' => trim((string) ($candidate->syllabus->subject->title ?? 'N/A')),
           'roster_count' => (int) $rosterCount,
           'label' => $candidateCourseCode . ' - ' . $candidateCourseTitle
             . ' | Batch: ' . $candidateBatchName
+            . ' | Program: ' . ($candidateProgramType !== '' ? $candidateProgramType : '-')
             . ' | Semester: ' . $candidateSemesterTitle
             . ' | Delivery: ' . $candidateDeliveryType
             . ' | Shift: ' . $candidateShift
@@ -1780,8 +1848,9 @@ class AttendanceController extends Controller
     }
 
     $sourceStudentIds = StudentCourseRoster::query()
-      ->where('ta_id', (int) $sourceRecord->id)
-      ->where('course_id', $sourceCourseId)
+      ->when(true, function ($query) use ($sourceRecord, $sourceCourseId, $sourceRoutineId) {
+        return $this->scopeStudentRosterQuery($query, (int) $sourceRecord->id, $sourceCourseId, $sourceRoutineId, true);
+      })
       ->pluck('student_id')
       ->map(fn($studentId) => (int) $studentId)
       ->filter(fn($studentId) => $studentId > 0)
@@ -1793,8 +1862,9 @@ class AttendanceController extends Controller
     }
 
     $existingTargetIds = StudentCourseRoster::query()
-      ->where('ta_id', (int) $targetRecord->id)
-      ->where('course_id', $targetCourseId)
+      ->when(true, function ($query) use ($targetRecord, $targetCourseId, $targetRoutineId) {
+        return $this->scopeStudentRosterQuery($query, (int) $targetRecord->id, $targetCourseId, $targetRoutineId, true);
+      })
       ->whereIn('student_id', $sourceStudentIds->all())
       ->pluck('student_id')
       ->map(fn($studentId) => (int) $studentId)
@@ -1810,11 +1880,12 @@ class AttendanceController extends Controller
         continue;
       }
 
-      StudentCourseRoster::create([
-        'ta_id' => (int) $targetRecord->id,
-        'course_id' => $targetCourseId,
-        'student_id' => (int) $studentId,
-      ]);
+      StudentCourseRoster::create($this->buildStudentRosterPayload(
+        (int) $targetRecord->id,
+        $targetCourseId,
+        (int) $studentId,
+        $targetRoutineId
+      ));
       $added++;
     }
 
@@ -1873,12 +1944,8 @@ class AttendanceController extends Controller
     }
 
     $courseId = (int) ($routine->syllabus->course_id ?? 0);
-    $batchId = (int) ($routine->syllabus->batch_id ?? 0);
-    $semesterId = (int) ($routine->syllabus->semester_id ?? 0);
-    $campusId = (int) ($routine->syllabus->subject->campus_id ?? 0);
-    $academicYear = (string) ($routine->syllabus->batchmaster->batch_name ?? '');
 
-    if ($courseId <= 0 || $batchId <= 0 || $semesterId <= 0 || $academicYear === '') {
+    if ($courseId <= 0) {
       if ($request->expectsJson() || $request->ajax()) {
         return response()->json(['success' => false, 'message' => 'Course roster context is incomplete.'], 422);
       }
@@ -1906,12 +1973,7 @@ class AttendanceController extends Controller
     $eligibleStudentsQuery = StudentMaster::query()
       ->whereIn('id', $selectedStudentIds->all())
       ->where('is_deleted', 0)
-      ->where('is_left', 0)
-      ->where('batch', $batchId);
-
-    if ($campusId > 0) {
-      $eligibleStudentsQuery->where('campus_id', $campusId);
-    }
+      ->where('is_left', 0);
 
     $eligibleStudents = $eligibleStudentsQuery->get(['id', 'campus_id']);
     $eligibleStudentIds = $eligibleStudents->pluck('id')->map(fn($studentId) => (int) $studentId)->all();
@@ -1924,8 +1986,9 @@ class AttendanceController extends Controller
     }
 
     $existingStudentIds = StudentCourseRoster::query()
-      ->where('ta_id', (int) $record->id)
-      ->where('course_id', $courseId)
+      ->when(true, function ($query) use ($record, $courseId, $routineId) {
+        return $this->scopeStudentRosterQuery($query, (int) $record->id, $courseId, $routineId, true);
+      })
       ->whereIn('student_id', $eligibleStudentIds)
       ->pluck('student_id')
       ->map(fn($studentId) => (int) $studentId)
@@ -1940,11 +2003,12 @@ class AttendanceController extends Controller
         continue;
       }
 
-      StudentCourseRoster::create([
-        'ta_id' => (int) $record->id,
-        'course_id' => $courseId,
-        'student_id' => $studentId,
-      ]);
+      StudentCourseRoster::create($this->buildStudentRosterPayload(
+        (int) $record->id,
+        $courseId,
+        $studentId,
+        $routineId
+      ));
       $affected++;
     }
 
@@ -2007,8 +2071,9 @@ class AttendanceController extends Controller
 
     $rosterRows = StudentCourseRoster::query()
       ->with('studentmaster:id,roll_no,register_no,first_name,last_name')
-      ->where('ta_id', (int) $record->id)
-      ->where('course_id', $courseId)
+      ->when(true, function ($query) use ($record, $courseId, $routineId) {
+        return $this->scopeStudentRosterQuery($query, (int) $record->id, $courseId, $routineId, true);
+      })
       ->orderByDesc('id')
       ->get();
 
@@ -2055,8 +2120,9 @@ class AttendanceController extends Controller
 
     $rows = StudentCourseRoster::query()
       ->with('studentmaster:id,roll_no,register_no,first_name,last_name')
-      ->where('ta_id', (int) $record->id)
-      ->where('course_id', $courseId)
+      ->when(true, function ($query) use ($record, $courseId, $routineId) {
+        return $this->scopeStudentRosterQuery($query, (int) $record->id, $courseId, $routineId, true);
+      })
       ->orderBy('id')
       ->get();
 
@@ -2108,8 +2174,9 @@ class AttendanceController extends Controller
     $courseId = (int) ($routine->syllabus->course_id ?? ($record->course_id ?? 0));
 
     $deleted = StudentCourseRoster::query()
-      ->where('ta_id', (int) $record->id)
-      ->where('course_id', $courseId)
+      ->when(true, function ($query) use ($record, $courseId, $routineId) {
+        return $this->scopeStudentRosterQuery($query, (int) $record->id, $courseId, $routineId, true);
+      })
       ->where('student_id', $targetStudentId)
       ->delete();
 
