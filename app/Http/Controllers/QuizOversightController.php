@@ -4,8 +4,10 @@ namespace App\Http\Controllers;
 
 use App\Models\Quiz;
 use App\Models\QuizAttempt;
+use App\Models\StudentCourseRoster;
 use App\Models\SubjectFacultyMaster;
 use App\Models\SubjectHasDeptAdmin;
+use App\Models\SubjectHasRoutine;
 use App\Models\UserHasRole;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\Request;
@@ -22,36 +24,20 @@ class QuizOversightController extends Controller
 
     $selectedDepartment = trim((string) $request->query('department', ''));
     $selectedStatus = trim((string) $request->query('status', 'all'));
-    $completedFrom = trim((string) $request->query('completed_from', ''));
-    $completedTo = trim((string) $request->query('completed_to', ''));
+    $startDate = trim((string) $request->query('start_date', ''));
     $allowedStatuses = ['all', 'upcoming', 'live', 'completed'];
     if (!in_array($selectedStatus, $allowedStatuses, true)) {
       $selectedStatus = 'all';
     }
 
-    $completedFromDate = null;
-    $completedToDate = null;
-
-    if ($completedFrom !== '') {
+    $startDateValue = null;
+    if ($startDate !== '') {
       try {
-        $completedFromDate = Carbon::parse($completedFrom)->startOfDay();
+        $startDateValue = Carbon::parse($startDate)->toDateString();
+        $startDate = $startDateValue;
       } catch (\Throwable $e) {
-        $completedFrom = '';
+        $startDate = '';
       }
-    }
-
-    if ($completedTo !== '') {
-      try {
-        $completedToDate = Carbon::parse($completedTo)->endOfDay();
-      } catch (\Throwable $e) {
-        $completedTo = '';
-      }
-    }
-
-    if ($completedFromDate && $completedToDate && $completedFromDate->gt($completedToDate)) {
-      [$completedFromDate, $completedToDate] = [$completedToDate->copy()->startOfDay(), $completedFromDate->copy()->endOfDay()];
-      $completedFrom = $completedFromDate->toDateString();
-      $completedTo = $completedToDate->toDateString();
     }
 
     $now = now();
@@ -78,7 +64,11 @@ class QuizOversightController extends Controller
       });
 
     $listingQuery = clone $filteredBaseQuery;
-    $this->applyStatusFilter($listingQuery, $selectedStatus, $now, $completedFromDate, $completedToDate);
+    $this->applyStatusFilter($listingQuery, $selectedStatus, $now);
+
+    if ($startDateValue !== null) {
+      $listingQuery->whereDate('open_at', $startDateValue);
+    }
 
     $quizzes = (clone $listingQuery)->with([
       'course:id,course_title,course_code',
@@ -99,6 +89,11 @@ class QuizOversightController extends Controller
       ->paginate(15)
       ->withQueryString();
 
+    $quizzes->getCollection()->transform(function ($quiz) {
+      $quiz->expected_students_count = $this->expectedStudentCountForQuiz($quiz);
+      return $quiz;
+    });
+
     $departmentOptions = (clone $baseQuery)
       ->whereNotNull('faculty_id')
       ->with(['faculty.department'])
@@ -114,9 +109,9 @@ class QuizOversightController extends Controller
 
     $statusCounts = [
       'all' => (clone $filteredBaseQuery)->count(),
-      'upcoming' => $this->countByStatus($filteredBaseQuery, 'upcoming', $now, null, null),
-      'live' => $this->countByStatus($filteredBaseQuery, 'live', $now, null, null),
-      'completed' => $this->countByStatus($filteredBaseQuery, 'completed', $now, null, null),
+      'upcoming' => $this->countByStatus($filteredBaseQuery, 'upcoming', $now),
+      'live' => $this->countByStatus($filteredBaseQuery, 'live', $now),
+      'completed' => $this->countByStatus($filteredBaseQuery, 'completed', $now),
     ];
 
     return view('quiz.oversight.index', [
@@ -124,8 +119,7 @@ class QuizOversightController extends Controller
       'departmentOptions' => $departmentOptions,
       'selectedDepartment' => $selectedDepartment,
       'selectedStatus' => $selectedStatus,
-      'completedFrom' => $completedFrom,
-      'completedTo' => $completedTo,
+      'startDate' => $startDate,
       'statusCounts' => $statusCounts,
       'role' => $role,
       'canFilterDepartments' => $role === 'principal',
@@ -220,7 +214,7 @@ class QuizOversightController extends Controller
     return $query->whereIn('faculty_id', $facultyIds->all());
   }
 
-  private function applyStatusFilter(Builder $query, string $status, $now, ?Carbon $completedFromDate, ?Carbon $completedToDate): void
+  private function applyStatusFilter(Builder $query, string $status, $now): void
   {
     if ($status === 'upcoming') {
       $query->whereNotNull('open_at')->where('open_at', '>', $now);
@@ -232,7 +226,7 @@ class QuizOversightController extends Controller
         ->whereNotNull('open_at')
         ->where('open_at', '<=', $now)
         ->where(function ($closeQuery) use ($now) {
-          $closeQuery->whereNull('close_at')->orWhere('close_at', '>=', $now);
+          $closeQuery->whereNull('close_at')->orWhere('close_at', '>', $now);
         });
       return;
     }
@@ -240,22 +234,169 @@ class QuizOversightController extends Controller
     if ($status === 'completed') {
       $query
         ->whereNotNull('close_at')
-        ->where('close_at', '<', $now);
-
-      if ($completedFromDate) {
-        $query->where('close_at', '>=', $completedFromDate);
-      }
-
-      if ($completedToDate) {
-        $query->where('close_at', '<=', $completedToDate);
-      }
+        ->where('close_at', '<=', $now);
     }
   }
 
-  private function countByStatus(Builder $baseQuery, string $status, $now, ?Carbon $completedFromDate, ?Carbon $completedToDate): int
+  private function countByStatus(Builder $baseQuery, string $status, $now): int
   {
     $query = clone $baseQuery;
-    $this->applyStatusFilter($query, $status, $now, $completedFromDate, $completedToDate);
+    $this->applyStatusFilter($query, $status, $now);
     return $query->count();
+  }
+
+  private function queryFacultyAssignedRoutines(int $facultyId)
+  {
+    $hasTeachingAllocationLink = Schema::hasColumn('subject_has_routines', 'teaching_allocation_id');
+
+    return SubjectHasRoutine::query()
+      ->where(function ($query) use ($facultyId) {
+        $query->where('faculty_id', $facultyId)
+          ->orWhereHas('teachingAssignment', function ($assignmentQuery) use ($facultyId) {
+            $assignmentQuery->where('faculty_id', $facultyId)
+              ->orWhereHas('facultyAssignments', function ($facultyAssignmentQuery) use ($facultyId) {
+                $facultyAssignmentQuery->where('faculty_id', $facultyId);
+              })
+              ->orWhereHas('coFacultyMembers', function ($coFacultyQuery) use ($facultyId) {
+                $coFacultyQuery->where('faculties.id', $facultyId);
+              });
+          });
+      })
+      ->when($hasTeachingAllocationLink, function ($query) use ($facultyId) {
+        $query->orWhereHas('teachingAllocation', function ($assignmentQuery) use ($facultyId) {
+          $assignmentQuery->where('faculty_id', $facultyId)
+            ->orWhereHas('facultyAssignments', function ($facultyAssignmentQuery) use ($facultyId) {
+              $facultyAssignmentQuery->where('faculty_id', $facultyId);
+            })
+            ->orWhereHas('coFacultyMembers', function ($coFacultyQuery) use ($facultyId) {
+              $coFacultyQuery->where('faculties.id', $facultyId);
+            });
+        });
+      });
+  }
+
+  private function resolveQuizEligibleStudents(Quiz $quiz): array
+  {
+    $hasTeachingAssignmentColumn = Schema::hasColumn('subject_has_routines', 'teaching_assignment_id');
+    $hasTeachingAllocationColumn = Schema::hasColumn('subject_has_routines', 'teaching_allocation_id');
+
+    if (!$hasTeachingAssignmentColumn && !$hasTeachingAllocationColumn) {
+      return [
+        'source' => 'roster',
+        'students' => collect(),
+      ];
+    }
+
+    $routineQuery = $this->queryFacultyAssignedRoutines((int) $quiz->faculty_id)
+      ->where('syllabus_id', (int) $quiz->syllabus_id);
+
+    if (Schema::hasColumn('subject_has_routines', 'deleted_at')) {
+      $routineQuery->whereNull('deleted_at');
+    }
+
+    $selectColumns = [];
+    if ($hasTeachingAssignmentColumn) {
+      $selectColumns[] = 'teaching_assignment_id';
+    }
+    if ($hasTeachingAllocationColumn) {
+      $selectColumns[] = 'teaching_allocation_id';
+    }
+
+    $candidateAssignmentIds = $routineQuery
+      ->get($selectColumns)
+      ->flatMap(function ($routine) use ($hasTeachingAssignmentColumn, $hasTeachingAllocationColumn) {
+        $ids = [];
+
+        if ($hasTeachingAssignmentColumn) {
+          $ids[] = (int) ($routine->teaching_assignment_id ?? 0);
+        }
+
+        if ($hasTeachingAllocationColumn) {
+          $ids[] = (int) ($routine->teaching_allocation_id ?? 0);
+        }
+
+        return $ids;
+      })
+      ->filter(fn($id) => $id > 0)
+      ->unique()
+      ->values();
+
+    $selectedAssignmentId = (int) ($quiz->teaching_assignment_id ?? 0);
+
+    if ($selectedAssignmentId <= 0 && $candidateAssignmentIds->count() > 1) {
+      $selectedAssignmentId = $this->inferQuizAssignmentIdFromRoster($quiz, $candidateAssignmentIds);
+    }
+
+    if ($selectedAssignmentId <= 0) {
+      $selectedAssignmentId = (int) ($candidateAssignmentIds->first() ?? 0);
+    }
+
+    $assignmentIds = $selectedAssignmentId > 0
+      ? collect([$selectedAssignmentId])
+      : collect();
+
+    if ($assignmentIds->isEmpty()) {
+      return [
+        'source' => 'roster',
+        'students' => collect(),
+      ];
+    }
+
+    $studentIds = StudentCourseRoster::query()
+      ->whereIn('ta_id', $assignmentIds->all())
+      ->where('course_id', (int) $quiz->course_id)
+      ->pluck('student_id')
+      ->map(fn($studentId) => (int) $studentId)
+      ->filter(fn($studentId) => $studentId > 0)
+      ->unique()
+      ->values();
+
+    return [
+      'source' => 'roster',
+      'students' => $studentIds,
+    ];
+  }
+
+  private function inferQuizAssignmentIdFromRoster(Quiz $quiz, $candidateAssignmentIds): int
+  {
+    $candidateIds = collect($candidateAssignmentIds)
+      ->map(fn($id) => (int) $id)
+      ->filter(fn($id) => $id > 0)
+      ->unique()
+      ->values();
+
+    if ($candidateIds->count() < 2) {
+      return 0;
+    }
+
+    $attemptedStudentIds = QuizAttempt::query()
+      ->where('quiz_id', (int) $quiz->id)
+      ->pluck('student_id')
+      ->map(fn($id) => (int) $id)
+      ->filter(fn($id) => $id > 0)
+      ->unique()
+      ->values();
+
+    if ($attemptedStudentIds->isEmpty()) {
+      return 0;
+    }
+
+    $bestAssignmentId = StudentCourseRoster::query()
+      ->whereIn('ta_id', $candidateIds->all())
+      ->where('course_id', (int) $quiz->course_id)
+      ->whereIn('student_id', $attemptedStudentIds->all())
+      ->select('ta_id', DB::raw('COUNT(DISTINCT student_id) as matched_students'))
+      ->groupBy('ta_id')
+      ->orderByDesc('matched_students')
+      ->orderBy('ta_id')
+      ->value('ta_id');
+
+    return (int) ($bestAssignmentId ?? 0);
+  }
+
+  private function expectedStudentCountForQuiz(Quiz $quiz): int
+  {
+    $rosterData = $this->resolveQuizEligibleStudents($quiz);
+    return (int) collect($rosterData['students'] ?? [])->count();
   }
 }

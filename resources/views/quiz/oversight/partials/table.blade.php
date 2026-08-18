@@ -185,28 +185,20 @@
           <select name="status" class="form-select form-select-sm" style="min-width: 160px;">
             <option value="all" {{ ($selectedStatus ?? 'all') === 'all' ? 'selected' : '' }}>All Quizzes</option>
             <option value="upcoming" {{ ($selectedStatus ?? 'all') === 'upcoming' ? 'selected' : '' }}>Upcoming</option>
-            <option value="live" {{ ($selectedStatus ?? 'all') === 'live' ? 'selected' : '' }}>Live</option>
+            <option value="live" {{ ($selectedStatus ?? 'all') === 'live' ? 'selected' : '' }}>Ongoing</option>
             <option value="completed" {{ ($selectedStatus ?? 'all') === 'completed' ? 'selected' : '' }}>Completed</option>
           </select>
 
           <input
             type="date"
-            name="completed_from"
-            value="{{ $completedFrom ?? '' }}"
+            name="start_date"
+            value="{{ $startDate ?? '' }}"
             class="form-control form-control-sm"
             style="min-width: 150px;"
-            title="Completed From (close date)">
-
-          <input
-            type="date"
-            name="completed_to"
-            value="{{ $completedTo ?? '' }}"
-            class="form-control form-control-sm"
-            style="min-width: 150px;"
-            title="Completed To (close date)">
+            title="Quiz Start Date">
 
           <button class="btn btn-sm btn-primary" type="submit">Apply</button>
-          @if(($selectedDepartment ?? '') !== '' || ($selectedStatus ?? 'all') !== 'all' || ($completedFrom ?? '') !== '' || ($completedTo ?? '') !== '')
+          @if(($selectedDepartment ?? '') !== '' || ($selectedStatus ?? 'all') !== 'all' || ($startDate ?? '') !== '')
           <a class="btn btn-sm btn-outline-secondary" href="{{ route($indexRouteName) }}">Clear</a>
           @endif
         </form>
@@ -225,8 +217,8 @@
         }
         $now = now();
         $isUpcoming = $quiz->open_at && $quiz->open_at->gt($now);
-        $isCompleted = $quiz->close_at && $quiz->close_at->lt($now);
-        $statusLabel = $isCompleted ? 'Completed' : ($isUpcoming ? 'Upcoming' : 'Live');
+        $isCompleted = $quiz->close_at && $quiz->close_at->lte($now);
+        $statusLabel = $isCompleted ? 'Completed' : ($isUpcoming ? 'Upcoming' : 'Ongoing');
         $statusBadge = $isCompleted ? 'bg-secondary' : ($isUpcoming ? 'bg-info text-dark' : 'bg-success');
         $collapseId = 'quiz-questions-' . $quiz->id;
         @endphp
@@ -264,6 +256,10 @@
               <div class="info-row">
                 <div class="info-key">Time Limit</div>
                 <div class="info-val">{{ $quiz->time_limit_minutes ? $quiz->time_limit_minutes . ' mins' : 'No limit' }}</div>
+              </div>
+              <div class="info-row">
+                <div class="info-key">Expected Students</div>
+                <div class="info-val">{{ (int) ($quiz->expected_students_count ?? 0) }}</div>
               </div>
               <div class="info-row">
                 <div class="info-key">Course</div>
@@ -311,7 +307,7 @@
 
       @if($quizzes->hasPages())
       <div class="mt-3">
-        {{ $quizzes->links() }}
+        {{ $quizzes->links('vendor.pagination.bootstrap-5') }}
       </div>
       @endif
     </div>
