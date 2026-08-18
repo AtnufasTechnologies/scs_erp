@@ -174,9 +174,17 @@
                   <div class="tt-cell-count">{{ count($slots) }} item(s)</div>
                   @foreach($slots as $slot)
                   @php
-                  $slotCourseSearch = strtolower(trim((string) ($slot['course'] ?? '')));
+                  $slotSearchText = strtolower(trim(implode(' ', array_filter([
+                  (string) ($slot['course'] ?? ''),
+                  (string) ($slot['faculty'] ?? ''),
+                  (string) ($slot['room'] ?? ''),
+                  (string) ($slot['delivery'] ?? ''),
+                  (string) ($slot['allocation'] ?? ''),
+                  ], function ($part) {
+                  return trim((string) $part) !== '';
+                  }))));
                   @endphp
-                  <div class="tt-slot" data-course-search="{{ $slotCourseSearch }}">
+                  <div class="tt-slot" data-search-text="{{ $slotSearchText }}">
                     <div class="fw-semibold">
                       {{ $slot['course'] ?? '-' }}
                       @if(!empty($slot['is_group_teaching']))
@@ -254,7 +262,7 @@
         let groupHasVisibleSlots = false;
 
         slots.forEach((slot) => {
-          const haystack = (slot.getAttribute('data-course-search') || '').toLowerCase();
+          const haystack = (slot.getAttribute('data-search-text') || '').toLowerCase();
           const matched = term === '' || haystack.includes(term);
           slot.classList.toggle('tt-hidden', !matched);
 
