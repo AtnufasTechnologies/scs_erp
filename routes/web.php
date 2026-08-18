@@ -185,6 +185,8 @@ Route::group(['prefix' => '/erp'], function () {
         Route::post('itcell/integrated-student-shift', [ITCellController::class, 'integratedStudentShiftStore'])->name('itcell.integrated-student-shift.store');
         Route::post('itcell-generate-librarycode', [ITCellController::class, 'generateLibraryCode'])->name('itcell.generate.librarycode');
         Route::post('itcell-generate-excel-studentdata', [ITCellController::class, 'generateExcelStudentData'])->name('itcell.generate.excel.studentdata');
+        Route::get('itcell/fa1-quizzes', [QuizOversightController::class, 'index'])->name('itcell.quizzes.index');
+        Route::get('itcell/fa1-quizzes/{quizId}/results', [QuizOversightController::class, 'results'])->name('itcell.quizzes.results');
 
         //master
         Route::group(['prefix' => '/master'], function () {

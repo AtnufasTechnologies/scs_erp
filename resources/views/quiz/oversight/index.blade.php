@@ -20,6 +20,20 @@
     @include('quiz.oversight.partials.table')
   </main>
 </div>
+@elseif($role === 'itcell')
+@include('admin.sidebar')
+
+<div class="container-fluid p-4">
+  <div class="d-flex justify-content-between align-items-center mb-3">
+    <div>
+      <h4 class="mb-0">ITCell FA1 Quiz Monitor</h4>
+      <small class="text-muted">All faculty-created quizzes with analytics overview.</small>
+    </div>
+    <a href="{{ route('admin.dashboard') }}" class="btn btn-outline-secondary btn-sm">Back to Dashboard</a>
+  </div>
+
+  @include('quiz.oversight.partials.table')
+</div>
 @else
 @include('includes.dept-sidebar')
 

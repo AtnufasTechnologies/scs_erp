@@ -45,6 +45,26 @@
     color: var(--qm-accent);
   }
 
+  .quiz-monitor .analytics-strip {
+    border: 1px solid var(--qm-border);
+    border-radius: 12px;
+    background: #ffffff;
+    padding: 0.7rem 0.8rem;
+    margin-bottom: 0.9rem;
+  }
+
+  .quiz-monitor .analytics-title {
+    color: var(--qm-title);
+    font-size: 0.84rem;
+    font-weight: 700;
+    margin-bottom: 0.2rem;
+  }
+
+  .quiz-monitor .analytics-sub {
+    color: var(--qm-muted);
+    font-size: 0.76rem;
+  }
+
   .quiz-monitor .quiz-card {
     background: var(--qm-card);
     border: 1px solid var(--qm-border);
@@ -167,9 +187,13 @@
       <div class="d-flex align-items-center gap-2 flex-wrap">
         <span class="metric-chip">Total Quizzes: {{ $quizzes->total() }}</span>
         <span class="metric-chip">Completed: {{ (int) ($statusCounts['completed'] ?? 0) }}</span>
+        <span class="metric-chip">Unique Students (By Start Time): {{ (int) ($totalUniqueStudentsByStartTime ?? 0) }}</span>
 
         @php
-        $indexRouteName = $monitorIndexRoute ?? (($role ?? '') === 'principal' ? 'principal.quizzes.index' : 'department.quizzes.index');
+        $indexRouteName = $monitorIndexRoute
+        ?? (($role ?? '') === 'principal'
+        ? 'principal.quizzes.index'
+        : (($role ?? '') === 'itcell' ? 'itcell.quizzes.index' : 'department.quizzes.index'));
         @endphp
 
         <form method="GET" action="{{ route($indexRouteName) }}" class="d-flex gap-2 align-items-center flex-wrap">
@@ -189,6 +213,11 @@
             <option value="completed" {{ ($selectedStatus ?? 'all') === 'completed' ? 'selected' : '' }}>Completed</option>
           </select>
 
+          <select name="group_by" class="form-select form-select-sm" style="min-width: 220px;">
+            <option value="none" {{ ($groupBy ?? 'none') === 'none' ? 'selected' : '' }}>Normal View</option>
+            <option value="start_time" {{ ($groupBy ?? 'none') === 'start_time' ? 'selected' : '' }}>Group By Start Time (All Quizzes)</option>
+          </select>
+
           <input
             type="date"
             name="start_date"
@@ -198,7 +227,7 @@
             title="Quiz Start Date">
 
           <button class="btn btn-sm btn-primary" type="submit">Apply</button>
-          @if(($selectedDepartment ?? '') !== '' || ($selectedStatus ?? 'all') !== 'all' || ($startDate ?? '') !== '')
+          @if(($selectedDepartment ?? '') !== '' || ($selectedStatus ?? 'all') !== 'all' || ($startDate ?? '') !== '' || ($groupBy ?? 'none') !== 'none')
           <a class="btn btn-sm btn-outline-secondary" href="{{ route($indexRouteName) }}">Clear</a>
           @endif
         </form>
@@ -207,7 +236,90 @@
     </div>
 
     <div class="p-3">
-      @if($quizzes->count())
+      @if(($startTimeAnalytics ?? collect())->isNotEmpty())
+      <div class="analytics-strip">
+        <div class="analytics-title">Start Time Analytics</div>
+        <div class="analytics-sub">Unique students grouped by quiz start date and time.</div>
+        <div class="d-flex gap-2 flex-wrap mt-2">
+          @foreach($startTimeAnalytics as $metric)
+          <span class="metric-chip">{{ $metric['start_at_label'] }}: {{ (int) ($metric['unique_students'] ?? 0) }}</span>
+          @endforeach
+        </div>
+      </div>
+      @endif
+
+      @if(($groupBy ?? 'none') === 'start_time')
+      @if(($groupedQuizzesByStartTime ?? collect())->isNotEmpty())
+      <div class="d-flex flex-column gap-3">
+        @foreach($groupedQuizzesByStartTime as $group)
+        <div class="analytics-strip mb-0">
+          <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-2">
+            <div class="analytics-title mb-0">Start Time: {{ $group['start_at_label'] }}</div>
+            <span class="metric-chip">Quizzes: {{ (int) ($group['quiz_count'] ?? 0) }}</span>
+          </div>
+
+          <div class="table-responsive">
+            <table class="table table-sm table-bordered align-middle mb-0">
+              <thead class="table-light">
+                <tr>
+                  <th>#</th>
+                  <th>Quiz</th>
+                  <th>Faculty</th>
+                  <th>Course</th>
+                  <th>Status</th>
+                  <th>Expected Students</th>
+                  <th>Attempts</th>
+                  <th>Action</th>
+                </tr>
+              </thead>
+              <tbody>
+                @foreach(($group['quizzes'] ?? collect()) as $quiz)
+                @php
+                $facultyName = trim((string) (optional($quiz->faculty)->full_name ?? ''));
+                if ($facultyName === '') {
+                $facultyName = optional($quiz->creator)->name ?? 'N/A';
+                }
+                $now = now();
+                $isUpcoming = $quiz->open_at && $quiz->open_at->gt($now);
+                $isCompleted = $quiz->close_at && $quiz->close_at->lte($now);
+                $statusLabel = $isCompleted ? 'Completed' : ($isUpcoming ? 'Upcoming' : 'Ongoing');
+                $statusBadge = $isCompleted ? 'bg-secondary' : ($isUpcoming ? 'bg-info text-dark' : 'bg-success');
+                @endphp
+                <tr>
+                  <td>{{ $loop->iteration }}</td>
+                  <td>
+                    <div class="fw-bold">{{ $quiz->title }}</div>
+                    <small class="text-muted">{{ optional($quiz->open_at)->format('d M Y h:i A') ?? 'N/A' }}</small>
+                  </td>
+                  <td>{{ $facultyName }}</td>
+                  <td>{{ $quiz->course->course_code ?? '' }}{{ $quiz->course ? ' - ' : '' }}{{ $quiz->course->course_title ?? 'N/A' }}</td>
+                  <td><span class="badge {{ $statusBadge }}">{{ $statusLabel }}</span></td>
+                  <td>{{ (int) ($quiz->expected_students_count ?? 0) }}</td>
+                  <td>{{ (int) ($quiz->submitted_attempts_count ?? 0) }}</td>
+                  <td>
+                    @php
+                    $resultsRouteName = $monitorResultsRoute
+                    ?? (($role ?? '') === 'principal'
+                    ? 'principal.quizzes.results'
+                    : (($role ?? '') === 'itcell' ? 'itcell.quizzes.results' : 'department.quizzes.results'));
+                    @endphp
+                    <a href="{{ route($resultsRouteName, $quiz->id) }}" class="btn btn-sm btn-outline-primary">Results</a>
+                  </td>
+                </tr>
+                @endforeach
+              </tbody>
+            </table>
+          </div>
+        </div>
+        @endforeach
+      </div>
+      @else
+      <div class="empty-state">
+        <h6 class="mb-1">No grouped quizzes found</h6>
+        <small>Try changing filters to see grouped quizzes by start time.</small>
+      </div>
+      @endif
+      @elseif($quizzes->count())
       <div class="row g-3">
         @foreach($quizzes as $quiz)
         @php
@@ -273,11 +385,15 @@
 
               <div class="mt-2">
                 @php
-                $resultsRouteName = $monitorResultsRoute ?? (($role ?? '') === 'principal' ? 'principal.quizzes.results' : 'department.quizzes.results');
+                $resultsRouteName = $monitorResultsRoute
+                ?? (($role ?? '') === 'principal'
+                ? 'principal.quizzes.results'
+                : (($role ?? '') === 'itcell' ? 'itcell.quizzes.results' : 'department.quizzes.results'));
                 @endphp
                 <a href="{{ route($resultsRouteName, $quiz->id) }}" class="btn btn-sm btn-outline-primary mb-2 w-100">
                   View Results ({{ (int) ($quiz->submitted_attempts_count ?? 0) }} Attempts)
                 </a>
+                @if($showQuestionsInMonitor ?? true)
                 <button class="question-toggle" type="button" data-bs-toggle="collapse" data-bs-target="#{{ $collapseId }}" aria-expanded="false" aria-controls="{{ $collapseId }}">
                   Questions ({{ $quiz->questions_count }})
                 </button>
@@ -292,6 +408,7 @@
                   <div class="text-muted mt-2" style="font-size: 0.84rem;">No questions found.</div>
                   @endif
                 </div>
+                @endif
               </div>
             </div>
           </article>
@@ -305,7 +422,7 @@
       </div>
       @endif
 
-      @if($quizzes->hasPages())
+      @if(($groupBy ?? 'none') !== 'start_time' && $quizzes->hasPages())
       <div class="mt-3">
         {{ $quizzes->links('vendor.pagination.bootstrap-5') }}
       </div>

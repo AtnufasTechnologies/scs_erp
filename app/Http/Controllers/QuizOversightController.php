@@ -25,9 +25,14 @@ class QuizOversightController extends Controller
     $selectedDepartment = trim((string) $request->query('department', ''));
     $selectedStatus = trim((string) $request->query('status', 'all'));
     $startDate = trim((string) $request->query('start_date', ''));
+    $groupBy = trim((string) $request->query('group_by', 'none'));
     $allowedStatuses = ['all', 'upcoming', 'live', 'completed'];
+    $allowedGroupBy = ['none', 'start_time'];
     if (!in_array($selectedStatus, $allowedStatuses, true)) {
       $selectedStatus = 'all';
+    }
+    if (!in_array($groupBy, $allowedGroupBy, true)) {
+      $groupBy = 'none';
     }
 
     $startDateValue = null;
@@ -70,6 +75,16 @@ class QuizOversightController extends Controller
       $listingQuery->whereDate('open_at', $startDateValue);
     }
 
+    $quizRelations = [
+      'course:id,course_title,course_code',
+      'subject:id,title',
+      'faculty:id,FIRST_NAME,MIDDLE_NAME,LAST_NAME,DEPARTMENT',
+      'faculty.department',
+      'creator:id,name',
+      'questions:id,quiz_id,question_text,position',
+      'attempts:id,quiz_id,student_id,status,score,submitted_at',
+    ];
+
     $quizzes = (clone $listingQuery)->with([
       'course:id,course_title,course_code',
       'subject:id,title',
@@ -89,10 +104,98 @@ class QuizOversightController extends Controller
       ->paginate(15)
       ->withQueryString();
 
-    $quizzes->getCollection()->transform(function ($quiz) {
-      $quiz->expected_students_count = $this->expectedStudentCountForQuiz($quiz);
+    $startTimeStudentMap = [];
+    $groupedQuizzesByStartTime = collect();
+
+    $quizzes->getCollection()->transform(function ($quiz) use (&$startTimeStudentMap) {
+      $studentIds = $this->expectedStudentIdsForQuiz($quiz);
+      $quiz->expected_students_count = $studentIds->count();
+
+      if ($quiz->open_at) {
+        $startAtKey = $quiz->open_at->format('Y-m-d H:i:s');
+
+        if (!array_key_exists($startAtKey, $startTimeStudentMap)) {
+          $startTimeStudentMap[$startAtKey] = collect();
+        }
+
+        $startTimeStudentMap[$startAtKey] = $startTimeStudentMap[$startAtKey]
+          ->merge($studentIds)
+          ->unique()
+          ->values();
+      }
+
       return $quiz;
     });
+
+    if ($groupBy === 'start_time') {
+      $allFilteredQuizzes = (clone $listingQuery)
+        ->with($quizRelations)
+        ->withCount('questions')
+        ->withCount([
+          'attempts as submitted_attempts_count' => function ($query) {
+            $query->where('status', 'submitted');
+          }
+        ])
+        ->orderBy('open_at')
+        ->orderByDesc('id')
+        ->get();
+
+      $startTimeStudentMap = [];
+
+      $allFilteredQuizzes->transform(function ($quiz) use (&$startTimeStudentMap) {
+        $studentIds = $this->expectedStudentIdsForQuiz($quiz);
+        $quiz->expected_students_count = $studentIds->count();
+
+        if ($quiz->open_at) {
+          $startAtKey = $quiz->open_at->format('Y-m-d H:i:s');
+
+          if (!array_key_exists($startAtKey, $startTimeStudentMap)) {
+            $startTimeStudentMap[$startAtKey] = collect();
+          }
+
+          $startTimeStudentMap[$startAtKey] = $startTimeStudentMap[$startAtKey]
+            ->merge($studentIds)
+            ->unique()
+            ->values();
+        }
+
+        return $quiz;
+      });
+
+      $groupedQuizzesByStartTime = $allFilteredQuizzes
+        ->groupBy(function ($quiz) {
+          return $quiz->open_at ? $quiz->open_at->format('Y-m-d H:i:s') : 'NO_START_TIME';
+        })
+        ->map(function ($items, $startAtKey) {
+          $startAtLabel = $startAtKey === 'NO_START_TIME'
+            ? 'No Start Time'
+            : Carbon::parse($startAtKey)->format('d M Y h:i A');
+
+          return [
+            'start_at' => $startAtKey === 'NO_START_TIME' ? null : $startAtKey,
+            'start_at_label' => $startAtLabel,
+            'quiz_count' => (int) $items->count(),
+            'quizzes' => $items->values(),
+          ];
+        })
+        ->sortBy(function ($group) {
+          return $group['start_at'] ?? '9999-12-31 23:59:59';
+        })
+        ->values();
+    }
+
+    $startTimeAnalytics = collect($startTimeStudentMap)
+      ->map(function ($studentIds, $startAt) {
+        return [
+          'start_at' => $startAt,
+          'start_at_label' => Carbon::parse($startAt)->format('d M Y h:i A'),
+          'unique_students' => (int) collect($studentIds)->count(),
+        ];
+      })
+      ->sortBy('start_at')
+      ->values();
+
+    $totalUniqueStudentsByStartTime = (int) $startTimeAnalytics->sum('unique_students');
 
     $departmentOptions = (clone $baseQuery)
       ->whereNotNull('faculty_id')
@@ -120,11 +223,16 @@ class QuizOversightController extends Controller
       'selectedDepartment' => $selectedDepartment,
       'selectedStatus' => $selectedStatus,
       'startDate' => $startDate,
+      'groupBy' => $groupBy,
       'statusCounts' => $statusCounts,
+      'startTimeAnalytics' => $startTimeAnalytics,
+      'totalUniqueStudentsByStartTime' => $totalUniqueStudentsByStartTime,
+      'groupedQuizzesByStartTime' => $groupedQuizzesByStartTime,
       'role' => $role,
-      'canFilterDepartments' => $role === 'principal',
-      'monitorIndexRoute' => $role === 'principal' ? 'principal.quizzes.index' : 'department.quizzes.index',
-      'monitorResultsRoute' => $role === 'principal' ? 'principal.quizzes.results' : 'department.quizzes.results',
+      'canFilterDepartments' => in_array($role, ['principal', 'itcell'], true),
+      'showQuestionsInMonitor' => $role !== 'itcell',
+      'monitorIndexRoute' => $this->monitorIndexRouteName($role),
+      'monitorResultsRoute' => $this->monitorResultsRouteName($role),
     ]);
   }
 
@@ -181,19 +289,23 @@ class QuizOversightController extends Controller
       'attemptedStudentCount' => $attemptedStudentCount,
       'latestSubmissionAt' => $latestSubmissionAt,
       'averageScore' => $avgScore,
-      'monitorIndexRoute' => $role === 'principal' ? 'principal.quizzes.index' : 'department.quizzes.index',
+      'monitorIndexRoute' => $this->monitorIndexRouteName($role),
     ]);
   }
 
   private function resolveAuthorizedRole(): string
   {
-    $role = (string) UserHasRole::where('user_id', Auth::id())->value('role_name');
+    $rawRole = (string) UserHasRole::where('user_id', Auth::id())->value('role_name');
 
-    if (!in_array($role, ['principal', 'dept-admin-erp'], true)) {
+    if (in_array($rawRole, ['itcell', 'admin', 'super-admin'], true)) {
+      return 'itcell';
+    }
+
+    if (!in_array($rawRole, ['principal', 'dept-admin-erp'], true)) {
       abort(403, 'Unauthorized access.');
     }
 
-    return $role;
+    return $rawRole;
   }
 
   private function scopedQuizQueryForRole(string $role): Builder
@@ -396,7 +508,43 @@ class QuizOversightController extends Controller
 
   private function expectedStudentCountForQuiz(Quiz $quiz): int
   {
+    return $this->expectedStudentIdsForQuiz($quiz)->count();
+  }
+
+  private function expectedStudentIdsForQuiz(Quiz $quiz)
+  {
     $rosterData = $this->resolveQuizEligibleStudents($quiz);
-    return (int) collect($rosterData['students'] ?? [])->count();
+
+    return collect($rosterData['students'] ?? [])
+      ->map(fn($studentId) => (int) $studentId)
+      ->filter(fn($studentId) => $studentId > 0)
+      ->unique()
+      ->values();
+  }
+
+  private function monitorIndexRouteName(string $role): string
+  {
+    if ($role === 'principal') {
+      return 'principal.quizzes.index';
+    }
+
+    if ($role === 'itcell') {
+      return 'itcell.quizzes.index';
+    }
+
+    return 'department.quizzes.index';
+  }
+
+  private function monitorResultsRouteName(string $role): string
+  {
+    if ($role === 'principal') {
+      return 'principal.quizzes.results';
+    }
+
+    if ($role === 'itcell') {
+      return 'itcell.quizzes.results';
+    }
+
+    return 'department.quizzes.results';
   }
 }
