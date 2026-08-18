@@ -1518,6 +1518,7 @@ class AttendanceController extends Controller
       $assignment = $routine->teachingAssignment ?: $routine->teachingAllocation;
       $courseMaster = $routine->syllabus->courseLink->courseMaster ?? null;
       $courseCode = trim((string) ($courseMaster->course_code ?? ''));
+      $routeCode = $courseCode !== '' ? $courseCode : 'NA';
       $courseTitle = trim((string) ($courseMaster->course_title ?? 'N/A'));
       $courseType = trim((string) ($courseMaster->coursetypemaster->title ?? ''));
       $assignmentId = (int) ($assignment->id ?? 0);
@@ -1551,6 +1552,7 @@ class AttendanceController extends Controller
         'assignment_id' => $assignmentId,
         'course_id' => $courseId,
         'course_code' => $courseCode,
+        'route_code' => $routeCode,
         'course_title' => $courseTitle,
         'course_type' => $courseType,
         'course_label' => trim($courseCode . ($courseCode !== '' ? ' - ' : '') . $courseTitle),

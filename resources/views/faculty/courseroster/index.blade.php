@@ -75,13 +75,13 @@ $safeAssignmentRows = collect($assignmentRows ?? []);
                   <td>{{ $row['shift'] !== '' ? $row['shift'] : '-' }}</td>
                   <td>{{ $row['room'] !== '' ? $row['room'] : '-' }}</td>
                   <td>
-                    <a href="{{ route('faculty.course.roster.list', ['id' => $row['id'], 'code' => $row['course_code']]) }}">
+                    <a href="{{ route('faculty.course.roster.list', ['id' => $row['id'], 'code' => ($row['route_code'] ?? 'NA')]) }}">
                       <button class="btn btn-outline-primary"><i class="fa fa-eye"></i></button>
                     </a>
                   </td>
-                  <td><a href="{{route('faculty.course.roster.create',['id' => $row['id'],'code'=>$row['course_code']])}}"><button class="btn btn-outline-success"><i class="fa fa-plus-circle"></i></button></a></td>
+                  <td><a href="{{route('faculty.course.roster.create',['id' => $row['id'],'code'=>($row['route_code'] ?? 'NA')])}}"><button class="btn btn-outline-success"><i class="fa fa-plus-circle"></i></button></a></td>
                   <td>
-                    <a href="{{route('faculty.course.roster.create',['id' => $row['id'],'code'=>$row['course_code']])}}">
+                    <a href="{{route('faculty.course.roster.create',['id' => $row['id'],'code'=>($row['route_code'] ?? 'NA')])}}">
                       <button class="btn btn-warning"><i class="fa fa-edit"></i></button>
                     </a>
                   </td>
