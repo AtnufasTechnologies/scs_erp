@@ -177,12 +177,43 @@
 </style>
 
 <section class="quiz-monitor mt-3">
+  @if(session('success'))
+  <div class="alert alert-success alert-dismissible fade show" role="alert">
+    {{ session('success') }}
+    <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+  </div>
+  @endif
+
+  @if(session('error'))
+  <div class="alert alert-danger alert-dismissible fade show" role="alert">
+    {{ session('error') }}
+    <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+  </div>
+  @endif
+
   <div class="panel">
     <div class="panel-head d-flex justify-content-between align-items-center flex-wrap gap-2">
       <div>
         <h5 class="panel-title">Faculty Quiz Repository</h5>
         <small class="text-muted">Centralized faculty quiz insights</small>
       </div>
+
+      @if(($role ?? '') === 'itcell')
+      <form method="POST" action="{{ route('itcell.quizzes.backfill-teaching-assignment') }}" class="d-flex align-items-end gap-2 flex-wrap">
+        @csrf
+        <div>
+          <label class="form-label form-label-sm mb-1">Backfill By Course Code</label>
+          <input
+            type="text"
+            name="course_code"
+            class="form-control form-control-sm"
+            style="min-width: 220px;"
+            placeholder="e.g. 24CSAVAC301A"
+            required>
+        </div>
+        <button type="submit" class="btn btn-sm btn-outline-primary">Run Backfill</button>
+      </form>
+      @endif
 
       <div class="d-flex align-items-center gap-2 flex-wrap">
         <span class="metric-chip">Total Quizzes: {{ $quizzes->total() }}</span>
@@ -213,6 +244,14 @@
             <option value="completed" {{ ($selectedStatus ?? 'all') === 'completed' ? 'selected' : '' }}>Completed</option>
           </select>
 
+          <input
+            type="text"
+            name="course_code"
+            value="{{ $selectedCourseCode ?? '' }}"
+            class="form-control form-control-sm"
+            style="min-width: 180px;"
+            placeholder="Course Code">
+
           <select name="group_by" class="form-select form-select-sm" style="min-width: 220px;">
             <option value="none" {{ ($groupBy ?? 'none') === 'none' ? 'selected' : '' }}>Normal View</option>
             <option value="start_time" {{ ($groupBy ?? 'none') === 'start_time' ? 'selected' : '' }}>Group By Start Time (All Quizzes)</option>
@@ -227,7 +266,7 @@
             title="Quiz Start Date">
 
           <button class="btn btn-sm btn-primary" type="submit">Apply</button>
-          @if(($selectedDepartment ?? '') !== '' || ($selectedStatus ?? 'all') !== 'all' || ($startDate ?? '') !== '' || ($groupBy ?? 'none') !== 'none')
+          @if(($selectedDepartment ?? '') !== '' || ($selectedStatus ?? 'all') !== 'all' || ($selectedCourseCode ?? '') !== '' || ($startDate ?? '') !== '' || ($groupBy ?? 'none') !== 'none')
           <a class="btn btn-sm btn-outline-secondary" href="{{ route($indexRouteName) }}">Clear</a>
           @endif
         </form>

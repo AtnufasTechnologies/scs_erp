@@ -1111,24 +1111,36 @@ class QuizController extends Controller
       $selectColumns[] = 'teaching_allocation_id';
     }
 
-    $candidateAssignmentIds = $routineQuery
-      ->get($selectColumns)
-      ->flatMap(function ($routine) use ($hasTeachingAssignmentColumn, $hasTeachingAllocationColumn) {
-        $ids = [];
+    $extractAssignmentIds = function ($routines) use ($hasTeachingAssignmentColumn, $hasTeachingAllocationColumn) {
+      return collect($routines)
+        ->flatMap(function ($routine) use ($hasTeachingAssignmentColumn, $hasTeachingAllocationColumn) {
+          $ids = [];
 
-        if ($hasTeachingAssignmentColumn) {
-          $ids[] = (int) ($routine->teaching_assignment_id ?? 0);
-        }
+          if ($hasTeachingAssignmentColumn) {
+            $ids[] = (int) ($routine->teaching_assignment_id ?? 0);
+          }
 
-        if ($hasTeachingAllocationColumn) {
-          $ids[] = (int) ($routine->teaching_allocation_id ?? 0);
-        }
+          if ($hasTeachingAllocationColumn) {
+            $ids[] = (int) ($routine->teaching_allocation_id ?? 0);
+          }
 
-        return $ids;
-      })
-      ->filter(fn($id) => $id > 0)
-      ->unique()
-      ->values();
+          return $ids;
+        })
+        ->filter(fn($id) => $id > 0)
+        ->unique()
+        ->values();
+    };
+
+    $candidateAssignmentIds = $extractAssignmentIds($routineQuery->get($selectColumns));
+
+    // Legacy quizzes may not store teaching_assignment_id and their linked routines may be soft-deleted.
+    if ($candidateAssignmentIds->isEmpty() && method_exists($routineQuery->getModel(), 'withTrashed')) {
+      $legacyRoutineQuery = $this->queryFacultyAssignedRoutines((int) $quiz->faculty_id)
+        ->withTrashed()
+        ->where('syllabus_id', (int) $quiz->syllabus_id);
+
+      $candidateAssignmentIds = $extractAssignmentIds($legacyRoutineQuery->get($selectColumns));
+    }
 
     $selectedAssignmentId = (int) ($quiz->teaching_assignment_id ?? 0);
 

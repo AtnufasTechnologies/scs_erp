@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\Quiz;
 use App\Models\QuizAttempt;
+use App\Models\ProgramCourseMaster;
 use App\Models\StudentCourseRoster;
 use App\Models\SubjectFacultyMaster;
 use App\Models\SubjectHasDeptAdmin;
@@ -24,6 +25,7 @@ class QuizOversightController extends Controller
 
     $selectedDepartment = trim((string) $request->query('department', ''));
     $selectedStatus = trim((string) $request->query('status', 'all'));
+    $selectedCourseCode = strtoupper(trim((string) $request->query('course_code', '')));
     $startDate = trim((string) $request->query('start_date', ''));
     $groupBy = trim((string) $request->query('group_by', 'none'));
     $allowedStatuses = ['all', 'upcoming', 'live', 'completed'];
@@ -65,6 +67,11 @@ class QuizOversightController extends Controller
           foreach ($departmentLabelColumns->slice(1) as $column) {
             $deptQuery->orWhere($column, $selectedDepartment);
           }
+        });
+      })
+      ->when($selectedCourseCode !== '', function ($query) use ($selectedCourseCode) {
+        $query->whereHas('course', function ($courseQuery) use ($selectedCourseCode) {
+          $courseQuery->whereRaw('UPPER(TRIM(course_code)) LIKE ?', ['%' . $selectedCourseCode . '%']);
         });
       });
 
@@ -222,6 +229,7 @@ class QuizOversightController extends Controller
       'departmentOptions' => $departmentOptions,
       'selectedDepartment' => $selectedDepartment,
       'selectedStatus' => $selectedStatus,
+      'selectedCourseCode' => $selectedCourseCode,
       'startDate' => $startDate,
       'groupBy' => $groupBy,
       'statusCounts' => $statusCounts,
@@ -291,6 +299,92 @@ class QuizOversightController extends Controller
       'averageScore' => $avgScore,
       'monitorIndexRoute' => $this->monitorIndexRouteName($role),
     ]);
+  }
+
+  public function backfillTeachingAssignmentByCourseCode(Request $request)
+  {
+    $role = $this->resolveAuthorizedRole();
+    if ($role !== 'itcell') {
+      abort(403, 'Only ITCELL can run this operation.');
+    }
+
+    $validated = $request->validate([
+      'course_code' => 'required|string|max:120',
+    ]);
+
+    $rawCourseCode = (string) $validated['course_code'];
+    $normalizedCourseCode = $this->normalizeCourseCode($rawCourseCode);
+    if ($normalizedCourseCode === '') {
+      return redirect()->route('itcell.quizzes.index')->with('error', 'Course code is required.');
+    }
+
+    $courseIds = ProgramCourseMaster::query()
+      ->get(['id', 'course_code'])
+      ->filter(function ($course) use ($normalizedCourseCode) {
+        $courseCode = $this->normalizeCourseCode((string) ($course->course_code ?? ''));
+        if ($courseCode === '') {
+          return false;
+        }
+
+        return $courseCode === $normalizedCourseCode;
+      })
+      ->pluck('id')
+      ->map(fn($id) => (int) $id)
+      ->filter(fn($id) => $id > 0)
+      ->unique()
+      ->values();
+
+    if ($courseIds->isEmpty()) {
+      return redirect()
+        ->route('itcell.quizzes.index')
+        ->with('error', 'No course found for code ' . trim($rawCourseCode) . '.');
+    }
+
+    $matchedQuizCount = (int) Quiz::query()
+      ->whereIn('course_id', $courseIds->all())
+      ->count();
+
+    $quizzes = Quiz::query()
+      ->whereIn('course_id', $courseIds->all())
+      ->where(function ($query) {
+        $query->whereNull('teaching_assignment_id')
+          ->orWhere('teaching_assignment_id', '<=', 0);
+      })
+      ->orderBy('id')
+      ->get();
+
+    if ($quizzes->isEmpty()) {
+      return redirect()
+        ->route('itcell.quizzes.index')
+        ->with('success', 'No pending quiz backfill rows found for course code ' . trim($rawCourseCode) . '. Matched quizzes=' . $matchedQuizCount . '.');
+    }
+
+    $updated = 0;
+    $skipped = 0;
+
+    foreach ($quizzes as $quiz) {
+      $resolvedAssignmentId = $this->resolveAssignmentIdForBackfill($quiz);
+      if ($resolvedAssignmentId <= 0) {
+        $skipped++;
+        continue;
+      }
+
+      Quiz::query()
+        ->where('id', (int) $quiz->id)
+        ->update([
+          'teaching_assignment_id' => $resolvedAssignmentId,
+          'updated_at' => now(),
+        ]);
+
+      $updated++;
+    }
+
+    $message = 'Backfill completed for course code ' . trim($rawCourseCode)
+      . '. updated=' . $updated
+      . ', skipped=' . $skipped
+      . ', scanned=' . $quizzes->count() . '.';
+
+    return redirect()->route('itcell.quizzes.index')->with('success', $message);
   }
 
   private function resolveAuthorizedRole(): string
@@ -414,7 +508,7 @@ class QuizOversightController extends Controller
       $selectColumns[] = 'teaching_allocation_id';
     }
 
-    $candidateAssignmentIds = $routineQuery
+    $candidateAssignmentIds = collect($routineQuery
       ->get($selectColumns)
       ->flatMap(function ($routine) use ($hasTeachingAssignmentColumn, $hasTeachingAllocationColumn) {
         $ids = [];
@@ -428,10 +522,35 @@ class QuizOversightController extends Controller
         }
 
         return $ids;
-      })
+      }))
       ->filter(fn($id) => $id > 0)
       ->unique()
       ->values();
+
+    if ($candidateAssignmentIds->isEmpty() && method_exists($routineQuery->getModel(), 'withTrashed')) {
+      $legacyRoutineQuery = $this->queryFacultyAssignedRoutines((int) $quiz->faculty_id)
+        ->withTrashed()
+        ->where('syllabus_id', (int) $quiz->syllabus_id);
+
+      $candidateAssignmentIds = collect($legacyRoutineQuery
+        ->get($selectColumns)
+        ->flatMap(function ($routine) use ($hasTeachingAssignmentColumn, $hasTeachingAllocationColumn) {
+          $ids = [];
+
+          if ($hasTeachingAssignmentColumn) {
+            $ids[] = (int) ($routine->teaching_assignment_id ?? 0);
+          }
+
+          if ($hasTeachingAllocationColumn) {
+            $ids[] = (int) ($routine->teaching_allocation_id ?? 0);
+          }
+
+          return $ids;
+        }))
+        ->filter(fn($id) => $id > 0)
+        ->unique()
+        ->values();
+    }
 
     $selectedAssignmentId = (int) ($quiz->teaching_assignment_id ?? 0);
 
@@ -520,6 +639,58 @@ class QuizOversightController extends Controller
       ->filter(fn($studentId) => $studentId > 0)
       ->unique()
       ->values();
+  }
+
+  private function resolveAssignmentIdForBackfill(Quiz $quiz): int
+  {
+    $selectedAssignmentId = (int) ($quiz->teaching_assignment_id ?? 0);
+    if ($selectedAssignmentId > 0) {
+      return $selectedAssignmentId;
+    }
+
+    $candidateAssignmentIds = $this->candidateTeachingAssignmentIdsForQuiz($quiz, false);
+    if ($candidateAssignmentIds->isEmpty()) {
+      $candidateAssignmentIds = $this->candidateTeachingAssignmentIdsForQuiz($quiz, true);
+    }
+
+    if ($candidateAssignmentIds->isEmpty()) {
+      return 0;
+    }
+
+    if ($candidateAssignmentIds->count() > 1) {
+      $selectedAssignmentId = $this->inferQuizAssignmentIdFromRoster($quiz, $candidateAssignmentIds);
+      if ($selectedAssignmentId > 0) {
+        return $selectedAssignmentId;
+      }
+    }
+
+    return (int) $candidateAssignmentIds->sort()->first();
+  }
+
+  private function candidateTeachingAssignmentIdsForQuiz(Quiz $quiz, bool $includeTrashed)
+  {
+    $query = SubjectHasRoutine::query()
+      ->where('syllabus_id', (int) $quiz->syllabus_id)
+      ->where('faculty_id', (int) $quiz->faculty_id)
+      ->whereNotNull('teaching_assignment_id');
+
+    if ($includeTrashed) {
+      $query->withTrashed();
+    } elseif (Schema::hasColumn('subject_has_routines', 'deleted_at')) {
+      $query->whereNull('deleted_at');
+    }
+
+    return $query
+      ->pluck('teaching_assignment_id')
+      ->map(fn($id) => (int) $id)
+      ->filter(fn($id) => $id > 0)
+      ->unique()
+      ->values();
+  }
+
+  private function normalizeCourseCode(string $courseCode): string
+  {
+    return preg_replace('/[^A-Z0-9]/', '', strtoupper(trim($courseCode))) ?? '';
   }
 
   private function monitorIndexRouteName(string $role): string
