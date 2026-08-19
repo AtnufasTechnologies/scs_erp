@@ -33,6 +33,11 @@
       @endif
       <div class="card shadow-sm border-0">
         <div class="card-body table-responsive">
+
+          <div class="alert alert-warning py-2">
+            <strong>Strict Rule : </strong> Navigating to any Tab, Browser, Notification, Keyboard Access, Split Screen on Mobile, Tablet or Laptop will result in <strong>Auto Submit</strong>.
+          </div>
+
           <table class="table table-bordered align-middle">
             <thead>
               <tr>
