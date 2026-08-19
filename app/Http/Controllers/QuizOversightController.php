@@ -361,6 +361,7 @@ class QuizOversightController extends Controller
 
     $updated = 0;
     $skipped = 0;
+    $restoredRoutineLinks = 0;
 
     foreach ($quizzes as $quiz) {
       $resolvedAssignmentId = $this->resolveAssignmentIdForBackfill($quiz);
@@ -376,13 +377,16 @@ class QuizOversightController extends Controller
           'updated_at' => now(),
         ]);
 
+      $restoredRoutineLinks += $this->restoreRoutineLinksForQuiz($quiz, $resolvedAssignmentId);
+
       $updated++;
     }
 
     $message = 'Backfill completed for course code ' . trim($rawCourseCode)
       . '. updated=' . $updated
       . ', skipped=' . $skipped
-      . ', scanned=' . $quizzes->count() . '.';
+      . ', scanned=' . $quizzes->count()
+      . ', routine_links_restored=' . $restoredRoutineLinks . '.';
 
     return redirect()->route('itcell.quizzes.index')->with('success', $message);
   }
@@ -691,6 +695,44 @@ class QuizOversightController extends Controller
   private function normalizeCourseCode(string $courseCode): string
   {
     return preg_replace('/[^A-Z0-9]/', '', strtoupper(trim($courseCode))) ?? '';
+  }
+
+  private function restoreRoutineLinksForQuiz(Quiz $quiz, int $assignmentId): int
+  {
+    if ($assignmentId <= 0) {
+      return 0;
+    }
+
+    if (!Schema::hasColumn('subject_has_routines', 'deleted_at')) {
+      return 0;
+    }
+
+    $hasTeachingAllocationColumn = Schema::hasColumn('subject_has_routines', 'teaching_allocation_id');
+
+    $restoreQuery = SubjectHasRoutine::query()
+      ->withTrashed()
+      ->where('syllabus_id', (int) $quiz->syllabus_id)
+      ->where('faculty_id', (int) $quiz->faculty_id)
+      ->whereNotNull('deleted_at')
+      ->where(function ($query) use ($assignmentId, $hasTeachingAllocationColumn) {
+        $query->where('teaching_assignment_id', $assignmentId);
+
+        if ($hasTeachingAllocationColumn) {
+          $query->orWhere('teaching_allocation_id', $assignmentId);
+        }
+      });
+
+    $restoreCount = (int) (clone $restoreQuery)->count();
+    if ($restoreCount <= 0) {
+      return 0;
+    }
+
+    $restoreQuery->update([
+      'deleted_at' => null,
+      'updated_at' => now(),
+    ]);
+
+    return $restoreCount;
   }
 
   private function monitorIndexRouteName(string $role): string

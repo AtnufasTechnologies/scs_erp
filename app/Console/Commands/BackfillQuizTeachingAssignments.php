@@ -49,8 +49,9 @@ class BackfillQuizTeachingAssignments extends Command
     $resolved = 0;
     $updated = 0;
     $skipped = 0;
+    $restoredRoutineLinks = 0;
 
-    $query->chunkById(200, function ($quizzes) use (&$totalScanned, &$resolved, &$updated, &$skipped, $dryRun) {
+    $query->chunkById(200, function ($quizzes) use (&$totalScanned, &$resolved, &$updated, &$skipped, &$restoredRoutineLinks, $dryRun) {
       foreach ($quizzes as $quiz) {
         $totalScanned++;
 
@@ -63,8 +64,10 @@ class BackfillQuizTeachingAssignments extends Command
 
         $resolved++;
 
+        $restorableCount = $this->restoreRoutineLinksForQuiz($quiz, $assignmentId, true);
+
         if ($dryRun) {
-          $this->info("DRY quiz={$quiz->id} -> teaching_assignment_id={$assignmentId}");
+          $this->info("DRY quiz={$quiz->id} -> teaching_assignment_id={$assignmentId}, routine_links_restore={$restorableCount}");
           continue;
         }
 
@@ -72,6 +75,8 @@ class BackfillQuizTeachingAssignments extends Command
           'teaching_assignment_id' => $assignmentId,
           'updated_at' => now(),
         ]);
+
+        $restoredRoutineLinks += $this->restoreRoutineLinksForQuiz($quiz, $assignmentId, false);
 
         $updated++;
         $this->info("UPDATED quiz={$quiz->id} -> teaching_assignment_id={$assignmentId}");
@@ -84,6 +89,7 @@ class BackfillQuizTeachingAssignments extends Command
     $this->line('resolved=' . $resolved);
     $this->line('updated=' . ($dryRun ? 0 : $updated));
     $this->line('skipped=' . $skipped);
+    $this->line('routine_links_restored=' . ($dryRun ? 0 : $restoredRoutineLinks));
 
     if ($dryRun) {
       $this->comment('Dry-run mode: no DB rows were modified.');
@@ -163,5 +169,43 @@ class BackfillQuizTeachingAssignments extends Command
       ->value('ta_id');
 
     return (int) ($bestId ?? 0);
+  }
+
+  private function restoreRoutineLinksForQuiz(Quiz $quiz, int $assignmentId, bool $countOnly = false): int
+  {
+    if ($assignmentId <= 0) {
+      return 0;
+    }
+
+    if (!Schema::hasColumn('subject_has_routines', 'deleted_at')) {
+      return 0;
+    }
+
+    $hasTeachingAllocationColumn = Schema::hasColumn('subject_has_routines', 'teaching_allocation_id');
+
+    $restoreQuery = SubjectHasRoutine::query()
+      ->withTrashed()
+      ->where('syllabus_id', (int) $quiz->syllabus_id)
+      ->where('faculty_id', (int) $quiz->faculty_id)
+      ->whereNotNull('deleted_at')
+      ->where(function ($query) use ($assignmentId, $hasTeachingAllocationColumn) {
+        $query->where('teaching_assignment_id', $assignmentId);
+
+        if ($hasTeachingAllocationColumn) {
+          $query->orWhere('teaching_allocation_id', $assignmentId);
+        }
+      });
+
+    $restoreCount = (int) (clone $restoreQuery)->count();
+    if ($countOnly || $restoreCount <= 0) {
+      return $restoreCount;
+    }
+
+    $restoreQuery->update([
+      'deleted_at' => null,
+      'updated_at' => now(),
+    ]);
+
+    return $restoreCount;
   }
 }
