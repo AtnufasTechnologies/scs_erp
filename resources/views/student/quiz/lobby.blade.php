@@ -54,7 +54,7 @@
             </div>
           </div>
 
-          @if(!$hasRemainingAttempts)
+          <!-- @if(!$hasRemainingAttempts)
           <div class="alert alert-warning mb-0">No remaining attempts for this FA1 exam.</div>
           @else
           <div class="alert alert-primary d-flex justify-content-between align-items-center flex-wrap gap-2" id="statusPanel">
@@ -66,7 +66,7 @@
             @csrf
             <button type="submit" class="btn btn-success" id="startExamBtn" disabled>Start Exam</button>
           </form>
-          @endif
+          @endif -->
         </div>
       </div>
     </div>
