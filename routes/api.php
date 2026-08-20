@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\Api\StudentApiController;
+use App\Http\Controllers\BiometricWebhookController;
 use App\Http\Controllers\FacultyApiController;
 use App\Http\Controllers\FeePaymentController;
 use App\Http\Controllers\LoginController;
@@ -63,3 +64,6 @@ Route::group(['prefix' => 'student'], function () {
     // Student QR attendance scan endpoint (temporary signed URL) - POST only.
     Route::post('attendance/scan', [StudentAttendanceScanController::class, 'mark'])->name('student.attendance.scan');
 });
+
+//recieve biometric  attendance direct from Hikvision IVMS 4200 Device
+Route::post('/biometric/attendance', [BiometricWebhookController::class, 'receiveAttendance']);

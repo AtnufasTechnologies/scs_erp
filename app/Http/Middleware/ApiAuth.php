@@ -16,6 +16,11 @@ class ApiAuth
     public function handle(Request $request, Closure $next): Response
     {
 
+        // ✅ Skip ERP key check for Biometric Webhook
+        if ($request->is('api/biometric/attendance')) {
+            return $next($request);
+        }
+
         // ✅ Skip ERP key check for Easebuzz webhook
         if ($request->is('api/easebuzz/webhook')) {
             return $next($request);

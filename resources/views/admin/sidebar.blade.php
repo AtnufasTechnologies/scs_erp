@@ -39,6 +39,15 @@ $roleType = UserHasRole::where('user_id', $userId)->value('role_name');
       </a>
     </li>
 
+    <li>
+      <a href="{{route('itcell.admission.applications')}}">
+        <div class="parent-icon">
+          <i class="fas fa-check-circle"></i>
+        </div>
+        <div class="menu-title">Admission Applications</div>
+      </a>
+    </li>
+
     <!-- Master -->
     <li>
       <a class="has-arrow" href="javascript:;">
@@ -252,18 +261,7 @@ $roleType = UserHasRole::where('user_id', $userId)->value('role_name');
       </ul>
     </li>
 
-
-    <li>
-      <a href="{{route('itcell.admission.applications')}}">
-        <div class="parent-icon">
-          <i class="fas fa-check-circle"></i>
-        </div>
-        <div class="menu-title">Admission Applications</div>
-      </a>
-    </li>
-
-
-    <!--Faculty Master -->
+    <!-- Faculty and Student Master -->
     @if (StaticController::subMenuRights('student-master-sonada') || StaticController::subMenuRights('student-master-siliguri') )
     <li>
       <a href="{{url('erp/admin/faculty-master')}}">
@@ -314,122 +312,102 @@ $roleType = UserHasRole::where('user_id', $userId)->value('role_name');
     @endif
 
     <li>
-      <a href="{{ Route::has('itcell.bulk.rollno.reconfigure') ? route('itcell.bulk.rollno.reconfigure') : url('erp/admin/master/bulk-student-course-enrollment') }}">
+      <a class="has-arrow" href="javascript:;">
         <div class="parent-icon">
-          <i class="far fa-ellipsis-h-alt"></i>
+          <i class="fas fa-user-graduate"></i>
         </div>
-        <div class="menu-title">Bulk Roll Number Reconfiguration</div>
+        <div class="menu-title">Student Operations</div>
       </a>
-    </li>
-
-    <li>
-      <a href="{{route('itcell.pathway.mapper')}}">
-        <div class="parent-icon">
-          <i class="fas fa-project-diagram"></i>
-        </div>
-        <div class="menu-title">Student Pathway Mapper</div>
-      </a>
-    </li>
-
-    <li>
-      <a href="{{ route('itcell.quizzes.index') }}">
-        <div class="parent-icon">
-          <i class="fas fa-question-circle"></i>
-        </div>
-        <div class="menu-title">FA1 Quiz Monitor</div>
-      </a>
-    </li>
-
-    <li>
-      <a href="{{ route('itcell.student-mdc-selection.index') }}">
-        <div class="parent-icon">
-          <i class="fas fa-book-reader"></i>
-        </div>
-        <div class="menu-title">Student MDC Mapper</div>
-      </a>
-    </li>
-
-    <li>
-      <a href="{{ route('itcell.student-roster-engine.index') }}">
-        <div class="parent-icon">
-          <i class="fas fa-users-cog"></i>
-        </div>
-        <div class="menu-title">Student Roster Engine</div>
-      </a>
-    </li>
-
-    <li>
-      <a href="{{ route('itcell.student-roster-rules.index') }}">
-        <div class="parent-icon">
-          <i class="fas fa-sitemap"></i>
-        </div>
-        <div class="menu-title">Student Roster Rules </div>
-      </a>
-    </li>
-
-    <li>
-      <a href="{{ route('itcell.subject-program-enrollment-inspector.index') }}">
-        <div class="parent-icon">
-          <i class="fas fa-analytics"></i>
-        </div>
-        <div class="menu-title">Subject Program Enrollment Inspector</div>
-      </a>
-    </li>
-
-    <li>
-      <a href="{{ route('itcell.lateral-entry.index') }}">
-        <div class="parent-icon">
-          <i class="fas fa-user-plus"></i>
-        </div>
-        <div class="menu-title">Lateral Entry</div>
-      </a>
-    </li>
-
-    <li>
-      <a href="{{ route('itcell.student-campus-transfer.index') }}">
-        <div class="parent-icon">
-          <i class="fas fa-exchange-alt"></i>
-        </div>
-        <div class="menu-title">Student Campus Transfer</div>
-      </a>
-    </li>
-
-    <li>
-      <a href="{{ route('itcell.student-login-access.index') }}">
-        <div class="parent-icon">
-          <i class="fas fa-user-shield"></i>
-        </div>
-        <div class="menu-title">Student Login Access</div>
-      </a>
-    </li>
-
-    @if($roleType === 'super-admin')
-    <li>
-      <a href="{{ route('itcell.active-users.index') }}">
-        <div class="parent-icon">
-          <i class="fas fa-user-clock"></i>
-        </div>
-        <div class="menu-title">Active Logged-in Users</div>
-      </a>
-    </li>
-    @endif
-
-    <li>
-      <a href="{{ route('itcell.integrated-sublayer-settings.index') }}">
-        <div class="parent-icon">
-          <i class="fas fa-layer-group"></i>
-        </div>
-        <div class="menu-title">Integrated Program Sublayers</div>
-      </a>
-    </li>
-
-    <li>
-      <a href="{{ route('itcell.integrated-student-shift.index') }}">
-        <div class="parent-icon">
-          <i class="fas fa-random"></i>
-        </div>
-        <div class="menu-title">Integrated Student Shift</div>
-      </a>
+      <ul>
+        <li>
+          <a href="{{ Route::has('itcell.bulk.rollno.reconfigure') ? route('itcell.bulk.rollno.reconfigure') : url('erp/admin/master/bulk-student-course-enrollment') }}">
+            <div class="parent-icon">
+              <i class="far fa-ellipsis-h-alt"></i>
+            </div>
+            <div class="menu-title">Bulk Roll Number Reconfiguration</div>
+          </a>
+        </li>
+        <li>
+          <a href="{{route('itcell.pathway.mapper')}}">
+            <div class="parent-icon">
+              <i class="fas fa-project-diagram"></i>
+            </div>
+            <div class="menu-title">Student Pathway Mapper</div>
+          </a>
+        </li>
+        <li>
+          <a href="{{ route('itcell.student-mdc-selection.index') }}">
+            <div class="parent-icon">
+              <i class="fas fa-book-reader"></i>
+            </div>
+            <div class="menu-title">Student MDC Mapper</div>
+          </a>
+        </li>
+        <li>
+          <a href="{{ route('itcell.student-roster-engine.index') }}">
+            <div class="parent-icon">
+              <i class="fas fa-users-cog"></i>
+            </div>
+            <div class="menu-title">Student Roster Engine</div>
+          </a>
+        </li>
+        <li>
+          <a href="{{ route('itcell.student-roster-rules.index') }}">
+            <div class="parent-icon">
+              <i class="fas fa-sitemap"></i>
+            </div>
+            <div class="menu-title">Student Roster Rules</div>
+          </a>
+        </li>
+        <li>
+          <a href="{{ route('itcell.subject-program-enrollment-inspector.index') }}">
+            <div class="parent-icon">
+              <i class="fas fa-analytics"></i>
+            </div>
+            <div class="menu-title">Subject Program Enrollment Inspector</div>
+          </a>
+        </li>
+        <li>
+          <a href="{{ route('itcell.lateral-entry.index') }}">
+            <div class="parent-icon">
+              <i class="fas fa-user-plus"></i>
+            </div>
+            <div class="menu-title">Lateral Entry</div>
+          </a>
+        </li>
+        <li>
+          <a href="{{ route('itcell.student-campus-transfer.index') }}">
+            <div class="parent-icon">
+              <i class="fas fa-exchange-alt"></i>
+            </div>
+            <div class="menu-title">Student Campus Transfer</div>
+          </a>
+        </li>
+        <li>
+          <a href="{{ route('itcell.student-login-access.index') }}">
+            <div class="parent-icon">
+              <i class="fas fa-user-shield"></i>
+            </div>
+            <div class="menu-title">Student Login Access</div>
+          </a>
+        </li>
+        <li>
+          <a href="{{ route('itcell.integrated-sublayer-settings.index') }}">
+            <div class="parent-icon">
+              <i class="fas fa-layer-group"></i>
+            </div>
+            <div class="menu-title">Integrated Program Sublayers</div>
+          </a>
+        </li>
+        <li>
+          <a href="{{ route('itcell.integrated-student-shift.index') }}">
+            <div class="parent-icon">
+              <i class="fas fa-random"></i>
+            </div>
+            <div class="menu-title">Integrated Student Shift</div>
+          </a>
+        </li>
+      </ul>
     </li>
 
     <li>
@@ -437,7 +415,7 @@ $roleType = UserHasRole::where('user_id', $userId)->value('role_name');
         <div class="parent-icon">
           <i class="fas fa-bring-forward"></i>
         </div>
-        <div class="menu-title"> Promotion Logs</div>
+        <div class="menu-title">Promotion Logs</div>
       </a>
       <ul>
         <li>
@@ -459,7 +437,50 @@ $roleType = UserHasRole::where('user_id', $userId)->value('role_name');
       </ul>
     </li>
 
-
+    <li>
+      <a class="has-arrow" href="javascript:;">
+        <div class="parent-icon">
+          <i class="fas fa-wave-sine"></i>
+        </div>
+        <div class="menu-title">Monitoring</div>
+      </a>
+      <ul>
+        <li>
+          <a href="{{ route('itcell.quizzes.index') }}">
+            <div class="parent-icon">
+              <i class="fas fa-question-circle"></i>
+            </div>
+            <div class="menu-title">FA1 Quiz Monitor</div>
+          </a>
+        </li>
+        @if($roleType === 'super-admin')
+        <li>
+          <a href="{{ route('itcell.active-users.index') }}">
+            <div class="parent-icon">
+              <i class="fas fa-user-clock"></i>
+            </div>
+            <div class="menu-title">Active Logged-in Users</div>
+          </a>
+        </li>
+        @endif
+        <li>
+          <a href="{{route('admin.activity-logs.dashboard')}}">
+            <div class="parent-icon">
+              <i class="fas fa-chart-bar"></i>
+            </div>
+            <div class="menu-title">Activity Dashboard</div>
+          </a>
+        </li>
+        <li>
+          <a href="{{route('admin.user.activityapplication-single-logs')}}">
+            <div class="parent-icon">
+              <i class="fas fa-history"></i>
+            </div>
+            <div class="menu-title">Activity Logs</div>
+          </a>
+        </li>
+      </ul>
+    </li>
 
     <li>
       <a class="has-arrow" href="javascript:;">
@@ -511,6 +532,7 @@ $roleType = UserHasRole::where('user_id', $userId)->value('role_name');
 
 
       </ul>
+    </li>
 
     <li>
       <a href="{{route('admin.sms.templates')}}">
@@ -521,34 +543,6 @@ $roleType = UserHasRole::where('user_id', $userId)->value('role_name');
       </a>
     </li>
 
-    <li>
-      <a class="has-arrow" href="javascript:;">
-        <div class="parent-icon">
-          <i class="fas fa-wave-sine"></i>
-        </div>
-        <div class="menu-title">System Logs </div>
-      </a>
-      <ul>
-        <li>
-          <a href="{{route('admin.activity-logs.dashboard')}}">
-            <div class="parent-icon">
-              <i class="fas fa-chart-bar"></i>
-            </div>
-            <div class="menu-title">Activity Dashboard </div>
-          </a>
-        </li>
-        <li>
-          <a href="{{route('admin.user.activityapplication-single-logs')}}">
-            <div class="parent-icon">
-              <i class="fas fa-history"></i>
-            </div>
-            <div class="menu-title">Activity Logs </div>
-          </a>
-        </li>
-      </ul>
-    </li>
-
-
     <!-- logout -->
     <li>
       <a href="{{url('logout')}}">
@@ -558,7 +552,8 @@ $roleType = UserHasRole::where('user_id', $userId)->value('role_name');
         <div class="menu-title">Logout </div>
       </a>
     </li>
-    <!--end navigation-->
+  </ul>
+  <!--end navigation-->
 </aside>
 <!--end sidebar -->
 
