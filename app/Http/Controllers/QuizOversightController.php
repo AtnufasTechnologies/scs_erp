@@ -4,7 +4,8 @@ namespace App\Http\Controllers;
 
 use App\Models\Quiz;
 use App\Models\QuizAttempt;
-use App\Models\ProgramCourseMaster;
+use App\Models\QuizQuestion;
+use App\Models\QuizQuestionOption;
 use App\Models\StudentCourseRoster;
 use App\Models\SubjectFacultyMaster;
 use App\Models\SubjectHasDeptAdmin;
@@ -16,6 +17,9 @@ use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
+use PhpOffice\PhpSpreadsheet\IOFactory;
+use PhpOffice\PhpSpreadsheet\Spreadsheet;
+use PhpOffice\PhpSpreadsheet\Writer\Xlsx;
 
 class QuizOversightController extends Controller
 {
@@ -27,14 +31,18 @@ class QuizOversightController extends Controller
     $selectedStatus = trim((string) $request->query('status', 'all'));
     $selectedCourseCode = strtoupper(trim((string) $request->query('course_code', '')));
     $startDate = trim((string) $request->query('start_date', ''));
-    $groupBy = trim((string) $request->query('group_by', 'none'));
+    $selectedStartAt = trim((string) $request->query('start_at', ''));
+    $defaultGroupBy = $role === 'itcell' ? 'start_time' : 'none';
+    $groupBy = trim((string) $request->query('group_by', $defaultGroupBy));
     $allowedStatuses = ['all', 'upcoming', 'live', 'completed'];
     $allowedGroupBy = ['none', 'start_time'];
+
     if (!in_array($selectedStatus, $allowedStatuses, true)) {
       $selectedStatus = 'all';
     }
+
     if (!in_array($groupBy, $allowedGroupBy, true)) {
-      $groupBy = 'none';
+      $groupBy = $defaultGroupBy;
     }
 
     $startDateValue = null;
@@ -44,6 +52,16 @@ class QuizOversightController extends Controller
         $startDate = $startDateValue;
       } catch (\Throwable $e) {
         $startDate = '';
+      }
+    }
+
+    $startAtValue = null;
+    if ($selectedStartAt !== '') {
+      try {
+        $startAtValue = Carbon::parse($selectedStartAt)->format('Y-m-d H:i:s');
+        $selectedStartAt = $startAtValue;
+      } catch (\Throwable $e) {
+        $selectedStartAt = '';
       }
     }
 
@@ -82,6 +100,10 @@ class QuizOversightController extends Controller
       $listingQuery->whereDate('open_at', $startDateValue);
     }
 
+    if ($startAtValue !== null) {
+      $listingQuery->where('open_at', $startAtValue);
+    }
+
     $quizRelations = [
       'course:id,course_title,course_code',
       'subject:id,title',
@@ -92,15 +114,7 @@ class QuizOversightController extends Controller
       'attempts:id,quiz_id,student_id,status,score,submitted_at',
     ];
 
-    $quizzes = (clone $listingQuery)->with([
-      'course:id,course_title,course_code',
-      'subject:id,title',
-      'faculty:id,FIRST_NAME,MIDDLE_NAME,LAST_NAME,DEPARTMENT',
-      'faculty.department',
-      'creator:id,name',
-      'questions:id,quiz_id,question_text,position',
-      'attempts:id,quiz_id,student_id,status,score,submitted_at',
-    ])
+    $quizzes = (clone $listingQuery)->with($quizRelations)
       ->withCount('questions')
       ->withCount([
         'attempts as submitted_attempts_count' => function ($query) {
@@ -231,6 +245,7 @@ class QuizOversightController extends Controller
       'selectedStatus' => $selectedStatus,
       'selectedCourseCode' => $selectedCourseCode,
       'startDate' => $startDate,
+      'selectedStartAt' => $selectedStartAt,
       'groupBy' => $groupBy,
       'statusCounts' => $statusCounts,
       'startTimeAnalytics' => $startTimeAnalytics,
@@ -301,94 +316,350 @@ class QuizOversightController extends Controller
     ]);
   }
 
-  public function backfillTeachingAssignmentByCourseCode(Request $request)
+  public function exportQuestionSheet(int $quizId)
   {
     $role = $this->resolveAuthorizedRole();
     if ($role !== 'itcell') {
-      abort(403, 'Only ITCELL can run this operation.');
+      abort(403, 'Only ITCELL can access this operation.');
     }
 
-    $validated = $request->validate([
-      'course_code' => 'required|string|max:120',
-    ]);
+    $quiz = Quiz::query()
+      ->with([
+        'course:id,course_title,course_code',
+        'subject:id,title',
+      ])
+      ->withCount('questions')
+      ->findOrFail($quizId);
 
-    $rawCourseCode = (string) $validated['course_code'];
-    $normalizedCourseCode = $this->normalizeCourseCode($rawCourseCode);
-    if ($normalizedCourseCode === '') {
-      return redirect()->route('itcell.quizzes.index')->with('error', 'Course code is required.');
-    }
-
-    $courseIds = ProgramCourseMaster::query()
-      ->get(['id', 'course_code'])
-      ->filter(function ($course) use ($normalizedCourseCode) {
-        $courseCode = $this->normalizeCourseCode((string) ($course->course_code ?? ''));
-        if ($courseCode === '') {
-          return false;
-        }
-
-        return $courseCode === $normalizedCourseCode;
-      })
-      ->pluck('id')
-      ->map(fn($id) => (int) $id)
-      ->filter(fn($id) => $id > 0)
-      ->unique()
-      ->values();
-
-    if ($courseIds->isEmpty()) {
-      return redirect()
-        ->route('itcell.quizzes.index')
-        ->with('error', 'No course found for code ' . trim($rawCourseCode) . '.');
-    }
-
-    $matchedQuizCount = (int) Quiz::query()
-      ->whereIn('course_id', $courseIds->all())
-      ->count();
-
-    $quizzes = Quiz::query()
-      ->whereIn('course_id', $courseIds->all())
-      ->where(function ($query) {
-        $query->whereNull('teaching_assignment_id')
-          ->orWhere('teaching_assignment_id', '<=', 0);
-      })
+    $questions = QuizQuestion::query()
+      ->where('quiz_id', (int) $quiz->id)
+      ->with(['options' => function ($query) {
+        $query->orderBy('position');
+      }])
+      ->orderBy('position')
       ->orderBy('id')
       ->get();
 
-    if ($quizzes->isEmpty()) {
-      return redirect()
-        ->route('itcell.quizzes.index')
-        ->with('success', 'No pending quiz backfill rows found for course code ' . trim($rawCourseCode) . '. Matched quizzes=' . $matchedQuizCount . '.');
+    $spreadsheet = new Spreadsheet();
+    $sheet = $spreadsheet->getActiveSheet();
+    $sheet->setTitle('Quiz Questions');
+
+    $sheet->setCellValue('A1', 'Quiz ID');
+    $sheet->setCellValue('B1', (int) $quiz->id);
+    $sheet->setCellValue('A2', 'Quiz Title');
+    $sheet->setCellValue('B2', (string) ($quiz->title ?? 'N/A'));
+    $sheet->setCellValue('A3', 'Course');
+    $sheet->setCellValue('B3', (string) (($quiz->course->course_code ?? 'N/A') . ' - ' . ($quiz->course->course_title ?? 'N/A')));
+    $sheet->setCellValue('A4', 'Subject');
+    $sheet->setCellValue('B4', (string) ($quiz->subject->title ?? 'N/A'));
+    $sheet->setCellValue('A5', 'Instructions');
+    $sheet->setCellValue('B5', 'Edit question_text, options and correct_option (1-4 or A-D), then upload this same file.');
+
+    $headerRow = 7;
+    $headers = [
+      'question_no',
+      'question_text',
+      'option_1',
+      'option_2',
+      'option_3',
+      'option_4',
+      'correct_option',
+    ];
+
+    foreach ($headers as $index => $header) {
+      $sheet->setCellValueByColumnAndRow($index + 1, $headerRow, $header);
     }
 
-    $updated = 0;
-    $skipped = 0;
-    $restoredRoutineLinks = 0;
+    $row = $headerRow + 1;
+    foreach ($questions as $question) {
+      $optionMap = $question->options
+        ->mapWithKeys(function ($option) {
+          return [(int) $option->position => $option];
+        });
 
-    foreach ($quizzes as $quiz) {
-      $resolvedAssignmentId = $this->resolveAssignmentIdForBackfill($quiz);
-      if ($resolvedAssignmentId <= 0) {
-        $skipped++;
+      $correctOption = $question->options
+        ->firstWhere('is_correct', true);
+
+      $sheet->setCellValueByColumnAndRow(1, $row, (int) ($question->position ?? $row - $headerRow));
+      $sheet->setCellValueByColumnAndRow(2, $row, (string) ($question->question_text ?? ''));
+      $sheet->setCellValueByColumnAndRow(3, $row, (string) optional($optionMap->get(1))->option_text);
+      $sheet->setCellValueByColumnAndRow(4, $row, (string) optional($optionMap->get(2))->option_text);
+      $sheet->setCellValueByColumnAndRow(5, $row, (string) optional($optionMap->get(3))->option_text);
+      $sheet->setCellValueByColumnAndRow(6, $row, (string) optional($optionMap->get(4))->option_text);
+      $sheet->setCellValueByColumnAndRow(7, $row, (string) ((int) ($correctOption->position ?? 1)));
+      $row++;
+    }
+
+    foreach (range('A', 'G') as $column) {
+      $sheet->getColumnDimension($column)->setAutoSize(true);
+    }
+
+    $filename = 'fa1_quiz_questions_' . (int) $quiz->id . '_' . now()->format('Ymd_His') . '.xlsx';
+
+    return response()->streamDownload(function () use ($spreadsheet) {
+      $writer = new Xlsx($spreadsheet);
+      $writer->save('php://output');
+    }, $filename, [
+      'Content-Type' => 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+      'Cache-Control' => 'max-age=0, no-cache, no-store, must-revalidate',
+      'Pragma' => 'no-cache',
+      'Expires' => '0',
+    ]);
+  }
+
+  public function importQuestionSheet(Request $request, int $quizId)
+  {
+    $role = $this->resolveAuthorizedRole();
+    if ($role !== 'itcell') {
+      abort(403, 'Only ITCELL can access this operation.');
+    }
+
+    $request->validate([
+      'question_sheet' => 'required|file|mimes:xlsx,xls,csv|max:10240',
+    ]);
+
+    $quiz = Quiz::query()
+      ->withCount('questions')
+      ->findOrFail($quizId);
+
+    try {
+      $spreadsheet = IOFactory::load($request->file('question_sheet')->getRealPath());
+      $rows = $spreadsheet->getActiveSheet()->toArray(null, true, true, true);
+    } catch (\Throwable $e) {
+      return redirect()->route('itcell.quizzes.results', $quizId)
+        ->with('error', 'Unable to read uploaded file. Please use the exported template format.');
+    }
+
+    if (count($rows) < 8) {
+      return redirect()->route('itcell.quizzes.results', $quizId)
+        ->with('error', 'Uploaded sheet looks empty. Please use the exported template.');
+    }
+
+    $headerRowNumber = 7;
+    $headerRow = $rows[$headerRowNumber] ?? [];
+    $headerMap = [];
+    foreach ($headerRow as $column => $value) {
+      $header = strtolower(trim((string) $value));
+      if ($header !== '') {
+        $headerMap[$header] = $column;
+      }
+    }
+
+    foreach (['question_no', 'question_text', 'option_1', 'option_2', 'option_3', 'option_4', 'correct_option'] as $requiredHeader) {
+      if (!isset($headerMap[$requiredHeader])) {
+        return redirect()->route('itcell.quizzes.results', $quizId)
+          ->with('error', 'Missing required column: ' . $requiredHeader);
+      }
+    }
+
+    $rowsToApply = collect();
+    $invalidRows = 0;
+
+    foreach ($rows as $rowNumber => $row) {
+      if ($rowNumber <= $headerRowNumber) {
         continue;
       }
 
-      Quiz::query()
-        ->where('id', (int) $quiz->id)
+      $questionNoRaw = trim((string) ($row[$headerMap['question_no']] ?? ''));
+      $questionText = trim((string) ($row[$headerMap['question_text']] ?? ''));
+      $option1 = trim((string) ($row[$headerMap['option_1']] ?? ''));
+      $option2 = trim((string) ($row[$headerMap['option_2']] ?? ''));
+      $option3 = trim((string) ($row[$headerMap['option_3']] ?? ''));
+      $option4 = trim((string) ($row[$headerMap['option_4']] ?? ''));
+      $correctRaw = trim((string) ($row[$headerMap['correct_option']] ?? ''));
+
+      if ($questionNoRaw === '' && $questionText === '' && $option1 === '' && $option2 === '' && $option3 === '' && $option4 === '' && $correctRaw === '') {
+        continue;
+      }
+
+      if (!ctype_digit($questionNoRaw) || (int) $questionNoRaw <= 0) {
+        $invalidRows++;
+        continue;
+      }
+
+      $correctPosition = $this->normalizeCorrectOptionIndicator($correctRaw);
+      if ($questionText === '' || $option1 === '' || $option2 === '' || $option3 === '' || $option4 === '' || $correctPosition === 0) {
+        $invalidRows++;
+        continue;
+      }
+
+      $rowsToApply->push([
+        'position' => (int) $questionNoRaw,
+        'question_text' => $questionText,
+        'options' => [$option1, $option2, $option3, $option4],
+        'correct_position' => $correctPosition,
+      ]);
+    }
+
+    $rowsToApply = $rowsToApply
+      ->sortBy('position')
+      ->unique('position')
+      ->unique()
+      ->values();
+
+    if ($rowsToApply->isEmpty()) {
+      return redirect()->route('itcell.quizzes.results', $quizId)
+        ->with('error', 'No valid question rows found in uploaded sheet.');
+    }
+
+    $updatedQuestions = 0;
+    $createdQuestions = 0;
+    $recalculatedAttempts = 0;
+
+    DB::transaction(function () use ($quiz, $rowsToApply, &$updatedQuestions, &$createdQuestions, &$recalculatedAttempts) {
+      $existingQuestions = QuizQuestion::query()
+        ->where('quiz_id', (int) $quiz->id)
+        ->with(['options' => function ($query) {
+          $query->orderBy('position');
+        }])
+        ->get()
+        ->keyBy(function ($question) {
+          return (int) ($question->position ?? 0);
+        });
+
+      foreach ($rowsToApply as $rowData) {
+        $position = (int) $rowData['position'];
+        $question = $existingQuestions->get($position);
+
+        if ($question) {
+          $question->update([
+            'question_text' => (string) $rowData['question_text'],
+            'position' => $position,
+          ]);
+          $updatedQuestions++;
+        } else {
+          $question = QuizQuestion::query()->create([
+            'quiz_id' => (int) $quiz->id,
+            'question_text' => (string) $rowData['question_text'],
+            'position' => $position,
+          ]);
+          $createdQuestions++;
+        }
+
+        $optionsByPosition = $question->options->keyBy(function ($option) {
+          return (int) ($option->position ?? 0);
+        });
+
+        foreach ($rowData['options'] as $index => $optionText) {
+          $optionPosition = $index + 1;
+          $optionPayload = [
+            'option_text' => (string) $optionText,
+            'position' => $optionPosition,
+            'is_correct' => $rowData['correct_position'] === $optionPosition,
+          ];
+
+          $existingOption = $optionsByPosition->get($optionPosition);
+          if ($existingOption) {
+            $existingOption->update($optionPayload);
+          } else {
+            QuizQuestionOption::query()->create(array_merge($optionPayload, [
+              'quiz_question_id' => (int) $question->id,
+            ]));
+          }
+        }
+      }
+
+      $recalculatedAttempts = $this->recalculateSubmittedAttemptScores($quiz);
+    });
+
+    $message = 'Question sheet imported. Updated questions=' . $updatedQuestions
+      . ', created questions=' . $createdQuestions
+      . ', recalculated attempts=' . $recalculatedAttempts;
+
+    if ($invalidRows > 0) {
+      $message .= ', invalid rows skipped=' . $invalidRows;
+    }
+
+    return redirect()->route('itcell.quizzes.results', $quizId)->with('success', $message . '.');
+  }
+
+  private function normalizeCorrectOptionIndicator(string $correctRaw): int
+  {
+    $normalized = strtoupper(trim($correctRaw));
+    if ($normalized === '') {
+      return 0;
+    }
+
+    if (is_numeric($normalized)) {
+      $position = (int) $normalized;
+      return in_array($position, [1, 2, 3, 4], true) ? $position : 0;
+    }
+
+    $map = ['A' => 1, 'B' => 2, 'C' => 3, 'D' => 4];
+    return (int) ($map[$normalized] ?? 0);
+  }
+
+  private function recalculateSubmittedAttemptScores(Quiz $quiz): int
+  {
+    $submittedAttempts = QuizAttempt::query()
+      ->where('quiz_id', (int) $quiz->id)
+      ->where('status', 'submitted')
+      ->get(['id', 'student_id', 'attempt_no']);
+
+    $totalQuestions = (int) QuizQuestion::query()
+      ->where('quiz_id', (int) $quiz->id)
+      ->count();
+
+    foreach ($submittedAttempts as $attempt) {
+      DB::table('quiz_attempt_answers as qaa')
+        ->leftJoin('quiz_question_options as qqo', 'qqo.id', '=', 'qaa.quiz_question_option_id')
+        ->where('qaa.quiz_attempt_id', (int) $attempt->id)
         ->update([
-          'teaching_assignment_id' => $resolvedAssignmentId,
+          'qaa.is_correct' => DB::raw('COALESCE(qqo.is_correct, 0)'),
+          'qaa.updated_at' => now(),
+        ]);
+
+      $correctCount = (int) DB::table('quiz_attempt_answers')
+        ->where('quiz_attempt_id', (int) $attempt->id)
+        ->where('is_correct', 1)
+        ->count();
+
+      $score = $totalQuestions > 0
+        ? (int) round(($correctCount / $totalQuestions) * (float) ($quiz->total_marks ?? 0))
+        : 0;
+
+      QuizAttempt::query()
+        ->where('id', (int) $attempt->id)
+        ->update([
+          'raw_score' => $correctCount,
+          'total_questions' => $totalQuestions,
+          'score' => $score,
           'updated_at' => now(),
         ]);
 
-      $restoredRoutineLinks += $this->restoreRoutineLinksForQuiz($quiz, $resolvedAssignmentId);
+      DB::table('cia_marks')->updateOrInsert(
+        [
+          'STUDENT_ID' => (int) $attempt->student_id,
+          'COURSE_ID' => (int) $quiz->course_id,
+          'COURSE_GROUP_ID' => (int) $quiz->cia_group_id,
+          'SEMESTER_ID' => (int) $quiz->semester_id,
+        ],
+        [
+          'COURSE_GROUP_MARK' => $score,
+          'ENTRY_ID' => (int) Auth::id(),
+        ]
+      );
 
-      $updated++;
+      if (Schema::hasTable('fa_marks')) {
+        DB::table('fa_marks')->upsert(
+          [[
+            'student_id' => (int) $attempt->student_id,
+            'course_id' => (int) $quiz->course_id,
+            'batch_id' => (int) $quiz->batch_id,
+            'semester_id' => (int) $quiz->semester_id,
+            'component_id' => (int) $quiz->sup_cia_component_id,
+            'attempt' => (int) $attempt->attempt_no,
+            'score' => $score,
+            'updated_at' => now(),
+            'created_at' => now(),
+          ]],
+          ['student_id', 'course_id', 'batch_id', 'semester_id', 'component_id', 'attempt'],
+          ['score', 'updated_at']
+        );
+      }
     }
 
-    $message = 'Backfill completed for course code ' . trim($rawCourseCode)
-      . '. updated=' . $updated
-      . ', skipped=' . $skipped
-      . ', scanned=' . $quizzes->count()
-      . ', routine_links_restored=' . $restoredRoutineLinks . '.';
-
-    return redirect()->route('itcell.quizzes.index')->with('success', $message);
+    return $submittedAttempts->count();
   }
 
   private function resolveAuthorizedRole(): string
@@ -629,11 +900,6 @@ class QuizOversightController extends Controller
     return (int) ($bestAssignmentId ?? 0);
   }
 
-  private function expectedStudentCountForQuiz(Quiz $quiz): int
-  {
-    return $this->expectedStudentIdsForQuiz($quiz)->count();
-  }
-
   private function expectedStudentIdsForQuiz(Quiz $quiz)
   {
     $rosterData = $this->resolveQuizEligibleStudents($quiz);
@@ -643,96 +909,6 @@ class QuizOversightController extends Controller
       ->filter(fn($studentId) => $studentId > 0)
       ->unique()
       ->values();
-  }
-
-  private function resolveAssignmentIdForBackfill(Quiz $quiz): int
-  {
-    $selectedAssignmentId = (int) ($quiz->teaching_assignment_id ?? 0);
-    if ($selectedAssignmentId > 0) {
-      return $selectedAssignmentId;
-    }
-
-    $candidateAssignmentIds = $this->candidateTeachingAssignmentIdsForQuiz($quiz, false);
-    if ($candidateAssignmentIds->isEmpty()) {
-      $candidateAssignmentIds = $this->candidateTeachingAssignmentIdsForQuiz($quiz, true);
-    }
-
-    if ($candidateAssignmentIds->isEmpty()) {
-      return 0;
-    }
-
-    if ($candidateAssignmentIds->count() > 1) {
-      $selectedAssignmentId = $this->inferQuizAssignmentIdFromRoster($quiz, $candidateAssignmentIds);
-      if ($selectedAssignmentId > 0) {
-        return $selectedAssignmentId;
-      }
-    }
-
-    return (int) $candidateAssignmentIds->sort()->first();
-  }
-
-  private function candidateTeachingAssignmentIdsForQuiz(Quiz $quiz, bool $includeTrashed)
-  {
-    $query = SubjectHasRoutine::query()
-      ->where('syllabus_id', (int) $quiz->syllabus_id)
-      ->where('faculty_id', (int) $quiz->faculty_id)
-      ->whereNotNull('teaching_assignment_id');
-
-    if ($includeTrashed) {
-      $query->withTrashed();
-    } elseif (Schema::hasColumn('subject_has_routines', 'deleted_at')) {
-      $query->whereNull('deleted_at');
-    }
-
-    return $query
-      ->pluck('teaching_assignment_id')
-      ->map(fn($id) => (int) $id)
-      ->filter(fn($id) => $id > 0)
-      ->unique()
-      ->values();
-  }
-
-  private function normalizeCourseCode(string $courseCode): string
-  {
-    return preg_replace('/[^A-Z0-9]/', '', strtoupper(trim($courseCode))) ?? '';
-  }
-
-  private function restoreRoutineLinksForQuiz(Quiz $quiz, int $assignmentId): int
-  {
-    if ($assignmentId <= 0) {
-      return 0;
-    }
-
-    if (!Schema::hasColumn('subject_has_routines', 'deleted_at')) {
-      return 0;
-    }
-
-    $hasTeachingAllocationColumn = Schema::hasColumn('subject_has_routines', 'teaching_allocation_id');
-
-    $restoreQuery = SubjectHasRoutine::query()
-      ->withTrashed()
-      ->where('syllabus_id', (int) $quiz->syllabus_id)
-      ->where('faculty_id', (int) $quiz->faculty_id)
-      ->whereNotNull('deleted_at')
-      ->where(function ($query) use ($assignmentId, $hasTeachingAllocationColumn) {
-        $query->where('teaching_assignment_id', $assignmentId);
-
-        if ($hasTeachingAllocationColumn) {
-          $query->orWhere('teaching_allocation_id', $assignmentId);
-        }
-      });
-
-    $restoreCount = (int) (clone $restoreQuery)->count();
-    if ($restoreCount <= 0) {
-      return 0;
-    }
-
-    $restoreQuery->update([
-      'deleted_at' => null,
-      'updated_at' => now(),
-    ]);
-
-    return $restoreCount;
   }
 
   private function monitorIndexRouteName(string $role): string

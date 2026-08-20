@@ -1547,13 +1547,16 @@ class AttendanceController extends Controller
   }
 
   //Student Course Roster
-  function studentCourseRoster()
+  function studentCourseRoster(Request $request)
   {
+    $searchTerm = trim((string) $request->query('q', ''));
     $facultyId = $this->getCurrentFacultyId();
 
     if ($facultyId <= 0) {
       return view('faculty.courseroster.index', [
         'assignmentRows' => collect(),
+        'searchTerm' => $searchTerm,
+        'totalAssignmentCount' => 0,
       ]);
     }
 
@@ -1634,9 +1637,33 @@ class AttendanceController extends Controller
       ];
     })->values();
 
+    $totalAssignmentCount = (int) $assignmentRows->count();
+
+    if ($searchTerm !== '') {
+      $needle = strtolower($searchTerm);
+
+      $assignmentRows = $assignmentRows->filter(function ($row) use ($needle) {
+        $haystack = strtolower(implode(' ', [
+          (string) ($row['course_code'] ?? ''),
+          (string) ($row['course_title'] ?? ''),
+          (string) ($row['program_type'] ?? ''),
+          (string) ($row['subject_title'] ?? ''),
+          (string) ($row['delivery_type'] ?? ''),
+          (string) ($row['allocation_group'] ?? ''),
+          (string) ($row['shift'] ?? ''),
+          (string) ($row['room'] ?? ''),
+          (string) ($row['primary_faculty'] ?? ''),
+        ]));
+
+        return str_contains($haystack, $needle);
+      })->values();
+    }
+
 
     return view('faculty.courseroster.index', [
       'assignmentRows' => $assignmentRows,
+      'searchTerm' => $searchTerm,
+      'totalAssignmentCount' => $totalAssignmentCount,
     ]);
   }
 

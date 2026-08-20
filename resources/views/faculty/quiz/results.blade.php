@@ -32,6 +32,13 @@
       </div>
       @endif
 
+      @if((int) ($expectedStudentCount ?? 0) === 0)
+      <div class="alert alert-danger border-0 shadow-sm" role="alert">
+        <strong>Critical Alert:</strong> Expected Students = 0 for this quiz.
+        Student roster mapping appears missing, so eligible students may not be visible.
+      </div>
+      @endif
+
       <div class="card shadow-sm border-0 mb-4">
         <div class="card-body">
           <h5 class="fw-bold mb-1">{{ $quiz->title }}</h5>
@@ -45,7 +52,7 @@
             <span class="badge bg-secondary">Time Limit: {{ $quiz->time_limit_minutes ? $quiz->time_limit_minutes . ' mins' : 'No limit' }}</span>
             <span class="badge bg-dark">Shuffle Q: {{ $quiz->shuffle_questions ? 'Yes' : 'No' }}</span>
             <span class="badge bg-dark">Shuffle O: {{ $quiz->shuffle_options ? 'Yes' : 'No' }}</span>
-            <span class="badge bg-warning text-dark">Expected Students: {{ $expectedStudentCount ?? 0 }}</span>
+            <span class="badge {{ (int) ($expectedStudentCount ?? 0) === 0 ? 'bg-danger' : 'bg-warning text-dark' }}">Expected Students: {{ $expectedStudentCount ?? 0 }}</span>
             <span class="badge bg-success">Attempted Students: {{ $attemptedStudentCount ?? 0 }}</span>
           </div>
         </div>

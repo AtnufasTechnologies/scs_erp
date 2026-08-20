@@ -45,6 +45,45 @@
     color: var(--qm-accent);
   }
 
+  .quiz-monitor .metric-chip.analytics-zero {
+    background: #fef3f2;
+    color: #b42318;
+    border: 1px solid #fecdca;
+  }
+
+  .quiz-monitor .metric-chip.analytics-low {
+    background: #fff7ed;
+    color: #b54708;
+    border: 1px solid #fed7aa;
+  }
+
+  .quiz-monitor .metric-chip.analytics-medium {
+    background: #eff8ff;
+    color: #175cd3;
+    border: 1px solid #b2ddff;
+  }
+
+  .quiz-monitor .metric-chip.analytics-high {
+    background: #ecfdf3;
+    color: #027a48;
+    border: 1px solid #abefc6;
+  }
+
+  .quiz-monitor .metric-chip.analytics-link {
+    text-decoration: none;
+    cursor: pointer;
+    transition: transform 0.15s ease, box-shadow 0.15s ease;
+  }
+
+  .quiz-monitor .metric-chip.analytics-link:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 4px 10px rgba(16, 38, 74, 0.14);
+  }
+
+  .quiz-monitor .metric-chip.analytics-active {
+    box-shadow: 0 0 0 2px #1d4ed8;
+  }
+
   .quiz-monitor .analytics-strip {
     border: 1px solid var(--qm-border);
     border-radius: 12px;
@@ -168,6 +207,24 @@
     color: var(--qm-muted);
   }
 
+  .quiz-monitor .expected-zero {
+    color: #b42318;
+    font-weight: 700;
+    background: #fef3f2;
+  }
+
+  .quiz-monitor .critical-inline-badge {
+    display: inline-block;
+    margin-left: 0.4rem;
+    padding: 0.18rem 0.45rem;
+    border-radius: 999px;
+    border: 1px solid #fecdca;
+    background: #fef3f2;
+    color: #b42318;
+    font-size: 0.72rem;
+    font-weight: 700;
+  }
+
   @media (max-width: 576px) {
     .quiz-monitor .info-row {
       grid-template-columns: 1fr;
@@ -194,95 +251,139 @@
   <div class="panel">
     <div class="panel-head d-flex justify-content-between align-items-center flex-wrap gap-2">
       <div>
-        <h5 class="panel-title">Faculty Quiz Repository</h5>
-        <small class="text-muted">Centralized faculty quiz insights</small>
-      </div>
-
-      @if(($role ?? '') === 'itcell')
-      <form method="POST" action="{{ route('itcell.quizzes.backfill-teaching-assignment') }}" class="d-flex align-items-end gap-2 flex-wrap">
-        @csrf
-        <div>
-          <label class="form-label form-label-sm mb-1">Backfill By Course Code</label>
-          <input
-            type="text"
-            name="course_code"
-            class="form-control form-control-sm"
-            style="min-width: 220px;"
-            placeholder="e.g. 24CSAVAC301A"
-            required>
-        </div>
-        <button type="submit" class="btn btn-sm btn-outline-primary">Run Backfill</button>
-      </form>
-      @endif
-
-      <div class="d-flex align-items-center gap-2 flex-wrap">
-        <span class="metric-chip">Total Quizzes: {{ $quizzes->total() }}</span>
-        <span class="metric-chip">Completed: {{ (int) ($statusCounts['completed'] ?? 0) }}</span>
-        <span class="metric-chip">Unique Students (By Start Time): {{ (int) ($totalUniqueStudentsByStartTime ?? 0) }}</span>
-
-        @php
-        $indexRouteName = $monitorIndexRoute
-        ?? (($role ?? '') === 'principal'
-        ? 'principal.quizzes.index'
-        : (($role ?? '') === 'itcell' ? 'itcell.quizzes.index' : 'department.quizzes.index'));
-        @endphp
-
-        <form method="GET" action="{{ route($indexRouteName) }}" class="d-flex gap-2 align-items-center flex-wrap">
-          @if($canFilterDepartments ?? false)
-          <select name="department" class="form-select form-select-sm" style="min-width: 220px;">
-            <option value="">All Departments</option>
-            @foreach($departmentOptions as $department)
-            <option value="{{ $department }}" {{ $selectedDepartment === $department ? 'selected' : '' }}>{{ $department }}</option>
-            @endforeach
-          </select>
-          @endif
-
-          <select name="status" class="form-select form-select-sm" style="min-width: 160px;">
-            <option value="all" {{ ($selectedStatus ?? 'all') === 'all' ? 'selected' : '' }}>All Quizzes</option>
-            <option value="upcoming" {{ ($selectedStatus ?? 'all') === 'upcoming' ? 'selected' : '' }}>Upcoming</option>
-            <option value="live" {{ ($selectedStatus ?? 'all') === 'live' ? 'selected' : '' }}>Ongoing</option>
-            <option value="completed" {{ ($selectedStatus ?? 'all') === 'completed' ? 'selected' : '' }}>Completed</option>
-          </select>
-
-          <input
-            type="text"
-            name="course_code"
-            value="{{ $selectedCourseCode ?? '' }}"
-            class="form-control form-control-sm"
-            style="min-width: 180px;"
-            placeholder="Course Code">
-
-          <select name="group_by" class="form-select form-select-sm" style="min-width: 220px;">
-            <option value="none" {{ ($groupBy ?? 'none') === 'none' ? 'selected' : '' }}>Normal View</option>
-            <option value="start_time" {{ ($groupBy ?? 'none') === 'start_time' ? 'selected' : '' }}>Group By Start Time (All Quizzes)</option>
-          </select>
-
-          <input
-            type="date"
-            name="start_date"
-            value="{{ $startDate ?? '' }}"
-            class="form-control form-control-sm"
-            style="min-width: 150px;"
-            title="Quiz Start Date">
-
-          <button class="btn btn-sm btn-primary" type="submit">Apply</button>
-          @if(($selectedDepartment ?? '') !== '' || ($selectedStatus ?? 'all') !== 'all' || ($selectedCourseCode ?? '') !== '' || ($startDate ?? '') !== '' || ($groupBy ?? 'none') !== 'none')
-          <a class="btn btn-sm btn-outline-secondary" href="{{ route($indexRouteName) }}">Clear</a>
-          @endif
-        </form>
-
+        <h5 class="panel-title">Faculty Quiz Repository Centralized</h5>
+        <small class="text-muted">Grouped faculty quiz analytics and monitoring controls</small>
       </div>
     </div>
 
+    <div class="p-3 border-bottom bg-white">
+      <div class="d-flex align-items-center justify-content-between gap-2 flex-wrap">
+        <span class="metric-chip">Total Quizzes: {{ $quizzes->total() }}</span>
+        <span class="metric-chip">Completed: {{ (int) ($statusCounts['completed'] ?? 0) }}</span>
+        <span class="metric-chip">Unique Students (By Start Time): {{ (int) ($totalUniqueStudentsByStartTime ?? 0) }}</span>
+      </div>
+
+      @php
+      $indexRouteName = $monitorIndexRoute
+      ?? (($role ?? '') === 'principal'
+      ? 'principal.quizzes.index'
+      : (($role ?? '') === 'itcell' ? 'itcell.quizzes.index' : 'department.quizzes.index'));
+      @endphp
+
+      <form method="GET" action="{{ route($indexRouteName) }}" class="d-flex gap-2 align-items-center flex-wrap mt-2">
+
+        <div class="row">
+          <div class="col-lg-3">
+            <input
+              type="text"
+              name="course_code"
+              value="{{ $selectedCourseCode ?? '' }}"
+              class="form-control form-control-sm"
+              style="min-width: 180px;"
+              placeholder="Course Code">
+
+          </div>
+          <div class="col-lg-3"> @if($canFilterDepartments ?? false)
+            <select name="department" class="form-select form-select-sm" style="min-width: 220px;">
+              <option value="">All Departments</option>
+              @foreach($departmentOptions as $department)
+              <option value="{{ $department }}" {{ $selectedDepartment === $department ? 'selected' : '' }}>{{ $department }}</option>
+              @endforeach
+            </select>
+            @endif
+          </div>
+
+          <div class="col-lg-3">
+            <select name="status" class="form-select form-select-sm" style="min-width: 160px;">
+              <option value="all" {{ ($selectedStatus ?? 'all') === 'all' ? 'selected' : '' }}>All Quizzes</option>
+              <option value="upcoming" {{ ($selectedStatus ?? 'all') === 'upcoming' ? 'selected' : '' }}>Upcoming</option>
+              <option value="live" {{ ($selectedStatus ?? 'all') === 'live' ? 'selected' : '' }}>Ongoing</option>
+              <option value="completed" {{ ($selectedStatus ?? 'all') === 'completed' ? 'selected' : '' }}>Completed</option>
+            </select>
+          </div>
+
+          <div class="col-lg-3 mb-3">
+            <select name="group_by" class="form-select form-select-sm" style="min-width: 220px;">
+              <option value="none" {{ ($groupBy ?? 'none') === 'none' ? 'selected' : '' }}>Normal View</option>
+              <option value="start_time" {{ ($groupBy ?? 'none') === 'start_time' ? 'selected' : '' }}>Group By Start Time (All Quizzes)</option>
+            </select>
+
+          </div>
+
+          <div class="col-lg-4">
+            <input
+              type="date"
+              name="start_date"
+              value="{{ $startDate ?? '' }}"
+              class="form-control form-control-sm"
+              style="min-width: 150px;"
+              title="Quiz Start Date">
+          </div>
+          <div class="col-lg-4">
+            <button class="btn btn-sm btn-primary" type="submit">Apply</button>
+            @if(($selectedDepartment ?? '') !== '' || ($selectedStatus ?? 'all') !== 'all' || ($selectedCourseCode ?? '') !== '' || ($startDate ?? '') !== '' || ($selectedStartAt ?? '') !== '' || ($groupBy ?? 'none') !== 'none')
+            <a class="btn btn-sm btn-outline-secondary" href="{{ route($indexRouteName) }}">Clear</a>
+            @endif
+          </div>
+        </div>
+      </form>
+    </div>
+
     <div class="p-3">
+      @php
+      $zeroExpectedCount = (($groupBy ?? 'none') === 'start_time')
+      ? (int) collect($groupedQuizzesByStartTime ?? collect())
+      ->flatMap(function ($group) {
+      return collect($group['quizzes'] ?? collect());
+      })
+      ->filter(function ($quiz) {
+      return (int) ($quiz->expected_students_count ?? 0) === 0;
+      })
+      ->count()
+      : (int) collect($quizzes ?? collect())
+      ->filter(function ($quiz) {
+      return (int) ($quiz->expected_students_count ?? 0) === 0;
+      })
+      ->count();
+      @endphp
+
+      @if($zeroExpectedCount > 0)
+      <div class="alert alert-danger border-0 shadow-sm mb-3" role="alert">
+        <strong>Critical Alert:</strong>
+        {{ $zeroExpectedCount }} quiz{{ $zeroExpectedCount === 1 ? '' : 'zes' }} {{ $zeroExpectedCount === 1 ? 'has' : 'have' }} Expected Students = 0.
+        Review roster mapping for these quizzes immediately.
+      </div>
+      @endif
+
       @if(($startTimeAnalytics ?? collect())->isNotEmpty())
       <div class="analytics-strip">
-        <div class="analytics-title">Start Time Analytics</div>
-        <div class="analytics-sub">Unique students grouped by quiz start date and time.</div>
+        <div class="d-flex justify-content-between align-items-center flex-wrap gap-2">
+          <div>
+            <div class="analytics-title">Start Time Analytics</div>
+            <div class="analytics-sub">Click a start-time color chip to filter results for that slot.</div>
+          </div>
+          @if(($selectedStartAt ?? '') !== '')
+          <a href="{{ route($indexRouteName, array_merge(request()->except(['page', 'start_at']), ['group_by' => 'start_time'])) }}" class="btn btn-sm btn-outline-secondary">Clear Start Time Filter</a>
+          @endif
+        </div>
         <div class="d-flex gap-2 flex-wrap mt-2">
           @foreach($startTimeAnalytics as $metric)
-          <span class="metric-chip">{{ $metric['start_at_label'] }}: {{ (int) ($metric['unique_students'] ?? 0) }}</span>
-          @endforeach
+          @php
+          $uniqueStudents = (int) ($metric['unique_students'] ?? 0);
+          $metricStartAt = (string) ($metric['start_at'] ?? '');
+          $analyticsClass = $uniqueStudents === 0
+          ? 'analytics-zero'
+          : ($uniqueStudents < 20
+            ? 'analytics-low'
+            : ($uniqueStudents < 50 ? 'analytics-medium' : 'analytics-high' ));
+            $isActiveStartAt=($selectedStartAt ?? '' ) !=='' && ($selectedStartAt ?? '' )===$metricStartAt;
+            $chipQuery=array_merge(request()->except('page'), [
+            'group_by' => 'start_time',
+            'start_at' => $metricStartAt,
+            ]);
+            @endphp
+            <a href="{{ route($indexRouteName, $chipQuery) }}" class="metric-chip analytics-link {{ $analyticsClass }} {{ $isActiveStartAt ? 'analytics-active' : '' }}">{{ $metric['start_at_label'] }}: {{ $uniqueStudents }}</a>
+            @endforeach
         </div>
       </div>
       @endif
@@ -318,6 +419,7 @@
                 if ($facultyName === '') {
                 $facultyName = optional($quiz->creator)->name ?? 'N/A';
                 }
+                $expectedCount = (int) ($quiz->expected_students_count ?? 0);
                 $now = now();
                 $isUpcoming = $quiz->open_at && $quiz->open_at->gt($now);
                 $isCompleted = $quiz->close_at && $quiz->close_at->lte($now);
@@ -333,7 +435,12 @@
                   <td>{{ $facultyName }}</td>
                   <td>{{ $quiz->course->course_code ?? '' }}{{ $quiz->course ? ' - ' : '' }}{{ $quiz->course->course_title ?? 'N/A' }}</td>
                   <td><span class="badge {{ $statusBadge }}">{{ $statusLabel }}</span></td>
-                  <td>{{ (int) ($quiz->expected_students_count ?? 0) }}</td>
+                  <td class="{{ $expectedCount === 0 ? 'expected-zero' : '' }}">
+                    {{ $expectedCount }}
+                    @if($expectedCount === 0)
+                    <span class="critical-inline-badge">CRITICAL</span>
+                    @endif
+                  </td>
                   <td>{{ (int) ($quiz->submitted_attempts_count ?? 0) }}</td>
                   <td>
                     @php
@@ -366,6 +473,7 @@
         if ($facultyName === '') {
         $facultyName = optional($quiz->creator)->name ?? 'N/A';
         }
+        $expectedCount = (int) ($quiz->expected_students_count ?? 0);
         $now = now();
         $isUpcoming = $quiz->open_at && $quiz->open_at->gt($now);
         $isCompleted = $quiz->close_at && $quiz->close_at->lte($now);
@@ -410,7 +518,12 @@
               </div>
               <div class="info-row">
                 <div class="info-key">Expected Students</div>
-                <div class="info-val">{{ (int) ($quiz->expected_students_count ?? 0) }}</div>
+                <div class="info-val {{ $expectedCount === 0 ? 'text-danger fw-bold' : '' }}">
+                  {{ $expectedCount }}
+                  @if($expectedCount === 0)
+                  <span class="critical-inline-badge">CRITICAL</span>
+                  @endif
+                </div>
               </div>
               <div class="info-row">
                 <div class="info-key">Course</div>

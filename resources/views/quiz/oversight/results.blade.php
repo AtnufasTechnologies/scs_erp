@@ -103,6 +103,39 @@
 
           <div class="card shadow-sm border-0 mt-3">
             <div class="card-header bg-white py-3">
+              <div class="d-flex justify-content-between align-items-center flex-wrap gap-2">
+                <h6 class="mb-0 fw-bold">Quiz Question Sheet</h6>
+                @if($role === 'itcell')
+                <a href="{{ route('itcell.quizzes.question-sheet.export', $quiz->id) }}" class="btn btn-sm btn-success">
+                  <i class="fas fa-file-excel me-1"></i>Download Full Quiz Sheet
+                </a>
+                @endif
+              </div>
+            </div>
+            <div class="card-body">
+              <div class="d-flex align-items-center gap-2 flex-wrap mb-3">
+                <span class="badge bg-primary">Questions: {{ (int) ($quiz->questions_count ?? 0) }}</span>
+                <span class="badge bg-success">Attempted Students: {{ (int) $attemptedStudentCount }}</span>
+              </div>
+
+              @if($role === 'itcell')
+              <form method="POST" action="{{ route('itcell.quizzes.question-sheet.import', $quiz->id) }}" enctype="multipart/form-data" class="row g-2 align-items-end mb-3">
+                @csrf
+                <div class="col-md-8">
+                  <label class="form-label fw-bold mb-1">Upload Corrected Full Quiz Sheet</label>
+                  <input type="file" name="question_sheet" class="form-control" accept=".xlsx,.xls,.csv" required>
+                  <small class="text-muted">Download the sheet, update question text/options/correct answer, and re-upload to apply and recalculate submitted scores.</small>
+                </div>
+                <div class="col-md-4">
+                  <button type="submit" class="btn btn-primary">Upload and Recalculate</button>
+                </div>
+              </form>
+              @endif
+            </div>
+          </div>
+
+          <div class="card shadow-sm border-0 mt-3">
+            <div class="card-header bg-white py-3">
               <h6 class="mb-0 fw-bold">Submitted Attempts</h6>
             </div>
             <div class="card-body table-responsive">
