@@ -148,6 +148,28 @@
         <a href="{{ route('faculty.fa1.index') }}" class="btn btn-primary btn-sm">Create New FA1 Quiz</a>
       </div>
 
+      @php
+      $criticalQuizzes = $quizzes->filter(function ($quiz) {
+      return (int) ($quiz->expected_attendees ?? 0) === 0;
+      })->values();
+      @endphp
+
+      @if($criticalQuizzes->isNotEmpty())
+      <div class="alert alert-danger border-0 shadow-sm" role="alert">
+        <strong>Critical Alert for Faculty:</strong>
+        {{ $criticalQuizzes->count() }} quiz{{ $criticalQuizzes->count() === 1 ? '' : 'zes' }} {{ $criticalQuizzes->count() === 1 ? 'has' : 'have' }} Expected Students = 0.
+        <div class="mt-2 small">
+          @foreach($criticalQuizzes as $criticalQuiz)
+          <div>
+            <i class="fas fa-exclamation-triangle me-1"></i>
+            {{ $criticalQuiz->title }}
+            <a href="{{ route('faculty.fa1.results', $criticalQuiz->id) }}" class="ms-1">Review</a>
+          </div>
+          @endforeach
+        </div>
+      </div>
+      @endif
+
       @if($quizzes->isEmpty())
       <div class="card shadow-sm border-0">
         <div class="card-body text-center text-muted">No quizzes created yet.</div>
@@ -193,7 +215,12 @@
                 </div>
                 <div>
                   <div class="k">Expected Attendees</div>
-                  <div>{{ (int) ($quiz->expected_attendees ?? 0) }}</div>
+                  <div class="{{ (int) ($quiz->expected_attendees ?? 0) === 0 ? 'text-danger fw-bold' : '' }}">
+                    {{ (int) ($quiz->expected_attendees ?? 0) }}
+                    @if((int) ($quiz->expected_attendees ?? 0) === 0)
+                    <span class="badge bg-danger ms-1">Critical</span>
+                    @endif
+                  </div>
                 </div>
                 <div>
                   <div class="k">Open At</div>

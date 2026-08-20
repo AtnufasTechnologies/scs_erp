@@ -31,6 +31,7 @@ class QuizOversightController extends Controller
     $selectedStatus = trim((string) $request->query('status', 'all'));
     $selectedCourseCode = strtoupper(trim((string) $request->query('course_code', '')));
     $startDate = trim((string) $request->query('start_date', ''));
+    $selectedStartAt = trim((string) $request->query('start_at', ''));
     $defaultGroupBy = $role === 'itcell' ? 'start_time' : 'none';
     $groupBy = trim((string) $request->query('group_by', $defaultGroupBy));
     $allowedStatuses = ['all', 'upcoming', 'live', 'completed'];
@@ -51,6 +52,16 @@ class QuizOversightController extends Controller
         $startDate = $startDateValue;
       } catch (\Throwable $e) {
         $startDate = '';
+      }
+    }
+
+    $startAtValue = null;
+    if ($selectedStartAt !== '') {
+      try {
+        $startAtValue = Carbon::parse($selectedStartAt)->format('Y-m-d H:i:s');
+        $selectedStartAt = $startAtValue;
+      } catch (\Throwable $e) {
+        $selectedStartAt = '';
       }
     }
 
@@ -87,6 +98,10 @@ class QuizOversightController extends Controller
 
     if ($startDateValue !== null) {
       $listingQuery->whereDate('open_at', $startDateValue);
+    }
+
+    if ($startAtValue !== null) {
+      $listingQuery->where('open_at', $startAtValue);
     }
 
     $quizRelations = [
@@ -230,6 +245,7 @@ class QuizOversightController extends Controller
       'selectedStatus' => $selectedStatus,
       'selectedCourseCode' => $selectedCourseCode,
       'startDate' => $startDate,
+      'selectedStartAt' => $selectedStartAt,
       'groupBy' => $groupBy,
       'statusCounts' => $statusCounts,
       'startTimeAnalytics' => $startTimeAnalytics,
