@@ -50,7 +50,7 @@
                                             password has been generated. To reset your password, click the
                                             following link and follow the instructions.
                                         </p>
-                                        <a href="https://erpsalesiancollege.sdbinc.org/erp/new-admission/reset-password/{{$details['token']}}"
+                                        <a href="https://scms.salesiancollege.ac.in/erp/new-admission/reset-password/{{$details['token']}}"
                                             style="background:#81EBC9;text-decoration:none !important; font-weight:500; margin-top:35px; color:#4D4C4C;text-transform:uppercase; font-size:14px;padding:10px 24px;display:inline-block;border-radius:50px;"
                                             target="_blank">Click Here </a>
 

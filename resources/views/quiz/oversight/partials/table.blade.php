@@ -194,84 +194,82 @@
   <div class="panel">
     <div class="panel-head d-flex justify-content-between align-items-center flex-wrap gap-2">
       <div>
-        <h5 class="panel-title">Faculty Quiz Repository</h5>
-        <small class="text-muted">Centralized faculty quiz insights</small>
+        <h5 class="panel-title">Faculty Quiz Repository Centralized</h5>
+        <small class="text-muted">Grouped faculty quiz analytics and monitoring controls</small>
       </div>
+    </div>
 
-      @if(($role ?? '') === 'itcell')
-      <form method="POST" action="{{ route('itcell.quizzes.backfill-teaching-assignment') }}" class="d-flex align-items-end gap-2 flex-wrap">
-        @csrf
-        <div>
-          <label class="form-label form-label-sm mb-1">Backfill By Course Code</label>
-          <input
-            type="text"
-            name="course_code"
-            class="form-control form-control-sm"
-            style="min-width: 220px;"
-            placeholder="e.g. 24CSAVAC301A"
-            required>
-        </div>
-        <button type="submit" class="btn btn-sm btn-outline-primary">Run Backfill</button>
-      </form>
-      @endif
-
-      <div class="d-flex align-items-center gap-2 flex-wrap">
+    <div class="p-3 border-bottom bg-white">
+      <div class="d-flex align-items-center justify-content-between gap-2 flex-wrap">
         <span class="metric-chip">Total Quizzes: {{ $quizzes->total() }}</span>
         <span class="metric-chip">Completed: {{ (int) ($statusCounts['completed'] ?? 0) }}</span>
         <span class="metric-chip">Unique Students (By Start Time): {{ (int) ($totalUniqueStudentsByStartTime ?? 0) }}</span>
-
-        @php
-        $indexRouteName = $monitorIndexRoute
-        ?? (($role ?? '') === 'principal'
-        ? 'principal.quizzes.index'
-        : (($role ?? '') === 'itcell' ? 'itcell.quizzes.index' : 'department.quizzes.index'));
-        @endphp
-
-        <form method="GET" action="{{ route($indexRouteName) }}" class="d-flex gap-2 align-items-center flex-wrap">
-          @if($canFilterDepartments ?? false)
-          <select name="department" class="form-select form-select-sm" style="min-width: 220px;">
-            <option value="">All Departments</option>
-            @foreach($departmentOptions as $department)
-            <option value="{{ $department }}" {{ $selectedDepartment === $department ? 'selected' : '' }}>{{ $department }}</option>
-            @endforeach
-          </select>
-          @endif
-
-          <select name="status" class="form-select form-select-sm" style="min-width: 160px;">
-            <option value="all" {{ ($selectedStatus ?? 'all') === 'all' ? 'selected' : '' }}>All Quizzes</option>
-            <option value="upcoming" {{ ($selectedStatus ?? 'all') === 'upcoming' ? 'selected' : '' }}>Upcoming</option>
-            <option value="live" {{ ($selectedStatus ?? 'all') === 'live' ? 'selected' : '' }}>Ongoing</option>
-            <option value="completed" {{ ($selectedStatus ?? 'all') === 'completed' ? 'selected' : '' }}>Completed</option>
-          </select>
-
-          <input
-            type="text"
-            name="course_code"
-            value="{{ $selectedCourseCode ?? '' }}"
-            class="form-control form-control-sm"
-            style="min-width: 180px;"
-            placeholder="Course Code">
-
-          <select name="group_by" class="form-select form-select-sm" style="min-width: 220px;">
-            <option value="none" {{ ($groupBy ?? 'none') === 'none' ? 'selected' : '' }}>Normal View</option>
-            <option value="start_time" {{ ($groupBy ?? 'none') === 'start_time' ? 'selected' : '' }}>Group By Start Time (All Quizzes)</option>
-          </select>
-
-          <input
-            type="date"
-            name="start_date"
-            value="{{ $startDate ?? '' }}"
-            class="form-control form-control-sm"
-            style="min-width: 150px;"
-            title="Quiz Start Date">
-
-          <button class="btn btn-sm btn-primary" type="submit">Apply</button>
-          @if(($selectedDepartment ?? '') !== '' || ($selectedStatus ?? 'all') !== 'all' || ($selectedCourseCode ?? '') !== '' || ($startDate ?? '') !== '' || ($groupBy ?? 'none') !== 'none')
-          <a class="btn btn-sm btn-outline-secondary" href="{{ route($indexRouteName) }}">Clear</a>
-          @endif
-        </form>
-
       </div>
+
+      @php
+      $indexRouteName = $monitorIndexRoute
+      ?? (($role ?? '') === 'principal'
+      ? 'principal.quizzes.index'
+      : (($role ?? '') === 'itcell' ? 'itcell.quizzes.index' : 'department.quizzes.index'));
+      @endphp
+
+      <form method="GET" action="{{ route($indexRouteName) }}" class="d-flex gap-2 align-items-center flex-wrap mt-2">
+
+        <div class="row">
+          <div class="col-lg-3">
+            <input
+              type="text"
+              name="course_code"
+              value="{{ $selectedCourseCode ?? '' }}"
+              class="form-control form-control-sm"
+              style="min-width: 180px;"
+              placeholder="Course Code">
+
+          </div>
+          <div class="col-lg-3"> @if($canFilterDepartments ?? false)
+            <select name="department" class="form-select form-select-sm" style="min-width: 220px;">
+              <option value="">All Departments</option>
+              @foreach($departmentOptions as $department)
+              <option value="{{ $department }}" {{ $selectedDepartment === $department ? 'selected' : '' }}>{{ $department }}</option>
+              @endforeach
+            </select>
+            @endif
+          </div>
+
+          <div class="col-lg-3">
+            <select name="status" class="form-select form-select-sm" style="min-width: 160px;">
+              <option value="all" {{ ($selectedStatus ?? 'all') === 'all' ? 'selected' : '' }}>All Quizzes</option>
+              <option value="upcoming" {{ ($selectedStatus ?? 'all') === 'upcoming' ? 'selected' : '' }}>Upcoming</option>
+              <option value="live" {{ ($selectedStatus ?? 'all') === 'live' ? 'selected' : '' }}>Ongoing</option>
+              <option value="completed" {{ ($selectedStatus ?? 'all') === 'completed' ? 'selected' : '' }}>Completed</option>
+            </select>
+          </div>
+
+          <div class="col-lg-3 mb-3">
+            <select name="group_by" class="form-select form-select-sm" style="min-width: 220px;">
+              <option value="none" {{ ($groupBy ?? 'none') === 'none' ? 'selected' : '' }}>Normal View</option>
+              <option value="start_time" {{ ($groupBy ?? 'none') === 'start_time' ? 'selected' : '' }}>Group By Start Time (All Quizzes)</option>
+            </select>
+
+          </div>
+
+          <div class="col-lg-4">
+            <input
+              type="date"
+              name="start_date"
+              value="{{ $startDate ?? '' }}"
+              class="form-control form-control-sm"
+              style="min-width: 150px;"
+              title="Quiz Start Date">
+          </div>
+          <div class="col-lg-4">
+            <button class="btn btn-sm btn-primary" type="submit">Apply</button>
+            @if(($selectedDepartment ?? '') !== '' || ($selectedStatus ?? 'all') !== 'all' || ($selectedCourseCode ?? '') !== '' || ($startDate ?? '') !== '' || ($groupBy ?? 'none') !== 'none')
+            <a class="btn btn-sm btn-outline-secondary" href="{{ route($indexRouteName) }}">Clear</a>
+            @endif
+          </div>
+        </div>
+      </form>
     </div>
 
     <div class="p-3">

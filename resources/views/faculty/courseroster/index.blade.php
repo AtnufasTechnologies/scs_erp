@@ -2,6 +2,8 @@
 
 @php
 $safeAssignmentRows = collect($assignmentRows ?? []);
+$searchTerm = trim((string) ($searchTerm ?? ''));
+$totalAssignmentCount = (int) ($totalAssignmentCount ?? $safeAssignmentRows->count());
 @endphp
 
 <div class="wrapper">
@@ -32,8 +34,38 @@ $safeAssignmentRows = collect($assignmentRows ?? []);
           </div>
           <div class="text-end">
             <div class="h3 mb-0 text-primary fw-bold">{{ $safeAssignmentRows->count() }}</div>
-            <small class="text-muted">Active Assignment{{ $safeAssignmentRows->count() === 1 ? '' : 's' }}</small>
+            <small class="text-muted">
+              @if($searchTerm !== '')
+              Showing {{ $safeAssignmentRows->count() }} of {{ $totalAssignmentCount }} Assignment{{ $totalAssignmentCount === 1 ? '' : 's' }}
+              @else
+              Active Assignment{{ $safeAssignmentRows->count() === 1 ? '' : 's' }}
+              @endif
+            </small>
           </div>
+        </div>
+      </div>
+
+      <div class="card shadow-sm border-0 mb-3">
+        <div class="card-body">
+          <form method="GET" action="{{ route('faculty.student.course.roster') }}" class="row g-2 align-items-end">
+            <div class="col-md-8 col-lg-6">
+              <label class="form-label fw-semibold mb-1">Search Courses</label>
+              <input
+                type="text"
+                name="q"
+                class="form-control"
+                value="{{ $searchTerm }}"
+                placeholder="Course code, title, program, subject, shift, room...">
+            </div>
+            <div class="col-md-4 col-lg-3 d-flex gap-2">
+              <button type="submit" class="btn btn-primary">
+                <i class="fas fa-search me-1"></i>Search
+              </button>
+              @if($searchTerm !== '')
+              <a href="{{ route('faculty.student.course.roster') }}" class="btn btn-outline-secondary">Clear</a>
+              @endif
+            </div>
+          </form>
         </div>
       </div>
 

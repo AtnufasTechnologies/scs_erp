@@ -96,6 +96,7 @@ $campusMaster = Campus::all()
         <th>#</th>
         <th>Name</th>
         <th>Email</th>
+        <th>Password</th>
         <th>User Type</th>
         <th>Campus</th>
         <th>Actions</th>
@@ -107,6 +108,7 @@ $campusMaster = Campus::all()
         <td>{{$loop->iteration}}</td>
         <td>{{ $itm->name }}</td>
         <td>{{ $itm->email }}</td>
+        <td><span class="badge badge-warning">{{$itm->decrypted_password }}</span></td>
         <td>{{ $itm->userroletype != null ? $itm->userroletype->role_name : 'N/A' }}</td>
         <td>
           @if ($itm->userroletype != null)
