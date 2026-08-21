@@ -3144,6 +3144,7 @@ class AdminController extends Controller
         $request->validate([
             'role_name' => 'required|string|max:255',
             'description' => 'nullable|string|max:255',
+            'roletype' => 'required|in:academic,non-academic,technical,student,alumni,Administrative,AcademicAdministrative,NA',
         ]);
 
         $slug = Str::slug($request->role_name);
@@ -3156,6 +3157,7 @@ class AdminController extends Controller
         $rec->role_name = $request->role_name;
         $rec->slug = $slug;
         $rec->description = $request->description;
+        $rec->roletype = $request->roletype;
         $rec->is_active = 1;
         $rec->save();
 
@@ -3167,6 +3169,7 @@ class AdminController extends Controller
         $request->validate([
             'role_name' => 'required|string|max:255',
             'description' => 'nullable|string|max:255',
+            'roletype' => 'required|in:academic,non-academic,technical,student,alumni,Administrative,AcademicAdministrative,NA',
         ]);
 
         $role = RoleMaster::findOrFail($id);
@@ -3179,10 +3182,26 @@ class AdminController extends Controller
         $role->role_name = $request->role_name;
         $role->slug = $slug;
         $role->description = $request->description;
+        $role->roletype = $request->roletype;
         $role->is_active = $request->is_active ?? 1;
         $role->save();
 
         return redirect()->back()->with('success', 'Role updated successfully');
+    }
+
+    function bulkUpdateRoleType(Request $request)
+    {
+        $validated = $request->validate([
+            'role_ids' => 'required|array|min:1',
+            'role_ids.*' => 'required|integer|exists:role_masters,id',
+            'roletype' => 'required|in:academic,non-academic,technical,student,alumni,Administrative,AcademicAdministrative,NA',
+        ]);
+
+        RoleMaster::whereIn('id', $validated['role_ids'])->update([
+            'roletype' => $validated['roletype'],
+        ]);
+
+        return redirect()->back()->with('success', 'Role type updated for selected roles');
     }
 
     function deleteRole($id)

@@ -440,6 +440,7 @@ Route::group(['prefix' => '/erp'], function () {
             Route::get('role-master', [AdminController::class, 'roleMaster'])->name('admin.role-master');
             Route::post('add-role', [AdminController::class, 'addRole'])->name('admin.add.role');
             Route::post('update-role/{id}', [AdminController::class, 'updateRole'])->name('admin.update.role');
+            Route::post('bulk-update-role-type', [AdminController::class, 'bulkUpdateRoleType'])->name('admin.bulk.update.roletype');
             Route::get('delete-role/{id}', [AdminController::class, 'deleteRole'])->name('admin.delete.role');
 
             Route::get('revoke-access/{id}', [AccessController::class, 'revokeDeptAccess'])->name('dept.erp.revoke-access');

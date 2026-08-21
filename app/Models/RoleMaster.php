@@ -9,5 +9,5 @@ class RoleMaster extends Model
 {
   use HasFactory;
   protected $table = 'role_masters';
-  protected $fillable = ['slug', 'role_name', 'description', 'is_active'];
+  protected $fillable = ['slug', 'role_name', 'description', 'roletype', 'is_active'];
 }
