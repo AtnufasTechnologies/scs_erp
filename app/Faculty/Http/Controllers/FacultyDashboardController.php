@@ -476,16 +476,39 @@ class FacultyDashboardController extends Controller
         $hourName = (string) ($routine->hourmaster->name ?? $routine->hourmaster->title ?? ('Hour ' . $hourNo));
         $startTime = (string) ($routine->hourmaster->start_time ?? '');
         $endTime = (string) ($routine->hourmaster->end_time ?? '');
-        $hourLabel = $hourName;
-        if ($startTime !== '' && $endTime !== '') {
-          $hourLabel .= ' (' . $startTime . ' - ' . $endTime . ')';
-        }
+        $hourLabel = $this->buildHourLabel($hourName, $startTime, $endTime);
 
         $courseCode = (string) ($course->course_code ?? '');
         $courseTitle = (string) ($course->course_title ?? '-');
 
+        $weekdayId = (int) ($routine->weekday_id ?? 0);
+        $weekdayMap = [
+          1 => 'Monday',
+          2 => 'Tuesday',
+          3 => 'Wednesday',
+          4 => 'Thursday',
+          5 => 'Friday',
+          6 => 'Saturday',
+          7 => 'Sunday',
+        ];
+
+        $weekday = (string) ($weekdayMap[$weekdayId] ?? '');
+        if ($weekday === '') {
+          $rawWeekdayTitle = strtoupper(trim((string) ($routine->weekdaymaster->title ?? '')));
+          $weekdayAliasMap = [
+            'MONDAY' => 'Monday',
+            'TUESDAY' => 'Tuesday',
+            'WEDNESDAY' => 'Wednesday',
+            'THURSDAY' => 'Thursday',
+            'FRIDAY' => 'Friday',
+            'SATURDAY' => 'Saturday',
+            'SUNDAY' => 'Sunday',
+          ];
+          $weekday = (string) ($weekdayAliasMap[$rawWeekdayTitle] ?? '-');
+        }
+
         return [
-          'weekday' => $routine->weekdaymaster->title ?? '-',
+          'weekday' => $weekday,
           'hour' => $hourLabel,
           'hour_sort' => $hourNo > 0 ? $hourNo : (int) ($routine->hour_id ?? 0),
           'subject' => $routine->syllabus->subject->title ?? '-',
@@ -521,6 +544,34 @@ class FacultyDashboardController extends Controller
       'semesterOptions' => Semester::orderBy('title')->get(['id', 'title']),
       'batches' => BatchMaster::latest()->get(),
     ]);
+  }
+
+  private function buildHourLabel(string $hourName, string $startTime, string $endTime): string
+  {
+    $label = trim($hourName) !== '' ? trim($hourName) : 'Hour';
+    $formattedStart = $this->formatDisplayTime($startTime);
+    $formattedEnd = $this->formatDisplayTime($endTime);
+
+    if ($formattedStart !== '' && $formattedEnd !== '') {
+      return $label . ' (' . $formattedStart . ' - ' . $formattedEnd . ')';
+    }
+
+    return $label;
+  }
+
+  private function formatDisplayTime(string $timeValue): string
+  {
+    $timeValue = trim($timeValue);
+    if ($timeValue === '') {
+      return '';
+    }
+
+    $timestamp = strtotime($timeValue);
+    if ($timestamp === false) {
+      return $timeValue;
+    }
+
+    return date('h:i A', $timestamp);
   }
 
   function subjects(Request $request)

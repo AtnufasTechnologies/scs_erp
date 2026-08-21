@@ -1417,10 +1417,7 @@ class TimetableController extends Controller
             $hourName = (string) ($routine->hourmaster->name ?? ('Hour ' . $hourNo));
             $start = (string) ($routine->hourmaster->start_time ?? '');
             $end = (string) ($routine->hourmaster->end_time ?? '');
-            $hourLabel = $hourName;
-            if ($start !== '' && $end !== '') {
-                $hourLabel .= ' (' . $start . ' - ' . $end . ')';
-            }
+            $hourLabel = $this->buildTimetableHourLabel($hourName, $start, $end);
 
             $groups[$groupKey]['hours'][$hourNo] = [
                 'hour_no' => $hourNo,
@@ -3039,6 +3036,34 @@ class TimetableController extends Controller
         return $programType === 'PG' ? 'PG' : 'UG';
     }
 
+    private function buildTimetableHourLabel(string $hourName, string $startTime, string $endTime): string
+    {
+        $label = trim($hourName) !== '' ? trim($hourName) : 'Hour';
+        $formattedStart = $this->formatTimetableTime($startTime);
+        $formattedEnd = $this->formatTimetableTime($endTime);
+
+        if ($formattedStart !== '' && $formattedEnd !== '') {
+            return $label . ' (' . $formattedStart . ' - ' . $formattedEnd . ')';
+        }
+
+        return $label;
+    }
+
+    private function formatTimetableTime(string $timeValue): string
+    {
+        $timeValue = trim($timeValue);
+        if ($timeValue === '') {
+            return '';
+        }
+
+        $timestamp = strtotime($timeValue);
+        if ($timestamp === false) {
+            return $timeValue;
+        }
+
+        return date('h:i A', $timestamp);
+    }
+
     private function supportsRoutineProgramType(): bool
     {
         return Schema::hasColumn('subject_has_routines', 'program_type');
@@ -3618,6 +3643,7 @@ class TimetableController extends Controller
                 'teachingAssignment.course:id,course_code,course_title,course_type',
                 'teachingAssignment.course.coursetypemaster:id,title',
                 'teachingAssignment.faculty:id,USER_CODE,FIRST_NAME,LAST_NAME',
+                'teachingAssignment.primaryFacultyMembers:id,USER_CODE,FIRST_NAME,LAST_NAME',
                 'teachingAssignment.coFacultyMembers:id,USER_CODE,FIRST_NAME,LAST_NAME',
                 'syllabus.subject:id,title',
                 'syllabus.batchmaster:id,batch_name',
@@ -3632,6 +3658,7 @@ class TimetableController extends Controller
                 'teachingAllocation.course:id,course_code,course_title,course_type',
                 'teachingAllocation.course.coursetypemaster:id,title',
                 'teachingAllocation.faculty:id,USER_CODE,FIRST_NAME,LAST_NAME',
+                'teachingAllocation.primaryFacultyMembers:id,USER_CODE,FIRST_NAME,LAST_NAME',
                 'teachingAllocation.coFacultyMembers:id,USER_CODE,FIRST_NAME,LAST_NAME',
             ]);
         }
@@ -3669,14 +3696,17 @@ class TimetableController extends Controller
                 }
                 $course = $routine->subjectCourse->courseMaster ?? optional($assignment)->course;
 
+                $primaryFacultyNames = collect($assignment?->primaryFacultyMembers ?? [])
+                    ->map(fn($primaryFaculty) => trim((string) ($primaryFaculty->FIRST_NAME ?? '') . ' ' . (string) ($primaryFaculty->LAST_NAME ?? '')))
+                    ->filter()
+                    ->values()
+                    ->all();
+
                 $hourNo = (int) ($routine->hourmaster->hour_no ?? $routine->hour_id ?? 0);
                 $hourName = (string) ($routine->hourmaster->name ?? $routine->hourmaster->title ?? ('Hour ' . $hourNo));
                 $startTime = (string) ($routine->hourmaster->start_time ?? '');
                 $endTime = (string) ($routine->hourmaster->end_time ?? '');
-                $hourLabel = $hourName;
-                if ($startTime !== '' && $endTime !== '') {
-                    $hourLabel .= ' (' . $startTime . ' - ' . $endTime . ')';
-                }
+                $hourLabel = $this->buildTimetableHourLabel($hourName, $startTime, $endTime);
 
                 $courseCode = (string) ($course->course_code ?? '');
                 $courseTitle = (string) ($course->course_title ?? '-');
@@ -3707,6 +3737,18 @@ class TimetableController extends Controller
                     $weekday = (string) ($weekdayAliasMap[$rawWeekdayTitle] ?? '-');
                 }
 
+                $facultyLabel = !empty($primaryFacultyNames)
+                    ? implode(', ', $primaryFacultyNames)
+                    : trim((string) ($assignment?->faculty?->FIRST_NAME ?? '') . ' ' . (string) ($assignment?->faculty?->LAST_NAME ?? ''));
+
+                if ($facultyLabel === '') {
+                    $facultyLabel = trim((string) ($routine->faculty?->FIRST_NAME ?? '') . ' ' . (string) ($routine->faculty?->LAST_NAME ?? ''));
+                }
+
+                if ($facultyLabel === '') {
+                    $facultyLabel = '-';
+                }
+
                 return [
                     'weekday' => $weekday,
                     'hour' => $hourLabel,
@@ -3718,7 +3760,7 @@ class TimetableController extends Controller
                     'room' => trim((string) ($assignment->room ?? '')) !== '' ? trim((string) ($assignment->room ?? '')) : '-',
                     'course' => trim($courseCode . ($courseCode !== '' ? ' - ' : '') . $courseTitle),
                     'course_type' => (string) ($course->coursetypemaster->title ?? '-'),
-                    'faculty' => trim((string) ($assignment?->faculty?->FIRST_NAME ?? '') . ' ' . (string) ($assignment?->faculty?->LAST_NAME ?? '')),
+                    'faculty' => $facultyLabel,
                     'co_faculty' => collect($assignment?->coFacultyMembers ?? [])
                         ->map(fn($faculty) => trim((string) ($faculty->FIRST_NAME ?? '') . ' ' . (string) ($faculty->LAST_NAME ?? '')))
                         ->filter()
