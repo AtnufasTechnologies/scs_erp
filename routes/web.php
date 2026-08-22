@@ -123,6 +123,9 @@ Route::get('student-logout', [StudentAuthController::class, 'logout'])->name('st
 
 Route::group(['prefix' => '/erp'], function () {
 
+    Route::get('dashboard-switcher', [LoginController::class, 'dashboardSwitcher'])->name('dashboard.switcher');
+    Route::post('dashboard-switch', [LoginController::class, 'switchDashboard'])->name('dashboard.switch');
+
     //ITCELL - superuser routes
     Route::group(['prefix' => '/admin',], function () {
         Route::get('dashboard', [AdminController::class, 'index'])->name('admin.dashboard');
@@ -425,6 +428,7 @@ Route::group(['prefix' => '/erp'], function () {
         Route::group(['prefix' => '/access-control'], function () {
             Route::get('access-management', [AdminController::class, 'userList'])->name('admin.user.management');
             Route::post('newuser', [AdminController::class, 'createNewUser'])->name('add.newuser');
+            Route::post('update-user/{id}', [AdminController::class, 'updateUserAccess'])->name('admin.user-access.update');
             Route::post('update-permission', [AdminController::class, 'updatePermission'])->name('update.user.permission');
             Route::get('remove-user-permission/{id}', [AdminController::class, 'removeUserPermission']);
             Route::get('dept-access', [AccessController::class, 'deptAccess'])->name('dept.erp.access-list');
@@ -971,6 +975,7 @@ Route::group(['prefix' => '/erp'], function () {
         Route::get('activities/{subjectId}/by-type', [DepartmentActivityController::class, 'getByType'])->name('department.activities.by-type');
         Route::get('acivity/participants/{activityId}', [DepartmentActivityController::class, 'activityParticipants'])->name('department.activities.participants');
         Route::post('activity/participants/store/{activityId}', [DepartmentActivityController::class, 'addParticipant'])->name('department.activities.participants.store');
+        Route::post('activity/participants/{id}/hours', [DepartmentActivityController::class, 'updateParticipantHours'])->name('department.activities.participants.hours.update');
         Route::delete('activity/participants/{id}', [DepartmentActivityController::class, 'removeParticipant'])->name('department.activities.participants.remove');
         Route::post('activity/participants/upload-report/{activityId}', [DepartmentActivityController::class, 'uploadActivityReport'])->name('department.activities.participants.upload-report');
 
@@ -1046,6 +1051,9 @@ Route::group(['prefix' => '/erp'], function () {
         Route::put('work-diary/{id}', [WorkDiaryController::class, 'update'])->name('faculty.workdiary.update');
         Route::delete('work-diary/{id}', [WorkDiaryController::class, 'destroy'])->name('faculty.workdiary.destroy');
         Route::post('work-diary/{id}/toggle-status', [WorkDiaryController::class, 'toggleStatus'])->name('faculty.workdiary.toggle');
+        Route::get('work-diary/api-metrix-categories', [WorkDiaryController::class, 'getApiMetrixCategories'])->name('faculty.workdiary.api-metrix-categories');
+        Route::get('work-diary/api-metrix-components', [WorkDiaryController::class, 'getApiMetrixComponents'])->name('faculty.workdiary.api-metrix-components');
+        Route::get('work-diary/department-incharge-events', [WorkDiaryController::class, 'getDepartmentInchargeEvents'])->name('faculty.workdiary.department-incharge-events');
         Route::post('work-diary/holidays', [WorkDiaryController::class, 'storeHoliday'])->name('faculty.workdiary.holidays.store');
         Route::get('work-diary/holidays', [WorkDiaryController::class, 'getHolidays'])->name('faculty.workdiary.holidays.get');
         Route::delete('work-diary/holidays/{id}', [WorkDiaryController::class, 'deleteHoliday'])->name('faculty.workdiary.holidays.delete');
@@ -1547,7 +1555,11 @@ Route::group(['prefix' => '/erp'], function () {
         Route::get('api-metrix/{id}', [HrApiMetrixController::class, 'show'])->name('hr.api-metrix.show');
         Route::get('api-metrix/{id}/edit', [HrApiMetrixController::class, 'edit'])->name('hr.api-metrix.edit');
         Route::put('api-metrix/{id}', [HrApiMetrixController::class, 'update'])->name('hr.api-metrix.update');
+        Route::put('api-metrix/{id}/toggle-workdiary-visibility', [HrApiMetrixController::class, 'toggleWorkDiaryVisibility'])->name('hr.api-metrix.toggle-workdiary-visibility');
         Route::delete('api-metrix/{id}', [HrApiMetrixController::class, 'destroy'])->name('hr.api-metrix.destroy');
+        Route::post('api-metrix/components/{componentId}/subcomponents', [HrApiMetrixController::class, 'storeSubcomponent'])->name('hr.api-metrix.subcomponents.store');
+        Route::put('api-metrix/subcomponents/{subcomponentId}', [HrApiMetrixController::class, 'updateSubcomponent'])->name('hr.api-metrix.subcomponents.update');
+        Route::delete('api-metrix/subcomponents/{subcomponentId}', [HrApiMetrixController::class, 'destroySubcomponent'])->name('hr.api-metrix.subcomponents.destroy');
     });
 
     // Public Vacancy Routes (for website)

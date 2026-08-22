@@ -2985,13 +2985,22 @@ class AdminController extends Controller
 
     function userList()
     {
-        $data = User::with('menupermission')
-            ->with('userroletype')
+        $data = User::with('userroles')
             ->with('campuspermission.campus:id,name')
+            ->with('facultyAccesses.faculty:id,FIRST_NAME,MIDDLE_NAME,LAST_NAME,USER_CODE')
             ->where('id', '!=', 1)
             ->latest()
+            ->paginate(50);
+
+        $faculties = Faculty::query()
+            ->select('id', 'USER_CODE', 'FIRST_NAME', 'MIDDLE_NAME', 'LAST_NAME', 'MAIL_ID')
+            ->orderBy('FIRST_NAME')
             ->get();
-        return view('admin.user-manager.access-management', ['data' => $data]);
+
+        return view('admin.user-manager.access-management', [
+            'data' => $data,
+            'faculties' => $faculties,
+        ]);
     }
 
     function createNewUser(Request $request)
@@ -3000,20 +3009,61 @@ class AdminController extends Controller
 
         $request->validate([
             'name' => 'required|string|max:255',
-            'email' => 'required|string|email|max:255|unique:users',
-            'password' => 'required|string|min:6',
+            'email' => 'required|string|email|max:255',
+            'password' => 'nullable|string|min:6',
+            'roles' => 'required|array|min:1',
+            'roles.*' => 'required|string|max:255',
+            'campus' => 'nullable|integer',
+            'faculty_id' => 'nullable|integer|exists:faculties,id',
         ]);
 
-        $rec = new User();
+        $roleNames = collect($request->input('roles', []))
+            ->map(fn($role) => trim((string) $role))
+            ->filter(fn($role) => $role !== '')
+            ->unique()
+            ->values();
+
+        if ($roleNames->isEmpty()) {
+            return redirect()->back()->with('error', 'Please select at least one role.');
+        }
+
+        $email = strtolower(trim((string) $request->input('email')));
+        $existingUser = User::withTrashed()->whereRaw('LOWER(TRIM(email)) = ?', [$email])->first();
+        $existingUserId = $existingUser ? (int) $existingUser->id : null;
+
+        $facultyId = (int) $request->input('faculty_id', 0);
+        if ($facultyId > 0) {
+            $conflictingUserId = $this->getActiveFacultyAccessConflictUserId($facultyId, $existingUserId);
+            if ($conflictingUserId !== null) {
+                return redirect()->back()->with('error', 'Selected faculty is already connected to another user account.');
+            }
+        }
+
+        if (!$existingUser && empty($request->password)) {
+            return redirect()->back()->with('error', 'Password is required when creating a new account.');
+        }
+
+        $rec = $existingUser ?: new User();
+        $isNewUser = !$existingUser;
+
+        if ($existingUser && method_exists($existingUser, 'trashed') && $existingUser->trashed()) {
+            $existingUser->restore();
+        }
+
         $rec->name = $request->name;
         $rec->email = $request->email;
-        $rec->password = Hash::make($request->password);
+
+        if (!empty($request->password)) {
+            $rec->decrypted_password = $request->password;
+            $rec->password = Hash::make($request->password);
+        }
+
         $rec->status = 'ACTIVE';
         $rec->otp_verification = 1;
         $rec->save();
 
         $userId = $rec->id;
-        if ($request->user_type == 'super-admin') {
+        if ($roleNames->contains('super-admin') && $isNewUser) {
             $roles = MenuMaster::pluck('id')->toArray();
             for ($i = 0; $i < count($roles); $i++) {
                 $permission = new UserMenuPermission();
@@ -3034,13 +3084,140 @@ class AdminController extends Controller
             }
         }
 
-        //adding role_type
-        $userType = new UserHasRole();
-        $userType->user_id = $userId;
-        $userType->role_name = $request->user_type; //default to admin
-        $userType->save();
+        // Add missing roles only (keep existing roles).
+        $roleNames->each(function ($roleName) use ($userId) {
+            UserHasRole::firstOrCreate([
+                'user_id' => $userId,
+                'role_name' => $roleName,
+            ]);
+        });
 
-        return redirect()->back()->with('success', 'New User Created');
+        if ($facultyId > 0) {
+            SubjectFacultyMaster::where('faculty_id', $facultyId)->update([
+                'access_id' => $userId,
+            ]);
+        }
+
+        $message = $isNewUser
+            ? 'New user created with multi-role access.'
+            : 'Existing user updated and additional roles assigned.';
+
+        return redirect()->back()->with('success', $message);
+    }
+
+    function updateUserAccess(Request $request, $id)
+    {
+        $user = User::findOrFail($id);
+
+        $request->validate([
+            'name' => 'required|string|max:255',
+            'email' => 'required|string|email|max:255|unique:users,email,' . $user->id,
+            'password' => 'nullable|string|min:6',
+            'roles' => 'required|array|min:1',
+            'roles.*' => 'required|string|max:255',
+            'campus' => 'nullable|integer',
+            'faculty_id' => 'nullable|integer|exists:faculties,id',
+        ]);
+
+        $roleNames = collect($request->input('roles', []))
+            ->map(fn($role) => trim((string) $role))
+            ->filter(fn($role) => $role !== '')
+            ->unique()
+            ->values();
+
+        if ($roleNames->isEmpty()) {
+            return redirect()->back()->with('error', 'Please select at least one role.');
+        }
+
+        $facultyId = (int) $request->input('faculty_id', 0);
+        if ($facultyId > 0) {
+            $conflictingUserId = $this->getActiveFacultyAccessConflictUserId($facultyId, (int) $user->id);
+            if ($conflictingUserId !== null) {
+                return redirect()->back()->with('error', 'Selected faculty is already connected to another user account.');
+            }
+        }
+
+        $user->name = $request->name;
+        $user->email = $request->email;
+
+        if (!empty($request->password)) {
+            $user->password = Hash::make($request->password);
+            $user->decrypted_password = $request->password;
+        }
+
+        $user->save();
+
+        UserHasRole::where('user_id', $user->id)->delete();
+        $roleNames->each(function ($roleName) use ($user) {
+            UserHasRole::create([
+                'user_id' => $user->id,
+                'role_name' => $roleName,
+            ]);
+        });
+
+        if ($roleNames->contains('super-admin')) {
+            UserCampusSetting::where('user_id', $user->id)->delete();
+        } else {
+            if (!empty($request->campus)) {
+                UserCampusSetting::updateOrCreate(
+                    ['user_id' => $user->id],
+                    ['campus_id' => (int) $request->campus]
+                );
+            } else {
+                UserCampusSetting::where('user_id', $user->id)->delete();
+            }
+        }
+
+        // Keep one faculty-account linkage per user by resetting old mappings first.
+        SubjectFacultyMaster::where('access_id', $user->id)->update(['access_id' => null]);
+
+        if ($facultyId > 0) {
+            SubjectFacultyMaster::where('faculty_id', $facultyId)->update([
+                'access_id' => $user->id,
+            ]);
+        }
+
+        return redirect()->back()->with('success', 'User access updated successfully.');
+    }
+
+    private function getActiveFacultyAccessConflictUserId(int $facultyId, ?int $ignoreUserId = null): ?int
+    {
+        $mappedUserIds = SubjectFacultyMaster::query()
+            ->where('faculty_id', $facultyId)
+            ->whereNotNull('access_id')
+            ->pluck('access_id')
+            ->map(fn($id) => (int) $id)
+            ->filter(fn($id) => $id > 0)
+            ->unique()
+            ->values();
+
+        if ($ignoreUserId !== null) {
+            $mappedUserIds = $mappedUserIds
+                ->reject(fn($id) => (int) $id === (int) $ignoreUserId)
+                ->values();
+        }
+
+        if ($mappedUserIds->isEmpty()) {
+            return null;
+        }
+
+        $activeUserIds = User::query()
+            ->whereIn('id', $mappedUserIds->all())
+            ->where('status', 'ACTIVE')
+            ->pluck('id')
+            ->map(fn($id) => (int) $id)
+            ->unique()
+            ->values();
+
+        $staleOrInactiveIds = $mappedUserIds->diff($activeUserIds)->values();
+        if ($staleOrInactiveIds->isNotEmpty()) {
+            SubjectFacultyMaster::query()
+                ->where('faculty_id', $facultyId)
+                ->whereIn('access_id', $staleOrInactiveIds->all())
+                ->update(['access_id' => null]);
+        }
+
+        return $activeUserIds->first() ?: null;
     }
 
     function updatePermission(Request $request)
@@ -3093,6 +3270,7 @@ class AdminController extends Controller
 
     function deleteUserAccess($id)
     {
+        SubjectFacultyMaster::where('access_id', $id)->update(['access_id' => null]);
         User::findOrFail($id)->delete();
         //delete user campus setting
         UserCampusSetting::where('user_id', $id)->delete();

@@ -13,6 +13,7 @@ class WorkDiary extends Model
 
   protected $fillable = [
     'faculty_id',
+    'role_context',
     'date',
     'hour',
     'description',

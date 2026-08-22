@@ -171,19 +171,35 @@ $seedComponents = [[
 </style>
 
 <div class="row g-3 api-metrix-form">
-  <div class="col-md-6">
+  <div class="col-md-4">
     <label class="form-label">Category Title <span class="text-danger">*</span></label>
     <input type="text" name="title" class="form-control @error('title') is-invalid @enderror" value="{{ old('title', $isEdit ? $category->title : '') }}" placeholder="Example: Faculty Academic Contributions" required>
     @error('title')<div class="invalid-feedback">{{ $message }}</div>@enderror
   </div>
 
   <div class="col-md-3">
+    <label class="form-label">Slug</label>
+    <input type="text" name="slug" class="form-control @error('slug') is-invalid @enderror" value="{{ old('slug', $isEdit ? ($category->slug ?? '') : '') }}" placeholder="auto-from-title-if-empty">
+    <div class="form-text">Unique URL key. Leave blank to auto-generate.</div>
+    @error('slug')<div class="invalid-feedback">{{ $message }}</div>@enderror
+  </div>
+
+  <div class="col-md-2">
     <label class="form-label">Status <span class="text-danger">*</span></label>
     <select name="status" class="form-select @error('status') is-invalid @enderror" required>
       <option value="active" {{ old('status', $isEdit ? $category->status : 'active') === 'active' ? 'selected' : '' }}>Active</option>
       <option value="inactive" {{ old('status', $isEdit ? $category->status : 'active') === 'inactive' ? 'selected' : '' }}>Inactive</option>
     </select>
     @error('status')<div class="invalid-feedback">{{ $message }}</div>@enderror
+  </div>
+
+  <div class="col-md-2">
+    <label class="form-label">Visible In WorkDiary</label>
+    <select name="show_in_workdiary" class="form-select @error('show_in_workdiary') is-invalid @enderror">
+      <option value="1" {{ (string) old('show_in_workdiary', $isEdit ? (int) $category->show_in_workdiary : 1) === '1' ? 'selected' : '' }}>Yes</option>
+      <option value="0" {{ (string) old('show_in_workdiary', $isEdit ? (int) $category->show_in_workdiary : 1) === '0' ? 'selected' : '' }}>No</option>
+    </select>
+    @error('show_in_workdiary')<div class="invalid-feedback">{{ $message }}</div>@enderror
   </div>
 
   <div class="col-md-3">

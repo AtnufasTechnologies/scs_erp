@@ -19,16 +19,30 @@ class CheckDeanAccess
       return redirect('/')->with('error', 'Please login to continue.');
     }
 
-    $roleName = (string) (UserHasRole::where('user_id', $user->id)->value('role_name') ?? '');
+    $roleNames = UserHasRole::where('user_id', $user->id)
+      ->pluck('role_name')
+      ->map(fn($role) => strtolower(trim((string) $role)))
+      ->filter(fn($role) => $role !== '')
+      ->values();
 
-    if ($roleName === '') {
-      $roleId = (int) (UserHasRole::where('user_id', $user->id)->value('role_id') ?? 0);
-      if ($roleId > 0) {
-        $roleName = (string) (RoleMaster::where('id', $roleId)->value('slug') ?? '');
+    if ($roleNames->isEmpty()) {
+      $roleIds = UserHasRole::where('user_id', $user->id)
+        ->whereNotNull('role_id')
+        ->pluck('role_id')
+        ->map(fn($id) => (int) $id)
+        ->filter(fn($id) => $id > 0)
+        ->unique()
+        ->values();
+
+      if ($roleIds->isNotEmpty()) {
+        $roleNames = RoleMaster::whereIn('id', $roleIds->all())
+          ->pluck('slug')
+          ->map(fn($slug) => strtolower(trim((string) $slug)))
+          ->filter(fn($slug) => $slug !== '')
+          ->values();
       }
     }
 
-    $normalizedRole = strtolower(trim($roleName));
     $allowedRoles = [
       'dean',
       'dean-of-student-affairs',
@@ -38,7 +52,9 @@ class CheckDeanAccess
       'itcell',
     ];
 
-    if (!in_array($normalizedRole, $allowedRoles, true)) {
+    $hasAccess = $roleNames->contains(fn($role) => in_array($role, $allowedRoles, true));
+
+    if (!$hasAccess) {
       return redirect('/erp/faculty/dashboard')->with('error', 'Unauthorized Access');
     }
 

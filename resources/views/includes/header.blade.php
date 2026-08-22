@@ -40,5 +40,14 @@
 
 <body>
   @include('includes.alert')
+  @auth
+  <a
+    href="{{ route('dashboard.switcher') }}"
+    class="btn btn-sm btn-outline-primary"
+    style="position: fixed; top: 14px; right: 14px; z-index: 1055; border-radius: 999px;"
+    title="Switch Dashboard">
+    <i class="fa fa-exchange-alt me-1"></i>Switch Dashboard
+  </a>
+  @endauth
   <!--start wrapper-->
   <div class="wrapper">

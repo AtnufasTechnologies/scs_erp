@@ -44,10 +44,12 @@ class FacultyDashboardController extends Controller
   public function index()
   {
     $userId = Auth::user()->id;
-    $roleType = UserHasRole::where('user_id', $userId)->value('role_name');
-    if ($roleType != 'faculty') {
-      Auth::logout();
-      return redirect('/')->with('error', 'Unauthorized Access');
+    $hasFacultyRole = UserHasRole::where('user_id', $userId)
+      ->where('role_name', 'faculty')
+      ->exists();
+
+    if (!$hasFacultyRole) {
+      return redirect()->route('dashboard.switcher')->with('error', 'Unauthorized Access');
     }
 
     // Get faculty ID

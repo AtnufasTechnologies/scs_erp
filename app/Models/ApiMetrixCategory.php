@@ -14,10 +14,16 @@ class ApiMetrixCategory extends Model
 
   protected $fillable = [
     'title',
+    'slug',
     'description',
     'status',
+    'show_in_workdiary',
     'created_by',
     'updated_by',
+  ];
+
+  protected $casts = [
+    'show_in_workdiary' => 'boolean',
   ];
 
   public function components()

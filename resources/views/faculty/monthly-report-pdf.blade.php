@@ -494,6 +494,58 @@
       </div>
     </div>
 
+    @if(isset($categoryAnalytics) && $categoryAnalytics->count() > 0)
+    <div class="section">
+      <div class="section-title">✅ Category Verification Analytics</div>
+      <div class="summary-box" style="margin-bottom:8px;">
+        <div class="summary-content">
+          Filled: <strong>{{ $verificationSummary['filled_count'] ?? 0 }}</strong> |
+          Approved: <strong>{{ $verificationSummary['approved_count'] ?? 0 }}</strong> |
+          Pending: <strong>{{ $verificationSummary['pending_count'] ?? 0 }}</strong> |
+          Approval: <strong>{{ $verificationSummary['approval_rate'] ?? 0 }}%</strong>
+          {{-- API score summary kept for future enablement --}}
+          {{--
+          API Score Filled: <strong>{{ number_format((float) ($verificationSummary['total_api_score'] ?? 0), 2) }}</strong> |
+          API Score Approved: <strong>{{ number_format((float) ($verificationSummary['approved_api_score'] ?? 0), 2) }}</strong>
+          --}}
+        </div>
+      </div>
+      <div class="table-container">
+        <table>
+          <thead>
+            <tr>
+              <th>Category</th>
+              <th class="text-center" style="width: 60px;">Filled</th>
+              <th class="text-center" style="width: 70px;">Approved</th>
+              <th class="text-center" style="width: 65px;">Pending</th>
+              <th>Pending With</th>
+              {{-- API score columns kept for future enablement --}}
+              {{--
+              <th class="text-right" style="width: 95px;">Score Filled</th>
+              <th class="text-right" style="width: 105px;">Score Approved</th>
+              --}}
+            </tr>
+          </thead>
+          <tbody>
+            @foreach($categoryAnalytics as $row)
+            <tr>
+              <td>{{ $row['category_title'] }}</td>
+              <td class="text-center"><span class="badge badge-primary">{{ $row['filled_count'] }}</span></td>
+              <td class="text-center"><span class="badge badge-success">{{ $row['approved_count'] }}</span></td>
+              <td class="text-center"><span class="badge badge-warning">{{ $row['pending_count'] }}</span></td>
+              <td>{{ $row['pending_with'] ?? '—' }}</td>
+              {{--
+              <td class="text-right"><strong>{{ number_format((float) $row['total_api_score'], 2) }}</strong></td>
+              <td class="text-right"><strong>{{ number_format((float) $row['approved_api_score'], 2) }}</strong></td>
+              --}}
+            </tr>
+            @endforeach
+          </tbody>
+        </table>
+      </div>
+    </div>
+    @endif
+
     <!-- Remedial Classes Breakdown -->
     @if($extraCount > 0 && $workTypeBreakdown->count() > 0)
     <div class="section">
@@ -606,8 +658,7 @@
               <tr>
                 <th style="width: 50px;">Period</th>
                 <th style="width: 70px;">Type</th>
-                <th style="width: 70px;">Work Type</th>
-                <th style="width: 90px;">Methodology</th>
+                <th style="width: 90px;">Component Title</th>
                 <th>Description</th>
               </tr>
             </thead>
@@ -626,8 +677,7 @@
                   [{{ $entry->class_type ?? 'null' }}]
                   @endif
                 </td>
-                <td>{{ $entry->work_type ? ucfirst($entry->work_type) : '—' }}</td>
-                <td>{{ Str::limit($entry->methodology, 20) ?: '—' }}</td>
+                <td>{{ Str::limit($entry->methodology, 24) ?: '—' }}</td>
                 <td>{{ Str::limit($entry->description, 100) }}</td>
               </tr>
               @endforeach

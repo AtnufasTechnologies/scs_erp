@@ -22,6 +22,13 @@
         <div class="menu-title">Department Activities</div>
       </a>
     </li>
+
+    <li>
+      <a href="{{ route('faculty.workdiary') }}">
+        <div class="parent-icon"><i class="fas fa-briefcase"></i></div>
+        <div class="menu-title">Work Diary</div>
+      </a>
+    </li>
     <!-- 
     <li>
       <a href="javascript:;" class="has-arrow">

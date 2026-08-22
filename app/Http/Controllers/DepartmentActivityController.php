@@ -4,8 +4,10 @@ namespace App\Http\Controllers;
 
 use App\Models\DepartmentActivity;
 use App\Models\DepartmentActivityHasParticipant;
+use App\Models\StudentMaster;
 use App\Models\Subject;
 use App\Models\SubjectHasDeptAdmin;
+use App\Models\SubjectFacultyMaster;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Storage;
@@ -239,7 +241,49 @@ class DepartmentActivityController extends Controller
     $activity = DepartmentActivity::findOrFail($activityId);
     $participants = $activity->participants()->orderBy('created_at', 'desc')->get();
 
-    return view('admin.department.activities.participants', compact('activity', 'participants'));
+    $deptId = SubjectHasDeptAdmin::where('user_id', Auth::id())->value('subject_id');
+    if (empty($deptId)) {
+      $deptId = $activity->subject_id;
+    }
+
+    $internalFaculties = SubjectFacultyMaster::with('faculty')
+      ->where('subject_id', $deptId)
+      ->get()
+      ->pluck('faculty')
+      ->filter()
+      ->unique('id')
+      ->map(function ($faculty) {
+        $fullName = trim(($faculty->FIRST_NAME ?? '') . ' ' . ($faculty->LAST_NAME ?? ''));
+        return [
+          'id' => $faculty->id,
+          'name' => $fullName !== '' ? $fullName : 'Faculty #' . $faculty->id,
+          'email' => $faculty->MAIL_ID,
+          'phone' => $faculty->MOBILE_NO,
+        ];
+      })
+      ->sortBy('name')
+      ->values();
+
+    $internalStudents = StudentMaster::query()
+      ->where('department', $deptId)
+      ->where('is_left', 0)
+      ->where('is_deleted', 0)
+      ->orderBy('first_name')
+      ->orderBy('last_name')
+      ->get(['id', 'first_name', 'last_name', 'roll_no', 'mail_id', 'mobile_no'])
+      ->map(function ($student) {
+        $fullName = trim(($student->first_name ?? '') . ' ' . ($student->last_name ?? ''));
+        return [
+          'id' => $student->id,
+          'name' => $fullName !== '' ? $fullName : 'Student #' . $student->id,
+          'roll_no' => $student->roll_no,
+          'email' => $student->mail_id,
+          'phone' => $student->mobile_no,
+        ];
+      })
+      ->values();
+
+    return view('admin.department.activities.participants', compact('activity', 'participants', 'internalFaculties', 'internalStudents'));
   }
 
   function addParticipant(Request $request, $activityId)
@@ -247,25 +291,92 @@ class DepartmentActivityController extends Controller
     $activity = DepartmentActivity::findOrFail($activityId);
 
     $request->validate([
-      'participant_category' => 'required',
-      'participant_type' => 'required',
-      'participant_name' => 'required|string|max:255',
+      'participant_category' => 'required|in:faculty,student,other',
+      'participant_type' => 'required|in:internal,external',
+      'participant_name' => 'nullable|string|max:255',
+      'participant_email' => 'nullable|email|max:255',
+      'participant_phone' => 'nullable|string|max:30',
+      'participant_rollno' => 'nullable|string|max:100',
+      'internal_faculty_id' => 'nullable|integer',
+      'internal_student_id' => 'nullable|integer',
+      'is_incharge' => 'nullable|boolean',
+      'hours_spent' => 'nullable|numeric|min:0|max:999.99',
       'institution_name' => 'nullable|string|max:255',
     ]);
 
     $userId = Auth::user()->id;
     $dept_id = SubjectHasDeptAdmin::where('user_id', $userId)->value('subject_id');
+    if (empty($dept_id)) {
+      $dept_id = $activity->subject_id;
+    }
+
+    $participantName = trim((string) $request->participant_name);
+    $participantEmail = $request->participant_email;
+    $participantPhone = $request->participant_phone;
+    $participantRollNo = $request->participant_rollno;
+
+    if ($request->participant_type === 'internal' && $request->participant_category === 'faculty') {
+      $facultyMap = SubjectFacultyMaster::where('subject_id', $dept_id)
+        ->where('faculty_id', (int) $request->internal_faculty_id)
+        ->first();
+
+      if (!$facultyMap || !$facultyMap->faculty) {
+        return redirect()->back()->withErrors(['internal_faculty_id' => 'Please select a valid department faculty.'])->withInput();
+      }
+
+      $faculty = $facultyMap->faculty;
+      $participantName = trim(($faculty->FIRST_NAME ?? '') . ' ' . ($faculty->LAST_NAME ?? ''));
+      $participantEmail = $faculty->MAIL_ID;
+      $participantPhone = $faculty->MOBILE_NO;
+      $participantRollNo = null;
+    }
+
+    if ($request->participant_type === 'internal' && $request->participant_category === 'student') {
+      $student = StudentMaster::where('department', $dept_id)
+        ->where('is_left', 0)
+        ->where('is_deleted', 0)
+        ->where('id', (int) $request->internal_student_id)
+        ->first();
+
+      if (!$student) {
+        return redirect()->back()->withErrors(['internal_student_id' => 'Please select a valid department student.'])->withInput();
+      }
+
+      $participantName = trim(($student->first_name ?? '') . ' ' . ($student->last_name ?? ''));
+      $participantEmail = $student->mail_id;
+      $participantPhone = $student->mobile_no;
+      $participantRollNo = $student->roll_no;
+    }
+
+    if ($participantName === '') {
+      return redirect()->back()->withErrors(['participant_name' => 'Participant name is required.'])->withInput();
+    }
+
+    $isIncharge = false;
+    $hoursSpent = null;
+    if ($request->participant_type === 'internal' && $request->participant_category === 'faculty') {
+      $isIncharge = $request->boolean('is_incharge');
+      if ($isIncharge) {
+        if (!$request->filled('hours_spent')) {
+          return redirect()->back()->withErrors(['hours_spent' => 'Please enter hours spent for incharge.'])->withInput();
+        }
+
+        $hoursSpent = (float) $request->hours_spent;
+      }
+    }
 
     $activity->participants()->create([
       'dept_id' => $dept_id,
       'activity_id' => $request->activityId,
       'participant_category' => $request->participant_category,
-      'participant_type' => $request->participant_type,
-      'participant_name' => $request->participant_name,
-      'participant_email' => $request->participant_email,
-      'participant_phone' => $request->participant_phone,
-      'participant_rollno' => $request->participant_rollno,
-      'institution_name' => $request->institution_name
+      'participation_type' => $request->participant_type,
+      'participant_name' => $participantName,
+      'participant_email' => $participantEmail,
+      'participant_phone' => $participantPhone,
+      'participant_rollno' => $participantRollNo,
+      'institution_name' => $request->institution_name,
+      'is_incharge' => $isIncharge,
+      'hours_spent' => $hoursSpent
 
     ]);
 
@@ -278,6 +389,34 @@ class DepartmentActivityController extends Controller
     $participant->delete();
 
     return redirect()->back()->with('success', 'Participant removed successfully!');
+  }
+
+  function updateParticipantHours(Request $request, $id)
+  {
+    $request->validate([
+      'hours_spent' => 'required|numeric|min:0|max:999.99',
+    ]);
+
+    $participant = DepartmentActivityHasParticipant::findOrFail($id);
+    $deptId = SubjectHasDeptAdmin::where('user_id', Auth::id())->value('subject_id');
+
+    if ((int) $participant->dept_id !== (int) $deptId) {
+      return redirect()->back()->with('error', 'Unauthorized participant update attempt.');
+    }
+
+    if (
+      $participant->participation_type !== 'internal' ||
+      $participant->participant_category !== 'faculty' ||
+      !(bool) $participant->is_incharge
+    ) {
+      return redirect()->back()->with('error', 'Hours can be updated only for internal faculty marked as incharge.');
+    }
+
+    $participant->update([
+      'hours_spent' => (float) $request->hours_spent,
+    ]);
+
+    return redirect()->back()->with('success', 'Incharge hours updated successfully!');
   }
 
   function uploadActivityReport(Request $request, $activityId)

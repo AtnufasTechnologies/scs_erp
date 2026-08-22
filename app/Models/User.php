@@ -61,6 +61,11 @@ class User extends Authenticatable
         return $this->hasOne(UserHasRole::class, 'user_id', 'id');
     }
 
+    public function userroles()
+    {
+        return $this->hasMany(UserHasRole::class, 'user_id', 'id');
+    }
+
     function hasRole()
     {
         return $this->hasOne(UserHasRole::class, 'user_id', 'id');
@@ -77,6 +82,11 @@ class User extends Authenticatable
     function subjectdeptadmin()
     {
         return $this->hasOne(SubjectHasDeptAdmin::class, 'user_id', 'id');
+    }
+
+    public function facultyAccesses()
+    {
+        return $this->hasMany(SubjectFacultyMaster::class, 'access_id', 'id');
     }
 
     public function activityLogs()

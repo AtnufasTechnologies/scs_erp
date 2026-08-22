@@ -5,7 +5,12 @@ use App\Models\UserHasRole;
 use Illuminate\Support\Facades\Auth;
 
 $userId = Auth::user()->id;
-$roleType = UserHasRole::where('user_id', $userId)->value('role_name');
+$roleNames = UserHasRole::where('user_id', $userId)
+  ->pluck('role_name')
+  ->filter()
+  ->map(fn($role) => strtolower(trim((string) $role)))
+  ->values();
+$hasSuperAdminRole = $roleNames->contains('super-admin');
 ?>
 <!--start sidebar -->
 <aside class="sidebar-wrapper" data-simplebar="true">
@@ -36,6 +41,15 @@ $roleType = UserHasRole::where('user_id', $userId)->value('role_name');
           <i class="fas fa-building"></i>
         </div>
         <div class="menu-title">Central Office</div>
+      </a>
+    </li>
+
+    <li>
+      <a href="{{ route('faculty.workdiary') }}">
+        <div class="parent-icon">
+          <i class="fas fa-briefcase"></i>
+        </div>
+        <div class="menu-title">Work Diary</div>
       </a>
     </li>
 
@@ -392,6 +406,14 @@ $roleType = UserHasRole::where('user_id', $userId)->value('role_name');
           </a>
         </li>
         <li>
+          <a href="{{ route('admin.user.management') }}">
+            <div class="parent-icon">
+              <i class="fas fa-users-cog"></i>
+            </div>
+            <div class="menu-title">Multi-role Access Manager</div>
+          </a>
+        </li>
+        <li>
           <a href="{{ route('itcell.integrated-sublayer-settings.index') }}">
             <div class="parent-icon">
               <i class="fas fa-layer-group"></i>
@@ -453,7 +475,7 @@ $roleType = UserHasRole::where('user_id', $userId)->value('role_name');
             <div class="menu-title">FA1 Quiz Monitor</div>
           </a>
         </li>
-        @if($roleType === 'super-admin')
+        @if($hasSuperAdminRole)
         <li>
           <a href="{{ route('itcell.active-users.index') }}">
             <div class="parent-icon">
@@ -499,8 +521,6 @@ $roleType = UserHasRole::where('user_id', $userId)->value('role_name');
             <div class="menu-title">All User Manager </div>
           </a>
         </li>
-
-
         <li>
           <a href="{{route('dept.erp.access-list')}}">
             <div class="parent-icon">

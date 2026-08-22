@@ -11,5 +11,6 @@
     <a href="{{ route('dean.counselling.index') }}" class="btn btn-sm btn-outline-primary">Counselling</a>
     <a href="{{ route('dean.student360.index') }}" class="btn btn-sm btn-outline-primary">Student 360</a>
     <a href="{{ route('dean.reports.index') }}" class="btn btn-sm btn-outline-primary">Reports</a>
+    <a href="{{ route('faculty.workdiary') }}" class="btn btn-sm btn-outline-primary">Work Diary</a>
   </div>
 </div>
