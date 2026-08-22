@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Mail\PasswordResetOtpMail;
 use App\Models\Faculty;
 use App\Models\PasswordReset;
+use App\Models\RoleMaster;
 use App\Models\User;
 use App\Models\UserHasRole;
 use Illuminate\Http\Request;
@@ -12,6 +13,7 @@ use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Mail;
+use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Facades\View;
 use Laravel\Sanctum\PersonalAccessToken;
 
@@ -31,87 +33,43 @@ class LoginController extends Controller
 
             if (Hash::check($request->password, $user->password)) {
                 Auth::login($user, true);
-                $roleType = UserHasRole::where('user_id', $user->id)->value('role_name');
-
-                switch ($roleType) {
-                    case 'dept-admin-erp':
-                        //dept Dashboard
-                        //check if dept admin has assigned department
-                        $deptAdminDept = User::with('subjectdeptadmin.subject')->where('id', $user->id)->first();
-                        if ($deptAdminDept->subjectdeptadmin) {
-                            return redirect()->route('department.dashboard')->with('success', 'Login Success');
-                            // Auth::logout();
-                            //return redirect('/')->with('info', 'Development in Progress...Please Wait till Product Completion');
-                        } else {
-
-                            Auth::logout();
-                            //    return redirect('/')->with('info', 'Development in Progress...Please Wait till Product Completion');
-                            return redirect('/')->with('error', 'No Department Assigned. Please contact Admin');
-                        }
-
-                    case 'account-office-incharge':
-                    case 'account-office-assistant':
-                        //Account Office Dashboard
-                        return redirect()->route('account-office.dashboard')->with('success', 'Login Success');
-
-                    case 'faculty':
-                        //Faculty Dashboard
-                        //Auth::logout();
-                        //return redirect('/')->with('info', 'Development in Progress...Please Wait till Product Completion');
-                        return redirect()->route('faculty.dashboard')->with('success', 'Login Success');
-
-                    case 'coe':
-                    case 'dcoe':
-                        //COE    Dashboard
-                        // Auth::logout();
-                        // return redirect('/')->with('info', 'Development in Progress...Please Wait till Product Completion');
-                        return redirect()->route('coe.dashboard')->with('success', 'Login Success');
-
-                    case 'principal':
-                    case 'vice-principal':
-                    case 'bursar':
-                    case 'rector':
-                        //Top Level Dashboard for Principal, Vice Principal, Bursar, Rector
-                        return redirect()->route('principal.dashboard')->with('success', 'Login Success');
-
-                    case 'hr':
-                        //HR Dashboard
-                        // Auth::logout();
-                        // return redirect('/')->with('info', 'Development in Progress...Please Wait till Product Completion');
-                        return redirect()->route('hr.dashboard')->with('success', 'Login Success');
-
-                    case 'student':
-                        //Student Dashboard
-                        return redirect()->route('student.dashboard')->with('success', 'Login Success');
-
-                    case 'admission-incharge':
-                        //Admission Officer Dashboard
-                        return redirect()->route('admission.dashboard')->with('success', 'Login Success');
-
-                    case 'admission-test-incharge':
-                        //Admission Test Incharge Dashboard
-                        return redirect()->route('admission.testincharge.dashboard')->with('success', 'Login Success');
-
-                    case 'event-controller':
-                        //Event Coordinator Dashboard
-                        return redirect()->route('event-coordinator.dashboard')->with('success', 'Login Success');
-
-                    case 'dean-of-student-affairs':
-                        //Event Coordinator Dashboard
-                        return redirect()->route('dean.dashboard')->with('success', 'Login Success');
-                    case 'training-and-placement-officer':
-                        //training and placement
-                        return redirect()->route('tpo.training-placement.dashboard')->with('success', 'Login Success');
-                    case 'dean':
-                        //training and placement
-                        return redirect()->route('dean.office.dashboard')->with('success', 'Login Success');
-
-                    case 'central-office-incharge':
-                        return redirect()->route('central-office.dashboard')->with('success', 'Login Success');
-                    default:
-                        //for all Super Admin| Office assistane| Admin | IT CEll
-                        return redirect('erp/admin/dashboard')->with('success', 'Login Success');
+                $roleNames = $this->getUserRoleNames($user);
+                if ($roleNames->isEmpty()) {
+                    Auth::logout();
+                    return redirect('/')->with('error', 'No role assigned. Please contact Admin.');
                 }
+
+                $dashboardOptions = $roleNames
+                    ->map(function ($roleName) {
+                        return [
+                            'role' => $roleName,
+                            'route' => $this->resolveDashboardRouteNameForRole($roleName),
+                            'label' => $this->displayRoleLabel($roleName),
+                        ];
+                    })
+                    ->filter(fn($entry) => !empty($entry['route']))
+                    ->unique('route')
+                    ->values();
+
+                if ($dashboardOptions->isEmpty()) {
+                    return redirect('erp/admin/dashboard')->with('success', 'Login Success');
+                }
+
+                session([
+                    'dashboard_role_options' => $dashboardOptions->all(),
+                    'active_dashboard_role' => (string) ($dashboardOptions->first()['role'] ?? ''),
+                ]);
+
+                if ($dashboardOptions->count() > 1) {
+                    return redirect()->route('dashboard.switcher')->with('success', 'Login Success');
+                }
+
+                $singleRoute = (string) ($dashboardOptions->first()['route'] ?? '');
+                if ($singleRoute !== '') {
+                    return redirect()->route($singleRoute)->with('success', 'Login Success');
+                }
+
+                return redirect('erp/admin/dashboard')->with('success', 'Login Success');
             } else {
                 return redirect('/')->with('error', 'Password Incorrect');
             }
@@ -226,6 +184,68 @@ class LoginController extends Controller
         return view('auth.forgot-password');
     }
 
+    public function dashboardSwitcher()
+    {
+        if (!Auth::check()) {
+            return redirect('/')->with('error', 'Please login to continue.');
+        }
+
+        $roleOptions = collect(session('dashboard_role_options', []));
+        if ($roleOptions->isEmpty()) {
+            $roleOptions = $this->getUserRoleNames(Auth::user())
+                ->map(function ($roleName) {
+                    return [
+                        'role' => $roleName,
+                        'route' => $this->resolveDashboardRouteNameForRole($roleName),
+                        'label' => $this->displayRoleLabel($roleName),
+                    ];
+                })
+                ->filter(fn($entry) => !empty($entry['route']))
+                ->unique('route')
+                ->values();
+
+            session(['dashboard_role_options' => $roleOptions->all()]);
+        }
+
+        if ($roleOptions->count() <= 1) {
+            $routeName = (string) ($roleOptions->first()['route'] ?? 'admin.dashboard');
+            return redirect()->route($routeName);
+        }
+
+        return view('auth.dashboard-switcher', [
+            'roleOptions' => $roleOptions,
+            'activeRole' => (string) session('active_dashboard_role', ''),
+        ]);
+    }
+
+    public function switchDashboard(Request $request)
+    {
+        if (!Auth::check()) {
+            return redirect('/')->with('error', 'Please login to continue.');
+        }
+
+        $request->validate([
+            'role' => 'required|string',
+        ]);
+
+        $selectedRole = trim((string) $request->input('role'));
+        $roleOptions = collect(session('dashboard_role_options', []));
+        $matched = $roleOptions->first(fn($option) => (string) ($option['role'] ?? '') === $selectedRole);
+
+        if (!$matched) {
+            return redirect()->route('dashboard.switcher')->with('error', 'Selected dashboard is not available for your account.');
+        }
+
+        session(['active_dashboard_role' => $selectedRole]);
+        $routeName = (string) ($matched['route'] ?? '');
+
+        if ($routeName === '') {
+            return redirect()->route('dashboard.switcher')->with('error', 'Unable to resolve dashboard for selected role.');
+        }
+
+        return redirect()->route($routeName);
+    }
+
     function sendPasswordReset(Request $request)
     {
         $request->validate([
@@ -307,15 +327,18 @@ class LoginController extends Controller
         if ($user) {
 
             if (Hash::check($request->password, $user->password)) {
-                $roleType = UserHasRole::where('user_id', $user->id)->value('role_name');
-                if ($roleType == 'faculty') {
+                $hasFacultyRole = UserHasRole::where('user_id', $user->id)
+                    ->where('role_name', 'faculty')
+                    ->exists();
+
+                if ($hasFacultyRole) {
 
                     return response()->json([
                         'status' => true,
                         'message' => 'Login Successful',
                         'data' => [
                             'user' => $user,
-                            'role' => $roleType,
+                            'role' => 'faculty',
                         ],
                     ], 200);
                 } else {
@@ -337,5 +360,108 @@ class LoginController extends Controller
                 'message' => 'User Not Found',
             ], 404);
         }
+    }
+
+    private function getUserRoleNames(User $user)
+    {
+        $baseRoles = UserHasRole::query()
+            ->where('user_id', $user->id)
+            ->pluck('role_name')
+            ->map(fn($role) => strtolower(trim((string) $role)))
+            ->filter(fn($role) => $role !== '')
+            ->values();
+
+        if (Schema::hasColumn('user_has_roles', 'role_id')) {
+            $roleIds = UserHasRole::query()
+                ->where('user_id', $user->id)
+                ->whereNotNull('role_id')
+                ->pluck('role_id')
+                ->map(fn($id) => (int) $id)
+                ->filter(fn($id) => $id > 0)
+                ->unique()
+                ->values();
+
+            if ($roleIds->isNotEmpty()) {
+                $roleSlugs = RoleMaster::query()
+                    ->whereIn('id', $roleIds->all())
+                    ->pluck('slug')
+                    ->map(fn($slug) => strtolower(trim((string) $slug)))
+                    ->filter(fn($slug) => $slug !== '')
+                    ->values();
+
+                $baseRoles = $baseRoles->merge($roleSlugs)->values();
+            }
+        }
+
+        return $baseRoles->unique()->values();
+    }
+
+    private function resolveDashboardRouteNameForRole(string $roleName): ?string
+    {
+        $role = strtolower(trim($roleName));
+
+        switch ($role) {
+            case 'dept-admin-erp':
+                $deptAdminDept = User::with('subjectdeptadmin.subject')->where('id', Auth::id())->first();
+                return $deptAdminDept && $deptAdminDept->subjectdeptadmin ? 'department.dashboard' : null;
+
+            case 'account-office-incharge':
+            case 'account-office-assistant':
+                return 'account-office.dashboard';
+
+            case 'faculty':
+                return 'faculty.dashboard';
+
+            case 'coe':
+            case 'dcoe':
+                return 'coe.dashboard';
+
+            case 'principal':
+            case 'vice-principal':
+            case 'bursar':
+            case 'rector':
+                return 'principal.dashboard';
+
+            case 'hr':
+                return 'hr.dashboard';
+
+            case 'student':
+                return 'student.dashboard';
+
+            case 'admission-incharge':
+                return 'admission.dashboard';
+
+            case 'admission-test-incharge':
+                return 'admission.testincharge.dashboard';
+
+            case 'event-controller':
+                return 'event-coordinator.dashboard';
+
+            case 'dean-of-student-affairs':
+            case 'dean-student-affairs':
+            case 'student-affairs-dean':
+                return 'dean.dashboard';
+
+            case 'training-and-placement-officer':
+                return 'tpo.training-placement.dashboard';
+
+            case 'dean':
+                return 'dean.office.dashboard';
+
+            case 'central-office-incharge':
+                return 'central-office.dashboard';
+
+            case 'super-admin':
+            case 'admin':
+            case 'itcell':
+            default:
+                return 'admin.dashboard';
+        }
+    }
+
+    private function displayRoleLabel(string $roleName): string
+    {
+        $normalized = strtolower(trim($roleName));
+        return ucwords(str_replace(['-', '_'], ' ', $normalized));
     }
 }

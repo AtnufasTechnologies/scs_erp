@@ -21,6 +21,13 @@ class DepartmentActivityHasParticipant extends Model
         'is_student',
         'participation_type',
         'participant_category',
-        'institution_name'
+        'institution_name',
+        'is_incharge',
+        'hours_spent'
+    ];
+
+    protected $casts = [
+        'is_incharge' => 'boolean',
+        'hours_spent' => 'decimal:2',
     ];
 }

@@ -976,31 +976,41 @@
             $dayOrder = ['Monday'=>1,'Tuesday'=>2,'Wednesday'=>3,'Thursday'=>4,'Friday'=>5,'Saturday'=>6,'Sunday'=>7];
             $allSlots = collect($timetableByDay ?? collect())->flatten(1)->values();
             $orderedDays = collect($timetableByDay ?? collect())->keys()->sortBy(fn($d) => $dayOrder[$d] ?? 99)->values();
-            $hours = $allSlots->pluck('hour')->filter()->unique()->sortBy(function($hour) {
-            $hourText = (string) $hour;
-            if (preg_match('/\d+/', $hourText, $m)) {
-            return (int) $m[0];
-            }
-            return 999;
-            })->values();
+            $hours = $allSlots
+            ->filter(fn($slot) => !empty($slot['hour']))
+            ->groupBy(fn($slot) => (string) ($slot['hour'] ?? ''))
+            ->map(function($slots, $label) {
+            $first = $slots->first();
+            $sort = (int) ($first['hour_sort'] ?? 0);
+            if ($sort <= 0 && preg_match('/\d+/', (string) $label, $m)) {
+              $sort=(int) $m[0];
+              }
+              if ($sort <=0) {
+              $sort=999;
+              }
+              return ['label'=> (string) $label, 'sort' => $sort];
+              })
+              ->sortBy('sort')
+              ->pluck('label')
+              ->values();
 
-            $gridMap = [];
-            foreach ($allSlots as $slot) {
-            $day = (string) ($slot['weekday'] ?? 'Unknown');
-            $hour = (string) ($slot['hour'] ?? '');
-            if ($hour === '') {
-            continue;
-            }
-            if (!isset($gridMap[$day])) {
-            $gridMap[$day] = [];
-            }
-            if (!isset($gridMap[$day][$hour])) {
-            $gridMap[$day][$hour] = [];
-            }
-            $gridMap[$day][$hour][] = $slot;
-            }
-            @endphp
-            <span class="sp-count">{{ $allSlots->count() }} slots</span>
+              $gridMap = [];
+              foreach ($allSlots as $slot) {
+              $day = (string) ($slot['weekday'] ?? 'Unknown');
+              $hour = (string) ($slot['hour'] ?? '');
+              if ($hour === '') {
+              continue;
+              }
+              if (!isset($gridMap[$day])) {
+              $gridMap[$day] = [];
+              }
+              if (!isset($gridMap[$day][$hour])) {
+              $gridMap[$day][$hour] = [];
+              }
+              $gridMap[$day][$hour][] = $slot;
+              }
+              @endphp
+              <span class="sp-count">{{ $allSlots->count() }} slots</span>
           </div>
 
           @if($allSlots->isEmpty())

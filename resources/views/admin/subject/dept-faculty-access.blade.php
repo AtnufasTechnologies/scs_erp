@@ -60,8 +60,9 @@
               </div>
               <div class="col-lg-6">
                 <div class="mb-3">
-                  <label for="password" class="form-label">Set Default Password (Min : 6 characters)*</label>
-                  <input type="text" class="form-control" id="password" name="password" placeholder="Enter Password" required>
+                  <label for="password" class="form-label">Set Default Password (for new account only)</label>
+                  <input type="text" class="form-control" id="password" name="password" placeholder="Optional when faculty email already has a login">
+                  <small class="text-muted">Existing account will be reused and linked with Faculty role.</small>
                 </div>
               </div>
 

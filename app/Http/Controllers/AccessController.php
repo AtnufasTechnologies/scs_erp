@@ -20,7 +20,7 @@ class AccessController extends Controller
     {
 
         $departments = Subject::with('campusmaster:id,name')->get();
-        $data = User::whereHas('userroletype', function ($q) {
+        $data = User::whereHas('userroles', function ($q) {
             //Head of Department Admin Role
             $q->where('role_name', 'dept-admin-erp');
         })->with('subjectdeptadmin.subject')->latest()->get();
@@ -34,42 +34,72 @@ class AccessController extends Controller
         $request->validate([
             'department' => 'required',
             'name' => 'required|string|max:255',
-            'email' => 'required|email|unique:users,email',
-            'password' => 'required|min:6',
+            'email' => 'required|email',
+            'password' => 'nullable|min:6',
         ]);
         $data = Subject::where('id', $request->department)->first();
 
+        if (!$data) {
+            return back()->with('error', 'Selected department not found.');
+        }
+
         $departmentId = $data->id;
-        //create user
-        $rec = new User();
-        $rec->name =  $request->name;
-        $rec->email = $request->email;
-        $rec->password = Hash::make($request->password);
-        $rec->otp_verification = 1;
-        $rec->status = 'ACTIVE';
-        $rec->save();
+        $email = trim((string) $request->email);
+        $password = (string) $request->password;
+
+        $rec = User::where('email', $email)->first();
+        $createdNewAccount = false;
+
+        if (!$rec) {
+            if ($password === '') {
+                return back()->with('error', 'Password is required to create a new account for this email.');
+            }
+
+            $rec = new User();
+            $rec->name = $request->name;
+            $rec->email = $email;
+            $rec->password = Hash::make($password);
+            $rec->decrypted_password = $password;
+            $rec->otp_verification = 1;
+            $rec->status = 'ACTIVE';
+            $rec->save();
+            $createdNewAccount = true;
+        } else {
+            $rec->name = $request->name;
+            $rec->status = 'ACTIVE';
+            if ($password !== '') {
+                $rec->password = Hash::make($password);
+                $rec->decrypted_password = $password;
+            }
+            $rec->save();
+        }
 
 
         //assign campus access permission
-        UserHasRole::create([
+        UserHasRole::firstOrCreate([
             'user_id' => $rec->id,
             'role_name' =>  'dept-admin-erp', //Department Admin
         ]);
 
         //assign department to user
-        SubjectHasDeptAdmin::create([
+        SubjectHasDeptAdmin::updateOrCreate([
             'subject_id' => $departmentId,
+        ], [
             'user_id' => $rec->id,
         ]);
 
         //add Campus Seetings permission
-        UserCampusSetting::create([
+        UserCampusSetting::updateOrCreate([
             'user_id' => $rec->id,
+        ], [
             'campus_id' =>  $data->campus_id ?? 0, //Campus Settings Access
         ]);
 
+        $message = $createdNewAccount
+            ? 'Departmental access created with a new login account.'
+            : 'Departmental role added to existing login account.';
 
-        return back()->with('success', 'Departmental Access Created.');
+        return back()->with('success', $message);
     }
 
     function revokeDeptAccess($id)
@@ -281,41 +311,78 @@ class AccessController extends Controller
         $request->validate([
             'faculty_id' => 'required',
             'subject_id' => 'required',
-            'password' => 'required|min:6',
+            'password' => 'nullable|min:6',
         ]);
 
-        $facultyId = $request->faculty_id;
-        $subjectId = $request->subject_id;
-        $password = $request->password;
+        $facultyId = (int) $request->faculty_id;
+        $subjectId = (int) $request->subject_id;
+        $password = (string) $request->password;
 
         // Logic to create or update faculty access with the provided password
         $facultyInfo = Faculty::find($facultyId);
         if (!$facultyInfo) {
             return back()->with('error', 'Faculty not found.');
         }
-        $rec = new User();
-        $rec->name =  $facultyInfo->FIRST_NAME . ' ' . $facultyInfo->LAST_NAME;
-        $rec->email = $facultyInfo->MAIL_ID;
-        $rec->phone = $facultyInfo->MOBILE_NO;
-        $rec->password = Hash::make($password);
-        $rec->otp_verification = 1;
-        $rec->status = 'ACTIVE';
-        $rec->decrypted_password = $password; // Store the decrypted password (not recommended for production)
-        $rec->save();
+
+        $existingAccessId = (int) SubjectFacultyMaster::where('subject_id', $subjectId)
+            ->where('faculty_id', $facultyId)
+            ->value('access_id');
+
+        $rec = null;
+        if ($existingAccessId > 0) {
+            $rec = User::find($existingAccessId);
+        }
+
+        if (!$rec && !empty($facultyInfo->MAIL_ID)) {
+            $rec = User::where('email', trim((string) $facultyInfo->MAIL_ID))->first();
+        }
+
+        $createdNewAccount = false;
+        if (!$rec) {
+            if ($password === '') {
+                return back()->with('error', 'Password is required to create a new account for this faculty.');
+            }
+
+            $rec = new User();
+            $rec->name = trim((string) ($facultyInfo->FIRST_NAME . ' ' . $facultyInfo->LAST_NAME));
+            $rec->email = $facultyInfo->MAIL_ID;
+            $rec->phone = $facultyInfo->MOBILE_NO;
+            $rec->password = Hash::make($password);
+            $rec->otp_verification = 1;
+            $rec->status = 'ACTIVE';
+            $rec->decrypted_password = $password;
+            $rec->save();
+            $createdNewAccount = true;
+        } else {
+            $rec->name = trim((string) ($facultyInfo->FIRST_NAME . ' ' . $facultyInfo->LAST_NAME));
+            if (!empty($facultyInfo->MAIL_ID)) {
+                $rec->email = $facultyInfo->MAIL_ID;
+            }
+            $rec->phone = $facultyInfo->MOBILE_NO;
+            $rec->status = 'ACTIVE';
+            if ($password !== '') {
+                $rec->password = Hash::make($password);
+                $rec->decrypted_password = $password;
+            }
+            $rec->save();
+        }
+
         //assign campus access permission
-        UserHasRole::create([
+        UserHasRole::firstOrCreate([
             'user_id' => $rec->id,
             'role_name' =>  'faculty', //Faculty Role
         ]);
 
         //Updating access_id in subject_faculty_masters table to identify for which user access is given
-        SubjectFacultyMaster::where('subject_id', $subjectId)->where('faculty_id', $facultyId)->update(
-            [
-                'access_id' => $rec->id, // Store the user ID for which access is given
-            ]
-        );
+        SubjectFacultyMaster::where('faculty_id', $facultyId)->update([
+            'access_id' => $rec->id,
+        ]);
 
-        return back()->with('success', 'Faculty access granted successfully.');
+        $message = $createdNewAccount
+            ? 'Faculty access granted with a new login account.'
+            : 'Faculty role linked to existing login account.';
+
+        return back()->with('success', $message);
     }
 
     function revokeFacultyAccess($id)

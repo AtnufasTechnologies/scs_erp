@@ -37,8 +37,9 @@ $campusMaster = App\Models\Campus::all();
             <label for="email" class="form-label">Login Email address </label>
             <input type="email" name="email" class="form-control mb-3" placeholder="  Email" required>
 
-            <label for="password" class="form-label">Your Login Password </label>
-            <input type="password" name="password" class="form-control mb-3" placeholder="Login Password" required>
+            <label for="password" class="form-label">Login Password (required only for new email)</label>
+            <input type="password" name="password" class="form-control mb-3" placeholder="Set only when creating a new account">
+            <small class="text-muted">If this email already has an account, we will add Department role to the same login.</small>
           </div>
           <div class="modal-footer">
             <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>

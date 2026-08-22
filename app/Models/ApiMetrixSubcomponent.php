@@ -5,14 +5,14 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 
-class ApiMetrixComponent extends Model
+class ApiMetrixSubcomponent extends Model
 {
   use HasFactory;
 
-  protected $table = 'api_metrix_components';
+  protected $table = 'api_metrix_subcomponents';
 
   protected $fillable = [
-    'api_metrix_category_id',
+    'api_metrix_component_id',
     'title',
     'score',
     'verifier_role_master_id',
@@ -25,18 +25,13 @@ class ApiMetrixComponent extends Model
     'is_active' => 'boolean',
   ];
 
-  public function category()
+  public function component()
   {
-    return $this->belongsTo(ApiMetrixCategory::class, 'api_metrix_category_id');
+    return $this->belongsTo(ApiMetrixComponent::class, 'api_metrix_component_id');
   }
 
   public function verifierRole()
   {
     return $this->belongsTo(RoleMaster::class, 'verifier_role_master_id');
-  }
-
-  public function subcomponents()
-  {
-    return $this->hasMany(ApiMetrixSubcomponent::class, 'api_metrix_component_id')->orderBy('sort_order')->orderBy('id');
   }
 }

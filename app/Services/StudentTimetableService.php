@@ -551,7 +551,7 @@ class StudentTimetableService
       })
       ->with([
         'weekdaymaster:id,title',
-        'hourmaster:id,hour_no,name',
+        'hourmaster:id,hour_no,name,title,start_time,end_time',
         'lecturehallmaster:id,title',
         'faculty:id,FIRST_NAME,LAST_NAME',
         'subjectCourse:id,course_master_id,subject_id',
@@ -676,7 +676,9 @@ class StudentTimetableService
           $room = trim((string) ($routine->lecturehallmaster?->title ?? ''));
         }
 
-        $hourLabel = (string) ($routine->hourmaster?->title ?? $routine->hourmaster?->name ?? '');
+        $hourOrder = (int) ($routine->hourmaster?->hour_no ?? $routine->hour_id ?? 0);
+        $hourName = (string) ($routine->hourmaster?->title ?? $routine->hourmaster?->name ?? ('Hour ' . $hourOrder));
+        $hourLabel = self::buildHourLabel($hourName, (string) ($routine->hourmaster?->start_time ?? ''), (string) ($routine->hourmaster?->end_time ?? ''));
 
         $weekdayId = (int) ($routine->weekday_id ?? 0);
         $weekdayMap = [
@@ -706,7 +708,7 @@ class StudentTimetableService
 
         return [
           'weekday_id' => (int) ($routine->weekday_id ?? 0),
-          'hour_order' => (int) ($routine->hourmaster?->hour_no ?? $routine->hour_id ?? 0),
+          'hour_sort' => $hourOrder,
           'weekday' => $weekday,
           'hour' => $hourLabel,
           'course_code' => $courseCode,
@@ -727,10 +729,10 @@ class StudentTimetableService
         (string) ($row['faculty'] ?? ''),
         (string) ($row['shift'] ?? ''),
       ]))
-      ->sortBy(fn($row) => sprintf('%02d-%03d', (int) $row['weekday_id'], (int) $row['hour_order']))
+      ->sortBy(fn($row) => sprintf('%02d-%03d', (int) $row['weekday_id'], (int) $row['hour_sort']))
       ->values()
       ->map(function ($row) {
-        unset($row['weekday_id'], $row['hour_order']);
+        unset($row['weekday_id']);
         return $row;
       });
 
@@ -817,6 +819,34 @@ class StudentTimetableService
   private static function normalizeSpecializationMode(string $value): string
   {
     return strtoupper(trim($value));
+  }
+
+  private static function buildHourLabel(string $hourName, string $startTime, string $endTime): string
+  {
+    $label = trim($hourName) !== '' ? trim($hourName) : 'Hour';
+    $formattedStart = self::formatDisplayTime($startTime);
+    $formattedEnd = self::formatDisplayTime($endTime);
+
+    if ($formattedStart !== '' && $formattedEnd !== '') {
+      return $label . ' (' . $formattedStart . ' - ' . $formattedEnd . ')';
+    }
+
+    return $label;
+  }
+
+  private static function formatDisplayTime(string $timeValue): string
+  {
+    $timeValue = trim($timeValue);
+    if ($timeValue === '') {
+      return '';
+    }
+
+    $timestamp = strtotime($timeValue);
+    if ($timestamp === false) {
+      return $timeValue;
+    }
+
+    return date('h:i A', $timestamp);
   }
 
   private static function isCommonSpecializationMode(string $mode): bool

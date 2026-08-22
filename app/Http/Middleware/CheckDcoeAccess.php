@@ -23,15 +23,19 @@ class CheckDcoeAccess
       return redirect('/');
     }
 
-    $roleType = UserHasRole::where('user_id', $user->id)->value('role_name');
+    $roleNames = UserHasRole::where('user_id', $user->id)
+      ->pluck('role_name')
+      ->map(fn($role) => strtolower(trim((string) $role)))
+      ->filter(fn($role) => $role !== '')
+      ->values();
 
     // COE has unrestricted access
-    if ($roleType === 'coe') {
+    if ($roleNames->contains('coe')) {
       return $next($request);
     }
 
     // DCOE must have campus assigned
-    if ($roleType === 'dcoe') {
+    if ($roleNames->contains('dcoe')) {
       $campusSetting = $user->campuspermission;
       if (!$campusSetting || !$campusSetting->campus_id) {
         return redirect()->route('coe.dashboard')
