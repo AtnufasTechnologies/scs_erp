@@ -41,6 +41,10 @@
 <body>
   @include('includes.alert')
   @auth
+  @php
+  $dashboardRoleOptions = collect(session('dashboard_role_options', []));
+  @endphp
+  @if($dashboardRoleOptions->count() > 1)
   <a
     href="{{ route('dashboard.switcher') }}"
     class="btn btn-sm btn-outline-primary"
@@ -48,6 +52,7 @@
     title="Switch Dashboard">
     <i class="fa fa-exchange-alt me-1"></i>Switch Dashboard
   </a>
+  @endif
   @endauth
   <!--start wrapper-->
   <div class="wrapper">
