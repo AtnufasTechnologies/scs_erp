@@ -889,6 +889,101 @@ class FacultyDashboardController extends Controller
     return redirect()->back()->with('success', 'Subunit completion status updated successfully.');
   }
 
+  public function unlinkAssignedCourse(int $syllabusId, int $assignmentId)
+  {
+    $userId = (int) (Auth::id() ?? 0);
+    $facultyId = (int) SubjectFacultyMaster::where('access_id', $userId)->value('faculty_id');
+
+    if ($facultyId <= 0) {
+      return redirect()->route('faculty.subjects')->with('error', 'Faculty mapping not found for this account.');
+    }
+
+    if ($syllabusId <= 0 || $assignmentId <= 0) {
+      return redirect()->route('faculty.subjects')->with('error', 'Invalid unlink request.');
+    }
+
+    $hasTeachingAllocationLink = Schema::hasColumn('subject_has_routines', 'teaching_allocation_id');
+
+    $canManageContext = SubjectHasRoutine::query()
+      ->where('syllabus_id', $syllabusId)
+      ->where(function ($query) use ($assignmentId, $hasTeachingAllocationLink) {
+        $query->where('teaching_assignment_id', $assignmentId);
+        if ($hasTeachingAllocationLink) {
+          $query->orWhere('teaching_allocation_id', $assignmentId);
+        }
+      })
+      ->where(function ($query) use ($facultyId, $hasTeachingAllocationLink) {
+        $query->where('faculty_id', $facultyId)
+          ->orWhereHas('teachingAssignment', function ($assignmentQuery) use ($facultyId) {
+            $assignmentQuery->where('faculty_id', $facultyId)
+              ->orWhereHas('facultyAssignments', function ($facultyAssignmentQuery) use ($facultyId) {
+                $facultyAssignmentQuery->where('faculty_id', $facultyId);
+              })
+              ->orWhereHas('coFacultyMembers', function ($coFacultyQuery) use ($facultyId) {
+                $coFacultyQuery->where('faculties.id', $facultyId);
+              });
+          });
+
+        if ($hasTeachingAllocationLink) {
+          $query->orWhereHas('teachingAllocation', function ($assignmentQuery) use ($facultyId) {
+            $assignmentQuery->where('faculty_id', $facultyId)
+              ->orWhereHas('facultyAssignments', function ($facultyAssignmentQuery) use ($facultyId) {
+                $facultyAssignmentQuery->where('faculty_id', $facultyId);
+              })
+              ->orWhereHas('coFacultyMembers', function ($coFacultyQuery) use ($facultyId) {
+                $coFacultyQuery->where('faculties.id', $facultyId);
+              });
+          });
+        }
+      })
+      ->exists();
+
+    if (!$canManageContext) {
+      return redirect()->route('faculty.subjects')->with('error', 'You are not allowed to unlink this course assignment.');
+    }
+
+    $removedTimetableRows = 0;
+
+    DB::transaction(function () use ($syllabusId, $assignmentId, $hasTeachingAllocationLink, &$removedTimetableRows) {
+      $routineDeleteQuery = SubjectHasRoutine::query()
+        ->where('syllabus_id', $syllabusId)
+        ->where(function ($query) use ($assignmentId, $hasTeachingAllocationLink) {
+          $query->where('teaching_assignment_id', $assignmentId);
+          if ($hasTeachingAllocationLink) {
+            $query->orWhere('teaching_allocation_id', $assignmentId);
+          }
+        });
+
+      $removedTimetableRows = (clone $routineDeleteQuery)->count();
+      $routineDeleteQuery->delete();
+
+      $remainingLinkedRoutines = SubjectHasRoutine::withTrashed()
+        ->where(function ($query) use ($assignmentId, $hasTeachingAllocationLink) {
+          $query->where('teaching_assignment_id', $assignmentId);
+          if ($hasTeachingAllocationLink) {
+            $query->orWhere('teaching_allocation_id', $assignmentId);
+          }
+        })
+        ->whereNull('deleted_at')
+        ->count();
+
+      if ($remainingLinkedRoutines === 0) {
+        $assignment = TeachingAssignment::find($assignmentId);
+        if ($assignment) {
+          $assignment->is_active = 0;
+          $assignment->save();
+          $assignment->delete();
+        }
+      }
+    });
+
+    if ($removedTimetableRows > 0) {
+      return redirect()->route('faculty.subjects')->with('success', 'Course unlinked successfully. Related timetable entries were removed.');
+    }
+
+    return redirect()->route('faculty.subjects')->with('success', 'Course unlinked successfully.');
+  }
+
   function profile()
   {
     $userId = Auth::user()->id;

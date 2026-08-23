@@ -217,6 +217,13 @@ return 'RBT';
                         </div>
                       </button>
                       <div class="scs-roster-cta-wrap">
+                        <form method="POST" action="{{ route('faculty.subjects.unlink', ['syllabusId' => $syllabus->id, 'assignmentId' => $syllabus->teaching_assignment_id]) }}" class="d-inline me-2" onsubmit="return confirm('Unlink this allotted course and remove its timetable entries?');">
+                          @csrf
+                          @method('DELETE')
+                          <button type="submit" class="btn btn-outline-danger btn-sm" title="Unlink course allotment">
+                            <i class="fas fa-unlink me-1"></i>Unlink
+                          </button>
+                        </form>
                         <button
                           type="button"
                           class="btn btn-outline-success btn-sm js-open-roster-modal scs-roster-cta"
@@ -255,7 +262,8 @@ return 'RBT';
                                 <thead>
                                   <tr>
                                     <th class="text-center" style="width:4%;">#</th>
-                                    <th style="width:38%;">Instructional Objective</th>
+                                    <th class="text-center" style="width:8%;">Record ID</th>
+                                    <th style="width:34%;">Instructional Objective</th>
                                     <th class="text-center" style="width:16%;">RBT</th>
                                     <th class="text-center" style="width:10%;">Status</th>
                                     <th class="text-center" style="width:20%;">Tools</th>
@@ -268,7 +276,7 @@ return 'RBT';
                                   @if($csoGroup['cso'])
                                   <!-- CSO Header Row -->
                                   <tr class="table-info">
-                                    <td colspan="6" class="fw-bold py-3">
+                                    <td colspan="7" class="fw-bold py-3">
                                       <div class="d-flex align-items-center justify-content-between">
                                         <div>
                                           <i class="fas fa-bullseye me-2"></i>
@@ -310,6 +318,9 @@ return 'RBT';
                                   <tr class="scs-unit-row {{ $unit->is_completed ? 'scs-row-done' : '' }}">
                                     <td class="text-center">
                                       <span class="scs-serial">{{ $unitCounter++ }}</span>
+                                    </td>
+                                    <td class="text-center">
+                                      <span class="badge bg-light-secondary text-secondary">{{ $unit->id }}</span>
                                     </td>
                                     <td>
                                       <div class="d-flex align-items-start gap-2">

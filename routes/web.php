@@ -1092,6 +1092,7 @@ Route::group(['prefix' => '/erp'], function () {
         Route::get('payroll/{id}', [FacultyPayrollController::class, 'show'])->name('faculty.payroll.show');
         Route::get('payroll/{id}/download', [FacultyPayrollController::class, 'download'])->name('faculty.payroll.download');
         Route::get('subjects', [FacultyDashboardController::class, 'subjects'])->name('faculty.subjects');
+        Route::delete('subjects/{syllabusId}/unlink/{assignmentId}', [FacultyDashboardController::class, 'unlinkAssignedCourse'])->name('faculty.subjects.unlink');
         Route::get('toggle-subunit-completion/{id}', [FacultyDashboardController::class, 'toggleSubunitCompletion'])->name('faculty.toggle.subunitcompletion');
 
         // Learning Resources Routes
