@@ -84,10 +84,12 @@ $campusMaster = App\Models\Campus::all();
                 <td>{{ $item->name }}</td>
                 <td>{{ $item->email }}</td>
                 <td class="text-capitalize">{{ $item->subjectdeptadmin->subject->title ?? '' }}
+                  @if($item->subjectdeptadmin != null)
                   @if ($item->subjectdeptadmin->subject != null)
                   <span class="badge {{$item->subjectdeptadmin->subject->campus_id == 1 ? 'badge-info' : 'badge-warning'}}"> {{$item->subjectdeptadmin->subject->campus_id == 1 ? 'Sonada' : 'Siliguri' }} </span>
                   @else
                   <span class="badge badge-danger">No Connected</span>
+                  @endif
                   @endif
 
                 </td>

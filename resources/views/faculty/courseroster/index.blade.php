@@ -79,6 +79,7 @@ $totalAssignmentCount = (int) ($totalAssignmentCount ?? $safeAssignmentRows->cou
                   <th>Course Code</th>
                   <th>Course Title</th>
                   <th>Program Type</th>
+                  <th>Semester</th>
                   <th>Students</th>
                   <th>Delivery</th>
                   <th>Group</th>
@@ -101,6 +102,7 @@ $totalAssignmentCount = (int) ($totalAssignmentCount ?? $safeAssignmentRows->cou
                     @endif
                   </td>
                   <td>{{ $row['program_type'] ?? '-' }}</td>
+                  <td>{{ $row['semester_title'] ?? '-' }}</td>
                   <td>
                     <span class="badge bg-info text-dark">{{ (int) ($row['student_count'] ?? 0) }}</span>
                   </td>
