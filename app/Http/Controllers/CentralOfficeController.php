@@ -2,6 +2,8 @@
 
 namespace App\Http\Controllers;
 
+use App\Exports\CentralOfficeStudentTemplateExport;
+use App\Models\AdmissionApplication;
 use App\Models\AdmissionRegistration;
 use App\Models\BatchMaster;
 use App\Models\StudentMaster;
@@ -10,6 +12,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
+use Maatwebsite\Excel\Facades\Excel;
 
 class CentralOfficeController extends Controller
 {
@@ -184,34 +187,47 @@ class CentralOfficeController extends Controller
     $status = (string) $request->input('status', 'active');
     $search = trim((string) $request->input('search', ''));
 
-    $rows = $this->buildStudentsQuery($batchId, $status, $search)->get();
-    $filename = 'central-office-students-' . date('Y-m-d-His') . '.csv';
+    if ($batchId <= 0) {
+      return redirect()->back()->with('error', 'Please select a batch before exporting student data.');
+    }
 
-    return response()->streamDownload(function () use ($rows) {
-      $handle = fopen('php://output', 'w');
-      fputcsv($handle, ['Roll No', 'Register No', 'Name', 'Batch', 'Program', 'Mobile', 'Email', 'Status']);
 
-      foreach ($rows as $student) {
-        $program = $student->stdprogramenrolled?->code
-          ? ($student->stdprogramenrolled->code . ' - ' . $student->stdprogramenrolled->name)
-          : 'N/A';
+    $studentTable = (new StudentMaster())->getTable();
 
-        fputcsv($handle, [
-          $student->roll_no ?: 'N/A',
-          $student->register_no ?: 'N/A',
-          trim((string) (($student->first_name ?? '') . ' ' . ($student->last_name ?? ''))),
-          $student->batchmaster?->batch_name ?? 'N/A',
-          $program,
-          $student->mobile_no ?: 'N/A',
-          $student->mail_id ?: 'N/A',
-          ((int) ($student->is_left ?? 0) === 1) ? 'Left' : 'Active',
-        ]);
-      }
+    $data = AdmissionApplication::with([
+      'studentmaster.batchmaster:id,batch_name',
+      'studentmaster.activeSemesterConfig:id,student_id,semester_id,current_semester',
+      'studentmaster.nationalitymaster:id,name',
+      'studentmaster.religionmaster:id,name',
+      'studentmaster.bloodgroup:id,name',
+      'registrationmaster.countrymaster:id,name',
+      'religionmaster:id,name',
+      'bloodgroupmaster:id,name',
+    ])
+      ->whereHas('studentmaster', function ($q) use ($batchId, $status, $search, $studentTable) {
+        $q->where('batch', $batchId)
+          ->when(Schema::hasColumn($studentTable, 'is_deleted'), fn($inner) => $inner->where('is_deleted', 0))
+          ->when($status === 'active' && Schema::hasColumn($studentTable, 'is_left'), function ($inner) {
+            $inner->where(function ($w) {
+              $w->whereNull('is_left')->orWhere('is_left', 0);
+            });
+          })
+          ->when($status === 'left' && Schema::hasColumn($studentTable, 'is_left'), fn($inner) => $inner->where('is_left', 1))
+          ->when($search !== '', function ($inner) use ($search) {
+            $inner->where(function ($w) use ($search) {
+              $w->where('first_name', 'like', "%{$search}%")
+                ->orWhere('last_name', 'like', "%{$search}%")
+                ->orWhere('roll_no', 'like', "%{$search}%")
+                ->orWhere('register_no', 'like', "%{$search}%")
+                ->orWhere('mobile_no', 'like', "%{$search}%");
+            });
+          });
+      })
+      ->where('payment_gateway_status', 'success')
+      ->orderBy('id')
+      ->get();
 
-      fclose($handle);
-    }, $filename, [
-      'Content-Type' => 'text/csv',
-    ]);
+    return Excel::download(new CentralOfficeStudentTemplateExport($data), 'student-list.xlsx');
   }
 
   public function reactivate(int $id)

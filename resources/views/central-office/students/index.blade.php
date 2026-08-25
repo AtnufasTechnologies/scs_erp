@@ -51,9 +51,12 @@
         <h6 class="mb-0">Students</h6>
         <div class="d-flex align-items-center gap-2">
           <a href="{{ route('central-office.students.export', ['batch_id' => $batchId, 'status' => $status, 'search' => $search]) }}" class="btn btn-sm btn-outline-primary">
-            <i class="fas fa-file-csv me-1"></i>Export CSV
+            <i class="fas fa-file-excel me-1"></i>Export Excel
           </a>
-          <span class="badge bg-info">{{ $students->total() }} records</span>
+          @if((int) $batchId <= 0)
+            <span class="text-muted small">Select a batch to export.</span>
+            @endif
+            <span class="badge bg-info">{{ $students->total() }} records</span>
         </div>
       </div>
       <div class="card-body p-0">
@@ -111,7 +114,7 @@
         </div>
       </div>
       <div class="card-footer bg-white">
-        {{ $students->links() }}
+        {{ $students->links('vendor.pagination.bootstrap-5') }}
       </div>
     </div>
   </main>

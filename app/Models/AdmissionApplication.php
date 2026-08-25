@@ -141,4 +141,8 @@ class AdmissionApplication extends Model
     {
         return $this->hasOne(ApplicantProgramChangeInfo::class, 'application_id', 'id');
     }
+    function studentmaster()
+    {
+        return $this->hasOne(StudentMaster::class, 'user_code', 'application_code');
+    }
 }
