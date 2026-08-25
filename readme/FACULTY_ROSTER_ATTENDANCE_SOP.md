@@ -37,6 +37,7 @@ Attendance may show eligible students through rule-based resolution even when ro
 1. Open Add More Students.
 2. Add or copy all eligible students for that exact routine/course assignment.
 3. Save roster.
+4. If View page shows Resolved rows, use the one-click Save Resolved Students button (above the search box) to persist all resolved students instantly.
 
 ### Step C: Validate Roster Persistence
 
@@ -65,8 +66,9 @@ Faculty must confirm all of the following:
 If View page shows Resolved entries:
 
 1. This means students are currently loaded via eligibility fallback, not saved roster rows.
-2. Use Add More Students to persist roster for that context.
-3. Reopen View and confirm regular rows appear.
+2. Use Save Resolved Students (one click) from the View Roster page to persist all resolved students into student_course_rosters.
+3. Alternative: Use Add More Students if manual selection is needed.
+4. Reopen View and confirm regular rows appear with Remove action.
 
 ## 8. Known Mismatch Pattern and Root Cause
 
@@ -100,6 +102,6 @@ HOD should verify weekly:
 ## 11. Quick SOP Summary
 
 1. Open course context.
-2. Add/Save roster.
+2. Add/Save roster (or one-click Save Resolved Students when resolved fallback is shown).
 3. Validate in View page.
 4. Then take attendance.
