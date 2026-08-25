@@ -1597,6 +1597,19 @@ class AttendanceController extends Controller
           true
         )
           ->count();
+
+        if ($studentCount === 0) {
+          $eligibleStudents = $this->getEligibleStudentsForRoutine(
+            $routine->syllabus,
+            $routine,
+            (int) ($routine->syllabus->batch_id ?? 0),
+            (int) ($routine->syllabus->semester_id ?? 0),
+            $courseId,
+            false
+          );
+
+          $studentCount = (int) $eligibleStudents->count();
+        }
       }
 
       $deliveryType = strtoupper(trim((string) (
@@ -1984,6 +1997,7 @@ class AttendanceController extends Controller
     $request->validate([
       'student_ids' => 'required|array|min:1',
       'student_ids.*' => 'integer|exists:student_masters,id',
+      'redirect_to' => 'nullable|string',
     ]);
 
     $selectedStudentIds = collect($request->input('student_ids', []))
@@ -2057,6 +2071,14 @@ class AttendanceController extends Controller
       ]);
     }
 
+    $redirectTarget = strtolower(trim((string) $request->input('redirect_to', 'create')));
+
+    if ($redirectTarget === 'list') {
+      return redirect()
+        ->route('faculty.course.roster.list', ['id' => $routineId, 'code' => $code])
+        ->with('success', $message);
+    }
+
     return redirect()
       ->route('faculty.course.roster.create', ['id' => $routineId, 'code' => $code])
       ->with('success', $message);
@@ -2106,11 +2128,40 @@ class AttendanceController extends Controller
       ->orderByDesc('id')
       ->get();
 
+    $isResolvedFallback = false;
+    if ($rosterRows->isEmpty()) {
+      $resolvedStudents = $this->getEligibleStudentsForRoutine(
+        $routine->syllabus,
+        $routine,
+        (int) ($routine->syllabus->batch_id ?? 0),
+        (int) ($routine->syllabus->semester_id ?? 0),
+        $courseId,
+        true
+      );
+
+      if ($resolvedStudents->isNotEmpty()) {
+        $isResolvedFallback = true;
+        $rosterRows = $resolvedStudents->map(function ($student) {
+          return (object) [
+            'student_id' => (int) ($student->id ?? 0),
+            'studentmaster' => (object) [
+              'roll_no' => (string) ($student->roll_no ?? ''),
+              'register_no' => (string) ($student->register_no ?? ''),
+              'first_name' => (string) ($student->first_name ?? ''),
+              'last_name' => (string) ($student->last_name ?? ''),
+            ],
+            'is_virtual' => true,
+          ];
+        })->values();
+      }
+    }
+
     return view('faculty.courseroster.list', [
       'routine' => $routine,
       'record' => $record,
       'courseId' => $courseId,
       'rosterRows' => $rosterRows,
+      'isResolvedFallback' => $isResolvedFallback,
     ]);
   }
 

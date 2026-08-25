@@ -25,6 +25,24 @@ $campusMaster = Campus::all();
   </div>
 </div>
 
+<form method="GET" class="row g-2 mb-3 align-items-end">
+  <div class="col-md-4">
+    <label class="form-label">Filter by Role</label>
+    <select name="role" class="form-control">
+      <option value="">All Roles</option>
+      @foreach ($userTypes as $ut)
+      <option value="{{ $ut->slug }}" {{ (($selectedRole ?? request('role')) === $ut->slug) ? 'selected' : '' }}>{{ $ut->role_name }}</option>
+      @endforeach
+    </select>
+  </div>
+  <div class="col-md-2">
+    <button type="submit" class="btn btn-primary w-100">Apply</button>
+  </div>
+  <div class="col-md-2">
+    <a href="{{ url()->current() }}" class="btn btn-outline-secondary w-100">Reset</a>
+  </div>
+</form>
+
 <div class="modal fade" id="add" tabindex="-1" aria-labelledby="exampleModalLabel" aria-hidden="true">
   <div class="modal-dialog">
     <div class="modal-content">

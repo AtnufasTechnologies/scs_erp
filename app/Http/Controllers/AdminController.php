@@ -2983,14 +2983,22 @@ class AdminController extends Controller
         return redirect()->back()->with('success', 'Updated');
     }
 
-    function userList()
+    function userList(Request $request)
     {
+        $selectedRole = trim((string) $request->input('role', ''));
+
         $data = User::with('userroles')
             ->with('campuspermission.campus:id,name')
             ->with('facultyAccesses.faculty:id,FIRST_NAME,MIDDLE_NAME,LAST_NAME,USER_CODE')
             ->where('id', '!=', 1)
+            ->when($selectedRole !== '', function ($query) use ($selectedRole) {
+                $query->whereHas('userroles', function ($roleQuery) use ($selectedRole) {
+                    $roleQuery->where('role_name', $selectedRole);
+                });
+            })
             ->latest()
-            ->paginate(50);
+            ->paginate(50)
+            ->appends($request->query());
 
         $faculties = Faculty::query()
             ->select('id', 'USER_CODE', 'FIRST_NAME', 'MIDDLE_NAME', 'LAST_NAME', 'MAIL_ID')
@@ -3000,6 +3008,7 @@ class AdminController extends Controller
         return view('admin.user-manager.access-management', [
             'data' => $data,
             'faculties' => $faculties,
+            'selectedRole' => $selectedRole,
         ]);
     }
 

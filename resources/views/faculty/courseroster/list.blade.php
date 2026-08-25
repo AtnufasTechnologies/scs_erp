@@ -5,6 +5,12 @@ $courseMaster = $routine->syllabus->courseLink->courseMaster ?? null;
 $courseCode = trim((string) ($courseMaster->course_code ?? 'N/A'));
 $courseTitle = trim((string) ($courseMaster->course_title ?? 'N/A'));
 $safeRosterRows = collect($rosterRows ?? []);
+$resolvedStudentIds = $safeRosterRows
+->filter(fn($row) => (bool) data_get($row, 'is_virtual', false) && (int) data_get($row, 'student_id', 0) > 0)
+->pluck('student_id')
+->map(fn($id) => (int) $id)
+->unique()
+->values();
 @endphp
 
 <div class="wrapper">
@@ -42,6 +48,12 @@ $safeRosterRows = collect($rosterRows ?? []);
       </div>
       @endif
 
+      @if(!empty($isResolvedFallback))
+      <div class="alert alert-info" role="alert">
+        Showing eligible students resolved from attendance rules. Save this roster from Add More Students to enable remove/export from persisted roster rows.
+      </div>
+      @endif
+
       <div class="card shadow-sm border-0 mb-4">
         <div class="card-body">
           <h5 class="mb-2 fw-bold">{{ $courseTitle }} ({{ $courseCode }})</h5>
@@ -68,9 +80,23 @@ $safeRosterRows = collect($rosterRows ?? []);
       <div class="card shadow-sm border-0">
         <div class="card-header bg-white py-3 d-flex justify-content-between align-items-center">
           <h6 class="mb-0 fw-bold"><i class="fas fa-users me-2 text-info"></i>Roster Students</h6>
-          <div class="d-flex align-items-center gap-2">
-            <input type="text" id="studentSearch" class="form-control form-control-sm" placeholder="Search by roll/register/name" style="max-width: 260px;">
-            <span class="badge bg-primary" id="rosterCountBadge">{{ $safeRosterRows->count() }} Students</span>
+          <div class="d-flex flex-column align-items-end gap-2">
+            @if(!empty($isResolvedFallback) && $resolvedStudentIds->isNotEmpty())
+            <form method="POST" action="{{ route('faculty.course.roster.store', ['id' => $routine->id, 'code' => $courseCode]) }}" class="d-inline">
+              @csrf
+              <input type="hidden" name="redirect_to" value="list">
+              @foreach($resolvedStudentIds as $resolvedStudentId)
+              <input type="hidden" name="student_ids[]" value="{{ (int) $resolvedStudentId }}">
+              @endforeach
+              <button type="submit" class="btn btn-primary btn-sm" onclick="return confirm('Save all resolved students into this course roster?');">
+                <i class="fas fa-save me-1"></i>Save Resolved Students
+              </button>
+            </form>
+            @endif
+            <div class="d-flex align-items-center gap-2">
+              <input type="text" id="studentSearch" class="form-control form-control-sm" placeholder="Search by roll/register/name" style="max-width: 260px;">
+              <span class="badge bg-primary" id="rosterCountBadge">{{ $safeRosterRows->count() }} Students</span>
+            </div>
           </div>
         </div>
         <div class="card-body p-0">
@@ -89,6 +115,7 @@ $safeRosterRows = collect($rosterRows ?? []);
                 @forelse($safeRosterRows as $index => $row)
                 @php
                 $student = $row->studentmaster;
+                $isVirtual = (bool) data_get($row, 'is_virtual', false);
                 @endphp
                 <tr data-student-id="{{ (int) ($row->student_id ?? 0) }}">
                   <td class="ps-4 fw-semibold">{{ $index + 1 }}</td>
@@ -96,6 +123,9 @@ $safeRosterRows = collect($rosterRows ?? []);
                   <td>{{ $student->register_no ?? '-' }}</td>
                   <td>{{ trim((string) ($student->first_name ?? '') . ' ' . (string) ($student->last_name ?? '')) }}</td>
                   <td class="text-center">
+                    @if($isVirtual)
+                    <span class="badge bg-secondary">Resolved</span>
+                    @else
                     <form method="POST" action="{{ route('faculty.course.roster.student.remove', ['id' => $routine->id, 'code' => $courseCode, 'studentId' => (int) ($row->student_id ?? 0)]) }}" class="d-inline remove-roster-form">
                       @csrf
                       @method('DELETE')
@@ -103,6 +133,7 @@ $safeRosterRows = collect($rosterRows ?? []);
                         <i class="fa fa-trash"></i> Remove
                       </button>
                     </form>
+                    @endif
                   </td>
                 </tr>
                 @empty

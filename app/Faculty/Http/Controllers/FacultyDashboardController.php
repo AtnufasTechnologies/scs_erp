@@ -829,6 +829,30 @@ class FacultyDashboardController extends Controller
           ->where('course_id', $courseId)
           ->orderBy('id')
           ->get();
+
+        if ($rosterRows->isEmpty()) {
+          $resolvedRows = $this->studentRosterEngine->getRoster($courseId, [
+            'batch_id' => (int) ($syllabus->batch_id ?? 0),
+            'semester_id' => (int) ($syllabus->semester_id ?? 0),
+            'delivery_type' => (string) ($syllabus->assigned_delivery_type ?? ''),
+            'selection_type' => (string) data_get($syllabus, 'courseLink.courseMaster.coursetypemaster.title', ''),
+            'offering_dept' => (int) ($syllabus->subject_id ?? 0),
+          ]);
+
+          $rosterRows = $resolvedRows->map(function ($resolved) {
+            return (object) [
+              'student_id' => (int) ($resolved['student_id'] ?? 0),
+              'studentmaster' => (object) [
+                'roll_no' => (string) ($resolved['roll_no'] ?? ''),
+                'register_no' => (string) ($resolved['register_no'] ?? ''),
+                'first_name' => (string) (data_get($resolved, 'first_name', data_get($resolved, 'student_name', ''))),
+                'last_name' => (string) (data_get($resolved, 'last_name', '')),
+                'new_program_id' => (int) ($resolved['program_id'] ?? 0),
+                'batch' => (int) ($resolved['batch_id'] ?? 0),
+              ],
+            ];
+          })->values();
+        }
       } else {
         $rosterRows = collect();
       }
