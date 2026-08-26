@@ -1,4 +1,18 @@
 $(function () {
+    const MODE_CLASSES = "light-theme dark-theme semi-dark";
+    const SIDEBAR_COLOR_CLASSES =
+        "sidebarcolor1 sidebarcolor2 sidebarcolor3 sidebarcolor4 sidebarcolor5 sidebarcolor6 sidebarcolor7 sidebarcolor8";
+
+    function setModeClass(modeClass) {
+        $("html").removeClass(MODE_CLASSES).addClass(modeClass);
+    }
+
+    function setSidebarColorClass(sidebarClass) {
+        $("html")
+            .removeClass(SIDEBAR_COLOR_CLASSES)
+            .addClass("semi-dark color-sidebar " + sidebarClass);
+    }
+
     $(function () {
         $("#menu").metisMenu();
     });
@@ -22,7 +36,6 @@ $(function () {
                     .parent()
                     .addClass("mm-active");
             o.is("li");
-
         )
             o = o
                 .parent("")
@@ -42,11 +55,11 @@ $(function () {
                   },
                   function () {
                       $(".wrapper").removeClass("sidebar-hovered");
-                  }
+                  },
               ));
     });
 
-    $(".btn-mobile-filter").on("click", function () {
+    ($(".btn-mobile-filter").on("click", function () {
         $(".filter-sidebar").removeClass("d-none");
     }),
         $(".btn-mobile-filter-close").on("click", function () {
@@ -59,7 +72,7 @@ $(function () {
             $(".searchbar").removeClass("full-search-bar");
         }),
         $(document).ready(function () {
-            $(window).on("scroll", function () {
+            ($(window).on("scroll", function () {
                 $(this).scrollTop() > 300
                     ? $(".back-to-top").fadeIn()
                     : $(".back-to-top").fadeOut();
@@ -70,83 +83,83 @@ $(function () {
                             {
                                 scrollTop: 0,
                             },
-                            600
+                            600,
                         ),
                         !1
                     );
-                });
-        });
+                }));
+        }));
 
-    $(".dark-mode-icon").on("click", function () {
+    ($(".dark-mode-icon").on("click", function () {
         if ($(".mode-icon ion-icon").attr("name") == "sunny-sharp") {
             $(".mode-icon ion-icon").attr("name", "moon-sharp");
-            $("html").attr("class", "light-theme");
+            setModeClass("light-theme");
         } else {
             $(".mode-icon ion-icon").attr("name", "sunny-sharp");
-            $("html").attr("class", "dark-theme");
+            setModeClass("dark-theme");
         }
     }),
         // Theme switcher
 
         $("#LightTheme").on("click", function () {
-            $("html").attr("class", "light-theme");
+            setModeClass("light-theme");
         }),
         $("#DarkTheme").on("click", function () {
-            $("html").attr("class", "dark-theme");
+            setModeClass("dark-theme");
         }),
         $("#SemiDark").on("click", function () {
-            $("html").attr("class", "semi-dark");
+            setModeClass("semi-dark");
         }),
         // headercolor colors
 
         $("#headercolor1").on("click", function () {
-            $("html").addClass("color-header headercolor1"),
+            ($("html").addClass("color-header headercolor1"),
                 $("html").removeClass(
-                    "headercolor2 headercolor3 headercolor4 headercolor5 headercolor6 headercolor7 headercolor8"
-                );
+                    "headercolor2 headercolor3 headercolor4 headercolor5 headercolor6 headercolor7 headercolor8",
+                ));
         }),
         $("#headercolor2").on("click", function () {
-            $("html").addClass("color-header headercolor2"),
+            ($("html").addClass("color-header headercolor2"),
                 $("html").removeClass(
-                    "headercolor1 headercolor3 headercolor4 headercolor5 headercolor6 headercolor7 headercolor8"
-                );
+                    "headercolor1 headercolor3 headercolor4 headercolor5 headercolor6 headercolor7 headercolor8",
+                ));
         }),
         $("#headercolor3").on("click", function () {
-            $("html").addClass("color-header headercolor3"),
+            ($("html").addClass("color-header headercolor3"),
                 $("html").removeClass(
-                    "headercolor1 headercolor2 headercolor4 headercolor5 headercolor6 headercolor7 headercolor8"
-                );
+                    "headercolor1 headercolor2 headercolor4 headercolor5 headercolor6 headercolor7 headercolor8",
+                ));
         }),
         $("#headercolor4").on("click", function () {
-            $("html").addClass("color-header headercolor4"),
+            ($("html").addClass("color-header headercolor4"),
                 $("html").removeClass(
-                    "headercolor1 headercolor2 headercolor3 headercolor5 headercolor6 headercolor7 headercolor8"
-                );
+                    "headercolor1 headercolor2 headercolor3 headercolor5 headercolor6 headercolor7 headercolor8",
+                ));
         }),
         $("#headercolor5").on("click", function () {
-            $("html").addClass("color-header headercolor5"),
+            ($("html").addClass("color-header headercolor5"),
                 $("html").removeClass(
-                    "headercolor1 headercolor2 headercolor4 headercolor3 headercolor6 headercolor7 headercolor8"
-                );
+                    "headercolor1 headercolor2 headercolor4 headercolor3 headercolor6 headercolor7 headercolor8",
+                ));
         }),
         $("#headercolor6").on("click", function () {
-            $("html").addClass("color-header headercolor6"),
+            ($("html").addClass("color-header headercolor6"),
                 $("html").removeClass(
-                    "headercolor1 headercolor2 headercolor4 headercolor5 headercolor3 headercolor7 headercolor8"
-                );
+                    "headercolor1 headercolor2 headercolor4 headercolor5 headercolor3 headercolor7 headercolor8",
+                ));
         }),
         $("#headercolor7").on("click", function () {
-            $("html").addClass("color-header headercolor7"),
+            ($("html").addClass("color-header headercolor7"),
                 $("html").removeClass(
-                    "headercolor1 headercolor2 headercolor4 headercolor5 headercolor6 headercolor3 headercolor8"
-                );
+                    "headercolor1 headercolor2 headercolor4 headercolor5 headercolor6 headercolor3 headercolor8",
+                ));
         }),
         $("#headercolor8").on("click", function () {
-            $("html").addClass("color-header headercolor8"),
+            ($("html").addClass("color-header headercolor8"),
                 $("html").removeClass(
-                    "headercolor1 headercolor2 headercolor4 headercolor5 headercolor6 headercolor7 headercolor3"
-                );
-        });
+                    "headercolor1 headercolor2 headercolor4 headercolor5 headercolor6 headercolor7 headercolor3",
+                ));
+        }));
 
     // sidebar colors
     $("#sidebarcolor1").click(theme1);
@@ -159,35 +172,35 @@ $(function () {
     $("#sidebarcolor8").click(theme8);
 
     function theme1() {
-        $("html").attr("class", "color-sidebar sidebarcolor1");
+        setSidebarColorClass("sidebarcolor1");
     }
 
     function theme2() {
-        $("html").attr("class", "color-sidebar sidebarcolor2");
+        setSidebarColorClass("sidebarcolor2");
     }
 
     function theme3() {
-        $("html").attr("class", "color-sidebar sidebarcolor3");
+        setSidebarColorClass("sidebarcolor3");
     }
 
     function theme4() {
-        $("html").attr("class", "color-sidebar sidebarcolor4");
+        setSidebarColorClass("sidebarcolor4");
     }
 
     function theme5() {
-        $("html").attr("class", "color-sidebar sidebarcolor5");
+        setSidebarColorClass("sidebarcolor5");
     }
 
     function theme6() {
-        $("html").attr("class", "color-sidebar sidebarcolor6");
+        setSidebarColorClass("sidebarcolor6");
     }
 
     function theme7() {
-        $("html").attr("class", "color-sidebar sidebarcolor7");
+        setSidebarColorClass("sidebarcolor7");
     }
 
     function theme8() {
-        $("html").attr("class", "color-sidebar sidebarcolor8");
+        setSidebarColorClass("sidebarcolor8");
     }
 
     new PerfectScrollbar(".header-notifications-list");
