@@ -3,6 +3,8 @@
 namespace App\Http\Controllers;
 
 use App\Models\Faculty;
+use App\Models\LeadershipRoleAssignment;
+use App\Models\RoleMaster;
 use App\Models\SmsTemplate;
 use App\Models\Subject;
 use App\Models\SubjectFacultyMaster;
@@ -12,6 +14,7 @@ use App\Models\UserActivityLog;
 use App\Models\UserCampusSetting;
 use App\Models\UserHasRole;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Hash;
 
 class AccessController extends Controller
@@ -20,11 +23,37 @@ class AccessController extends Controller
     {
 
         $departments = Subject::with('campusmaster:id,name')->get();
+        $departmentNameById = $departments
+            ->mapWithKeys(function ($item) {
+                $label = trim((string) (($item->code ?? '') . ' - ' . ucfirst((string) ($item->title ?? ''))));
+                return [(int) $item->id => $label];
+            });
+
         $data = User::whereHas('userroles', function ($q) {
-            //Head of Department Admin Role
-            $q->where('role_name', 'dept-admin-erp');
-        })->with('subjectdeptadmin.subject')->latest()->get();
-        return view('admin.user-manager.dept-access', ['departments' => $departments, 'data' => $data]);
+            $q->whereIn('role_name', ['hod', 'dept-admin-erp']);
+        })->whereHas('subjectdeptadmin')
+            ->with('subjectdeptadmin.subject')
+            ->latest()
+            ->get();
+
+        $roleHistory = LeadershipRoleAssignment::query()
+            ->whereIn('role_name', ['hod', 'dept-admin-erp'])
+            ->with([
+                'user:id,name,email',
+                'assignedByUser:id,name',
+                'relievedByUser:id,name',
+                'roleMaster:id,slug,role_name',
+            ])
+            ->latest('id')
+            ->limit(150)
+            ->get();
+
+        return view('admin.user-manager.dept-access', [
+            'departments' => $departments,
+            'data' => $data,
+            'roleHistory' => $roleHistory,
+            'departmentNameById' => $departmentNameById,
+        ]);
     }
 
 
@@ -44,10 +73,15 @@ class AccessController extends Controller
         }
 
         $departmentId = $data->id;
-        $email = trim((string) $request->email);
+        $email = strtolower(trim((string) $request->email));
         $password = (string) $request->password;
 
-        $rec = User::where('email', $email)->first();
+        $currentDeptAccess = SubjectHasDeptAdmin::where('subject_id', $departmentId)->first();
+        $previousUserId = $currentDeptAccess ? (int) $currentDeptAccess->user_id : 0;
+        $scopeKey = 'subject:' . $departmentId;
+        $today = now()->toDateString();
+
+        $rec = User::withTrashed()->whereRaw('LOWER(TRIM(email)) = ?', [$email])->first();
         $createdNewAccount = false;
 
         if (!$rec) {
@@ -65,7 +99,11 @@ class AccessController extends Controller
             $rec->save();
             $createdNewAccount = true;
         } else {
+            if (method_exists($rec, 'trashed') && $rec->trashed()) {
+                $rec->restore();
+            }
             $rec->name = $request->name;
+            $rec->email = $email;
             $rec->status = 'ACTIVE';
             if ($password !== '') {
                 $rec->password = Hash::make($password);
@@ -78,7 +116,7 @@ class AccessController extends Controller
         //assign campus access permission
         UserHasRole::firstOrCreate([
             'user_id' => $rec->id,
-            'role_name' =>  'dept-admin-erp', //Department Admin
+            'role_name' =>  'hod',
         ]);
 
         //assign department to user
@@ -88,6 +126,71 @@ class AccessController extends Controller
             'user_id' => $rec->id,
         ]);
 
+        // If department ownership changed, relieve the previous user from HOD role
+        // when they no longer hold any other department assignment.
+        if ($previousUserId > 0 && $previousUserId !== (int) $rec->id) {
+            $stillHoldsAnotherDept = SubjectHasDeptAdmin::where('user_id', $previousUserId)
+                ->where('subject_id', '!=', $departmentId)
+                ->exists();
+
+            if (!$stillHoldsAnotherDept) {
+                UserHasRole::where('user_id', $previousUserId)
+                    ->whereIn('role_name', ['hod', 'dept-admin-erp'])
+                    ->delete();
+            }
+
+            LeadershipRoleAssignment::query()
+                ->where('user_id', $previousUserId)
+                ->whereIn('role_name', ['hod', 'dept-admin-erp'])
+                ->where('assignment_scope', $scopeKey)
+                ->where('is_active', 1)
+                ->whereDate('effective_from', '<=', $today)
+                ->where(function ($q) use ($today) {
+                    $q->whereNull('effective_to')
+                        ->orWhereDate('effective_to', '>=', $today);
+                })
+                ->get()
+                ->each(function ($assignment) {
+                    $assignment->effective_to = now()->toDateString();
+                    $assignment->is_active = 0;
+                    $assignment->relieved_by = Auth::id();
+                    $assignment->relieved_reason = 'Auto-relieved due to HOD reassignment.';
+                    $assignment->save();
+                });
+        }
+
+        $hodRoleMasterId = (int) RoleMaster::query()
+            ->whereIn('slug', ['hod', 'dept-admin-erp'])
+            ->orderByRaw("CASE WHEN slug = 'hod' THEN 0 ELSE 1 END")
+            ->value('id');
+
+        $hasActiveScopeAssignment = LeadershipRoleAssignment::query()
+            ->where('user_id', (int) $rec->id)
+            ->where('role_name', 'hod')
+            ->where('assignment_scope', $scopeKey)
+            ->where('is_active', 1)
+            ->whereDate('effective_from', '<=', $today)
+            ->where(function ($q) use ($today) {
+                $q->whereNull('effective_to')
+                    ->orWhereDate('effective_to', '>=', $today);
+            })
+            ->exists();
+
+        if (!$hasActiveScopeAssignment) {
+            LeadershipRoleAssignment::create([
+                'user_id' => (int) $rec->id,
+                'faculty_id' => null,
+                'role_master_id' => $hodRoleMasterId > 0 ? $hodRoleMasterId : null,
+                'role_name' => 'hod',
+                'assignment_scope' => $scopeKey,
+                'effective_from' => $today,
+                'effective_to' => null,
+                'is_active' => 1,
+                'remarks' => 'Assigned from HOD access control screen.',
+                'assigned_by' => Auth::id(),
+            ]);
+        }
+
         //add Campus Seetings permission
         UserCampusSetting::updateOrCreate([
             'user_id' => $rec->id,
@@ -96,8 +199,8 @@ class AccessController extends Controller
         ]);
 
         $message = $createdNewAccount
-            ? 'Departmental access created with a new login account.'
-            : 'Departmental role added to existing login account.';
+            ? 'HOD access created with a new login account.'
+            : 'HOD role added to existing login account.';
 
         return back()->with('success', $message);
     }
@@ -334,7 +437,8 @@ class AccessController extends Controller
         }
 
         if (!$rec && !empty($facultyInfo->MAIL_ID)) {
-            $rec = User::where('email', trim((string) $facultyInfo->MAIL_ID))->first();
+            $email = strtolower(trim((string) $facultyInfo->MAIL_ID));
+            $rec = User::withTrashed()->whereRaw('LOWER(TRIM(email)) = ?', [$email])->first();
         }
 
         $createdNewAccount = false;
@@ -354,6 +458,9 @@ class AccessController extends Controller
             $rec->save();
             $createdNewAccount = true;
         } else {
+            if (method_exists($rec, 'trashed') && $rec->trashed()) {
+                $rec->restore();
+            }
             $rec->name = trim((string) ($facultyInfo->FIRST_NAME . ' ' . $facultyInfo->LAST_NAME));
             if (!empty($facultyInfo->MAIL_ID)) {
                 $rec->email = $facultyInfo->MAIL_ID;

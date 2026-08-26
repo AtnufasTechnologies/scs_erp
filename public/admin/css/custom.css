@@ -1,6 +1,6 @@
 /* General Reset and Typography */
 :root {
-    --primary-color: #3f51b5; /* Deeper Blue */
+    --primary-color: #5d3fb5; /* Deeper Blue */
     --accent-color: #ff7640; /* Vibrant Pink/Magenta */
     --background-light: #eceff1; /* Very light grey */
     --background-dark: #263238; /* Dark grey for contrast */
@@ -302,8 +302,8 @@ footer {
     overflow: hidden;
     position: relative;
     box-shadow: 10px 10px 20px rgba(0, 0, 0, 0.05);
-    background-color: #fff;
-    color: #121212;
+    background-color: var(--theme-action-button-bg, #fff);
+    color: var(--theme-action-button-text, #121212);
     border: none;
     cursor: pointer;
 }
@@ -311,7 +311,7 @@ footer {
 .button-decor {
     position: absolute;
     inset: 0;
-    background-color: #00ffee;
+    background-color: var(--clr, var(--theme-action-button-accent, #00ffee));
     transform: translateX(-100%);
     transition: transform 0.3s;
     z-index: 0;
@@ -328,7 +328,7 @@ footer {
 .button__icon {
     width: 48px;
     height: 40px;
-    background-color: #00ffee;
+    background-color: var(--clr, var(--theme-action-button-accent, #00ffee));
     display: grid;
     place-items: center;
 }
@@ -344,8 +344,8 @@ footer {
     max-width: 150px;
 }
 
-.button:hover .button__text {
-    color: #fff;
+.cst-button:hover .button__text {
+    color: var(--theme-action-button-hover-text, #fff);
 }
 
 .cst-button:hover .button-decor {
@@ -727,8 +727,8 @@ footer {
 
 /* Hover Effect */
 .gateway-option:hover {
-    border-color: #0d6efd;
-    background: #f3faff;
+    border-color: var(--theme-btn-primary-bg, #5b2fd5);
+    background: rgba(var(--theme-btn-primary-rgb, 91, 47, 213), 0.08);
 }
 
 /* Hide actual radio input */
@@ -746,7 +746,7 @@ footer {
 .gateway-option input:checked ~ img,
 .gateway-option input:checked ~ span,
 .gateway-option input:checked ~ * {
-    border-color: #0d6efd !important;
+    border-color: var(--theme-btn-primary-bg, #5b2fd5) !important;
 }
 
 .gateway-option input:checked + img,
@@ -754,86 +754,35 @@ footer {
     transform: scale(1.05);
 }
 
-/* Highlight container when selected */
-/* .gateway-option input:checked + img {
-    outline: 2px solid #0d6efd;
-    border-radius: 10px;
-} */
-
-.gateway-option input:checked {
-    /* Nothing here, needed for CSS sibling selectors */
-}
-
-/* REAL border change for selected card */
-.gateway-option input:checked {
-    /* no visible effect, but allows CSS below */
-}
-
-.gateway-option input:checked ~ * {
-    /* no effect */
-}
-
-/* Correct styling for the selected whole card */
-.gateway-option input:checked {
-    /* no effect: this is trigger */
-}
-
-.gateway-option input:checked::before {
-    /* unused */
-}
-
-/* BEST: Add blue border to entire card when selected */
-.gateway-option input:checked {
-    /* triggers selected mode */
-}
-
-.gateway-option input:checked + img,
-.gateway-option input:checked + span {
-    /* extra highlight */
-}
-
-.gateway-option input:checked {
-    /* fallback */
-}
-
 .gateway-option input:checked + img {
-    border-color: #0d6efd;
-}
-
-.gateway-option input:checked {
-    /* main trigger */
-}
-
-.gateway-option input:checked + img {
-    /* placeholder */
-}
-
-/* REAL selected card effect */
-.gateway-option input:checked {
-    /* target card */
-}
-
-.gateway-option input:checked {
-    /* nothing */
+    border-color: var(--theme-btn-primary-bg, #5b2fd5);
 }
 
 /* Using parent selector trick */
 .gateway-option:has(input:checked) {
-    border-color: #1efec6 !important;
-    box-shadow: 0 0 10px rgba(13, 253, 205, 0.4);
+    border-color: var(--theme-btn-primary-bg, #5b2fd5) !important;
+    box-shadow: 0 0 10px rgba(var(--theme-btn-primary-rgb, 91, 47, 213), 0.4);
 }
 
 .btn-main {
-    background-color: #7c1efe !important;
-    border-color: #7c1efe !important;
-    color: #fff;
-    &:hover {
-        background-color: #812cf8 !important;
-        color: lime;
-    }
+    background-color: var(--theme-btn-primary-bg, #5b2fd5) !important;
+    border-color: var(--theme-btn-primary-border, #4e22c7) !important;
+    color: var(--theme-btn-primary-text, #fff);
+}
+
+.btn-main:hover,
+.btn-main:focus,
+.btn-main:active {
+    background-color: var(--theme-btn-primary-hover, #4e22c7) !important;
+    border-color: var(--theme-btn-primary-hover, #4e22c7) !important;
+    color: var(--theme-btn-primary-text, #fff);
 }
 .modal-header-bg {
-    background-image: linear-gradient(135deg, #7c1efe 0%, #d0d0d0 95%);
+    background-image: linear-gradient(
+        135deg,
+        var(--theme-btn-primary-bg, #5b2fd5) 0%,
+        var(--theme-btn-info-bg, #0284c7) 95%
+    );
     color: #fff;
 }
 
@@ -847,13 +796,20 @@ table thead {
 }
 
 .btn-edit {
-    background-image: linear-gradient(-20deg, #6e45e2 0%, #88d3ce 100%);
+    background-image: linear-gradient(
+        -20deg,
+        var(--theme-btn-primary-bg, #5b2fd5) 0%,
+        var(--theme-btn-info-bg, #0284c7) 100%
+    );
     border: none;
     box-shadow: rgba(0, 0, 0, 0.3) 0px 8px 12px;
     color: #fff;
-    &:hover {
-        color: #fff;
-    }
+}
+
+.btn-edit:hover,
+.btn-edit:focus,
+.btn-edit:active {
+    color: #fff;
 }
 .campus-badge {
     background-color: #3fb5a1;

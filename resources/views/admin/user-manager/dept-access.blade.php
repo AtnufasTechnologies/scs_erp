@@ -4,11 +4,11 @@ $campusMaster = App\Models\Campus::all();
 ?>
 @include('includes.header')
 @include('admin.sidebar')
-<h3>Admission | Department Access Control </h3>
+<h3>Admission | HOD Access Control </h3>
 <!-- Button trigger modal -->
-<button type="button" class="btn btn-primary mb-3" data-bs-toggle="modal" data-bs-target="#deptAccessModal">
-  Create Departmental Access
-</button>
+<!-- <button type="button" class="btn btn-primary mb-3" data-bs-toggle="modal" data-bs-target="#deptAccessModal">
+  Create HOD Access
+</button> -->
 
 <!-- Department Access Modal -->
 <div class="modal fade" id="deptAccessModal" tabindex="-1" aria-labelledby="deptAccessModalLabel" aria-hidden="true">
@@ -17,7 +17,7 @@ $campusMaster = App\Models\Campus::all();
       @csrf
       <div class="modal-content">
         <div class="modal-header">
-          <h5 class="modal-title" id="deptAccessModalLabel">Grant Departmental Access</h5>
+          <h5 class="modal-title" id="deptAccessModalLabel">Grant HOD Access</h5>
           <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
         </div>
         <div class="modal-body">
@@ -27,7 +27,7 @@ $campusMaster = App\Models\Campus::all();
             <select class="form-select dselect-example   mb-3" name="department">
               <option value="">Choose...</option>
               @foreach($departments as $dept)
-              <option value="{{ $dept->id }}">{{ $dept->code }} ({{ $dept->campusmaster->name ?? '' }}) - <?php echo ucfirst($dept->title); ?></option>
+              <option value="{{ $dept->id }}">{{ $dept->code }} ({{ $dept->campusmaster->name ?? '' }}) - {{ ucfirst($dept->title) }}</option>
               @endforeach
             </select>
 
@@ -39,7 +39,7 @@ $campusMaster = App\Models\Campus::all();
 
             <label for="password" class="form-label">Login Password (required only for new email)</label>
             <input type="password" name="password" class="form-control mb-3" placeholder="Set only when creating a new account">
-            <small class="text-muted">If this email already has an account, we will add Department role to the same login.</small>
+            <small class="text-muted">If this email already has an account, we will add HOD role to the same login.</small>
           </div>
           <div class="modal-footer">
             <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
@@ -119,8 +119,69 @@ $campusMaster = App\Models\Campus::all();
   </div>
 </div>
 @else
-<p class="display-4 text-center">No departmental access records found.</p>
+<p class="display-4 text-center">No HOD access records found.</p>
 @endif
+
+<div class="row mt-4">
+  <div class="col-12">
+    <div class="card shadow-sm">
+      <div class="card-body">
+        <h5 class="card-title fw-bold mb-3">HOD Role Service History</h5>
+        <div class="table-responsive">
+          <table class="table table-bordered table-hover align-middle">
+            <thead class="table-light">
+              <tr>
+                <th>#</th>
+                <th>Name</th>
+                <th>Email</th>
+                <th>Role</th>
+                <th>Department Scope</th>
+                <th>Served From</th>
+                <th>Served Till</th>
+                <th>Status</th>
+              </tr>
+            </thead>
+            <tbody>
+              @forelse(($roleHistory ?? collect()) as $historyIndex => $history)
+              @php
+              $scopeValue = (string) ($history->assignment_scope ?? '');
+              $scopeDeptId = 0;
+              if (str_starts_with($scopeValue, 'subject:')) {
+              $scopeDeptId = (int) str_replace('subject:', '', $scopeValue);
+              }
+              $scopeLabel = $scopeDeptId > 0
+              ? (($departmentNameById[$scopeDeptId] ?? null) ?: ('Department #' . $scopeDeptId))
+              : 'General';
+              $roleLabel = $history->roleMaster->role_name ?? strtoupper((string) $history->role_name);
+              @endphp
+              <tr>
+                <td>{{ $historyIndex + 1 }}</td>
+                <td>{{ $history->user->name ?? 'N/A' }}</td>
+                <td>{{ $history->user->email ?? 'N/A' }}</td>
+                <td>{{ $roleLabel }}</td>
+                <td>{{ $scopeLabel }}</td>
+                <td>{{ $history->effective_from ? $history->effective_from->format('Y-m-d') : '-' }}</td>
+                <td>{{ $history->effective_to ? $history->effective_to->format('Y-m-d') : 'Present' }}</td>
+                <td>
+                  @if((bool) $history->is_active)
+                  <span class="badge bg-success">Active</span>
+                  @else
+                  <span class="badge bg-secondary">Archived</span>
+                  @endif
+                </td>
+              </tr>
+              @empty
+              <tr>
+                <td colspan="8" class="text-center">No role history found yet.</td>
+              </tr>
+              @endforelse
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
 
 <!-- Make sure jQuery is loaded before this script -->
 <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>

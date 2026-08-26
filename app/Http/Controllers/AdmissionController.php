@@ -2181,7 +2181,7 @@ class AdmissionController extends Controller
     function deptApplicationSingle($id)
     {
         $userId = Auth::user()->id;
-        if (StaticController::fetchUserRole() !== 'dept-admin-erp') {
+        if (!in_array((string) StaticController::fetchUserRole(), ['hod', 'dept-admin-erp'], true)) {
             return back()->with('info', 'Unauthorized access.');
         }
 
@@ -2207,7 +2207,7 @@ class AdmissionController extends Controller
     {
 
         $userId = Auth::user()->id;
-        if (StaticController::fetchUserRole() == 'dept-admin-erp') {
+        if (in_array((string) StaticController::fetchUserRole(), ['hod', 'dept-admin-erp'], true)) {
             $campusId =  UserCampusSetting::where('user_id', $userId)->value('campus_id');
             $departId =  SubjectHasDeptAdmin::where('user_id', $userId)->value('subject_id');
             if ($campusId == null) {
@@ -2235,7 +2235,7 @@ class AdmissionController extends Controller
     function deptInterviewList(Request $request)
     {
         $userId = Auth::user()->id;
-        if (StaticController::fetchUserRole() == 'dept-admin-erp') {
+        if (in_array((string) StaticController::fetchUserRole(), ['hod', 'dept-admin-erp'], true)) {
             //fetch Dept 
             $departId =  SubjectHasDeptAdmin::where('user_id', $userId)->value('subject_id');
             $campusId =  UserCampusSetting::where('user_id', $userId)->value('campus_id');

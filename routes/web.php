@@ -72,6 +72,7 @@ use App\Http\Controllers\StudentAttendanceScanController;
 use App\Http\Controllers\TestController;
 use App\Http\Controllers\TimetableController;
 use App\Http\Controllers\ITCellController;
+use App\Http\Controllers\LeadershipRoleAssignmentController;
 use App\Http\Controllers\TrainingPlacementController;
 use App\Http\Controllers\CentralOfficeController;
 use App\Http\Controllers\Dean\AttendanceMonitoringController as DeanAttendanceMonitoringController;
@@ -429,6 +430,9 @@ Route::group(['prefix' => '/erp'], function () {
             Route::get('access-management', [AdminController::class, 'userList'])->name('admin.user.management');
             Route::post('newuser', [AdminController::class, 'createNewUser'])->name('add.newuser');
             Route::post('update-user/{id}', [AdminController::class, 'updateUserAccess'])->name('admin.user-access.update');
+            Route::get('leadership-role-assignments', [LeadershipRoleAssignmentController::class, 'index'])->name('admin.leadership-role-assignments.index');
+            Route::post('leadership-role-assignments', [LeadershipRoleAssignmentController::class, 'store'])->name('admin.leadership-role-assignments.store');
+            Route::post('leadership-role-assignments/{id}/relieve', [LeadershipRoleAssignmentController::class, 'relieve'])->name('admin.leadership-role-assignments.relieve');
             Route::post('update-permission', [AdminController::class, 'updatePermission'])->name('update.user.permission');
             Route::get('remove-user-permission/{id}', [AdminController::class, 'removeUserPermission']);
             Route::get('dept-access', [AccessController::class, 'deptAccess'])->name('dept.erp.access-list');

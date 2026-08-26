@@ -346,7 +346,7 @@ class SubjectController extends Controller
         ]);
 
         $userId  = Auth::user()->id;
-        if (!UserHasRole::where('user_id', $userId)->orWhere('role_name', 'dept-admin-erp')->orWhere('role_name', 'itcell')->exists()) {
+        if (!UserHasRole::where('user_id', $userId)->whereIn('role_name', ['hod', 'dept-admin-erp', 'itcell'])->exists()) {
             return redirect()->back()->with('info', 'Unauthorized to Access this Tool');
         }
 

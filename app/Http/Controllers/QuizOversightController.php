@@ -71,7 +71,7 @@ class QuizOversightController extends Controller
       ->values();
 
     $baseQuery = $this->scopedQuizQueryForRole($role);
-    if ($role === 'dept-admin-erp') {
+    if (in_array($role, ['hod', 'dept-admin-erp'], true)) {
       // Department users are always limited to their own department scope.
       $selectedDepartment = '';
     }
@@ -670,8 +670,12 @@ class QuizOversightController extends Controller
       return 'itcell';
     }
 
-    if (!in_array($rawRole, ['principal', 'dept-admin-erp'], true)) {
+    if (!in_array($rawRole, ['principal', 'hod', 'dept-admin-erp'], true)) {
       abort(403, 'Unauthorized access.');
+    }
+
+    if ($rawRole === 'dept-admin-erp') {
+      return 'hod';
     }
 
     return $rawRole;
@@ -681,7 +685,7 @@ class QuizOversightController extends Controller
   {
     $query = Quiz::query();
 
-    if ($role !== 'dept-admin-erp') {
+    if ($role !== 'hod') {
       return $query;
     }
 

@@ -2997,8 +2997,7 @@ class AdminController extends Controller
                 });
             })
             ->latest()
-            ->paginate(50)
-            ->appends($request->query());
+            ->get();
 
         $faculties = Faculty::query()
             ->select('id', 'USER_CODE', 'FIRST_NAME', 'MIDDLE_NAME', 'LAST_NAME', 'MAIL_ID')
@@ -3037,6 +3036,7 @@ class AdminController extends Controller
         }
 
         $email = strtolower(trim((string) $request->input('email')));
+        $plainPassword = trim((string) $request->input('password', ''));
         $existingUser = User::withTrashed()->whereRaw('LOWER(TRIM(email)) = ?', [$email])->first();
         $existingUserId = $existingUser ? (int) $existingUser->id : null;
 
@@ -3048,7 +3048,7 @@ class AdminController extends Controller
             }
         }
 
-        if (!$existingUser && empty($request->password)) {
+        if (!$existingUser && $plainPassword === '') {
             return redirect()->back()->with('error', 'Password is required when creating a new account.');
         }
 
@@ -3062,9 +3062,9 @@ class AdminController extends Controller
         $rec->name = $request->name;
         $rec->email = $request->email;
 
-        if (!empty($request->password)) {
-            $rec->decrypted_password = $request->password;
-            $rec->password = Hash::make($request->password);
+        if ($plainPassword !== '') {
+            $rec->decrypted_password = $plainPassword;
+            $rec->password = Hash::make($plainPassword);
         }
 
         $rec->status = 'ACTIVE';
@@ -3111,6 +3111,10 @@ class AdminController extends Controller
             ? 'New user created with multi-role access.'
             : 'Existing user updated and additional roles assigned.';
 
+        if ($plainPassword !== '') {
+            $message .= ' Login Password Stored: ' . $plainPassword;
+        }
+
         return redirect()->back()->with('success', $message);
     }
 
@@ -3149,9 +3153,11 @@ class AdminController extends Controller
         $user->name = $request->name;
         $user->email = $request->email;
 
-        if (!empty($request->password)) {
-            $user->password = Hash::make($request->password);
-            $user->decrypted_password = $request->password;
+        $plainPassword = trim((string) $request->input('password', ''));
+
+        if ($plainPassword !== '') {
+            $user->password = Hash::make($plainPassword);
+            $user->decrypted_password = $plainPassword;
         }
 
         $user->save();
@@ -3186,7 +3192,12 @@ class AdminController extends Controller
             ]);
         }
 
-        return redirect()->back()->with('success', 'User access updated successfully.');
+        $message = 'User access updated successfully.';
+        if ($plainPassword !== '') {
+            $message .= ' New login password stored: ' . $plainPassword;
+        }
+
+        return redirect()->back()->with('success', $message);
     }
 
     private function getActiveFacultyAccessConflictUserId(int $facultyId, ?int $ignoreUserId = null): ?int

@@ -4,7 +4,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Salesian College Autonomous| Sonada and Siliguri - Applicant Login Portal</title>
+  <title>Salesian College Autonomous| Sonada and Siliguri </title>
   <link rel="stylesheet" href="{{ asset('admin/fontawesomepro/all.min.css') }}" />
   <link rel="shortcut icon" href="{{asset('admin/images/logo.png')}}" type="image/x-icon">
   <link rel="stylesheet" href="https://unpkg.com/@jarstone/dselect/dist/css/dselect.css">

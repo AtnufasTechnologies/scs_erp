@@ -15,10 +15,8 @@ $hasSuperAdminRole = $roleNames->contains('super-admin');
 <!--start sidebar -->
 <aside class="sidebar-wrapper" data-simplebar="true">
   <div class="sidebar-header">
-
-    <div class="logo-text">
-      SCMS
-    </div>
+    <img src="{{ asset('admin/images/logo.png') }}" class="logo-icon" alt="SCMS Logo">
+    <div class="logo-text"> SCMS</div>
     <div class=" toggle-icon ms-auto">
       <ion-icon name="menu-sharp"></ion-icon>
     </div>
@@ -35,14 +33,6 @@ $hasSuperAdminRole = $roleNames->contains('super-admin');
       </a>
     </li>
 
-    <li>
-      <a href="{{ route('central-office.dashboard') }}">
-        <div class="parent-icon">
-          <i class="fas fa-building"></i>
-        </div>
-        <div class="menu-title">Central Office</div>
-      </a>
-    </li>
 
     <li>
       <a href="{{ route('faculty.workdiary') }}">
@@ -405,14 +395,7 @@ $hasSuperAdminRole = $roleNames->contains('super-admin');
             <div class="menu-title">Student Login Access</div>
           </a>
         </li>
-        <li>
-          <a href="{{ route('admin.user.management') }}">
-            <div class="parent-icon">
-              <i class="fas fa-users-cog"></i>
-            </div>
-            <div class="menu-title">Multi-role Access Manager</div>
-          </a>
-        </li>
+
         <li>
           <a href="{{ route('itcell.integrated-sublayer-settings.index') }}">
             <div class="parent-icon">
@@ -526,7 +509,7 @@ $hasSuperAdminRole = $roleNames->contains('super-admin');
             <div class="parent-icon">
               <i class="far fa-users-class"></i>
             </div>
-            <div class="menu-title">Department Access </div>
+            <div class="menu-title">HOD Access </div>
           </a>
         </li>
 
@@ -537,6 +520,15 @@ $hasSuperAdminRole = $roleNames->contains('super-admin');
               <i class="fas fa-user-shield"></i>
             </div>
             <div class="menu-title">Role Master </div>
+          </a>
+        </li>
+
+        <li>
+          <a href="{{route('admin.leadership-role-assignments.index')}}">
+            <div class="parent-icon">
+              <i class="fas fa-user-tie"></i>
+            </div>
+            <div class="menu-title">Role Assignment</div>
           </a>
         </li>
 
@@ -594,13 +586,13 @@ $hasSuperAdminRole = $roleNames->contains('super-admin');
                 </div>
               </a>
             </li> -->
-        <li class="nav-item">
+        <!-- <li class="nav-item">
           <a class="nav-link dark-mode-icon" href="javascript:;">
             <div class="mode-icon">
               <ion-icon name="moon-sharp"></ion-icon>
             </div>
           </a>
-        </li>
+        </li> -->
 
 
 

@@ -157,7 +157,7 @@ $faculties = SubjectFacultyMaster::where('subject_id', $data->id)->with('faculty
         <span class="fw-bold text-white text-capitalize">{{ $data->code ?? '-' }} - {{ $data->title ?? '-' }} / Substitution Management</span>
       </a>
       <div class="d-flex">
-        @if($userRoleType == 'dept-admin-erp')
+        @if(in_array($userRoleType, ['hod', 'dept-admin-erp']))
         <a href="{{ route('department.dashboard') }}" class="btn btn-light btn-sm fw-bold ms-auto" style="box-shadow:0 2px 8px #5740b433;">
           <i class="fa fa-step-backward me-1"></i> back
         </a>

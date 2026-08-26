@@ -13,7 +13,7 @@ $campusMaster = Campus::all();
 
 <div class="row">
   <div class="col-lg-4">
-    <button class="cst-button mb-3" style="--clr: #21d9c7ff;" data-bs-toggle="modal" data-bs-target="#add">
+    <button class="cst-button mb-3" data-bs-toggle="modal" data-bs-target="#add">
       <span class="button-decor"></span>
       <div class="button-content">
         <div class="button__icon">
@@ -23,15 +23,20 @@ $campusMaster = Campus::all();
       </div>
     </button>
   </div>
+  <div class="col-lg-4">
+    <a href="{{ route('admin.leadership-role-assignments.index') }}" class="btn btn-outline-warning mb-3">
+      Manage HOD/Dean Role Assignments
+    </a>
+  </div>
 </div>
 
 <form method="GET" class="row g-2 mb-3 align-items-end">
   <div class="col-md-4">
     <label class="form-label">Filter by Role</label>
-    <select name="role" class="form-control">
+    <select name="role" class="dselect-example">
       <option value="">All Roles</option>
       @foreach ($userTypes as $ut)
-      <option value="{{ $ut->slug }}" {{ (($selectedRole ?? request('role')) === $ut->slug) ? 'selected' : '' }}>{{ $ut->role_name }}</option>
+      <option value="{{ $ut->slug }}" {{ (($selectedRole ?? request('role')) === $ut->slug) ? 'selected' : '' }}>{{ $ut->slug }}</option>
       @endforeach
     </select>
   </div>
@@ -109,7 +114,8 @@ $campusMaster = Campus::all();
         <th>Roles</th>
         <th>Connected Faculty</th>
         <th>Campus</th>
-        <th>Actions</th>
+        <th>Action</th>
+        <th></th>
       </tr>
     </thead>
     <tbody>
@@ -120,10 +126,24 @@ $campusMaster = Campus::all();
       $connectedFacultyId = $connectedFaculty ? (int) $connectedFaculty->id : 0;
       @endphp
       <tr>
-        <td>{{ ($data->firstItem() ?? 0) + $loop->index }}</td>
+        <td>{{ $loop->iteration }}</td>
         <td>{{ $itm->name }}</td>
         <td>{{ $itm->email }}</td>
-        <td><span class="badge badge-warning">{{ $itm->decrypted_password }}</span></td>
+        <td>
+          @php
+          $passwordValue = (string) ($itm->decrypted_password ?: 'Not Set');
+          $isPasswordSet = $passwordValue !== 'Not Set';
+          $maskedPassword = $isPasswordSet ? str_repeat('*', max(strlen($passwordValue), 8)) : 'Not Set';
+          @endphp
+          <span class="badge badge-warning js-password-value"
+            data-masked="{{ $maskedPassword }}"
+            data-plain="{{ $passwordValue }}"
+            data-state="masked">{{ $maskedPassword }}</span>
+          @if($isPasswordSet)
+          <button type="button" class="btn btn-link btn-sm p-0 ms-2 js-toggle-password">Show</button>
+          <button type="button" class="btn btn-link btn-sm p-0 ms-2 js-copy-password">Copy</button>
+          @endif
+        </td>
         <td>
           @php
           $roleNames = $itm->userroles->pluck('role_name')->filter()->values();
@@ -158,12 +178,16 @@ $campusMaster = Campus::all();
             data-user-id="{{ $itm->id }}"
             data-name="{{ $itm->name }}"
             data-email="{{ $itm->email }}"
+            data-current-password="{{ $itm->decrypted_password ?: 'Not Set' }}"
             data-roles='@json($roleNames->all())'
             data-campus-id="{{ $itm->campuspermission->campus_id ?? '' }}"
             data-faculty-id="{{ $connectedFacultyId > 0 ? $connectedFacultyId : '' }}">
-            Edit
+            <i class="fa fa-edit"></i>
           </button>
-          <a href="{{ route('admin.user-access.delete', $itm->id) }}" class="btn btn-danger btn-sm" onclick="return confirm('Delete this user access?');">Delete</a>
+        </td>
+        <td>
+          <a href="{{ route('admin.user-access.delete', $itm->id) }}" class="btn btn-danger btn-sm" onclick="return confirm('Delete this user access?');"><i class="fa fa-trash"></i></a>
+
         </td>
       </tr>
       @endforeach
@@ -191,6 +215,7 @@ $campusMaster = Campus::all();
 
           <label>New Password (optional)</label>
           <input type="text" name="password" class="form-control mb-3" placeholder="Leave blank to keep current password">
+          <div class="form-text mb-2">Current Saved Password: <span id="edit_current_password">Not Set</span></div>
 
           <label>Roles *</label>
           <select id="edit_roles" name="roles[]" class="dselect-example mb-3" multiple required>
@@ -228,12 +253,16 @@ $campusMaster = Campus::all();
 
 <script>
   document.addEventListener('DOMContentLoaded', function() {
+    const AUTO_HIDE_MS = 10000;
+    const hideTimerMap = new WeakMap();
+
     const form = document.getElementById('editUserForm');
     const nameInput = document.getElementById('edit_name');
     const emailInput = document.getElementById('edit_email');
     const rolesSelect = document.getElementById('edit_roles');
     const facultySelect = document.getElementById('edit_faculty_id');
     const campusSelect = document.getElementById('edit_campus');
+    const currentPasswordText = document.getElementById('edit_current_password');
     const routeTemplate = '{{ route("admin.user-access.update", "__ID__") }}';
 
     document.querySelectorAll('.edit-user-btn').forEach(function(button) {
@@ -246,8 +275,94 @@ $campusMaster = Campus::all();
         Array.from(rolesSelect.options).forEach(function(option) {
           option.selected = roleValues.includes(option.value);
         });
+        currentPasswordText.textContent = button.getAttribute('data-current-password') || 'Not Set';
         facultySelect.value = button.getAttribute('data-faculty-id') || '';
         campusSelect.value = button.getAttribute('data-campus-id') || '';
+      });
+    });
+
+    document.querySelectorAll('.js-toggle-password').forEach(function(toggleBtn) {
+      toggleBtn.addEventListener('click', function() {
+        const passwordBadge = toggleBtn.parentElement.querySelector('.js-password-value');
+        if (!passwordBadge) {
+          return;
+        }
+
+        const currentState = passwordBadge.getAttribute('data-state') || 'masked';
+        const isMasked = currentState === 'masked';
+
+        if (!isMasked) {
+          passwordBadge.textContent = passwordBadge.getAttribute('data-masked') || 'Not Set';
+          passwordBadge.setAttribute('data-state', 'masked');
+          toggleBtn.textContent = 'Show';
+
+          const existingTimer = hideTimerMap.get(passwordBadge);
+          if (existingTimer) {
+            clearTimeout(existingTimer.timeoutId);
+            clearInterval(existingTimer.intervalId);
+            hideTimerMap.delete(passwordBadge);
+          }
+          return;
+        }
+
+        passwordBadge.textContent = passwordBadge.getAttribute('data-plain') || 'Not Set';
+        passwordBadge.setAttribute('data-state', 'plain');
+        toggleBtn.textContent = 'Hide (10s)';
+
+        const existingTimer = hideTimerMap.get(passwordBadge);
+        if (existingTimer) {
+          clearTimeout(existingTimer.timeoutId);
+          clearInterval(existingTimer.intervalId);
+        }
+
+        let secondsLeft = Math.floor(AUTO_HIDE_MS / 1000);
+        const countdownInterval = setInterval(function() {
+          secondsLeft -= 1;
+          if (secondsLeft > 0 && passwordBadge.getAttribute('data-state') === 'plain') {
+            toggleBtn.textContent = 'Hide (' + secondsLeft + 's)';
+          }
+        }, 1000);
+
+        const timeoutId = setTimeout(function() {
+          clearInterval(countdownInterval);
+          passwordBadge.textContent = passwordBadge.getAttribute('data-masked') || 'Not Set';
+          passwordBadge.setAttribute('data-state', 'masked');
+          toggleBtn.textContent = 'Show';
+          hideTimerMap.delete(passwordBadge);
+        }, AUTO_HIDE_MS);
+
+        hideTimerMap.set(passwordBadge, {
+          timeoutId: timeoutId,
+          intervalId: countdownInterval,
+        });
+      });
+    });
+
+    document.querySelectorAll('.js-copy-password').forEach(function(copyBtn) {
+      copyBtn.addEventListener('click', async function() {
+        const passwordBadge = copyBtn.parentElement.querySelector('.js-password-value');
+        if (!passwordBadge) {
+          return;
+        }
+
+        const plainPassword = passwordBadge.getAttribute('data-plain') || '';
+        if (!plainPassword || plainPassword === 'Not Set') {
+          return;
+        }
+
+        const originalLabel = copyBtn.textContent;
+        try {
+          await navigator.clipboard.writeText(plainPassword);
+          copyBtn.textContent = 'Copied';
+          setTimeout(function() {
+            copyBtn.textContent = originalLabel;
+          }, 1200);
+        } catch (error) {
+          copyBtn.textContent = 'Failed';
+          setTimeout(function() {
+            copyBtn.textContent = originalLabel;
+          }, 1200);
+        }
       });
     });
   });

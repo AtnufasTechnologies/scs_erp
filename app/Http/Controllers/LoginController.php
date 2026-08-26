@@ -6,7 +6,11 @@ use App\Mail\PasswordResetOtpMail;
 use App\Models\Faculty;
 use App\Models\PasswordReset;
 use App\Models\RoleMaster;
+use App\Models\Subject;
+use App\Models\SubjectFacultyMaster;
+use App\Models\SubjectHasDeptAdmin;
 use App\Models\User;
+use App\Models\UserCampusSetting;
 use App\Models\UserHasRole;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -190,6 +194,20 @@ class LoginController extends Controller
             return redirect('/')->with('error', 'Please login to continue.');
         }
 
+        $currentUrl = url()->current();
+        $requestedReturnTo = trim((string) request()->query('return_to', ''));
+
+        if ($requestedReturnTo !== '' && $requestedReturnTo !== $currentUrl) {
+            $host = (string) parse_url(config('app.url'), PHP_URL_HOST);
+            $returnHost = (string) parse_url($requestedReturnTo, PHP_URL_HOST);
+
+            if ($host !== '' && $returnHost === $host) {
+                session(['dashboard_switch_return_to' => $requestedReturnTo]);
+            }
+        }
+
+        $returnTo = (string) session('dashboard_switch_return_to', route('admin.dashboard'));
+
         $roleOptions = collect(session('dashboard_role_options', []));
         if ($roleOptions->isEmpty()) {
             $roleOptions = $this->getUserRoleNames(Auth::user())
@@ -215,6 +233,7 @@ class LoginController extends Controller
         return view('auth.dashboard-switcher', [
             'roleOptions' => $roleOptions,
             'activeRole' => (string) session('active_dashboard_role', ''),
+            'returnTo' => $returnTo,
         ]);
     }
 
@@ -401,9 +420,11 @@ class LoginController extends Controller
         $role = strtolower(trim($roleName));
 
         switch ($role) {
+            case 'hod':
             case 'dept-admin-erp':
-                $deptAdminDept = User::with('subjectdeptadmin.subject')->where('id', Auth::id())->first();
-                return $deptAdminDept && $deptAdminDept->subjectdeptadmin ? 'department.dashboard' : null;
+                return $this->ensureDepartmentMappingForHodUser((int) Auth::id())
+                    ? 'department.dashboard'
+                    : null;
 
             case 'account-office-incharge':
             case 'account-office-assistant':
@@ -463,5 +484,42 @@ class LoginController extends Controller
     {
         $normalized = strtolower(trim($roleName));
         return ucwords(str_replace(['-', '_'], ' ', $normalized));
+    }
+
+    private function ensureDepartmentMappingForHodUser(int $userId): bool
+    {
+        if ($userId <= 0) {
+            return false;
+        }
+
+        $existingSubjectId = (int) SubjectHasDeptAdmin::where('user_id', $userId)->value('subject_id');
+        if ($existingSubjectId > 0) {
+            return true;
+        }
+
+        $subjectId = (int) SubjectFacultyMaster::query()
+            ->where('access_id', $userId)
+            ->whereNotNull('subject_id')
+            ->orderByDesc('id')
+            ->value('subject_id');
+
+        if ($subjectId <= 0) {
+            return false;
+        }
+
+        SubjectHasDeptAdmin::updateOrCreate(
+            ['subject_id' => $subjectId],
+            ['user_id' => $userId]
+        );
+
+        $campusId = (int) Subject::where('id', $subjectId)->value('campus_id');
+        if ($campusId > 0) {
+            UserCampusSetting::updateOrCreate(
+                ['user_id' => $userId],
+                ['campus_id' => $campusId]
+            );
+        }
+
+        return true;
     }
 }

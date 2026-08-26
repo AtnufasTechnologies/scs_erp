@@ -27,7 +27,7 @@ $programs = Qs::getPgProgramGroups();
       @if($userRoleType == 'principal' || $userRoleType == 'vice-principal' || $userRoleType == 'bursar')
       <a href="{{route('principal.dashboard')}}"> <button class="btn btn-light">Back to Main</button></a>
       @endif
-      @if($userRoleType == 'dept-admin-erp')
+      @if(in_array($userRoleType, ['hod', 'dept-admin-erp']))
       <a href="{{route('department.dashboard')}}"> <button class="btn btn-light">Back to Main</button></a>
       @endif
     </div>
@@ -333,7 +333,7 @@ $programs = Qs::getPgProgramGroups();
                   <input class="form-control" id="proficiency_test_remarks{{ $item->id }}" name="proficiency_test_remarks" value="{{ $item->proficiency_test_remarks }}">
                 </div>
                 @endif
-                @if($userRoleType == 'dept-admin-erp')
+                @if(in_array($userRoleType, ['hod', 'dept-admin-erp']))
                 <div class="mb-3">
                   <label for="dept_interview{{ $item->id }}" class="form-label">Department Interview</label>
                   <select class="form-select" id="dept_interview{{ $item->id }}" name="dept_interview">
@@ -354,7 +354,7 @@ $programs = Qs::getPgProgramGroups();
                 @endif
 
 
-                @if($userRoleType == 'dept-admin-erp')
+                @if(in_array($userRoleType, ['hod', 'dept-admin-erp']))
                 <div class="mb-3">
                   <label for="dept_interview_remark{{ $item->id }}" class="form-label">Department Remark</label>
                   <textarea class="form-control" id="dept_interview_remark{{ $item->id }}" name="dept_interview_remark" rows="2">{{ $item->dept_interview_remark }}</textarea>
