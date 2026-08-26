@@ -1604,6 +1604,9 @@ Route::group(['prefix' => '/erp'], function () {
         Route::get('fix-librarycode/{id}', [TestController::class, 'fixLibraryCode']);
         Route::get('fix-student-semester', [TestController::class, 'fixStudentSemester']);
         Route::get('fix-syllabus', [TestController::class, 'fixSyllabusIssue']);
+        Route::get('theme-diagnostic', function () {
+            return view('test.theme-diagnostic');
+        })->name('test.theme-diagnostic');
         // Route::get('fix-fee-structure', [TestController::class, 'fixFeeStructure']);
         Route::get('fix-courses', [TestController::class, 'courseFix']);
         // Route::get('fix-admission-enrollment', [TestController::class, 'fixAdmissionEnrollment']); //run once to fix enrollment number in student master table
