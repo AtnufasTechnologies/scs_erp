@@ -1,4 +1,9 @@
 <?php
+$assetVersion = function ($path) {
+  $fullPath = public_path($path);
+  $version = file_exists($fullPath) ? filemtime($fullPath) : time();
+  return asset($path) . '?v=' . $version;
+};
 ?>
 <!-- end page content-->
 </div>
@@ -8,22 +13,22 @@
 
 
 <!-- JS Files-->
-<script src="{{asset('admin/js/jquery.min.js')}}"></script>
-<script src="{{asset('admin/plugins/simplebar/js/simplebar.min.js')}}"></script>
-<script src="{{asset('admin/plugins/metismenu/js/metisMenu.min.js')}}"></script>
-<script src="{{asset('admin/js/bootstrap.bundle.min.js')}}"></script>
+<script src="{{ $assetVersion('admin/js/jquery.min.js') }}"></script>
+<script src="{{ $assetVersion('admin/plugins/simplebar/js/simplebar.min.js') }}"></script>
+<script src="{{ $assetVersion('admin/plugins/metismenu/js/metisMenu.min.js') }}"></script>
+<script src="{{ $assetVersion('admin/js/bootstrap.bundle.min.js') }}"></script>
 <script type="module" src="https://unpkg.com/ionicons@7.1.0/dist/ionicons/ionicons.esm.js"></script>
 
 <!--plugins-->
-<script src="{{asset('admin/plugins/perfect-scrollbar/js/perfect-scrollbar.js')}}"></script>
-<script src="{{asset('admin/plugins/apexcharts-bundle/js/apexcharts.min.js')}}"></script>
+<script src="{{ $assetVersion('admin/plugins/perfect-scrollbar/js/perfect-scrollbar.js') }}"></script>
+<script src="{{ $assetVersion('admin/plugins/apexcharts-bundle/js/apexcharts.min.js') }}"></script>
 <!-- <script src="{{asset('admin/plugins/chartjs/chart.min.js')}}"></script> -->
-<script src="{{asset('admin/js/index.js')}}"></script>
+<script src="{{ $assetVersion('admin/js/index.js') }}"></script>
 <!-- <script src="{{asset('admin/plugins/chartjs/custom-script.js')}}"></script> -->
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 <!-- Main JS-->
-<script src="{{asset('admin/js/main.js')}}"></script>
-<script src="{{asset('admin/js/custom.js')}}"></script>
+<script src="{{ $assetVersion('admin/js/main.js') }}"></script>
+<script src="{{ $assetVersion('admin/js/custom.js') }}"></script>
 
 <!--Datatable-->
 <script src="https://cdn.datatables.net/2.2.2/js/dataTables.js"></script>
@@ -36,7 +41,7 @@
 <script src="https://cdn.datatables.net/buttons/3.2.1/js/buttons.print.min.js"></script>
 <!--Datatable Ends-->
 <script src="https://unpkg.com/@popperjs/core@2"></script>
-<script src="{{asset('admin/js/BsMultiSelect.min.js')}}"></script>
+<script src="{{ $assetVersion('admin/js/BsMultiSelect.min.js') }}"></script>
 <script src="https://cdn.ckeditor.com/ckeditor5/41.3.1/classic/ckeditor.js"></script>
 <script src="https://unpkg.com/@jarstone/dselect/dist/js/dselect.js"></script>
 <script type="text/javascript" src="//cdn.jsdelivr.net/npm/slick-carousel@1.8.1/slick/slick.min.js"></script>
