@@ -5,12 +5,12 @@
 
   <main class="page-content">
     <div class="page-breadcrumb d-none d-sm-flex align-items-center gap-2">
-      <div class="breadcrumb-title pe-3">TPO Events</div>
+      <div class="breadcrumb-title pe-3">External Facilitator</div>
       <div class="ps-2">
         <nav aria-label="breadcrumb">
           <ol class="breadcrumb mb-0 p-0">
             <li class="breadcrumb-item"><a href="{{ route('tpo.training-placement.dashboard') }}"><i class="bx bx-home-alt"></i></a></li>
-            <li class="breadcrumb-item active" aria-current="page">Events</li>
+            <li class="breadcrumb-item active" aria-current="page">External Facilitator</li>
           </ol>
         </nav>
       </div>
@@ -49,81 +49,16 @@
       </div>
 
       <div class="row g-4">
-        <div class="col-xl-4">
-          <div class="card shadow-sm border-0">
-            <div class="card-header bg-transparent">
-              <h6 class="mb-0 fw-bold">Add Conducted Event</h6>
-            </div>
-            <div class="card-body">
-              <form action="{{ route('tpo.training-placement.events.store') }}" method="POST" enctype="multipart/form-data" class="js-tpo-event-form">
-                @csrf
-                <div class="mb-2">
-                  <label class="form-label fw-semibold">Event Type</label>
-                  <select name="event_type" class="form-select" required>
-                    <option value="" selected disabled>Select type</option>
-                    @foreach($eventTypeOptions as $value => $label)
-                    <option value="{{ $value }}">{{ $label }}</option>
-                    @endforeach
-                  </select>
-                </div>
-                <div class="mb-2">
-                  <label class="form-label fw-semibold">Program Title</label>
-                  <input type="text" name="title" class="form-control" required>
-                </div>
-                <div class="mb-2">
-                  <label class="form-label fw-semibold">Resource Person (Optional)</label>
-                  <input type="text" name="resource_person" class="form-control" placeholder="Name of speaker/trainer">
-                </div>
-                <div class="row g-2 mb-2">
-                  <div class="col-md-6">
-                    <label class="form-label fw-semibold">Campus</label>
-                    <select name="campus_id" class="form-select js-event-campus" required>
-                      <option value="" selected disabled>Select campus</option>
-                      @foreach($campuses as $campus)
-                      <option value="{{ $campus->id }}">{{ $campus->name }}</option>
-                      @endforeach
-                    </select>
-                  </div>
-                  <div class="col-md-6">
-                    <label class="form-label fw-semibold">Department</label>
-                    <select name="subject_id" class="form-select js-event-subject" required>
-                      <option value="" selected disabled>Select department</option>
-                      @foreach($subjects as $subject)
-                      <option value="{{ $subject->id }}" data-campus-id="{{ $subject->campus_id }}">{{ $subject->title ?? $subject->name ?? ('Department #' . $subject->id) }}</option>
-                      @endforeach
-                    </select>
-                  </div>
-                </div>
-                <div class="row g-2 mb-2">
-                  <div class="col-md-6">
-                    <label class="form-label fw-semibold">Date</label>
-                    <input type="date" name="event_date" class="form-control" required>
-                  </div>
-                  <div class="col-md-6">
-                    <label class="form-label fw-semibold">Participants</label>
-                    <input type="number" min="0" name="participant_count" class="form-control" required>
-                  </div>
-                </div>
-                <div class="mb-2">
-                  <label class="form-label fw-semibold">Program Description</label>
-                  <textarea name="program_description" class="form-control" rows="3" required></textarea>
-                </div>
-                <div class="mb-3">
-                  <label class="form-label fw-semibold">Upload Report</label>
-                  <input type="file" name="report_file" class="form-control" accept=".pdf,.doc,.docx,.jpg,.jpeg,.png">
-                  <small class="text-muted">Allowed: PDF, DOC, DOCX, JPG, PNG (10MB max)</small>
-                </div>
-                <button class="btn btn-primary" type="submit">Save Event</button>
-              </form>
-            </div>
-          </div>
-        </div>
-
-        <div class="col-xl-8">
+        <div class="col-xl-12">
           <div class="card shadow-sm border-0">
             <div class="card-header bg-transparent d-flex justify-content-between align-items-center">
               <h6 class="mb-0 fw-bold">Conducted Events List</h6>
-              <span class="badge bg-secondary">Total: {{ $events->count() }}</span>
+              <div class="d-flex align-items-center gap-2">
+                <span class="badge bg-secondary">Total: {{ $events->count() }}</span>
+                <button class="btn btn-sm btn-success" type="button" data-bs-toggle="modal" data-bs-target="#addEventModal">
+                  <i class="fas fa-plus me-1"></i>Add External Facilitator Event
+                </button>
+              </div>
             </div>
             <div class="card-body">
               @forelse($events as $event)
@@ -132,14 +67,16 @@
                   <div>
                     <h6 class="mb-1 fw-bold">{{ $event->title }}</h6>
                     <div class="small text-muted mb-1">Type: {{ $eventTypeOptions[$event->event_type] ?? ucfirst(str_replace('_', ' ', $event->event_type ?? 'N/A')) }}</div>
-                    <div class="small text-muted mb-1">Resource Person: {{ $event->resource_person ?: 'N/A' }}</div>
+                    <div class="small text-muted mb-1">Resource Person: {{ $event->resource_person }}</div>
                     <div class="small text-muted mb-1">Campus: {{ $event->campus->name ?? 'N/A' }}</div>
-                    <div class="small text-muted mb-1">Department: {{ $event->subject->title ?? $event->subject->name ?? 'N/A' }}</div>
+                    <div class="small text-muted mb-1">Department: {{ $event->subject_id ? ($event->subject->title ?? $event->subject->name ?? 'N/A') : 'All Departments (Selected Campus)' }}</div>
                     <div class="small text-muted mb-1">Date: {{ $event->event_date ? $event->event_date->format('d M Y') : 'N/A' }}</div>
                     <div class="small text-muted mb-1">Participants: {{ $event->participant_count }}</div>
-                    <div class="small text-muted mb-2">Description: {{ $event->program_description }}</div>
+                    <div class="small mb-2 {{ (int) $event->participant_count === 0 ? 'text-success' : 'text-warning' }}">
+                      {{ (int) $event->participant_count === 0 ? 'Open for all participants.' : 'Limited seats available.' }}
+                    </div>
                     <div class="small text-muted mb-1">
-                      Report:
+                      Presentation Doc:
                       @if($event->report_path)
                       <a href="{{ Storage::disk('s3')->url($event->report_path) }}" target="_blank">View</a>
                       @else
@@ -188,8 +125,8 @@
                         <input type="text" name="title" class="form-control" value="{{ $event->title }}" required>
                       </div>
                       <div class="col-md-6">
-                        <label class="form-label fw-semibold">Resource Person (Optional)</label>
-                        <input type="text" name="resource_person" class="form-control" value="{{ $event->resource_person }}">
+                        <label class="form-label fw-semibold">Resource Person Name</label>
+                        <input type="text" name="resource_person" class="form-control" value="{{ $event->resource_person }}" required>
                       </div>
                       <div class="col-md-6">
                         <label class="form-label fw-semibold">Campus</label>
@@ -199,9 +136,10 @@
                           @endforeach
                         </select>
                       </div>
-                      <div class="col-md-6">
+                      <div class="col-md-6 js-event-subject-wrap">
                         <label class="form-label fw-semibold">Department</label>
                         <select name="subject_id" class="form-select js-event-subject" required>
+                          <option value="all" {{ is_null($event->subject_id) ? 'selected' : '' }}>All Departments (Selected Campus)</option>
                           @foreach($subjects as $subject)
                           <option value="{{ $subject->id }}" data-campus-id="{{ $subject->campus_id }}" {{ (int) $event->subject_id === (int) $subject->id ? 'selected' : '' }}>{{ $subject->title ?? $subject->name ?? ('Department #' . $subject->id) }}</option>
                           @endforeach
@@ -214,14 +152,12 @@
                       <div class="col-md-6">
                         <label class="form-label fw-semibold">Participants</label>
                         <input type="number" min="0" name="participant_count" class="form-control" value="{{ $event->participant_count }}" required>
+                        <small class="text-muted">Set 0 for open-to-all; any other value means limited seats.</small>
                       </div>
+                      <input type="hidden" name="program_description" value="">
                       <div class="col-12">
-                        <label class="form-label fw-semibold">Program Description</label>
-                        <textarea name="program_description" class="form-control" rows="3" required>{{ $event->program_description }}</textarea>
-                      </div>
-                      <div class="col-12">
-                        <label class="form-label fw-semibold">Replace Report</label>
-                        <input type="file" name="report_file" class="form-control" accept=".pdf,.doc,.docx,.jpg,.jpeg,.png">
+                        <label class="form-label fw-semibold">Replace Presentation Doc For Review</label>
+                        <input type="file" name="report_file" class="form-control" accept=".ppt,.pptx,.pdf,.doc,.docx">
                       </div>
                       <div class="col-12">
                         <button class="btn btn-sm btn-primary" type="submit">Save Changes</button>
@@ -237,6 +173,81 @@
           </div>
         </div>
       </div>
+
+      <div class="modal fade" id="addEventModal" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog modal-lg modal-dialog-centered">
+          <div class="modal-content">
+            <div class="modal-header">
+              <h5 class="modal-title">Add External Facilitator Event</h5>
+              <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <form action="{{ route('tpo.training-placement.events.store') }}" method="POST" enctype="multipart/form-data" class="js-tpo-event-form">
+              @csrf
+              <div class="modal-body">
+                <div class="mb-2">
+                  <label class="form-label fw-semibold">Event Type</label>
+                  <select name="event_type" class="form-select" required>
+                    <option value="" selected disabled>Select type</option>
+                    @foreach($eventTypeOptions as $value => $label)
+                    <option value="{{ $value }}">{{ $label }}</option>
+                    @endforeach
+                  </select>
+                </div>
+                <div class="mb-2">
+                  <label class="form-label fw-semibold">Program Title</label>
+                  <input type="text" name="title" class="form-control" required>
+                </div>
+                <div class="mb-2">
+                  <label class="form-label fw-semibold">Resource Person Name</label>
+                  <input type="text" name="resource_person" class="form-control" placeholder="Name of speaker/trainer" required>
+                </div>
+                <div class="row g-2 mb-2">
+                  <div class="col-md-6">
+                    <label class="form-label fw-semibold">Campus</label>
+                    <select name="campus_id" class="form-select js-event-campus" required>
+                      <option value="" selected disabled>Select campus</option>
+                      @foreach($campuses as $campus)
+                      <option value="{{ $campus->id }}">{{ $campus->name }}</option>
+                      @endforeach
+                    </select>
+                  </div>
+                  <div class="col-md-6 js-event-subject-wrap">
+                    <label class="form-label fw-semibold">Department</label>
+                    <select name="subject_id" class="form-select js-event-subject" required>
+                      <option value="" selected disabled>Select department</option>
+                      <option value="all">All Departments (Selected Campus)</option>
+                      @foreach($subjects as $subject)
+                      <option value="{{ $subject->id }}" data-campus-id="{{ $subject->campus_id }}">{{ $subject->title ?? $subject->name ?? ('Department #' . $subject->id) }}</option>
+                      @endforeach
+                    </select>
+                  </div>
+                </div>
+                <div class="row g-2 mb-2">
+                  <div class="col-md-6">
+                    <label class="form-label fw-semibold">Date</label>
+                    <input type="date" name="event_date" class="form-control" required>
+                  </div>
+                  <div class="col-md-6">
+                    <label class="form-label fw-semibold">Participants</label>
+                    <input type="number" min="0" name="participant_count" class="form-control" required>
+                    <small class="text-muted">Set 0 for open-to-all; any other value means limited seats.</small>
+                  </div>
+                </div>
+                <input type="hidden" name="program_description" value="">
+                <div class="mb-0">
+                  <label class="form-label fw-semibold">Upload Presentation Doc For Review</label>
+                  <input type="file" name="report_file" class="form-control" accept=".ppt,.pptx,.pdf,.doc,.docx">
+                  <small class="text-muted">Allowed: PPT, PPTX, PDF, DOC, DOCX (50MB max)</small>
+                </div>
+              </div>
+              <div class="modal-footer">
+                <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button class="btn btn-primary" type="submit">Submit</button>
+              </div>
+            </form>
+          </div>
+        </div>
+      </div>
     </div>
   </main>
 </div>
@@ -248,6 +259,7 @@
     forms.forEach(function(form) {
       var campusSelect = form.querySelector('.js-event-campus');
       var subjectSelect = form.querySelector('.js-event-subject');
+      var subjectWrap = form.querySelector('.js-event-subject-wrap');
 
       function applySubjectFilter() {
         if (!campusSelect || !subjectSelect) {
@@ -255,9 +267,28 @@
         }
 
         var campusId = campusSelect.value;
+
+        if (!campusId) {
+          if (subjectWrap) {
+            subjectWrap.style.display = 'none';
+          }
+          subjectSelect.disabled = true;
+          subjectSelect.required = false;
+          if (subjectSelect.value !== 'all') {
+            subjectSelect.value = '';
+          }
+          return;
+        }
+
+        if (subjectWrap) {
+          subjectWrap.style.display = '';
+        }
+        subjectSelect.disabled = false;
+        subjectSelect.required = true;
+
         Array.prototype.slice.call(subjectSelect.options).forEach(function(option) {
           var optionCampusId = option.getAttribute('data-campus-id');
-          if (!option.value || !optionCampusId || !campusId) {
+          if (!option.value || option.value === 'all' || !optionCampusId) {
             option.hidden = false;
             option.disabled = false;
             return;

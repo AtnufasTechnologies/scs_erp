@@ -28,11 +28,20 @@
               <a href="{{ route('tpo.training-placement.index') }}" class="btn btn-primary">
                 <i class="fas fa-chalkboard-teacher me-1"></i>Manage Training
               </a>
-              <a href="{{ route('tpo.training-placement.placement.index') }}" class="btn btn-outline-primary">
-                <i class="fas fa-briefcase me-1"></i>Manage Placement
+              <a href="{{ route('tpo.training-placement.job-description.index') }}" class="btn btn-outline-primary">
+                <i class="fas fa-briefcase me-1"></i>Manage Job Description
+              </a>
+              <a href="{{ route('tpo.training-placement.companies.index') }}" class="btn btn-outline-primary">
+                <i class="fas fa-building me-1"></i>Companies
+              </a>
+              <a href="{{ route('tpo.training-placement.mailbox.index') }}" class="btn btn-outline-primary">
+                <i class="fas fa-inbox me-1"></i>Inbox
               </a>
               <a href="{{ route('tpo.training-placement.analytics') }}" class="btn btn-outline-secondary">
                 <i class="fas fa-chart-line me-1"></i>Analytics
+              </a>
+              <a href="{{ route('tpo.training-placement.student-opt-in-forms.index') }}" class="btn btn-outline-primary">
+                <i class="fas fa-user-check me-1"></i>Student Opt-Ins
               </a>
             </div>
           </div>

@@ -73,6 +73,8 @@ use App\Http\Controllers\TestController;
 use App\Http\Controllers\TimetableController;
 use App\Http\Controllers\ITCellController;
 use App\Http\Controllers\LeadershipRoleAssignmentController;
+use App\Http\Controllers\TpoCompanyController;
+use App\Http\Controllers\TpoMailboxController;
 use App\Http\Controllers\TrainingPlacementController;
 use App\Http\Controllers\CentralOfficeController;
 use App\Http\Controllers\Dean\AttendanceMonitoringController as DeanAttendanceMonitoringController;
@@ -179,8 +181,15 @@ Route::group(['prefix' => '/erp'], function () {
         Route::post('itcell/student-campus-transfer', [ITCellController::class, 'storeStudentCampusTransfer'])->name('itcell.student-campus-transfer.store');
         Route::get('itcell/student-login-access', [ITCellController::class, 'studentLoginAccessIndex'])->name('itcell.student-login-access.index');
         Route::get('itcell/active-users', [ITCellController::class, 'activeUsersIndex'])->name('itcell.active-users.index');
+        Route::get('itcell/sync-all-student-course-infos-from-roster', [CourseOfferingController::class, 'syncRosterCoursesForAllStudents'])->name('itcell.sync-all-student-course-infos-from-roster');
+        Route::get('itcell/mail-server-settings', [ITCellController::class, 'mailServerSettingsIndex'])->name('itcell.mail-server-settings.index');
+        Route::post('itcell/mail-server-settings', [ITCellController::class, 'updateMailServerSettings'])->name('itcell.mail-server-settings.update');
+        Route::post('itcell/mail-server-settings/role-access', [ITCellController::class, 'updateMailServerRoleAccess'])->name('itcell.mail-server-settings.role-access.update');
         Route::post('itcell/student-login-access/{studentId}/reset-default-password', [ITCellController::class, 'resetStudentDefaultPassword'])->name('itcell.student-login-access.reset-default-password');
         Route::post('itcell/student-login-access/bulk-reset-default-password', [ITCellController::class, 'bulkResetStudentDefaultPassword'])->name('itcell.student-login-access.bulk-reset-default-password');
+        Route::get('itcell/student-login-access/{studentId}/course-allotment', [ITCellController::class, 'studentCourseAllotmentIndex'])->name('itcell.student-login-access.course-allotment.index');
+        Route::post('itcell/student-login-access/{studentId}/course-allotment', [ITCellController::class, 'studentCourseAllotmentStore'])->name('itcell.student-login-access.course-allotment.store');
+        Route::post('itcell/student-login-access/{studentId}/course-allotment/remove', [ITCellController::class, 'studentCourseAllotmentDestroy'])->name('itcell.student-login-access.course-allotment.destroy');
         Route::get('itcell/integrated-program-sublayers', [ITCellController::class, 'integratedProgramSublayersIndex'])->name('itcell.integrated-sublayer-settings.index');
         Route::post('itcell/integrated-program-sublayers', [ITCellController::class, 'integratedProgramSublayersStore'])->name('itcell.integrated-sublayer-settings.store');
         Route::put('itcell/integrated-program-sublayers/{id}', [ITCellController::class, 'integratedProgramSublayersUpdate'])->name('itcell.integrated-sublayer-settings.update');
@@ -803,7 +812,15 @@ Route::group(['prefix' => '/erp'], function () {
         //==Exclusive Console Access ONLY via Login ================= New Working Routes 04/05/2026
         Route::group(['prefix' => 'console'], function () {
             Route::get('dashboard', [StudentDashboardController::class, 'index'])->name('student.console.dashboard');
+            Route::get('my-profile', [StudentDashboardController::class, 'profilePage'])->name('student.console.profile');
+            Route::post('my-profile/contact', [StudentDashboardController::class, 'updateProfileContact'])->name('student.console.profile.contact.update');
+            Route::get('training', [StudentDashboardController::class, 'trainingPage'])->name('student.console.training');
+            Route::get('placement', [StudentDashboardController::class, 'placementPage'])->name('student.console.placement');
+            Route::get('training-placement', [StudentDashboardController::class, 'trainingPlacementPage'])->name('student.console.training-placement');
             Route::post('electives/confirm', [StudentDashboardController::class, 'confirmElectives'])->name('student.console.electives.confirm');
+            Route::post('training-placement/opt-in', [StudentDashboardController::class, 'submitTrainingPlacementOptIn'])->name('student.console.training-placement.opt-in');
+            Route::post('placement/my-docs', [StudentDashboardController::class, 'storePlacementDocument'])->name('student.console.placement.docs.store');
+            Route::post('placement/{placement}/apply', [StudentDashboardController::class, 'applyForPlacement'])->name('student.console.placement.apply');
         });
 
         Route::get('feedback', [StudentDashboardController::class, 'feedbackList'])->name('student.feedback.list');
@@ -816,6 +833,7 @@ Route::group(['prefix' => '/erp'], function () {
         Route::get('course-offerings', [CourseOfferingController::class, 'studentView'])->name('student.offerings.index');
         Route::post('course-offerings/register', [CourseOfferingController::class, 'studentRegister'])->name('student.offerings.register');
         Route::post('course-offerings/cancel/{id}', [CourseOfferingController::class, 'studentCancel'])->name('student.offerings.cancel');
+        Route::post('course-offerings/sync-roster-courses', [CourseOfferingController::class, 'syncRosterCoursesToStudentInfo'])->name('student.offerings.sync-roster-courses');
 
         //===================Old Working Routes === * Don Not Disturb * ============================
         Route::get('results', [StudentResultController::class, 'lookup'])->name('student.results.lookup');
@@ -1579,8 +1597,31 @@ Route::group(['prefix' => '/erp'], function () {
         Route::get('dashboard', [TrainingPlacementController::class, 'dashboard'])->name('tpo.training-placement.dashboard');
         Route::get('training-placement', [TrainingPlacementController::class, 'index'])->name('tpo.training-placement.index');
         Route::get('training-placement/placement', [TrainingPlacementController::class, 'placementIndex'])->name('tpo.training-placement.placement.index');
+        Route::get('training-placement/job-description', [TrainingPlacementController::class, 'placementIndex'])->name('tpo.training-placement.job-description.index');
+        Route::get('training-placement/job-applications', [TrainingPlacementController::class, 'jobApplicationsIndex'])->name('tpo.training-placement.job-applications.index');
         Route::get('training-placement/events', [TrainingPlacementController::class, 'eventsIndex'])->name('tpo.training-placement.events.index');
         Route::get('training-placement/analytics', [TrainingPlacementController::class, 'analytics'])->name('tpo.training-placement.analytics');
+        Route::get('training-placement/opted-students', [TrainingPlacementController::class, 'optedStudentsIndex'])->name('tpo.training-placement.opted-students.index');
+        Route::get('training-placement/opted-students/{user}/analysis', [TrainingPlacementController::class, 'studentTrainingAnalysis'])->name('tpo.training-placement.opted-students.analysis');
+        Route::get('training-placement/student-opt-in-forms', [TrainingPlacementController::class, 'studentOptInFormsIndex'])->name('tpo.training-placement.student-opt-in-forms.index');
+        Route::post('training-placement/student-opt-in-forms/template', [TrainingPlacementController::class, 'studentOptInTemplateStore'])->name('tpo.training-placement.student-opt-in-forms.template.store');
+        Route::post('training-placement/student-opt-in-forms/{studentId}/approve', [TrainingPlacementController::class, 'studentOptInApprove'])->name('tpo.training-placement.student-opt-in-forms.approve');
+        Route::post('training-placement/student-opt-in-forms/{studentId}/reject', [TrainingPlacementController::class, 'studentOptInReject'])->name('tpo.training-placement.student-opt-in-forms.reject');
+        Route::get('training-placement/companies', [TpoCompanyController::class, 'index'])->name('tpo.training-placement.companies.index');
+        Route::post('training-placement/companies', [TpoCompanyController::class, 'store'])->name('tpo.training-placement.companies.store');
+        Route::put('training-placement/companies/{company}', [TpoCompanyController::class, 'update'])->name('tpo.training-placement.companies.update');
+        Route::delete('training-placement/companies/{company}', [TpoCompanyController::class, 'destroy'])->name('tpo.training-placement.companies.destroy');
+        Route::get('training-placement/mailbox', [TpoMailboxController::class, 'index'])->name('tpo.training-placement.mailbox.index');
+        Route::get('training-placement/mailbox/sent', [TpoMailboxController::class, 'sentIndex'])->name('tpo.training-placement.mailbox.sent');
+        Route::get('training-placement/mailbox/trash', [TpoMailboxController::class, 'trashIndex'])->name('tpo.training-placement.mailbox.trash');
+        Route::get('training-placement/mailbox/compose', [TpoMailboxController::class, 'composePage'])->name('tpo.training-placement.mailbox.compose.page');
+        Route::post('training-placement/mailbox/compose', [TpoMailboxController::class, 'storeCompose'])->name('tpo.training-placement.mailbox.compose');
+        Route::get('training-placement/mailbox/{thread}', [TpoMailboxController::class, 'showThread'])->name('tpo.training-placement.mailbox.show');
+        Route::post('training-placement/mailbox/{thread}/trash', [TpoMailboxController::class, 'moveToTrash'])->name('tpo.training-placement.mailbox.move-to-trash');
+        Route::post('training-placement/mailbox/bulk-trash', [TpoMailboxController::class, 'bulkMoveToTrash'])->name('tpo.training-placement.mailbox.bulk-trash');
+        Route::post('training-placement/mailbox/{thread}/restore', [TpoMailboxController::class, 'restoreFromTrash'])->name('tpo.training-placement.mailbox.restore');
+        Route::delete('training-placement/mailbox/{thread}/permanent-delete', [TpoMailboxController::class, 'permanentDelete'])->name('tpo.training-placement.mailbox.permanent-delete');
+        Route::post('training-placement/mailbox/{thread}/reply', [TpoMailboxController::class, 'replyThread'])->name('tpo.training-placement.mailbox.reply');
         Route::post('training-placement/training', [TrainingPlacementController::class, 'storeTraining'])->name('tpo.training-placement.training.store');
         Route::put('training-placement/training/{training}', [TrainingPlacementController::class, 'updateTraining'])->name('tpo.training-placement.training.update');
         Route::delete('training-placement/training/{training}', [TrainingPlacementController::class, 'destroyTraining'])->name('tpo.training-placement.training.destroy');
@@ -1593,10 +1634,20 @@ Route::group(['prefix' => '/erp'], function () {
         Route::post('training-placement/placement', [TrainingPlacementController::class, 'storePlacement'])->name('tpo.training-placement.placement.store');
         Route::put('training-placement/placement/{placement}', [TrainingPlacementController::class, 'updatePlacement'])->name('tpo.training-placement.placement.update');
         Route::delete('training-placement/placement/{placement}', [TrainingPlacementController::class, 'destroyPlacement'])->name('tpo.training-placement.placement.destroy');
+        Route::post('training-placement/job-description', [TrainingPlacementController::class, 'storePlacement'])->name('tpo.training-placement.job-description.store');
+        Route::put('training-placement/job-description/{placement}', [TrainingPlacementController::class, 'updatePlacement'])->name('tpo.training-placement.job-description.update');
+        Route::delete('training-placement/job-description/{placement}', [TrainingPlacementController::class, 'destroyPlacement'])->name('tpo.training-placement.job-description.destroy');
         Route::post('training-placement/events', [TrainingPlacementController::class, 'storeEvent'])->name('tpo.training-placement.events.store');
         Route::put('training-placement/events/{event}', [TrainingPlacementController::class, 'updateEvent'])->name('tpo.training-placement.events.update');
         Route::delete('training-placement/events/{event}', [TrainingPlacementController::class, 'destroyEvent'])->name('tpo.training-placement.events.destroy');
     });
+
+    Route::get('tpo/company-reply/{thread}/{token}', [TpoMailboxController::class, 'companyReplyForm'])
+        ->middleware('signed')
+        ->name('tpo.training-placement.company-reply.form');
+    Route::post('tpo/company-reply/{thread}/{token}', [TpoMailboxController::class, 'companyReplySubmit'])
+        ->middleware('signed')
+        ->name('tpo.training-placement.company-reply.submit');
 
 
     //Testing route

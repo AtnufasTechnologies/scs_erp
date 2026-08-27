@@ -7,11 +7,23 @@
       <!-- Header -->
       <div class="p-4 mb-4 rounded-4 text-white"
         style="background: linear-gradient(135deg, #653dca 0%, #8931f6 100%);">
-        <h4 class="fw-bold mb-1"><i class="fas fa-book-open me-2"></i>Course Registration</h4>
-        <p class="mb-0 opacity-75 small">
-          Seats are allocated on a first-come, first-served basis.
-          Batch: <strong>{{ $student->batchmaster->batch_name ?? '—' }}</strong>
-        </p>
+        <div class="d-flex flex-wrap align-items-start justify-content-between gap-3">
+          <div>
+            <h4 class="fw-bold mb-1"><i class="fas fa-book-open me-2"></i>Course Registration</h4>
+            <p class="mb-0 opacity-75 small">
+              Seats are allocated on a first-come, first-served basis.
+              Batch: <strong>{{ $student->batchmaster->batch_name ?? '—' }}</strong>
+            </p>
+          </div>
+
+          <form action="{{ route('student.offerings.sync-roster-courses') }}" method="POST"
+            onsubmit="return confirm('Sync all your roster courses into your enrolled course list (StudentCourseInfo)?')">
+            @csrf
+            <button type="submit" class="btn btn-light btn-sm fw-semibold">
+              <i class="fas fa-link me-1"></i>Sync Roster Courses
+            </button>
+          </form>
+        </div>
       </div>
 
       <!-- My Registrations -->

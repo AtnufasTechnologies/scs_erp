@@ -13,6 +13,8 @@ use App\Models\Campus;
 use App\Models\DegreeTrackMaster;
 use App\Models\DepartmentMaster;
 use App\Models\IntegratedProgramSublayerSetting;
+use App\Models\ITCellMailRoleAccess;
+use App\Models\ITCellMailServerSetting;
 use App\Models\LateralEntryAuditLog;
 use App\Models\NationalityMaster;
 use App\Models\ProgramMaster;
@@ -22,6 +24,7 @@ use App\Models\ReligionMaster;
 use App\Models\Semester;
 use App\Models\StdProgComboMap;
 use App\Models\StudentCourseInfo;
+use App\Models\StudentCourseRoster;
 use App\Models\StudentCampusTransferLog;
 use App\Models\StudentRosterRuleMapping;
 use App\Models\StudentRosterRuleMaster;
@@ -35,6 +38,7 @@ use App\Models\UserHasRole;
 use App\Services\StudentRosterEngine;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Crypt;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\File;
 use Illuminate\Support\Facades\Hash;
@@ -46,6 +50,117 @@ use Maatwebsite\Excel\Facades\Excel;
 
 class ITCellController extends Controller
 {
+
+    public function mailServerSettingsIndex()
+    {
+        $this->assertItcellAccess();
+
+        $moduleKey = 'tpo';
+        $setting = ITCellMailServerSetting::query()
+            ->where('module_key', $moduleKey)
+            ->first();
+
+        $assignedRoles = ITCellMailRoleAccess::query()
+            ->where('module_key', $moduleKey)
+            ->pluck('role_name')
+            ->filter()
+            ->values();
+
+        $roles = DB::table('role_masters')
+            ->select(['slug', 'role_name', 'is_active'])
+            ->orderBy('role_name')
+            ->get();
+
+        return view('admin.itcell.mail-server-settings', [
+            'moduleKey' => $moduleKey,
+            'setting' => $setting,
+            'roles' => $roles,
+            'assignedRoles' => $assignedRoles,
+        ]);
+    }
+
+    public function updateMailServerSettings(Request $request)
+    {
+        $this->assertItcellAccess();
+
+        $validated = $request->validate([
+            'module_key' => 'required|string|in:tpo',
+            'mailer' => 'required|string|in:smtp,sendmail,mailgun,ses,postmark,log,array,failover,roundrobin',
+            'smtp_host' => 'required|string|max:255',
+            'smtp_port' => 'required|integer|min:1|max:65535',
+            'smtp_username' => 'required|string|max:255',
+            'smtp_password' => 'nullable|string|max:500',
+            'smtp_encryption' => 'nullable|string|in:tls,ssl',
+            'smtp_ehlo_domain' => 'nullable|string|max:255',
+            'from_address' => 'required|email|max:255',
+            'from_name' => 'required|string|max:255',
+            'is_active' => 'nullable|boolean',
+        ]);
+
+        $record = ITCellMailServerSetting::query()->firstOrNew([
+            'module_key' => $validated['module_key'],
+        ]);
+
+        $record->mailer = $validated['mailer'];
+        $record->smtp_host = $validated['smtp_host'];
+        $record->smtp_port = (int) $validated['smtp_port'];
+        $record->smtp_username = $validated['smtp_username'];
+
+        if (!empty($validated['smtp_password'])) {
+            $record->smtp_password = Crypt::encryptString((string) $validated['smtp_password']);
+        }
+
+        $record->smtp_encryption = $validated['smtp_encryption'] ?? null;
+        $record->smtp_ehlo_domain = $validated['smtp_ehlo_domain'] ?? null;
+        $record->from_address = $validated['from_address'];
+        $record->from_name = $validated['from_name'];
+        $record->is_active = isset($validated['is_active']) ? 1 : 0;
+        $record->updated_by = Auth::id();
+        $record->save();
+
+        return back()->with('success', 'Mail server settings updated successfully.');
+    }
+
+    public function updateMailServerRoleAccess(Request $request)
+    {
+        $this->assertItcellAccess();
+
+        $validated = $request->validate([
+            'module_key' => 'required|string|in:tpo',
+            'allowed_roles' => 'nullable|array',
+            'allowed_roles.*' => 'required|string|max:120',
+        ]);
+
+        $moduleKey = (string) $validated['module_key'];
+        $roles = collect($validated['allowed_roles'] ?? [])
+            ->map(fn($role) => trim((string) $role))
+            ->filter()
+            ->unique()
+            ->values();
+
+        DB::transaction(function () use ($moduleKey, $roles) {
+            ITCellMailRoleAccess::query()->where('module_key', $moduleKey)->delete();
+
+            foreach ($roles as $roleName) {
+                ITCellMailRoleAccess::create([
+                    'module_key' => $moduleKey,
+                    'role_name' => $roleName,
+                    'created_by' => Auth::id(),
+                ]);
+            }
+        });
+
+        return back()->with('success', 'Role access updated successfully.');
+    }
+
+    private function assertItcellAccess(): void
+    {
+        $userRole = StaticController::fetchUserRole((int) Auth::id());
+        if (!in_array($userRole, ['itcell', 'super-admin'], true)) {
+            abort(403, 'Only ITCELL can access this page.');
+        }
+    }
+
 
     public function activeUsersIndex(Request $request)
     {
@@ -362,6 +477,347 @@ class ITCellController extends Controller
         }
 
         return back()->with('success', $message);
+    }
+
+    public function studentCourseAllotmentIndex(Request $request, int $studentId)
+    {
+        $this->assertItcellAccess();
+
+        $student = StudentMaster::query()
+            ->with(['batchmaster:id,batch_name', 'stdprogramenrolled:id,code,name'])
+            ->findOrFail($studentId);
+
+        $semesterFilter = (int) $request->input('semester_id', 0);
+        $search = trim((string) $request->input('search', ''));
+
+        $coursesQuery = ProgramCourseMaster::query()
+            ->with(['semestermaster:id,title', 'coursetypemaster:id,title'])
+            ->select(['id', 'course_code', 'course_title', 'semester_id', 'course_type', 'credits']);
+
+        if (Schema::hasColumn('program_course_masters', 'is_deleted')) {
+            $coursesQuery->where(function ($query) {
+                $query->whereNull('is_deleted')->orWhere('is_deleted', 0);
+            });
+        }
+
+        if ($semesterFilter > 0) {
+            $coursesQuery->where('semester_id', $semesterFilter);
+        }
+
+        if ($search !== '') {
+            $coursesQuery->where(function ($query) use ($search) {
+                $query->where('course_code', 'like', '%' . $search . '%')
+                    ->orWhere('course_title', 'like', '%' . $search . '%');
+            });
+        }
+
+        $courses = $coursesQuery
+            ->orderBy('semester_id')
+            ->orderBy('course_code')
+            ->paginate(25)
+            ->appends($request->query());
+
+        $rosterCourseIds = StudentCourseRoster::query()
+            ->where('student_id', $student->id)
+            ->pluck('course_id')
+            ->map(fn($id) => (int) $id)
+            ->filter(fn($id) => $id > 0)
+            ->unique()
+            ->values();
+
+        $courseInfoCourseIds = StudentCourseInfo::query()
+            ->where('student_id', $student->id)
+            ->whereIn('course_id', $rosterCourseIds->all())
+            ->pluck('course_id')
+            ->map(fn($id) => (int) $id)
+            ->filter(fn($id) => $id > 0)
+            ->unique()
+            ->values();
+
+        $allottedCoursesQuery = ProgramCourseMaster::query()
+            ->with(['semestermaster:id,title', 'coursetypemaster:id,title'])
+            ->whereIn('id', $rosterCourseIds->all());
+
+        if ($semesterFilter > 0) {
+            $allottedCoursesQuery->where('semester_id', $semesterFilter);
+        }
+
+        if ($search !== '') {
+            $allottedCoursesQuery->where(function ($query) use ($search) {
+                $query->where('course_code', 'like', '%' . $search . '%')
+                    ->orWhere('course_title', 'like', '%' . $search . '%');
+            });
+        }
+
+        $allottedCourses = $allottedCoursesQuery
+            ->orderBy('semester_id')
+            ->orderBy('course_code')
+            ->get(['id', 'course_code', 'course_title', 'semester_id', 'course_type', 'credits']);
+
+        $semesters = Semester::query()->orderBy('title')->get(['id', 'title']);
+
+        return view('admin.itcell.student-course-allotment', [
+            'student' => $student,
+            'courses' => $courses,
+            'semesters' => $semesters,
+            'semesterFilter' => $semesterFilter,
+            'search' => $search,
+            'rosterCourseIds' => $rosterCourseIds,
+            'courseInfoCourseIds' => $courseInfoCourseIds,
+            'allottedCourses' => $allottedCourses,
+        ]);
+    }
+
+    public function studentCourseAllotmentStore(Request $request, int $studentId)
+    {
+        $this->assertItcellAccess();
+
+        $wantsJson = $request->expectsJson() || $request->ajax() || $request->boolean('ajax');
+
+        $student = StudentMaster::query()->with('batchmaster:id,batch_name')->findOrFail($studentId);
+        $validated = $request->validate([
+            'course_id' => 'required|integer|exists:program_course_masters,id',
+        ]);
+
+        $course = ProgramCourseMaster::query()->findOrFail((int) $validated['course_id']);
+        $semesterId = (int) ($course->semester_id ?? 0);
+        if ($semesterId <= 0) {
+            if ($wantsJson) {
+                return response()->json([
+                    'ok' => false,
+                    'message' => 'Cannot sync this course because semester is missing on course master.',
+                ], 422);
+            }
+            return back()->with('error', 'Cannot allot this course because semester is missing on course master.');
+        }
+
+        $academicYear = trim((string) ($student->batchmaster->batch_name ?? ''));
+        if ($academicYear === '') {
+            $academicYear = (string) date('Y');
+        }
+
+        $infoColumns = $this->studentCourseInfoColumnListing();
+        $rosterColumns = $this->studentCourseRosterColumnListing();
+
+        $rosterCreated = false;
+        $rosterRestored = false;
+        $infoCreated = false;
+        $infoRestored = false;
+
+        DB::transaction(function () use (
+            $student,
+            $course,
+            $semesterId,
+            $academicYear,
+            $infoColumns,
+            $rosterColumns,
+            &$rosterCreated,
+            &$rosterRestored,
+            &$infoCreated,
+            &$infoRestored
+        ) {
+            $roster = StudentCourseRoster::withTrashed()
+                ->where('student_id', (int) $student->id)
+                ->where('course_id', (int) $course->id)
+                ->first();
+
+            if ($roster) {
+                if ($roster->trashed()) {
+                    $roster->restore();
+                    $rosterRestored = true;
+                }
+            } else {
+                $rosterPayload = [
+                    'student_id' => (int) $student->id,
+                    'course_id' => (int) $course->id,
+                    'ta_id' => 0,
+                    'routine_id' => null,
+                ];
+
+                $rosterPayload = collect($rosterPayload)
+                    ->filter(fn($value, $key) => in_array($key, $rosterColumns, true))
+                    ->all();
+
+                StudentCourseRoster::create($rosterPayload);
+                $rosterCreated = true;
+            }
+
+            // StudentCourseRoster is the primary source; keep one active info record aligned to roster by student+course.
+            $courseInfo = StudentCourseInfo::withTrashed()
+                ->where('student_id', (int) $student->id)
+                ->where('course_id', (int) $course->id)
+                ->orderByDesc('id')
+                ->first();
+
+            if ($courseInfo) {
+                $updates = [];
+                if (in_array('semester', $infoColumns, true)) {
+                    $updates['semester'] = $semesterId;
+                }
+                if (in_array('academic_year', $infoColumns, true)) {
+                    $updates['academic_year'] = $academicYear;
+                }
+                if (in_array('is_active', $infoColumns, true)) {
+                    $updates['is_active'] = 1;
+                }
+                if (in_array('campus_id', $infoColumns, true)) {
+                    $updates['campus_id'] = (int) ($student->campus_id ?? 0);
+                }
+
+                if ($courseInfo->trashed()) {
+                    $courseInfo->restore();
+                    if (!empty($updates)) {
+                        $courseInfo->update($updates);
+                    }
+                    $infoRestored = true;
+                } elseif (!empty($updates)) {
+                    $courseInfo->update($updates);
+                }
+            } else {
+                $payload = [
+                    'student_id' => (int) $student->id,
+                    'course_id' => (int) $course->id,
+                    'semester' => $semesterId,
+                    'academic_year' => $academicYear,
+                    'campus_id' => (int) ($student->campus_id ?? 0),
+                    'is_active' => 1,
+                    'is_elective' => 0,
+                ];
+
+                $payload = collect($payload)
+                    ->filter(fn($value, $key) => in_array($key, $infoColumns, true))
+                    ->all();
+
+                StudentCourseInfo::create($payload);
+                $infoCreated = true;
+            }
+        });
+
+        $messages = [];
+        if ($rosterCreated) {
+            $messages[] = 'added in StudentCourseRoster';
+        }
+        if ($rosterRestored) {
+            $messages[] = 'restored in StudentCourseRoster';
+        }
+        if ($infoCreated) {
+            $messages[] = 'added in StudentCourseInfo';
+        }
+        if ($infoRestored) {
+            $messages[] = 'restored in StudentCourseInfo';
+        }
+
+        if (empty($messages)) {
+            if ($wantsJson) {
+                return response()->json([
+                    'ok' => true,
+                    'synced' => true,
+                    'message' => 'Course already present in both StudentCourseRoster and StudentCourseInfo.',
+                ]);
+            }
+            return back()->with('success', 'Course already present in both StudentCourseRoster and StudentCourseInfo.');
+        }
+
+        $successMessage = 'Course allotment synced successfully: ' . implode(', ', $messages) . '.';
+
+        if ($wantsJson) {
+            return response()->json([
+                'ok' => true,
+                'synced' => true,
+                'message' => $successMessage,
+                'details' => $messages,
+            ]);
+        }
+
+        return back()->with('success', $successMessage);
+    }
+
+    public function studentCourseAllotmentDestroy(Request $request, int $studentId)
+    {
+        $this->assertItcellAccess();
+
+        $wantsJson = $request->expectsJson() || $request->ajax() || $request->boolean('ajax');
+
+        $student = StudentMaster::query()->findOrFail($studentId);
+        $validated = $request->validate([
+            'course_id' => 'required|integer|exists:program_course_masters,id',
+        ]);
+
+        $courseId = (int) $validated['course_id'];
+
+        $rosterDeleted = 0;
+        $infoDeleted = 0;
+
+        DB::transaction(function () use ($student, $courseId, &$rosterDeleted, &$infoDeleted) {
+            $rosterQuery = StudentCourseRoster::query()
+                ->where('student_id', (int) $student->id)
+                ->where('course_id', $courseId);
+
+            $courseInfoQuery = StudentCourseInfo::query()
+                ->where('student_id', (int) $student->id)
+                ->where('course_id', $courseId);
+
+            $rosterDeleted = (int) $rosterQuery->count();
+
+            if ($rosterDeleted > 0) {
+                $rosterQuery->delete();
+                $infoDeleted = (int) $courseInfoQuery->count();
+                $courseInfoQuery->delete();
+            }
+        });
+
+        if ($rosterDeleted === 0) {
+            $message = 'No active StudentCourseRoster mapping found. Delete is allowed only for roster-allotted courses.';
+            if ($wantsJson) {
+                return response()->json(['ok' => false, 'message' => $message], 404);
+            }
+            return back()->with('error', $message);
+        }
+
+        $message = 'Course delete sync completed: removed from StudentCourseRoster (' . $rosterDeleted . ') and StudentCourseInfo (' . $infoDeleted . ').';
+        if ($wantsJson) {
+            return response()->json([
+                'ok' => true,
+                'removed' => true,
+                'message' => $message,
+                'roster_deleted' => $rosterDeleted,
+                'course_info_deleted' => $infoDeleted,
+            ]);
+        }
+
+        return back()->with('success', $message);
+    }
+
+    private function studentCourseInfoColumnListing(): array
+    {
+        static $columns = null;
+        if (is_array($columns)) {
+            return $columns;
+        }
+
+        try {
+            $columns = Schema::getColumnListing('student_course_infos');
+        } catch (\Throwable $e) {
+            $columns = [];
+        }
+
+        return $columns;
+    }
+
+    private function studentCourseRosterColumnListing(): array
+    {
+        static $columns = null;
+        if (is_array($columns)) {
+            return $columns;
+        }
+
+        try {
+            $columns = Schema::getColumnListing('student_course_rosters');
+        } catch (\Throwable $e) {
+            $columns = [];
+        }
+
+        return $columns;
     }
 
     private function upsertStudentDefaultAccess(StudentMaster $student): array

@@ -10,6 +10,7 @@ use App\Models\ProgramWiseSemesterCourse;
 use App\Models\Semester;
 use App\Models\StudentAttendance;
 use App\Models\StudentCourseInfo;
+use App\Models\StudentCourseRoster;
 use App\Models\StudentMaster;
 use App\Models\SubjectCourseMaster;
 use App\Models\SubjectHasRoutine;
@@ -29,6 +30,14 @@ use App\Models\MentorshipSession;
 use App\Models\MentorshipSessionAttendance;
 use App\Models\MentorshipAssignment;
 use App\Models\MentorshipAssignmentSubmission;
+use App\Models\TrainingProgram;
+use App\Models\TrainingPlacementOptIn;
+use App\Models\TrainingPlacementFormTemplate;
+use App\Models\PlacementOpportunity;
+use App\Models\PlacementApplication;
+use App\Models\StudentDocument;
+use App\Models\StudentDocumentMaster;
+use App\Models\UserHasRole;
 use App\Services\StudentTimetableService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -115,14 +124,35 @@ class StudentDashboardController extends Controller
       'feepayment.gatewaytype',
     ])->firstOrFail();
 
-    // Courses with semester and course type
-    $studentCourses = StudentCourseInfo::with([
-      'coursemaster.semestermaster:id,title',
-      'coursemaster.coursetypemaster:id,title,description',
-    ])
+    // Courses for dashboard should follow student-course-roster assignments.
+    $studentCourses = StudentCourseRoster::query()
+      ->with([
+        'course:id,course_code,course_title,credits,semester_id,course_type',
+        'course.semestermaster:id,title',
+        'course.coursetypemaster:id,title,description',
+      ])
       ->where('student_id', $studentId)
       ->orderByDesc('id')
       ->get()
+      ->map(function ($roster) {
+        $courseMaster = $roster->course;
+        if (!$courseMaster) {
+          return null;
+        }
+
+        $semesterId = (int) ($courseMaster->semester_id ?? 0);
+        if ($semesterId <= 0) {
+          return null;
+        }
+
+        return (object) [
+          'id' => (int) $roster->id,
+          'course_id' => (int) ($roster->course_id ?? 0),
+          'semester' => $semesterId,
+          'coursemaster' => $courseMaster,
+        ];
+      })
+      ->filter()
       ->unique(fn($c) => ($c->semester ?? $c->coursemaster?->semester_id ?? 'na') . '_' . $c->course_id)
       ->values();
 
@@ -334,6 +364,19 @@ class StudentDashboardController extends Controller
       $mentorshipStats['completed_assignments'] = $mentorshipAssignmentSubmissions->whereIn('status', ['submitted', 'graded'])->count();
     }
 
+    $trainingPlacementOptIn = TrainingPlacementOptIn::query()
+      ->where('student_id', (int) $studentId)
+      ->latest('id')
+      ->first();
+
+    $trainingPlacementFormTemplate = null;
+    if (Schema::hasTable('training_placement_form_templates')) {
+      $trainingPlacementFormTemplate = TrainingPlacementFormTemplate::query()
+        ->where('is_active', 1)
+        ->latest('id')
+        ->first();
+    }
+
     return view('student.dashboard', [
       'data'                              => $student,
       'studentCourses'                    => $studentCourses,
@@ -359,7 +402,460 @@ class StudentDashboardController extends Controller
       'mentorshipAssignments'             => $mentorshipAssignments,
       'mentorshipAssignmentSubmissions'   => $mentorshipAssignmentSubmissions,
       'mentorshipStats'                   => $mentorshipStats,
+      'trainingPlacementOptIn'            => $trainingPlacementOptIn,
+      'trainingPlacementFormTemplate'     => $trainingPlacementFormTemplate,
     ]);
+  }
+
+  /**
+   * Student opt-in for training and placement policy with form upload.
+   */
+  public function trainingPage()
+  {
+    [$trainingPlacementOptIn, $trainingPlacementFormTemplate, $tpStatus] = $this->resolveTrainingPlacementState();
+
+    $userId = (int) Auth::id();
+    $roleNames = UserHasRole::query()
+      ->where('user_id', $userId)
+      ->whereNotNull('role_name')
+      ->pluck('role_name')
+      ->map(fn($role) => trim((string) $role))
+      ->filter(fn($role) => $role !== '')
+      ->unique()
+      ->values();
+
+    if (!$roleNames->contains('student')) {
+      $roleNames->push('student');
+    }
+
+    $applicableTrainings = TrainingProgram::query()
+      ->with([
+        'targetRoles:id,training_program_id,role_name',
+        'attempts' => function ($query) use ($userId) {
+          $query->where('user_id', $userId)
+            ->orderByDesc('id');
+        },
+      ])
+      ->withCount(['resources', 'surveyQuestions'])
+      ->where('is_active', 1)
+      ->whereHas('targetRoles', function ($query) use ($roleNames) {
+        $query->whereIn('role_name', $roleNames->all());
+      })
+      ->latest('id')
+      ->get();
+
+    return view('student.training', [
+      'trainingPlacementOptIn' => $trainingPlacementOptIn,
+      'trainingPlacementFormTemplate' => $trainingPlacementFormTemplate,
+      'tpStatus' => $tpStatus,
+      'applicableTrainings' => $applicableTrainings,
+    ]);
+  }
+
+  public function placementPage()
+  {
+    [$trainingPlacementOptIn, $trainingPlacementFormTemplate, $tpStatus] = $this->resolveTrainingPlacementState();
+
+    $studentId = (int) $this->getStudent();
+    $userId = (int) Auth::id();
+    $student = StudentMaster::query()->find($studentId);
+
+    $availableJobs = collect();
+    $myApplications = collect();
+    $myDocuments = collect();
+    $documentationLabelMap = $this->documentationLabelMap();
+
+    if ($student) {
+      $myDocuments = StudentDocument::query()
+        ->where('student_id', $studentId)
+        ->where('is_active', 1)
+        ->latest('id')
+        ->get();
+
+      $myApplications = PlacementApplication::query()
+        ->with('placement:id,title,company_name,apply_deadline,category')
+        ->where('student_id', $studentId)
+        ->latest('applied_at')
+        ->latest('id')
+        ->get();
+
+      $allActiveJobs = PlacementOpportunity::query()
+        ->where('is_active', 1)
+        ->latest('id')
+        ->get();
+
+      $availableJobs = $allActiveJobs->filter(function ($job) use ($student) {
+        return $this->isJobApplicableToStudent($job, $student);
+      })->values();
+    }
+
+    $applicationMap = $myApplications->keyBy('placement_opportunity_id');
+
+    return view('student.placement', [
+      'trainingPlacementOptIn' => $trainingPlacementOptIn,
+      'trainingPlacementFormTemplate' => $trainingPlacementFormTemplate,
+      'tpStatus' => $tpStatus,
+      'availableJobs' => $availableJobs,
+      'myApplications' => $myApplications,
+      'applicationMap' => $applicationMap,
+      'myDocuments' => $myDocuments,
+      'documentationLabelMap' => $documentationLabelMap,
+      'studentRecord' => $student,
+      'currentUserId' => $userId,
+    ]);
+  }
+
+  public function profilePage()
+  {
+    $studentId = (int) $this->getStudent();
+    $student = StudentMaster::query()
+      ->with(['campusmaster:id,name', 'deptmaster:id,name', 'batchmaster:id,batch_name', 'stdprogramenrolled:id,name'])
+      ->findOrFail($studentId);
+
+    $myDocuments = StudentDocument::query()
+      ->where('student_id', $studentId)
+      ->where('is_active', 1)
+      ->latest('id')
+      ->get();
+
+    return view('student.my-profile', [
+      'studentRecord' => $student,
+      'myDocuments' => $myDocuments,
+      'documentationLabelMap' => $this->documentationLabelMap(),
+    ]);
+  }
+
+  // Backward-compatible route handler.
+  public function trainingPlacementPage()
+  {
+    return redirect()->route('student.console.placement');
+  }
+
+  private function resolveTrainingPlacementState(): array
+  {
+    $studentId = (int) $this->getStudent();
+
+    $trainingPlacementOptIn = TrainingPlacementOptIn::query()
+      ->where('student_id', $studentId)
+      ->latest('id')
+      ->first();
+
+    $trainingPlacementFormTemplate = null;
+    if (Schema::hasTable('training_placement_form_templates')) {
+      $trainingPlacementFormTemplate = TrainingPlacementFormTemplate::query()
+        ->where('is_active', 1)
+        ->latest('id')
+        ->first();
+    }
+
+    $rawStatus = strtolower((string) ($trainingPlacementOptIn->approval_status ?? ''));
+    $tpStatus = 'not_submitted';
+
+    if ($trainingPlacementOptIn && !empty($trainingPlacementOptIn->form_file_path)) {
+      $tpStatus = $rawStatus === 'approved' ? 'approved' : ($rawStatus !== '' ? $rawStatus : 'submitted');
+      if ($tpStatus === 'submitted') {
+        $tpStatus = 'in_review';
+      }
+    }
+
+    return [$trainingPlacementOptIn, $trainingPlacementFormTemplate, $tpStatus];
+  }
+
+  public function submitTrainingPlacementOptIn(Request $request)
+  {
+    $studentId = (int) $this->getStudent();
+    $userId = (int) Auth::id();
+
+    $existing = TrainingPlacementOptIn::query()
+      ->where('student_id', $studentId)
+      ->latest('id')
+      ->first();
+
+    $existingStatus = strtolower((string) ($existing->approval_status ?? ''));
+    if ($existing && $existingStatus === 'approved') {
+      return redirect()->route('student.console.placement')
+        ->with('error', 'Your form is already approved. Re-upload is not allowed.');
+    }
+
+    $request->validate([
+      'tnc_accepted' => 'required|accepted',
+      'tp_optin_form' => [($existing ? 'nullable' : 'required'), 'file', 'mimes:pdf,doc,docx', 'max:10240'],
+    ]);
+
+    $formPath = (string) ($existing->form_file_path ?? '');
+    if ($request->hasFile('tp_optin_form')) {
+      $formPath = (string) StaticController::s3_file_uploader($request->file('tp_optin_form'), 'training_placement_opt_forms');
+    }
+
+    if ($formPath === '') {
+      return redirect()->route('student.console.placement')
+        ->with('error', 'Please upload the Training and Placement opt-in form.');
+    }
+
+    $updatePayload = [
+      'user_id' => $userId,
+      'form_file_path' => $formPath,
+      'policy_accepted' => 1,
+      'policy_accepted_at' => now(),
+      'opted_at' => now(),
+    ];
+
+    if (Schema::hasColumn('training_placement_opt_ins', 'approval_status')) {
+      $updatePayload['approval_status'] = 'in_review';
+    }
+    if (Schema::hasColumn('training_placement_opt_ins', 'approved_by')) {
+      $updatePayload['approved_by'] = null;
+    }
+    if (Schema::hasColumn('training_placement_opt_ins', 'approved_at')) {
+      $updatePayload['approved_at'] = null;
+    }
+    if (Schema::hasColumn('training_placement_opt_ins', 'rejection_reason')) {
+      $updatePayload['rejection_reason'] = null;
+    }
+    if (Schema::hasColumn('training_placement_opt_ins', 'rejected_by')) {
+      $updatePayload['rejected_by'] = null;
+    }
+    if (Schema::hasColumn('training_placement_opt_ins', 'rejected_at')) {
+      $updatePayload['rejected_at'] = null;
+    }
+
+    TrainingPlacementOptIn::updateOrCreate(
+      ['student_id' => $studentId],
+      $updatePayload
+    );
+
+    return redirect()->route('student.console.placement')
+      ->with('success', 'Training and Placement form submitted successfully. Your application is now in review.');
+  }
+
+  public function storePlacementDocument(Request $request)
+  {
+    $studentId = (int) $this->getStudent();
+    $userId = (int) Auth::id();
+
+    $validated = $request->validate([
+      'document_key' => 'required|string|max:120',
+      'document_file' => 'required|file|mimes:pdf,doc,docx,jpg,jpeg,png|max:10240',
+    ]);
+
+    $docKey = $this->normalizeDocKey((string) ($validated['document_key'] ?? ''));
+    if ($docKey === '') {
+      return back()->withErrors([
+        'document_key' => 'Please select a valid document type.',
+      ])->withInput();
+    }
+
+    $docMaster = StudentDocumentMaster::query()
+      ->where('slug', $docKey)
+      ->where('is_active', 1)
+      ->first();
+
+    if (!$docMaster) {
+      return back()->withErrors([
+        'document_key' => 'Selected document type is not available.',
+      ])->withInput();
+    }
+
+    $filePath = (string) StaticController::s3_file_uploader($request->file('document_file'), 'student_placement_documents');
+    if ($filePath === '') {
+      return back()->with('error', 'Unable to upload document. Please try again.');
+    }
+
+    StudentDocument::create([
+      'student_id' => $studentId,
+      'user_id' => $userId,
+      'document_key' => $docKey,
+      'title' => (string) $docMaster->name,
+      'file_path' => $filePath,
+      'mime_type' => (string) $request->file('document_file')->getMimeType(),
+      'file_size' => (int) $request->file('document_file')->getSize(),
+      'is_resume' => (int) ($docMaster->is_resume ?? 0) === 1,
+      'is_active' => 1,
+    ]);
+
+    return back()->with('success', 'Document saved in My Docs.');
+  }
+
+  public function applyForPlacement(Request $request, PlacementOpportunity $placement)
+  {
+    $studentId = (int) $this->getStudent();
+    $userId = (int) Auth::id();
+    $student = StudentMaster::query()->findOrFail($studentId);
+
+    if ((int) $placement->is_active !== 1) {
+      return redirect()->route('student.console.placement')->with('error', 'This opportunity is not open for applications.');
+    }
+
+    if (!$this->isJobApplicableToStudent($placement, $student)) {
+      return redirect()->route('student.console.placement')->with('error', 'This job description is not applicable for your profile.');
+    }
+
+    $request->validate([
+      'resume_document_id' => 'nullable|integer|exists:student_documents,id',
+      'resume_upload' => 'nullable|file|mimes:pdf,doc,docx|max:10240',
+      'required_document_ids' => 'nullable|array',
+      'required_document_ids.*' => 'nullable|integer|exists:student_documents,id',
+      'required_document_uploads' => 'nullable|array',
+      'required_document_uploads.*' => 'nullable|file|mimes:pdf,doc,docx,jpg,jpeg,png|max:10240',
+    ]);
+
+    if (!$request->filled('resume_document_id') && !$request->hasFile('resume_upload')) {
+      return redirect()->route('student.console.placement')->withErrors([
+        'resume_upload' => 'Resume is mandatory. Please select from My Docs or upload a new file.',
+      ])->withInput();
+    }
+
+    $requiredKeys = collect((array) ($placement->documentation_required ?? []))
+      ->map(fn($value) => $this->normalizeDocKey((string) $value))
+      ->filter(fn($value) => $value !== '')
+      ->unique()
+      ->values();
+
+    $requiredUploads = (array) $request->file('required_document_uploads', []);
+    foreach ($requiredKeys as $docKey) {
+      $selectedForKey = (int) $request->input('required_document_ids.' . $docKey) > 0;
+      $uploadedForKey = array_key_exists($docKey, $requiredUploads) && !empty($requiredUploads[$docKey]);
+
+      if (!$selectedForKey && !$uploadedForKey) {
+        return redirect()->route('student.console.placement')->withErrors([
+          'required_document_ids.' . $docKey => 'Please provide the required document: ' . $this->docLabel($docKey),
+        ])->withInput();
+      }
+    }
+
+    $studentDocuments = StudentDocument::query()
+      ->where('student_id', $studentId)
+      ->where('is_active', 1)
+      ->get()
+      ->keyBy('id');
+
+    $resumeDocument = null;
+    if ($request->filled('resume_document_id')) {
+      $resumeCandidateId = (int) $request->input('resume_document_id');
+      $resumeDocument = $studentDocuments->get($resumeCandidateId);
+      if (!$resumeDocument) {
+        return redirect()->route('student.console.placement')->withErrors([
+          'resume_document_id' => 'Selected resume document was not found in your My Docs.',
+        ])->withInput();
+      }
+    }
+
+    if (!$resumeDocument && $request->hasFile('resume_upload')) {
+      $resumeFile = $request->file('resume_upload');
+      $resumePath = (string) StaticController::s3_file_uploader($resumeFile, 'student_placement_documents/resumes');
+      if ($resumePath === '') {
+        return redirect()->route('student.console.placement')->with('error', 'Unable to upload resume. Please try again.')->withInput();
+      }
+
+      $resumeDocument = StudentDocument::create([
+        'student_id' => $studentId,
+        'user_id' => $userId,
+        'document_key' => 'resume',
+        'title' => 'Resume',
+        'file_path' => $resumePath,
+        'mime_type' => (string) $resumeFile->getMimeType(),
+        'file_size' => (int) $resumeFile->getSize(),
+        'is_resume' => 1,
+        'is_active' => 1,
+      ]);
+    }
+
+    if (!$resumeDocument || empty($resumeDocument->file_path)) {
+      return redirect()->route('student.console.placement')->withErrors([
+        'resume_upload' => 'Resume upload is mandatory to apply.',
+      ])->withInput();
+    }
+
+    $submittedDocuments = [];
+    $submittedDocumentIds = [];
+
+    foreach ($requiredKeys as $docKey) {
+      $selectedId = (int) $request->input('required_document_ids.' . $docKey);
+      $selectedDoc = $selectedId > 0 ? $studentDocuments->get($selectedId) : null;
+
+      if ($selectedDoc) {
+        $submittedDocuments[$docKey] = [
+          'document_id' => (int) $selectedDoc->id,
+          'title' => (string) $selectedDoc->title,
+          'file_path' => (string) $selectedDoc->file_path,
+        ];
+        $submittedDocumentIds[] = (int) $selectedDoc->id;
+        continue;
+      }
+
+      if ($request->hasFile('required_document_uploads.' . $docKey)) {
+        $docFile = $request->file('required_document_uploads.' . $docKey);
+        $docPath = (string) StaticController::s3_file_uploader($docFile, 'student_placement_documents/required');
+        if ($docPath === '') {
+          return redirect()->route('student.console.placement')->with('error', 'Unable to upload required document: ' . $this->docLabel($docKey))->withInput();
+        }
+
+        $createdDoc = StudentDocument::create([
+          'student_id' => $studentId,
+          'user_id' => $userId,
+          'document_key' => $docKey,
+          'title' => $this->docLabel($docKey),
+          'file_path' => $docPath,
+          'mime_type' => (string) $docFile->getMimeType(),
+          'file_size' => (int) $docFile->getSize(),
+          'is_resume' => 0,
+          'is_active' => 1,
+        ]);
+
+        $submittedDocuments[$docKey] = [
+          'document_id' => (int) $createdDoc->id,
+          'title' => (string) $createdDoc->title,
+          'file_path' => (string) $createdDoc->file_path,
+        ];
+        $submittedDocumentIds[] = (int) $createdDoc->id;
+      }
+    }
+
+    PlacementApplication::updateOrCreate(
+      [
+        'placement_opportunity_id' => (int) $placement->id,
+        'student_id' => $studentId,
+      ],
+      [
+        'user_id' => $userId,
+        'resume_document_id' => (int) $resumeDocument->id,
+        'resume_file_path' => (string) $resumeDocument->file_path,
+        'submitted_document_ids' => collect($submittedDocumentIds)->unique()->values()->all(),
+        'submitted_documents' => $submittedDocuments,
+        'status' => 'submitted',
+        'applied_at' => now(),
+      ]
+    );
+
+    return redirect()->route('student.console.placement')->with('success', 'Job application submitted successfully.');
+  }
+
+  public function updateProfileContact(Request $request)
+  {
+    $studentId = (int) $this->getStudent();
+    $student = StudentMaster::query()->findOrFail($studentId);
+
+    $validated = $request->validate([
+      'mobile_no' => 'required|string|max:20',
+      'mail_id' => 'required|email|max:255',
+    ]);
+
+    $student->update([
+      'mobile_no' => trim((string) $validated['mobile_no']),
+      'mail_id' => strtolower(trim((string) $validated['mail_id'])),
+    ]);
+
+    $authUser = Auth::user();
+    if ($authUser) {
+      DB::table('users')
+        ->where('id', (int) $authUser->id)
+        ->update([
+          'email' => strtolower(trim((string) $validated['mail_id'])),
+          'updated_at' => now(),
+        ]);
+    }
+
+    return back()->with('success', 'Phone number and email updated successfully.');
   }
 
   public function confirmElectives(Request $request)
@@ -1289,6 +1785,126 @@ class StudentDashboardController extends Controller
       'hours' => $hours,
       'schedule' => $timetable,
     ];
+  }
+
+  private function normalizeDocKey(string $value): string
+  {
+    $normalized = strtolower(trim($value));
+    if ($normalized === '') {
+      return '';
+    }
+
+    $normalized = preg_replace('/[^a-z0-9]+/', '_', $normalized);
+    return trim((string) $normalized, '_');
+  }
+
+  private function documentationLabelMap(): array
+  {
+    if (Schema::hasTable('student_document_masters')) {
+      $masterRows = StudentDocumentMaster::query()
+        ->where('is_active', 1)
+        ->orderBy('sort_order')
+        ->orderBy('name')
+        ->get(['slug', 'name']);
+
+      if ($masterRows->isNotEmpty()) {
+        return $masterRows->mapWithKeys(function ($row) {
+          return [(string) $row->slug => (string) $row->name];
+        })->all();
+      }
+    }
+
+    return [
+      'aadhaar_card' => 'Aadhaar Card',
+      'pan_card' => 'PAN Card',
+      'marksheet' => 'Marksheet',
+      'portfolio' => 'Portfolio',
+      'cover_letter' => 'Cover Letter',
+      'passport_photo' => 'Passport Photo',
+      'identity_card' => 'College ID Card',
+      'noc' => 'NOC',
+      'resume' => 'Resume',
+    ];
+  }
+
+  private function docLabel(string $docKey): string
+  {
+    $key = $this->normalizeDocKey($docKey);
+    $labels = $this->documentationLabelMap();
+
+    if (array_key_exists($key, $labels)) {
+      return $labels[$key];
+    }
+
+    return ucwords(str_replace('_', ' ', $key));
+  }
+
+  private function isJobApplicableToStudent(PlacementOpportunity $job, StudentMaster $student): bool
+  {
+    $studentYear = $this->normalizeYearBucket((string) ($student->current_year ?? ''));
+    $allowedYear = $this->normalizeYearBucket((string) ($job->student_year ?? ''));
+
+    if ($allowedYear === '') {
+      return true;
+    }
+
+    if ($studentYear === '') {
+      // If student year is unavailable, do not hide all jobs.
+      return true;
+    }
+
+    if (strcasecmp($allowedYear, 'passout') !== 0 && strcasecmp($studentYear, $allowedYear) !== 0) {
+      return false;
+    }
+
+    return true;
+  }
+
+  private function normalizeYearBucket(string $value): string
+  {
+    $normalized = strtolower(trim($value));
+    if ($normalized === '') {
+      return '';
+    }
+
+    $collapsed = preg_replace('/\s+/', '', $normalized);
+    if (!is_string($collapsed) || $collapsed === '') {
+      return '';
+    }
+
+    if (str_contains($collapsed, 'passout') || str_contains($collapsed, 'passedout')) {
+      return 'passout';
+    }
+
+    $romanMap = [
+      'i' => '1',
+      'ii' => '2',
+      'iii' => '3',
+      'iv' => '4',
+      'v' => '5',
+    ];
+
+    $wordMap = [
+      'firstyear' => '1',
+      'secondyear' => '2',
+      'thirdyear' => '3',
+      'fourthyear' => '4',
+      'fifthyear' => '5',
+    ];
+
+    if (array_key_exists($collapsed, $romanMap)) {
+      return $romanMap[$collapsed];
+    }
+
+    if (array_key_exists($collapsed, $wordMap)) {
+      return $wordMap[$collapsed];
+    }
+
+    if (preg_match('/^([1-5])(?:st|nd|rd|th)?(?:year)?$/', $collapsed, $matches) === 1) {
+      return (string) ($matches[1] ?? '');
+    }
+
+    return $collapsed;
   }
 
   /**

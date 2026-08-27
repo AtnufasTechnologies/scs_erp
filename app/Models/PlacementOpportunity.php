@@ -54,4 +54,9 @@ class PlacementOpportunity extends Model
   {
     return $this->belongsTo(Campus::class);
   }
+
+  public function applications()
+  {
+    return $this->hasMany(PlacementApplication::class, 'placement_opportunity_id');
+  }
 }

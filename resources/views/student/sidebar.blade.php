@@ -30,6 +30,13 @@ $studentGender = (int) ($student?->GENDER ?? $student?->gender ?? 0);
       </a>
     </li>
 
+    <li>
+      <a href="{{ route('student.console.profile') }}" class="{{ request()->routeIs('student.console.profile') ? 'active' : '' }}">
+        <div class="parent-icon"><i class="fas fa-user-circle"></i></div>
+        <div class="menu-title">My Doc Vault</div>
+      </a>
+    </li>
+
 
     <li>
       <a href="{{ route('student.console.dashboard') }}#tab-timetable" onclick="switchTab('timetable')">
@@ -79,6 +86,20 @@ $studentGender = (int) ($student?->GENDER ?? $student?->gender ?? 0);
       <a href="{{ route('student.console.dashboard') }}#tab-fees" onclick="switchTab('fees')">
         <div class="parent-icon"><i class="fas fa-wallet"></i></div>
         <div class="menu-title">Fee Payments</div>
+      </a>
+    </li>
+
+    <li>
+      <a href="{{ route('student.console.training') }}" class="{{ request()->routeIs('student.console.training') ? 'active' : '' }}">
+        <div class="parent-icon"><i class="fas fa-chalkboard-teacher"></i></div>
+        <div class="menu-title">Training</div>
+      </a>
+    </li>
+
+    <li>
+      <a href="{{ route('student.console.placement') }}" class="{{ request()->routeIs('student.console.placement') || request()->routeIs('student.console.training-placement') ? 'active' : '' }}">
+        <div class="parent-icon"><i class="fas fa-briefcase"></i></div>
+        <div class="menu-title">Placement</div>
       </a>
     </li>
 

@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\PlacementOpportunity;
+use App\Models\PlacementApplication;
 use App\Models\Campus;
 use App\Models\RoleMaster;
 use App\Models\TrainingAttempt;
@@ -12,9 +13,13 @@ use App\Models\TrainingSurveyOption;
 use App\Models\TrainingSurveyQuestion;
 use App\Models\TrainingSurveyResponse;
 use App\Models\TrainingTargetRole;
+use App\Models\TrainingPlacementOptIn;
+use App\Models\TrainingPlacementFormTemplate;
 use App\Models\TpoEvent;
 use App\Models\Subject;
+use App\Models\StudentMaster;
 use App\Models\UserHasRole;
+use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
@@ -169,13 +174,14 @@ class TrainingPlacementController extends Controller
       });
     }
 
-    $placements = $placementsQuery->latest()->get();
+    $placements = $placementsQuery->withCount('applications')->latest()->get();
     $subjects = Subject::orderBy('title')->get(['id', 'title', 'code', 'campus_id']);
     $subjectLookup = $subjects->keyBy('id');
     $campuses = Campus::orderBy('name')->get(['id', 'name']);
     $categoryOptions = $this->placementCategoryOptions();
     $placementTypeOptions = $this->placementTypeOptions();
     $openingTypeOptions = $this->openingTypeOptions();
+    $documentationRequirementOptions = $this->documentationRequirementOptions();
     $monthOptions = $this->monthOptions();
     $yearOptions = $this->studentYearOptions();
 
@@ -187,10 +193,49 @@ class TrainingPlacementController extends Controller
       'categoryOptions',
       'placementTypeOptions',
       'openingTypeOptions',
+      'documentationRequirementOptions',
       'monthOptions',
       'yearOptions',
       'placementSearch'
     ));
+  }
+
+  public function jobApplicationsIndex(Request $request)
+  {
+    $search = trim((string) $request->input('search', ''));
+    $searchLike = '%' . $search . '%';
+
+    $applicationsQuery = PlacementApplication::query()
+      ->with([
+        'placement:id,title,company_name,category',
+        'student:id,first_name,last_name,roll_no,register_no,mail_id',
+      ]);
+
+    if ($search !== '') {
+      $applicationsQuery->where(function ($query) use ($searchLike) {
+        $query->whereHas('placement', function ($placementQuery) use ($searchLike) {
+          $placementQuery->where('title', 'like', $searchLike)
+            ->orWhere('company_name', 'like', $searchLike);
+        })->orWhereHas('student', function ($studentQuery) use ($searchLike) {
+          $studentQuery->where('first_name', 'like', $searchLike)
+            ->orWhere('last_name', 'like', $searchLike)
+            ->orWhere('roll_no', 'like', $searchLike)
+            ->orWhere('register_no', 'like', $searchLike)
+            ->orWhere('mail_id', 'like', $searchLike);
+        });
+      });
+    }
+
+    $applications = $applicationsQuery
+      ->latest('applied_at')
+      ->latest('id')
+      ->paginate(25)
+      ->appends($request->query());
+
+    return view('tpo.training-placement.job-applications', [
+      'applications' => $applications,
+      'search' => $search,
+    ]);
   }
 
   public function storeTraining(Request $request)
@@ -461,7 +506,7 @@ class TrainingPlacementController extends Controller
   {
     $validated = $request->validate([
       'title' => 'required|string|max:255',
-      'category' => 'required|in:internship,apprenticeship,placements,project',
+      'category' => 'required|in:internship,apprenticeship,placement,placements,project',
       'month' => 'required|integer|min:1|max:12',
       'company_name' => 'nullable|string|max:255',
       'drive_date' => 'nullable|date',
@@ -470,11 +515,13 @@ class TrainingPlacementController extends Controller
       'location' => 'required|string|max:255',
       'country' => 'nullable|string|max:255',
       'logo' => 'nullable|image|mimes:jpg,jpeg,png,webp|max:5120',
-      'student_year' => 'required|in:1st Year,2nd Year,3rd Year,4th Year,5th Year,Passout',
+      'student_year' => 'required|integer|in:1,2,3,4,5',
       'internship_stipend_type' => 'nullable|in:stipend,non_stipend',
       'placement_type' => 'nullable|in:on,off,online_virtual,pool',
       'opening_type' => 'nullable|in:psu,private',
-      'documentation_required_text' => 'nullable|string',
+      'documentation_required' => 'nullable|array',
+      'documentation_required.*' => 'nullable|string|max:120',
+      'documentation_required_custom' => 'nullable|string|max:1200',
     ]);
 
     $applicabilityScope = (string) $request->input('applicability_scope', 'selected_departments');
@@ -533,9 +580,13 @@ class TrainingPlacementController extends Controller
       ])->withInput();
     }
 
-    $documentationRequired = $this->parseDocumentationList((string) ($validated['documentation_required_text'] ?? ''));
+    $documentationRequired = $this->normalizeDocumentationRequirements(
+      (array) ($validated['documentation_required'] ?? []),
+      (string) ($validated['documentation_required_custom'] ?? '')
+    );
+    $normalizedCategory = $validated['category'] === 'placement' ? 'placements' : $validated['category'];
     $internshipStipendType = $validated['internship_stipend_type'] ?? null;
-    if ($validated['category'] === 'placements') {
+    if ($normalizedCategory === 'placements') {
       if (empty($validated['placement_type'])) {
         return back()->withErrors(['placement_type' => 'Placement type is required for Placement category.'])->withInput();
       }
@@ -543,21 +594,19 @@ class TrainingPlacementController extends Controller
         return back()->withErrors(['opening_type' => 'Opening type is required for Placement category.'])->withInput();
       }
       if (empty($documentationRequired)) {
-        return back()->withErrors(['documentation_required_text' => 'Please list required documentation for Placement category.'])->withInput();
+        return back()->withErrors(['documentation_required' => 'Please select at least one required document for Placement category.'])->withInput();
       }
       $internshipStipendType = null;
-    } elseif ($validated['category'] === 'internship') {
+    } elseif ($normalizedCategory === 'internship') {
       if (empty($internshipStipendType)) {
         return back()->withErrors(['internship_stipend_type' => 'Please select stipend or non stipend for Internship category.'])->withInput();
       }
       $validated['placement_type'] = null;
       $validated['opening_type'] = null;
-      $documentationRequired = null;
     } else {
       $internshipStipendType = null;
       $validated['placement_type'] = null;
       $validated['opening_type'] = null;
-      $documentationRequired = null;
     }
 
     $logoPath = null;
@@ -565,10 +614,10 @@ class TrainingPlacementController extends Controller
       $logoPath = $request->file('logo')->store('placement_logos', 's3');
     }
 
-    DB::transaction(function () use ($validated, $logoPath, $subjectIds, $documentationRequired, $campusId, $internshipStipendType) {
+    DB::transaction(function () use ($validated, $logoPath, $subjectIds, $documentationRequired, $campusId, $internshipStipendType, $normalizedCategory) {
       $attributes = [
         'title' => $validated['title'],
-        'category' => $validated['category'],
+        'category' => $normalizedCategory,
         'month' => $validated['month'],
         'company_name' => $validated['company_name'] ?? null,
         'drive_date' => $validated['drive_date'] ?? null,
@@ -599,7 +648,7 @@ class TrainingPlacementController extends Controller
   {
     $validated = $request->validate([
       'title' => 'required|string|max:255',
-      'category' => 'required|in:internship,apprenticeship,placements,project',
+      'category' => 'required|in:internship,apprenticeship,placement,placements,project',
       'month' => 'required|integer|min:1|max:12',
       'company_name' => 'nullable|string|max:255',
       'drive_date' => 'nullable|date',
@@ -608,11 +657,13 @@ class TrainingPlacementController extends Controller
       'location' => 'required|string|max:255',
       'country' => 'nullable|string|max:255',
       'logo' => 'nullable|image|mimes:jpg,jpeg,png,webp|max:5120',
-      'student_year' => 'required|in:1st Year,2nd Year,3rd Year,4th Year,5th Year,Passout',
+      'student_year' => 'required|integer|in:1,2,3,4,5',
       'internship_stipend_type' => 'nullable|in:stipend,non_stipend',
       'placement_type' => 'nullable|in:on,off,online_virtual,pool',
       'opening_type' => 'nullable|in:psu,private',
-      'documentation_required_text' => 'nullable|string',
+      'documentation_required' => 'nullable|array',
+      'documentation_required.*' => 'nullable|string|max:120',
+      'documentation_required_custom' => 'nullable|string|max:1200',
       'is_active' => 'nullable|boolean',
     ]);
 
@@ -672,9 +723,13 @@ class TrainingPlacementController extends Controller
       ])->withInput();
     }
 
-    $documentationRequired = $this->parseDocumentationList((string) ($validated['documentation_required_text'] ?? ''));
+    $documentationRequired = $this->normalizeDocumentationRequirements(
+      (array) ($validated['documentation_required'] ?? []),
+      (string) ($validated['documentation_required_custom'] ?? '')
+    );
+    $normalizedCategory = $validated['category'] === 'placement' ? 'placements' : $validated['category'];
     $internshipStipendType = $validated['internship_stipend_type'] ?? null;
-    if ($validated['category'] === 'placements') {
+    if ($normalizedCategory === 'placements') {
       if (empty($validated['placement_type'])) {
         return back()->withErrors(['placement_type' => 'Placement type is required for Placement category.'])->withInput();
       }
@@ -682,21 +737,19 @@ class TrainingPlacementController extends Controller
         return back()->withErrors(['opening_type' => 'Opening type is required for Placement category.'])->withInput();
       }
       if (empty($documentationRequired)) {
-        return back()->withErrors(['documentation_required_text' => 'Please list required documentation for Placement category.'])->withInput();
+        return back()->withErrors(['documentation_required' => 'Please select at least one required document for Placement category.'])->withInput();
       }
       $internshipStipendType = null;
-    } elseif ($validated['category'] === 'internship') {
+    } elseif ($normalizedCategory === 'internship') {
       if (empty($internshipStipendType)) {
         return back()->withErrors(['internship_stipend_type' => 'Please select stipend or non stipend for Internship category.'])->withInput();
       }
       $validated['placement_type'] = null;
       $validated['opening_type'] = null;
-      $documentationRequired = null;
     } else {
       $internshipStipendType = null;
       $validated['placement_type'] = null;
       $validated['opening_type'] = null;
-      $documentationRequired = null;
     }
 
     $logoPath = $placement->logo_path;
@@ -707,10 +760,10 @@ class TrainingPlacementController extends Controller
       $logoPath = $request->file('logo')->store('placement_logos', 's3');
     }
 
-    DB::transaction(function () use ($validated, $placement, $logoPath, $subjectIds, $documentationRequired, $campusId, $internshipStipendType) {
+    DB::transaction(function () use ($validated, $placement, $logoPath, $subjectIds, $documentationRequired, $campusId, $internshipStipendType, $normalizedCategory) {
       $attributes = [
         'title' => $validated['title'],
-        'category' => $validated['category'],
+        'category' => $normalizedCategory,
         'month' => $validated['month'],
         'company_name' => $validated['company_name'] ?? null,
         'drive_date' => $validated['drive_date'] ?? null,
@@ -790,26 +843,31 @@ class TrainingPlacementController extends Controller
 
   public function storeEvent(Request $request)
   {
+    $subjectSelection = (string) $request->input('subject_id', '');
+    $isAllDepartments = $subjectSelection === 'all';
+
     $validated = $request->validate([
-      'event_type' => 'required|in:training_program,guest_lecture,workshop',
+      'event_type' => 'required|in:guest_lecture,workshop',
       'title' => 'required|string|max:255',
-      'resource_person' => 'nullable|string|max:255',
+      'resource_person' => 'required|string|max:255',
       'campus_id' => 'required|integer|exists:campuses,id',
-      'subject_id' => 'required|integer|exists:subjects,id',
+      'subject_id' => $isAllDepartments ? 'required|in:all' : 'required|integer|exists:subjects,id',
       'event_date' => 'required|date',
-      'program_description' => 'required|string',
+      'program_description' => 'nullable|string',
       'participant_count' => 'required|integer|min:0',
-      'report_file' => 'nullable|file|mimes:pdf,doc,docx,jpg,jpeg,png|max:10240',
+      'report_file' => 'nullable|file|mimes:ppt,pptx,pdf,doc,docx|max:51200',
     ]);
 
-    $subjectBelongsToCampus = Subject::where('id', (int) $validated['subject_id'])
-      ->where('campus_id', (int) $validated['campus_id'])
-      ->exists();
+    if (!$isAllDepartments) {
+      $subjectBelongsToCampus = Subject::where('id', (int) $validated['subject_id'])
+        ->where('campus_id', (int) $validated['campus_id'])
+        ->exists();
 
-    if (!$subjectBelongsToCampus) {
-      return back()->withErrors([
-        'subject_id' => 'Selected department must belong to the selected campus.',
-      ])->withInput();
+      if (!$subjectBelongsToCampus) {
+        return back()->withErrors([
+          'subject_id' => 'Selected department must belong to the selected campus.',
+        ])->withInput();
+      }
     }
 
     $reportPath = null;
@@ -820,11 +878,11 @@ class TrainingPlacementController extends Controller
     TpoEvent::create([
       'event_type' => $validated['event_type'],
       'title' => $validated['title'],
-      'resource_person' => $validated['resource_person'] ?? null,
+      'resource_person' => $validated['resource_person'],
       'campus_id' => (int) $validated['campus_id'],
-      'subject_id' => (int) $validated['subject_id'],
+      'subject_id' => $isAllDepartments ? null : (int) $validated['subject_id'],
       'event_date' => $validated['event_date'],
-      'program_description' => $validated['program_description'],
+      'program_description' => trim((string) ($validated['program_description'] ?? '')),
       'participant_count' => (int) $validated['participant_count'],
       'report_path' => $reportPath,
       'approval_status' => 'pending',
@@ -833,31 +891,36 @@ class TrainingPlacementController extends Controller
       'created_by' => Auth::id(),
     ]);
 
-    return back()->with('success', 'Event added successfully.');
+    return back()->with('success', 'External facilitator event added successfully.');
   }
 
   public function updateEvent(Request $request, TpoEvent $event)
   {
+    $subjectSelection = (string) $request->input('subject_id', '');
+    $isAllDepartments = $subjectSelection === 'all';
+
     $validated = $request->validate([
-      'event_type' => 'required|in:training_program,guest_lecture,workshop',
+      'event_type' => 'required|in:guest_lecture,workshop',
       'title' => 'required|string|max:255',
-      'resource_person' => 'nullable|string|max:255',
+      'resource_person' => 'required|string|max:255',
       'campus_id' => 'required|integer|exists:campuses,id',
-      'subject_id' => 'required|integer|exists:subjects,id',
+      'subject_id' => $isAllDepartments ? 'required|in:all' : 'required|integer|exists:subjects,id',
       'event_date' => 'required|date',
-      'program_description' => 'required|string',
+      'program_description' => 'nullable|string',
       'participant_count' => 'required|integer|min:0',
-      'report_file' => 'nullable|file|mimes:pdf,doc,docx,jpg,jpeg,png|max:10240',
+      'report_file' => 'nullable|file|mimes:ppt,pptx,pdf,doc,docx|max:51200',
     ]);
 
-    $subjectBelongsToCampus = Subject::where('id', (int) $validated['subject_id'])
-      ->where('campus_id', (int) $validated['campus_id'])
-      ->exists();
+    if (!$isAllDepartments) {
+      $subjectBelongsToCampus = Subject::where('id', (int) $validated['subject_id'])
+        ->where('campus_id', (int) $validated['campus_id'])
+        ->exists();
 
-    if (!$subjectBelongsToCampus) {
-      return back()->withErrors([
-        'subject_id' => 'Selected department must belong to the selected campus.',
-      ])->withInput();
+      if (!$subjectBelongsToCampus) {
+        return back()->withErrors([
+          'subject_id' => 'Selected department must belong to the selected campus.',
+        ])->withInput();
+      }
     }
 
     $reportPath = $event->report_path;
@@ -871,11 +934,11 @@ class TrainingPlacementController extends Controller
     $event->update([
       'event_type' => $validated['event_type'],
       'title' => $validated['title'],
-      'resource_person' => $validated['resource_person'] ?? null,
+      'resource_person' => $validated['resource_person'],
       'campus_id' => (int) $validated['campus_id'],
-      'subject_id' => (int) $validated['subject_id'],
+      'subject_id' => $isAllDepartments ? null : (int) $validated['subject_id'],
       'event_date' => $validated['event_date'],
-      'program_description' => $validated['program_description'],
+      'program_description' => trim((string) ($validated['program_description'] ?? '')),
       'participant_count' => (int) $validated['participant_count'],
       'report_path' => $reportPath,
       'approval_status' => 'pending',
@@ -883,7 +946,7 @@ class TrainingPlacementController extends Controller
       'approved_at' => null,
     ]);
 
-    return back()->with('success', 'Event updated and moved to pending approval.');
+    return back()->with('success', 'External facilitator event updated and moved to pending approval.');
   }
 
   public function destroyEvent(TpoEvent $event)
@@ -931,6 +994,332 @@ class TrainingPlacementController extends Controller
     $analytics = $this->buildTrainingAnalytics($trainings);
 
     return view('tpo.training-placement.analytics', compact('analytics'));
+  }
+
+  public function optedStudentsIndex(Request $request)
+  {
+    return redirect()->route('tpo.training-placement.student-opt-in-forms.index', [
+      'search' => (string) $request->input('search', ''),
+    ]);
+  }
+
+  public function studentTrainingAnalysis(User $user)
+  {
+    $attempts = TrainingAttempt::query()
+      ->with('trainingProgram:id,title')
+      ->where('user_id', $user->id)
+      ->orderByDesc('completed_at')
+      ->orderByDesc('id')
+      ->get();
+
+    if ($attempts->isEmpty()) {
+      return redirect()
+        ->route('tpo.training-placement.student-opt-in-forms.index')
+        ->with('error', 'No training analysis report found for the selected student.');
+    }
+
+    $studentMeta = DB::table('student_master_user_pivots as smup')
+      ->join('student_masters as sm', 'sm.id', '=', 'smup.student_master_id')
+      ->leftJoin('department_masters as dm', 'dm.id', '=', 'sm.department')
+      ->leftJoin('campuses as c', 'c.id', '=', 'sm.campus_id')
+      ->where('smup.user_id', $user->id)
+      ->whereNull('smup.deleted_at')
+      ->select([
+        'sm.id as student_master_id',
+        'sm.first_name',
+        'sm.last_name',
+        'sm.roll_no',
+        'sm.register_no',
+        'dm.name as department_name',
+        'c.name as campus_name',
+      ])
+      ->first();
+
+    $summary = [
+      'total_attempts' => $attempts->count(),
+      'completed_attempts' => $attempts->whereNotNull('completed_at')->count(),
+      'avg_score_pct' => round($attempts
+        ->filter(fn($attempt) => (int) $attempt->max_score > 0)
+        ->map(fn($attempt) => ((int) $attempt->total_score / max(1, (int) $attempt->max_score)) * 100)
+        ->avg() ?? 0, 2),
+      'highest_score_pct' => round($attempts
+        ->filter(fn($attempt) => (int) $attempt->max_score > 0)
+        ->map(fn($attempt) => ((int) $attempt->total_score / max(1, (int) $attempt->max_score)) * 100)
+        ->max() ?? 0, 2),
+      'latest_completion' => optional($attempts->whereNotNull('completed_at')->first())->completed_at,
+    ];
+
+    return view('tpo.training-placement.student-training-analysis', [
+      'user' => $user,
+      'studentMeta' => $studentMeta,
+      'attempts' => $attempts,
+      'summary' => $summary,
+    ]);
+  }
+
+  public function studentOptInFormsIndex(Request $request)
+  {
+    $search = trim((string) $request->input('search', ''));
+    $hasOptInTable = Schema::hasTable('training_placement_opt_ins');
+    $hasApprovalColumns = $hasOptInTable
+      && Schema::hasColumn('training_placement_opt_ins', 'approval_status')
+      && Schema::hasColumn('training_placement_opt_ins', 'approved_by')
+      && Schema::hasColumn('training_placement_opt_ins', 'approved_at');
+    $masterTemplate = null;
+
+    if (Schema::hasTable('training_placement_form_templates')) {
+      $masterTemplate = TrainingPlacementFormTemplate::query()
+        ->where('is_active', 1)
+        ->latest('id')
+        ->first();
+    }
+
+    $studentsQuery = DB::table('student_masters as sm')
+      ->leftJoin('department_masters as dm', 'dm.id', '=', 'sm.department')
+      ->leftJoin('campuses as c', 'c.id', '=', 'sm.campus_id')
+      ->leftJoin('batch_masters as bm', 'bm.id', '=', 'sm.batch')
+      ->leftJoin('student_master_user_pivots as smup', function ($join) {
+        $join->on('smup.student_master_id', '=', 'sm.id')
+          ->whereNull('smup.deleted_at');
+      })
+      ->leftJoin('users as u', 'u.id', '=', 'smup.user_id')
+      ->where(function ($query) {
+        $query->whereNull('sm.is_deleted')->orWhere('sm.is_deleted', 0);
+      })
+      ->where(function ($query) {
+        $query->whereNull('sm.is_left')->orWhere('sm.is_left', 0);
+      })
+      ->select([
+        'sm.id as student_id',
+        'sm.first_name',
+        'sm.last_name',
+        'sm.roll_no',
+        'sm.register_no',
+        'sm.mail_id',
+        'dm.name as department_name',
+        'c.name as campus_name',
+        'bm.batch_name',
+        'u.id as user_id',
+        'u.email as user_email',
+      ]);
+
+    if (Schema::hasColumn('student_masters', 'current_year')) {
+      $studentsQuery->addSelect('sm.current_year');
+    }
+
+    if (Schema::hasTable('student_semester_configs')) {
+      $studentsQuery->leftJoin('student_semester_configs as ssc', function ($join) {
+        $join->on('ssc.student_id', '=', 'sm.id')
+          ->where('ssc.current_semester', 1);
+
+        if (Schema::hasColumn('student_semester_configs', 'deleted_at')) {
+          $join->whereNull('ssc.deleted_at');
+        }
+      });
+
+      if (Schema::hasTable('semesters')) {
+        $studentsQuery->leftJoin('semesters as sem', 'sem.id', '=', 'ssc.semester_id')
+          ->addSelect([
+            'ssc.semester_id as current_semester_id',
+            'sem.title as current_semester_title',
+          ]);
+      } else {
+        $studentsQuery->addSelect('ssc.semester_id as current_semester_id');
+      }
+    }
+
+    if ($hasOptInTable) {
+      $studentsQuery->join('training_placement_opt_ins as tpoi', function ($join) {
+        $join->on('tpoi.student_id', '=', 'sm.id')
+          ->whereNotNull('tpoi.form_file_path')
+          ->where('tpoi.policy_accepted', 1)
+          ->whereNotNull('tpoi.opted_at');
+      })->addSelect([
+        'tpoi.form_file_path',
+        'tpoi.policy_accepted',
+        'tpoi.policy_accepted_at',
+        'tpoi.opted_at',
+      ]);
+
+      if ($hasApprovalColumns) {
+        $studentsQuery->addSelect([
+          'tpoi.approval_status',
+          'tpoi.approved_by',
+          'tpoi.approved_at',
+        ]);
+
+        if (Schema::hasColumn('training_placement_opt_ins', 'rejection_reason')) {
+          $studentsQuery->addSelect('tpoi.rejection_reason');
+        }
+        if (Schema::hasColumn('training_placement_opt_ins', 'rejected_by')) {
+          $studentsQuery->addSelect('tpoi.rejected_by');
+        }
+        if (Schema::hasColumn('training_placement_opt_ins', 'rejected_at')) {
+          $studentsQuery->addSelect('tpoi.rejected_at');
+        }
+      }
+    } else {
+      // Do not expose full student list when application storage is unavailable.
+      $studentsQuery->whereRaw('1 = 0');
+    }
+
+    if ($search !== '') {
+      $like = '%' . $search . '%';
+      $studentsQuery->where(function ($query) use ($like) {
+        $query->where('sm.first_name', 'like', $like)
+          ->orWhere('sm.last_name', 'like', $like)
+          ->orWhere('sm.roll_no', 'like', $like)
+          ->orWhere('sm.register_no', 'like', $like)
+          ->orWhere('sm.mail_id', 'like', $like)
+          ->orWhere('u.email', 'like', $like);
+      });
+    }
+
+    $students = $studentsQuery
+      ->orderBy('sm.roll_no')
+      ->orderBy('sm.first_name')
+      ->paginate(25)
+      ->appends($request->query());
+
+    return view('tpo.training-placement.student-opt-in-forms', [
+      'students' => $students,
+      'search' => $search,
+      'hasOptInTable' => $hasOptInTable,
+      'hasApprovalColumns' => $hasApprovalColumns,
+      'masterTemplate' => $masterTemplate,
+    ]);
+  }
+
+  public function studentOptInTemplateStore(Request $request)
+  {
+    if (!Schema::hasTable('training_placement_form_templates')) {
+      return back()->with('error', 'Template storage is not available yet. Please run the latest placement migration.');
+    }
+
+    $validated = $request->validate([
+      'template_title' => 'nullable|string|max:255',
+      'template_file' => 'required|file|mimes:pdf,doc,docx|max:10240',
+    ]);
+
+    $templatePath =  StaticController::s3_file_uploader($request->file('template_file'), 'training_placement_templates');
+    if ($templatePath === '') {
+      return back()->with('error', 'Unable to upload template file. Please try again.');
+    }
+
+    DB::transaction(function () use ($validated, $templatePath) {
+      TrainingPlacementFormTemplate::query()
+        ->where('is_active', 1)
+        ->update(['is_active' => 0]);
+
+      TrainingPlacementFormTemplate::create([
+        'title' => trim((string) ($validated['template_title'] ?? '')) ?: 'Training and Placement Opt-In Form',
+        'file_path' => $templatePath,
+        'uploaded_by' => (int) Auth::id(),
+        'is_active' => 1,
+      ]);
+    });
+
+    return back()->with('success', 'Student downloadable Training & Placement form template uploaded successfully.');
+  }
+
+  public function studentOptInApprove(int $studentId)
+  {
+    if (!Schema::hasTable('training_placement_opt_ins')) {
+      return back()->with('error', 'Training & Placement opt-in storage is not available yet.');
+    }
+
+    $optIn = TrainingPlacementOptIn::query()
+      ->where('student_id', $studentId)
+      ->whereNotNull('form_file_path')
+      ->first();
+
+    if (!$optIn) {
+      return back()->with('error', 'No submitted opt-in form found for the selected student.');
+    }
+
+    if (!Schema::hasColumn('training_placement_opt_ins', 'approval_status')) {
+      return back()->with('error', 'Approval fields are missing. Please run latest placement migration.');
+    }
+
+    $optIn->approval_status = 'approved';
+    if (Schema::hasColumn('training_placement_opt_ins', 'approved_by')) {
+      $optIn->approved_by = (int) Auth::id();
+    }
+    if (Schema::hasColumn('training_placement_opt_ins', 'approved_at')) {
+      $optIn->approved_at = now();
+    }
+    if (Schema::hasColumn('training_placement_opt_ins', 'rejection_reason')) {
+      $optIn->rejection_reason = null;
+    }
+    if (Schema::hasColumn('training_placement_opt_ins', 'rejected_by')) {
+      $optIn->rejected_by = null;
+    }
+    if (Schema::hasColumn('training_placement_opt_ins', 'rejected_at')) {
+      $optIn->rejected_at = null;
+    }
+    $optIn->save();
+
+    $student = StudentMaster::query()->find($studentId);
+    $displayName = $student
+      ? trim((string) (($student->first_name ?? '') . ' ' . ($student->last_name ?? '')))
+      : '';
+    if ($displayName === '') {
+      $displayName = $student ? (string) ($student->roll_no ?: ('Student #' . $student->id)) : ('Student #' . $studentId);
+    }
+
+    return back()->with('success', 'Training & Placement opt-in approved for ' . $displayName . '.');
+  }
+
+  public function studentOptInReject(Request $request, int $studentId)
+  {
+    if (!Schema::hasTable('training_placement_opt_ins')) {
+      return back()->with('error', 'Training & Placement opt-in storage is not available yet.');
+    }
+
+    $request->validate([
+      'rejection_reason' => 'required|string|max:1000',
+    ]);
+
+    $optIn = TrainingPlacementOptIn::query()
+      ->where('student_id', $studentId)
+      ->whereNotNull('form_file_path')
+      ->first();
+
+    if (!$optIn) {
+      return back()->with('error', 'No submitted opt-in form found for the selected student.');
+    }
+
+    if (!Schema::hasColumn('training_placement_opt_ins', 'approval_status')) {
+      return back()->with('error', 'Approval fields are missing. Please run latest placement migration.');
+    }
+
+    $optIn->approval_status = 'rejected';
+    if (Schema::hasColumn('training_placement_opt_ins', 'approved_by')) {
+      $optIn->approved_by = null;
+    }
+    if (Schema::hasColumn('training_placement_opt_ins', 'approved_at')) {
+      $optIn->approved_at = null;
+    }
+    if (Schema::hasColumn('training_placement_opt_ins', 'rejection_reason')) {
+      $optIn->rejection_reason = trim((string) $request->input('rejection_reason'));
+    }
+    if (Schema::hasColumn('training_placement_opt_ins', 'rejected_by')) {
+      $optIn->rejected_by = (int) Auth::id();
+    }
+    if (Schema::hasColumn('training_placement_opt_ins', 'rejected_at')) {
+      $optIn->rejected_at = now();
+    }
+    $optIn->save();
+
+    $student = StudentMaster::query()->find($studentId);
+    $displayName = $student
+      ? trim((string) (($student->first_name ?? '') . ' ' . ($student->last_name ?? '')))
+      : '';
+    if ($displayName === '') {
+      $displayName = $student ? (string) ($student->roll_no ?: ('Student #' . $student->id)) : ('Student #' . $studentId);
+    }
+
+    return back()->with('success', 'Training & Placement opt-in rejected for ' . $displayName . '.');
   }
 
   private function roleOptions()
@@ -1052,10 +1441,65 @@ class TrainingPlacementController extends Controller
   private function eventTypeOptions(): array
   {
     return [
-      'training_program' => 'Training Program',
       'guest_lecture' => 'Guest Lecture',
       'workshop' => 'Workshop',
     ];
+  }
+
+  private function documentationRequirementOptions(): array
+  {
+    return [
+      'aadhaar_card' => 'Aadhaar Card',
+      'pan_card' => 'PAN Card',
+      'marksheet' => 'Marksheet',
+      'portfolio' => 'Portfolio',
+      'cover_letter' => 'Cover Letter',
+      'passport_photo' => 'Passport Photo',
+      'identity_card' => 'College ID Card',
+      'noc' => 'NOC',
+    ];
+  }
+
+  private function normalizeDocumentationRequirements(array $selected, string $customText = ''): array
+  {
+    $knownOptions = $this->documentationRequirementOptions();
+    $knownKeys = array_keys($knownOptions);
+
+    $selectedKeys = collect($selected)
+      ->map(fn($value) => trim((string) $value))
+      ->filter(fn($value) => $value !== '')
+      ->map(fn($value) => in_array($value, $knownKeys, true) ? $value : $this->normalizeDocKey($value))
+      ->filter(fn($value) => $value !== '')
+      ->values();
+
+    $customLines = preg_split('/\r\n|\r|\n|,/', trim($customText));
+    if (!is_array($customLines)) {
+      $customLines = [];
+    }
+
+    $customKeys = collect($customLines)
+      ->map(fn($value) => $this->normalizeDocKey((string) $value))
+      ->filter(fn($value) => $value !== '')
+      ->values();
+
+    return $selectedKeys
+      ->merge($customKeys)
+      ->unique()
+      ->values()
+      ->all();
+  }
+
+  private function normalizeDocKey(string $value): string
+  {
+    $normalized = strtolower(trim($value));
+    if ($normalized === '') {
+      return '';
+    }
+
+    $normalized = preg_replace('/[^a-z0-9]+/', '_', $normalized);
+    $normalized = trim((string) $normalized, '_');
+
+    return substr($normalized, 0, 120);
   }
 
   private function parseDocumentationList(string $documentationText): array
@@ -1094,12 +1538,11 @@ class TrainingPlacementController extends Controller
   private function studentYearOptions(): array
   {
     return [
-      '1st Year',
-      '2nd Year',
-      '3rd Year',
-      '4th Year',
-      '5th Year',
-      'Passout',
+      1 => '1st Year',
+      2 => '2nd Year',
+      3 => '3rd Year',
+      4 => '4th Year',
+      5 => '5th Year',
     ];
   }
 

@@ -208,8 +208,8 @@ $userCardImage = asset('admin/images/male.png');
   .weather-role-card.theme-mist .temp,
   .weather-role-card.theme-mist .weather-label,
   .weather-role-card.theme-mist .role-label {
-    color: #495867;
-    text-shadow: none;
+    color: #ffffff;
+    text-shadow: 0 2px 8px rgba(10, 28, 48, 0.16);
   }
 
   .weather-role-card.active-card {
@@ -281,7 +281,7 @@ $userCardImage = asset('admin/images/male.png');
                           <img src="{{ $userCardImage }}" alt="User">
                         </div>
 
-                        <h2 class="temp">{{ $theme['tagline'] }}</h2>
+                        <h2 class="temp text-light">{{ $theme['tagline'] }}</h2>
                       </div>
 
                       <div class="meta">

@@ -97,6 +97,25 @@ return [
         'resend' => [
             'key' => env('RESEND_API_KEY'),
         ],
+
+        'tpo_smtp' => [
+            'transport' => 'smtp',
+            'url' => env('TPO_MAIL_URL', env('MAIL_URL')),
+            'host' => env('TPO_MAIL_HOST', env('MAIL_HOST', 'smtp.mailgun.org')),
+            'port' => env('TPO_MAIL_PORT', env('MAIL_PORT', 587)),
+            'encryption' => env('TPO_MAIL_ENCRYPTION', env('MAIL_ENCRYPTION', 'tls')),
+            'username' => env('TPO_MAIL_USERNAME', env('MAIL_USERNAME')),
+            'password' => env('TPO_MAIL_PASSWORD', env('MAIL_PASSWORD')),
+            'timeout' => null,
+            'local_domain' => env('TPO_MAIL_EHLO_DOMAIN', env('MAIL_EHLO_DOMAIN')),
+        ],
+    ],
+
+    'tpo_mailer' => env('TPO_MAIL_MAILER') ?: env('MAIL_MAILER', 'smtp'),
+
+    'tpo_from' => [
+        'address' => env('TPO_MAIL_FROM_ADDRESS') ?: env('MAIL_FROM_ADDRESS', 'hello@example.com'),
+        'name' => env('TPO_MAIL_FROM_NAME') ?: env('MAIL_FROM_NAME', 'Example'),
     ],
 
     /*

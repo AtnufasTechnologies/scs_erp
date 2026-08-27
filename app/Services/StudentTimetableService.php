@@ -504,6 +504,13 @@ class StudentTimetableService
     $routineDeliveryColumn = self::firstExistingColumn($routineTable, ['delivery_type', 'delivery']);
     $routineGroupColumn = self::firstExistingColumn($routineTable, ['allocation_group', 'group', 'group_no']);
 
+    $hourSelectColumns = ['id'];
+    foreach (['hour_no', 'name', 'title', 'start_time', 'end_time'] as $column) {
+      if (Schema::hasColumn('hour_masters', $column)) {
+        $hourSelectColumns[] = $column;
+      }
+    }
+
     $assignmentIds = $assignments
       ->pluck('id')
       ->map(fn($id) => (int) $id)
@@ -551,7 +558,9 @@ class StudentTimetableService
       })
       ->with([
         'weekdaymaster:id,title',
-        'hourmaster:id,hour_no,name,title,start_time,end_time',
+        'hourmaster' => function ($query) use ($hourSelectColumns) {
+          $query->select($hourSelectColumns);
+        },
         'lecturehallmaster:id,title',
         'faculty:id,FIRST_NAME,LAST_NAME',
         'subjectCourse:id,course_master_id,subject_id',

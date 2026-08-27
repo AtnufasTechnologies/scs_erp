@@ -865,6 +865,28 @@
       @endif
 
 
+      @php
+      $tpApprovalStatus = strtolower((string) ($trainingPlacementOptIn->approval_status ?? ''));
+      $showTrainingPlacementTab = ($tpApprovalStatus === 'approved');
+      @endphp
+
+      @if($trainingPlacementOptIn && $tpApprovalStatus !== 'approved')
+      <div style="max-width: 1200px; margin: .75rem auto 1rem; padding: .9rem 1.1rem; background: #fff8e1; border-left: 4px solid #f9a825; border-radius: 8px;">
+        <div style="display:flex;align-items:flex-start;gap:.65rem;">
+          <i class="fas {{ $tpApprovalStatus === 'rejected' ? 'fa-times-circle' : 'fa-hourglass-half' }}" style="color:{{ $tpApprovalStatus === 'rejected' ? '#c62828' : '#f57f17' }};font-size:1rem;margin-top:.12rem;"></i>
+          <div>
+            @if($tpApprovalStatus === 'rejected')
+            <div style="font-weight:700;color:#8d1f1f;font-size:.9rem;">Training & Placement Application Rejected</div>
+            <div style="font-size:.82rem;color:#7a2f2f;">Please check your Training & Placement page, correct the form, and submit again.</div>
+            @else
+            <div style="font-weight:700;color:#8d6e00;font-size:.9rem;">Training & Placement Application In Review</div>
+            <div style="font-size:.82rem;color:#7a6a2f;">Your submitted form is under TPO review. The Training & Placement tab will appear after approval.</div>
+            @endif
+          </div>
+        </div>
+      </div>
+      @endif
+
       <!-- Tab Navigation -->
       <div class="std-tabs-nav">
         <button class="std-tab-btn active" onclick="switchTab('overview')">
@@ -888,6 +910,11 @@
         <button class="std-tab-btn" onclick="switchTab('fees')">
           <i class="fas fa-wallet"></i> Fee Payments
         </button>
+        @if($showTrainingPlacementTab)
+        <button class="std-tab-btn" onclick="switchTab('training-placement')">
+          <i class="fas fa-briefcase"></i> Training & Placement
+        </button>
+        @endif
         <!-- <button class="std-tab-btn" onclick="switchTab('exams')">
           <i class="fas fa-file-signature"></i> Examinations
         </button> -->
@@ -1092,7 +1119,7 @@
         $defaultCt = ['bg'=>'#f5f5f5','color'=>'#555'];
         @endphp
         <div class="sp-card">
-          <div class="sp-card-header">
+          <!-- <div class="sp-card-header">
             <div class="sp-icon" style="background:#e8eaf6;color:#1a237e;"><i class="fas fa-book-open"></i></div>
             <h4>Enrolled Courses</h4>
             <span class="sp-count">{{ $studentCourses->count() }}</span>
@@ -1163,7 +1190,7 @@
               </div>
             </form>
           </div>
-          @endif
+          @endif -->
 
           @if($studentCourses->isEmpty())
           <div class="sp-empty"><i class="fas fa-book"></i>No courses found.</div>
@@ -1743,6 +1770,69 @@
       </div>
     </div>
 
+    @if($showTrainingPlacementTab)
+    <div id="tab-training-placement" class="std-tab-content">
+      <div class="sp-card">
+        <div class="sp-card-header">
+          <div class="sp-icon" style="background:#e8f5e9;color:#1b5e20;"><i class="fas fa-briefcase"></i></div>
+          <h4>Training & Placement Opt-In</h4>
+          <span class="sp-count">{{ $trainingPlacementOptIn ? 'OPTED' : 'PENDING' }}</span>
+        </div>
+
+        <div style="border:1px solid #dbe7f5;background:#f8fbff;border-radius:10px;padding:1rem;margin-bottom:1rem;">
+          <div style="display:flex;align-items:center;justify-content:space-between;gap:.75rem;flex-wrap:wrap;">
+            <div style="font-size:.92rem;font-weight:700;color:#1a237e;">
+              <i class="fas fa-file-signature me-1"></i> Policy Consent & Form Upload
+            </div>
+            @if($trainingPlacementOptIn)
+            <span style="font-size:.74rem;color:#2e7d32;">
+              <i class="fas fa-check-circle me-1"></i>
+              Submitted on {{ optional($trainingPlacementOptIn->opted_at)->format('d M Y h:i A') ?? optional($trainingPlacementOptIn->updated_at)->format('d M Y h:i A') }}
+            </span>
+            @else
+            <span style="font-size:.74rem;color:#5f6b86;">Upload signed form and accept Training & Placement policy terms.</span>
+            @endif
+          </div>
+
+          @if(!empty($trainingPlacementFormTemplate?->file_path))
+          <div style="margin-top:.8rem;">
+            <a href="{{ Storage::disk('s3')->url($trainingPlacementFormTemplate->file_path) }}" target="_blank" class="btn btn-sm btn-outline-secondary">
+              <i class="fas fa-download me-1"></i>Download Official T&P Form
+            </a>
+            <span class="ms-2 text-muted" style="font-size:.74rem;">Fill this form, then upload below.</span>
+          </div>
+          @else
+          <div style="margin-top:.8rem;font-size:.78rem;color:#b26a00;">
+            <i class="fas fa-info-circle me-1"></i>Template is not uploaded by TPO yet. Please contact TPO.
+          </div>
+          @endif
+
+          @if($trainingPlacementOptIn && !empty($trainingPlacementOptIn->form_file_path))
+          <div style="margin-top:.8rem;">
+            <a href="{{ Storage::disk('s3')->url($trainingPlacementOptIn->form_file_path) }}" target="_blank" class="btn btn-sm btn-outline-primary">
+              <i class="fas fa-download me-1"></i> View Uploaded Form
+            </a>
+          </div>
+          @endif
+        </div>
+
+        <div style="border:1px solid #d7deec;border-radius:10px;background:#ffffff;padding:1rem;">
+          <div style="display:flex;align-items:center;justify-content:space-between;gap:.75rem;flex-wrap:wrap;">
+            <div>
+              <div style="font-size:.92rem;font-weight:700;color:#1b5e20;">
+                <i class="fas fa-check-circle me-1"></i>Training Portal Active
+              </div>
+              <div style="font-size:.8rem;color:#4f5d75;">Your application is approved. Form updates are locked.</div>
+            </div>
+            <a href="{{ route('student.fa1.index') }}" class="btn btn-success btn-sm">
+              <i class="fas fa-play-circle me-1"></i>Open Training Portal
+            </a>
+          </div>
+        </div>
+      </div>
+    </div>
+    @endif
+
     <div id="tab-exams" class="std-tab-content">
       <div class="std-section-card">
         <div class="std-section-header">
@@ -1763,22 +1853,46 @@
 @include('student.footer')
 
 <script>
-  function switchTab(tabName) {
-    // Hide all tabs
+  function activateTab(tabName) {
+    if (!tabName) {
+      return;
+    }
+
     document.querySelectorAll('.std-tab-content').forEach(tab => {
       tab.classList.remove('active');
     });
 
-    // Remove active class from all buttons
     document.querySelectorAll('.std-tab-btn').forEach(btn => {
       btn.classList.remove('active');
     });
 
-    // Show selected tab
-    document.getElementById('tab-' + tabName).classList.add('active');
+    const tabPane = document.getElementById('tab-' + tabName);
+    if (tabPane) {
+      tabPane.classList.add('active');
+    }
 
-    // Add active class to clicked button
-    event.target.closest('.std-tab-btn').classList.add('active');
+    document.querySelectorAll('.std-tab-btn').forEach(btn => {
+      const clickHandler = btn.getAttribute('onclick') || '';
+      if (clickHandler.includes("'" + tabName + "'")) {
+        btn.classList.add('active');
+      }
+    });
+  }
+
+  function switchTab(tabName) {
+    activateTab(tabName);
+
+    if (window.location.hash !== '#tab-' + tabName) {
+      history.replaceState(null, '', '#tab-' + tabName);
+    }
+
+    if (typeof event !== 'undefined' && event.target && event.target.closest) {
+      const button = event.target.closest('.std-tab-btn');
+      if (button) {
+        document.querySelectorAll('.std-tab-btn').forEach(btn => btn.classList.remove('active'));
+        button.classList.add('active');
+      }
+    }
   }
 
   function toggleAccordion(element) {
@@ -1891,5 +2005,18 @@
     toggleOptions();
   }
 
-  document.addEventListener('DOMContentLoaded', initElectiveSelector);
+  function initDashboardTabFromHash() {
+    const hash = window.location.hash || '';
+    if (hash.startsWith('#tab-')) {
+      const tabName = hash.replace('#tab-', '').trim();
+      if (tabName !== '') {
+        activateTab(tabName);
+      }
+    }
+  }
+
+  document.addEventListener('DOMContentLoaded', function() {
+    initElectiveSelector();
+    initDashboardTabFromHash();
+  });
 </script>

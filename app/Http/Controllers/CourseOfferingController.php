@@ -5,13 +5,17 @@ namespace App\Http\Controllers;
 use App\Models\BatchMaster;
 use App\Models\Semester;
 use App\Models\StudentMaster;
+use App\Models\StudentCourseInfo;
+use App\Models\StudentCourseRoster;
 use App\Models\StudentOfferingRegistration;
 use App\Models\SubjectCourseOffering;
 use App\Models\SubjectHasDeptAdmin;
 use App\Models\SubjectTypeMaster;
+use App\Http\Controllers\StaticController;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
 
 class CourseOfferingController extends Controller
 {
@@ -324,6 +328,248 @@ class CourseOfferingController extends Controller
     return redirect()->back()->with('success', 'Registration cancelled successfully.');
   }
 
+  /**
+   * Copy all roster-assigned courses for the logged-in student into student_course_infos.
+   */
+  public function syncRosterCoursesToStudentInfo()
+  {
+    $student = $this->resolveStudent();
+    $academicYear = (string) (optional($student->batchmaster)->batch_name ?? date('Y'));
+
+    $rosterRows = StudentCourseRoster::query()
+      ->with('course:id,semester_id')
+      ->where('student_id', (int) $student->id)
+      ->orderBy('id')
+      ->get()
+      ->unique('course_id')
+      ->values();
+
+    if ($rosterRows->isEmpty()) {
+      return redirect()->back()->with('error', 'No course roster records found for your account.');
+    }
+
+    $columns = $this->studentCourseInfoColumns();
+    $added = 0;
+    $restored = 0;
+    $updated = 0;
+    $invalid = 0;
+
+    DB::transaction(function () use ($rosterRows, $student, $academicYear, $columns, &$added, &$restored, &$updated, &$invalid) {
+      foreach ($rosterRows as $row) {
+        $courseId = (int) ($row->course_id ?? 0);
+        $semesterId = (int) ($row->course->semester_id ?? 0);
+
+        if ($courseId <= 0 || $semesterId <= 0) {
+          $invalid++;
+          continue;
+        }
+
+        // Roster is source of truth; keep one course-info record per student+course.
+        $existing = StudentCourseInfo::withTrashed()
+          ->where('student_id', (int) $student->id)
+          ->where('course_id', $courseId)
+          ->orderByDesc('id')
+          ->first();
+
+        if ($existing) {
+          $updates = [];
+          if (in_array('semester', $columns, true)) {
+            $updates['semester'] = $semesterId;
+          }
+          if (in_array('academic_year', $columns, true)) {
+            $updates['academic_year'] = $academicYear;
+          }
+          if (in_array('is_active', $columns, true)) {
+            $updates['is_active'] = 1;
+          }
+          if (in_array('campus_id', $columns, true)) {
+            $updates['campus_id'] = (int) ($student->campus_id ?? 0);
+          }
+
+          if ($existing->trashed()) {
+            $existing->restore();
+
+            if (!empty($updates)) {
+              $existing->update($updates);
+            }
+
+            $restored++;
+          } else {
+            if (!empty($updates)) {
+              $existing->update($updates);
+            }
+            $updated++;
+          }
+          continue;
+        }
+
+        $payload = [
+          'student_id' => (int) $student->id,
+          'course_id' => $courseId,
+          'semester' => $semesterId,
+          'academic_year' => $academicYear,
+          'campus_id' => (int) ($student->campus_id ?? 0),
+          'is_active' => 1,
+          'is_elective' => 0,
+        ];
+
+        $filteredPayload = collect($payload)
+          ->filter(fn($value, $key) => in_array($key, $columns, true))
+          ->all();
+
+        if (!empty($filteredPayload)) {
+          StudentCourseInfo::create($filteredPayload);
+          $added++;
+        }
+      }
+    });
+
+    $parts = [];
+    if ($added > 0) {
+      $parts[] = $added . ' added';
+    }
+    if ($restored > 0) {
+      $parts[] = $restored . ' restored';
+    }
+    if ($updated > 0) {
+      $parts[] = $updated . ' updated';
+    }
+    if ($invalid > 0) {
+      $parts[] = $invalid . ' skipped (invalid semester/course)';
+    }
+
+    if (empty($parts)) {
+      return redirect()->back()->with('error', 'No eligible courses found to sync.');
+    }
+
+    return redirect()->back()->with('success', 'Roster sync completed: ' . implode(', ', $parts) . '.');
+  }
+
+  /**
+   * ITCELL utility: sync roster-assigned courses into student_course_infos for all students.
+   */
+  public function syncRosterCoursesForAllStudents()
+  {
+    $userRole = (string) StaticController::fetchUserRole((int) Auth::id());
+    if (!in_array($userRole, ['itcell', 'super-admin'], true)) {
+      abort(403, 'Only ITCELL can execute this action.');
+    }
+
+    $columns = $this->studentCourseInfoColumns();
+    if (empty($columns)) {
+      return redirect()->back()->with('error', 'Unable to resolve student course info schema.');
+    }
+
+    $rows = DB::table('student_course_rosters as scr')
+      ->join('program_course_masters as pcm', 'pcm.id', '=', 'scr.course_id')
+      ->join('student_masters as sm', 'sm.id', '=', 'scr.student_id')
+      ->leftJoin('batch_masters as bm', 'bm.id', '=', 'sm.batch')
+      ->whereNull('scr.deleted_at')
+      ->select([
+        'scr.student_id',
+        'scr.course_id',
+        'pcm.semester_id',
+        'sm.campus_id',
+        'bm.batch_name',
+      ])
+      ->groupBy([
+        'scr.student_id',
+        'scr.course_id',
+        'pcm.semester_id',
+        'sm.campus_id',
+        'bm.batch_name',
+      ])
+      ->orderBy('scr.student_id')
+      ->orderBy('scr.course_id')
+      ->get();
+
+    if ($rows->isEmpty()) {
+      return redirect()->back()->with('error', 'No roster records found to sync.');
+    }
+
+    $added = 0;
+    $restored = 0;
+    $updated = 0;
+    $invalid = 0;
+
+    foreach ($rows as $row) {
+      $studentId = (int) ($row->student_id ?? 0);
+      $courseId = (int) ($row->course_id ?? 0);
+      $semesterId = (int) ($row->semester_id ?? 0);
+      $academicYear = trim((string) ($row->batch_name ?? ''));
+      if ($academicYear === '') {
+        $academicYear = (string) date('Y');
+      }
+
+      if ($studentId <= 0 || $courseId <= 0 || $semesterId <= 0) {
+        $invalid++;
+        continue;
+      }
+
+      // Roster is the source of truth; keep one course-info record per student+course.
+      $existing = StudentCourseInfo::withTrashed()
+        ->where('student_id', $studentId)
+        ->where('course_id', $courseId)
+        ->orderByDesc('id')
+        ->first();
+
+      if ($existing) {
+        $updates = [];
+        if (in_array('semester', $columns, true)) {
+          $updates['semester'] = $semesterId;
+        }
+        if (in_array('academic_year', $columns, true)) {
+          $updates['academic_year'] = $academicYear;
+        }
+        if (in_array('is_active', $columns, true)) {
+          $updates['is_active'] = 1;
+        }
+        if (in_array('campus_id', $columns, true)) {
+          $updates['campus_id'] = (int) ($row->campus_id ?? 0);
+        }
+
+        if ($existing->trashed()) {
+          $existing->restore();
+          if (!empty($updates)) {
+            $existing->update($updates);
+          }
+          $restored++;
+        } else {
+          if (!empty($updates)) {
+            $existing->update($updates);
+          }
+          $updated++;
+        }
+        continue;
+      }
+
+      $payload = [
+        'student_id' => $studentId,
+        'course_id' => $courseId,
+        'semester' => $semesterId,
+        'academic_year' => $academicYear,
+        'campus_id' => (int) ($row->campus_id ?? 0),
+        'is_active' => 1,
+        'is_elective' => 0,
+      ];
+
+      $filteredPayload = collect($payload)
+        ->filter(fn($value, $key) => in_array($key, $columns, true))
+        ->all();
+
+      if (!empty($filteredPayload)) {
+        StudentCourseInfo::create($filteredPayload);
+        $added++;
+      }
+    }
+
+    return redirect()->back()->with('success', 'All-student roster sync completed: '
+      . $added . ' added, '
+      . $restored . ' restored, '
+      . $updated . ' updated, '
+      . $invalid . ' skipped (invalid rows).');
+  }
+
   // ─────────────────────────────────────────────────────────────────────
   //  HELPERS
   // ─────────────────────────────────────────────────────────────────────
@@ -336,5 +582,22 @@ class CourseOfferingController extends Controller
   private function resolveStudent(): StudentMaster
   {
     return StudentMaster::findOrFail(Auth::user()->student_id);
+  }
+
+  private function studentCourseInfoColumns(): array
+  {
+    static $columns = null;
+
+    if (is_array($columns)) {
+      return $columns;
+    }
+
+    try {
+      $columns = Schema::getColumnListing('student_course_infos');
+    } catch (\Throwable $e) {
+      $columns = [];
+    }
+
+    return $columns;
   }
 }

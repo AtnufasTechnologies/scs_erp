@@ -469,6 +469,22 @@ $hasSuperAdminRole = $roleNames->contains('super-admin');
         </li>
         @endif
         <li>
+          <a href="{{ route('itcell.mail-server-settings.index') }}">
+            <div class="parent-icon">
+              <i class="fas fa-envelope-open-text"></i>
+            </div>
+            <div class="menu-title">Mail Server Settings</div>
+          </a>
+        </li>
+        <li>
+          <a href="{{ route('itcell.sync-all-student-course-infos-from-roster') }}" onclick="return confirm('Run bulk sync for all students from StudentCourseRoster to StudentCourseInfo?')">
+            <div class="parent-icon">
+              <i class="fas fa-sync-alt"></i>
+            </div>
+            <div class="menu-title">Sync All Student Courses</div>
+          </a>
+        </li>
+        <li>
           <a href="{{route('admin.activity-logs.dashboard')}}">
             <div class="parent-icon">
               <i class="fas fa-chart-bar"></i>

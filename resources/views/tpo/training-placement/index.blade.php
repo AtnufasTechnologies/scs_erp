@@ -31,27 +31,7 @@
       </div>
       @endif
 
-      <div class="card border-0 shadow-sm mb-4">
-        <div class="card-body p-4">
-          <div class="d-flex flex-wrap justify-content-between align-items-center gap-3">
-            <div>
-              <h4 class="mb-1 fw-bold"><i class="fas fa-briefcase me-2 text-primary"></i>Training and Placement Office</h4>
-              <p class="text-muted mb-0">Manage role-based training, learning resources, survey outcomes, and completion tracking.</p>
-            </div>
-            <div class="d-flex gap-2">
-              <a href="{{ route('tpo.training-placement.dashboard') }}" class="btn btn-outline-secondary">
-                <i class="fas fa-chart-pie me-1"></i>Dashboard
-              </a>
-              <a href="{{ route('tpo.training-placement.placement.index') }}" class="btn btn-outline-primary">
-                <i class="fas fa-briefcase me-1"></i>Go to Placement
-              </a>
-              <a href="{{ route('tpo.training-placement.analytics') }}" class="btn btn-primary">
-                <i class="fas fa-chart-line me-1"></i>View Completion Analytics
-              </a>
-            </div>
-          </div>
-        </div>
-      </div>
+
 
       <div class="card border-0 shadow-sm mb-3">
         <div class="card-body">
@@ -70,76 +50,51 @@
         </div>
       </div>
 
-      <ul class="nav nav-tabs mb-3" id="tpoTab" role="tablist">
-        <li class="nav-item" role="presentation">
-          <button class="nav-link active" id="training-tab" data-bs-toggle="tab" data-bs-target="#training-pane" type="button" role="tab">Training</button>
-        </li>
-        <li class="nav-item" role="presentation">
-          <button class="nav-link" id="my-training-tab" data-bs-toggle="tab" data-bs-target="#my-training-pane" type="button" role="tab">My Trainings</button>
-        </li>
-      </ul>
-
-      <div class="tab-content" id="tpoTabContent">
-        <div class="tab-pane fade show active" id="training-pane" role="tabpanel" aria-labelledby="training-tab">
-          <div class="row g-4">
-            <div class="col-xl-5">
-              <div class="card shadow-sm border-0">
-                <div class="card-header bg-transparent">
-                  <h6 class="mb-0 fw-bold">Add New Training</h6>
-                </div>
-                <div class="card-body">
-                  <form action="{{ route('tpo.training-placement.training.store') }}" method="POST">
-                    @csrf
-                    <div class="mb-3">
-                      <label class="form-label fw-semibold">Training Title</label>
-                      <input type="text" name="title" class="form-control" required>
-                    </div>
-                    <div class="mb-3">
-                      <label class="form-label fw-semibold">Description</label>
-                      <textarea name="description" class="form-control" rows="3"></textarea>
-                    </div>
-                    <div class="mb-3">
-                      <label class="form-label fw-semibold">Applicable To Roles</label>
-                      <select name="applicable_roles[]" class="select-multiple" multiple size="8" required>
-                        @foreach($roleOptions as $role)
-                        <option value="{{ $role['value'] }}">{{ $role['label'] }}</option>
-                        @endforeach
-                      </select>
-                    </div>
-                    <button class="btn btn-success" type="submit"><i class="fas fa-plus me-1"></i>Create Training</button>
-                  </form>
-                </div>
-              </div>
+      <div class="row g-4">
+        <div class="col-xl-12">
+          <div class="card shadow-sm border-0">
+            <div class="card-header bg-transparent d-flex justify-content-between align-items-center gap-2 flex-wrap">
+              <h6 class="mb-0 fw-bold">All Trainings</h6>
+              <button class="btn btn-success btn-sm" type="button" data-bs-toggle="modal" data-bs-target="#addTrainingModal">
+                <i class="fas fa-plus me-1"></i>Add Training
+              </button>
             </div>
-
-            <div class="col-xl-7">
-              <div class="card shadow-sm border-0">
-                <div class="card-header bg-transparent">
-                  <h6 class="mb-0 fw-bold">All Trainings</h6>
-                </div>
-                <div class="card-body">
-                  @forelse($trainings as $training)
-                  <div class="border rounded p-3 mb-3">
-                    <div class="d-flex flex-wrap justify-content-between align-items-start gap-2">
-                      <div>
-                        <h6 class="mb-1 fw-bold">{{ $training->title }}</h6>
-                        <p class="mb-1 text-muted">{{ $training->description ?: 'No description added.' }}</p>
-                        <small>
-                          <strong>Applicable for:</strong>
-                          {{ $training->targetRoles->pluck('role_name')->map(fn($role) => ucfirst(str_replace('-', ' ', $role)))->implode(', ') }}
-                        </small>
+            <div class="card-body">
+              @forelse($trainings as $training)
+              @if($loop->first)
+              <div class="accordion" id="allTrainingsAccordion">
+                @endif
+                <div class="accordion-item mb-3 border rounded">
+                  @php
+                  $resourceCount = $training->resources->count();
+                  $questionCount = $training->surveyQuestions->count();
+                  @endphp
+                  <h2 class="accordion-header" id="trainingHeading{{ $training->id }}">
+                    <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#trainingCollapse{{ $training->id }}" aria-expanded="false" aria-controls="trainingCollapse{{ $training->id }}">
+                      <div class="w-100 pe-3 d-flex flex-wrap align-items-center gap-2">
+                        <h6 class="mb-0 fw-bold">{{$loop->iteration}}. {{ $training->title }}</h6>
+                        @forelse($training->targetRoles as $role)
+                        <span class="badge badge-warning text-dark"> {{ ucfirst(str_replace('-', ' ', $role->role_name)) }}</span>
+                        @empty
+                        <span class="badge badge-warning text-muted border">No roles assigned</span>
+                        @endforelse
+                        <span class="badge {{ $resourceCount > 0 ? 'bg-success' : 'bg-danger' }}">{{ $resourceCount > 0 ? $resourceCount . ' Resource' . ($resourceCount > 1 ? 's' : '') : 'No Resources' }}</span>
+                        <span class="badge {{ $questionCount > 0 ? 'bg-success' : 'bg-danger' }}">{{ $questionCount > 0 ? $questionCount . ' Q&A' : 'No Q&A' }}</span>
                       </div>
-                      <div class="d-flex gap-2">
-                        <button class="btn btn-sm btn-outline-primary" type="button" data-bs-toggle="collapse" data-bs-target="#trainingManage{{ $training->id }}">Manage</button>
+                    </button>
+                  </h2>
+                  <div id="trainingCollapse{{ $training->id }}" class="accordion-collapse collapse" aria-labelledby="trainingHeading{{ $training->id }}" data-bs-parent="#allTrainingsAccordion">
+                    <div class="accordion-body">
+                      <p class="mb-2 text-muted">{{ $training->description ?: 'No description added.' }}</p>
+
+                      <div class="d-flex justify-content-end mb-3">
                         <form action="{{ route('tpo.training-placement.training.destroy', $training->id) }}" method="POST" onsubmit="return confirm('Delete this training?')">
                           @csrf
                           @method('DELETE')
-                          <button class="btn btn-sm btn-outline-danger" type="submit">Delete</button>
+                          <button class="btn btn-sm btn-outline-danger" type="submit">Delete Training</button>
                         </form>
                       </div>
-                    </div>
 
-                    <div class="collapse mt-3" id="trainingManage{{ $training->id }}">
                       <div class="row g-3">
                         <div class="col-lg-12">
                           <form action="{{ route('tpo.training-placement.training.update', $training->id) }}" method="POST" class="border rounded p-3">
@@ -158,13 +113,19 @@
                                 </select>
                               </div>
                               <div class="col-12">
-                                <textarea name="description" class="form-control" rows="2">{{ $training->description }}</textarea>
+                                <textarea name="description" class="form-control" rows="5">{{ $training->description }}</textarea>
                               </div>
                               <div class="col-12">
-                                <div class="form-check">
-                                  <input class="form-check-input" type="checkbox" name="is_active" value="1" id="activeTraining{{ $training->id }}" {{ $training->is_active ? 'checked' : '' }}>
-                                  <label class="form-check-label" for="activeTraining{{ $training->id }}">Active</label>
+                                <label class="form-label fw-semibold d-block mb-1">Training Status</label>
+                                <div class="d-flex align-items-center gap-2 flex-wrap">
+                                  <span class="badge {{ $training->is_active ? 'bg-secondary' : 'bg-warning text-dark' }}">Draft</span>
+                                  <input type="hidden" name="is_active" value="0">
+                                  <div class="form-check form-switch m-0">
+                                    <input class="form-check-input" type="checkbox" name="is_active" value="1" id="activeTraining{{ $training->id }}" {{ $training->is_active ? 'checked' : '' }}>
+                                  </div>
+                                  <span class="badge {{ $training->is_active ? 'bg-success' : 'bg-secondary' }}">Publish</span>
                                 </div>
+                                <small class="text-muted">Toggle right to publish, keep left to save as draft.</small>
                               </div>
                               <div class="col-12">
                                 <button class="btn btn-sm btn-primary" type="submit">Save Changes</button>
@@ -237,86 +198,77 @@
                       </div>
                     </div>
                   </div>
-                  @empty
-                  <div class="alert alert-info mb-0">No trainings found.</div>
-                  @endforelse
                 </div>
+                @if($loop->last)
               </div>
-            </div>
-          </div>
-        </div>
-
-        <div class="tab-pane fade" id="my-training-pane" role="tabpanel" aria-labelledby="my-training-tab">
-          <div class="card shadow-sm border-0">
-            <div class="card-header bg-transparent">
-              <h6 class="mb-0 fw-bold">My Assigned Trainings</h6>
-            </div>
-            <div class="card-body">
-              @forelse($myTrainings as $training)
-              @php
-              $attempt = $training->attempts->where('user_id', auth()->id())->first();
-              @endphp
-              <div class="d-flex flex-wrap justify-content-between align-items-center border rounded p-3 mb-2">
-                <div>
-                  <h6 class="mb-1">{{ $training->title }}</h6>
-                  <small class="text-muted">{{ $training->description ?: 'No description available.' }}</small>
-                </div>
-                <div class="d-flex align-items-center gap-2 mt-2 mt-md-0">
-                  @if($attempt && $attempt->completed_at)
-                  <span class="badge bg-success">Completed</span>
-                  @else
-                  <span class="badge bg-warning text-dark">Pending</span>
-                  @endif
-                  <a href="{{ route('tpo.training-placement.attempt', $training->id) }}" class="btn btn-sm btn-primary">Attempt Survey</a>
-                </div>
-              </div>
+              @endif
               @empty
-              <div class="alert alert-info mb-0">No trainings assigned to your role.</div>
+              <div class="alert alert-info mb-0">No trainings found.</div>
               @endforelse
             </div>
           </div>
         </div>
       </div>
 
-      <div class="card shadow-sm border-0 mt-4">
-        <div class="card-header bg-transparent">
-          <h6 class="mb-0 fw-bold">Quick Analytics (Completion Rate)</h6>
-        </div>
-        <div class="card-body p-0">
-          <div class="table-responsive">
-            <table class="table mb-0">
-              <thead>
-                <tr>
-                  <th>Training</th>
-                  <th>Target Roles</th>
-                  <th>Assigned Users</th>
-                  <th>Completed</th>
-                  <th>Completion %</th>
-                </tr>
-              </thead>
-              <tbody>
-                @forelse($analytics as $item)
-                <tr>
-                  <td>{{ $item['title'] }}</td>
-                  <td>{{ $item['target_roles']->map(fn($role) => ucfirst(str_replace('-', ' ', $role)))->implode(', ') }}</td>
-                  <td>{{ $item['assigned_users'] }}</td>
-                  <td>{{ $item['completed_users'] }}</td>
-                  <td>
-                    <span class="badge {{ $item['completion_rate'] >= 80 ? 'bg-success' : ($item['completion_rate'] >= 40 ? 'bg-warning text-dark' : 'bg-danger') }}">
-                      {{ $item['completion_rate'] }}%
-                    </span>
-                  </td>
-                </tr>
-                @empty
-                <tr>
-                  <td colspan="5" class="text-center text-muted py-3">No analytics data available.</td>
-                </tr>
-                @endforelse
-              </tbody>
-            </table>
+      <div class="modal fade" id="addTrainingModal" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog modal-lg modal-dialog-centered">
+          <div class="modal-content">
+            <div class="modal-header">
+              <h5 class="modal-title">Add New Training</h5>
+              <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <form action="{{ route('tpo.training-placement.training.store') }}" method="POST">
+              @csrf
+              <div class="modal-body">
+                @if($errors->has('title') || $errors->has('description') || $errors->has('applicable_roles') || $errors->has('applicable_roles.*'))
+                <div class="alert alert-danger mb-3">
+                  <ul class="mb-0">
+                    @foreach($errors->all() as $error)
+                    <li>{{ $error }}</li>
+                    @endforeach
+                  </ul>
+                </div>
+                @endif
+
+                <div class="mb-3">
+                  <label class="form-label fw-semibold">Training Title</label>
+                  <input type="text" name="title" class="form-control" value="{{ old('title') }}" required>
+                </div>
+                <div class="mb-3">
+                  <label class="form-label fw-semibold">Description</label>
+                  <textarea name="description" class="form-control" rows="4">{{ old('description') }}</textarea>
+                </div>
+                <div class="mb-0">
+                  <label class="form-label fw-semibold">Applicable To Roles</label>
+                  <select name="applicable_roles[]" class="select-multiple" multiple size="8" required>
+                    @foreach($roleOptions as $role)
+                    <option value="{{ $role['value'] }}" {{ collect(old('applicable_roles', []))->contains($role['value']) ? 'selected' : '' }}>{{ $role['label'] }}</option>
+                    @endforeach
+                  </select>
+                </div>
+
+                <div class="mt-3">
+                  <label class="form-label fw-semibold d-block mb-1">Training Status</label>
+                  <div class="d-flex align-items-center gap-2 flex-wrap">
+                    <span class="badge {{ old('is_active', 0) ? 'bg-secondary' : 'bg-warning text-dark' }}">Draft</span>
+                    <input type="hidden" name="is_active" value="0">
+                    <div class="form-check form-switch m-0">
+                      <input class="form-check-input" type="checkbox" name="is_active" value="1" id="createTrainingStatusToggle" {{ old('is_active', 0) ? 'checked' : '' }}>
+                    </div>
+                    <span class="badge {{ old('is_active', 0) ? 'bg-success' : 'bg-secondary' }}">Publish</span>
+                  </div>
+                  <small class="text-muted">Toggle right to publish, keep left to save as draft.</small>
+                </div>
+              </div>
+              <div class="modal-footer">
+                <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button class="btn btn-success" type="submit"><i class="fas fa-plus me-1"></i>Create Training</button>
+              </div>
+            </form>
           </div>
         </div>
       </div>
+
     </div>
   </main>
 </div>
@@ -437,6 +389,24 @@
         });
     });
   })();
+</script>
+
+<script>
+  document.addEventListener('DOMContentLoaded', function() {
+    const hasCreateTrainingErrors = JSON.parse('@json($errors->has("title") || $errors->has("description") || $errors->has("applicable_roles") || $errors->has("applicable_roles.*"))');
+
+    if (!hasCreateTrainingErrors) {
+      return;
+    }
+
+    const modalNode = document.getElementById('addTrainingModal');
+    if (!modalNode || typeof bootstrap === 'undefined') {
+      return;
+    }
+
+    const modal = new bootstrap.Modal(modalNode);
+    modal.show();
+  });
 </script>
 
 @include('includes.footer')

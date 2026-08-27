@@ -84,7 +84,8 @@
                 <th>Access Status</th>
                 <th>Login Roll</th>
                 <th>Decrypted Password</th>
-                <th>Actions</th>
+                <th>Reset</th>
+                <th>Courses</th>
               </tr>
             </thead>
             <tbody>
@@ -126,7 +127,23 @@
                 <td>{{ $user->roll_no ?? 'N/A' }}</td>
                 <td>
                   @if($student->has_login_access)
-                  <span class="badge bg-light text-dark border">{{ $user->decrypted_password ?? 'N/A' }}</span>
+                  <span
+                    class="badge bg-light text-dark border js-password-text"
+                    data-password="{{ (string) ($user->decrypted_password ?? '') }}"
+                    data-visible="0">********</span>
+                  <button
+                    type="button"
+                    class="btn btn-sm btn-outline-dark ms-1 js-toggle-password"
+                    title="Show password">
+                    <i class="fas fa-eye me-1"></i>
+                  </button>
+                  <button
+                    type="button"
+                    class="btn btn-sm btn-outline-secondary ms-1 js-copy-password"
+                    data-password="{{ (string) ($user->decrypted_password ?? '') }}"
+                    title="Copy password">
+                    <i class="fas fa-copy me-1"></i>
+                  </button>
                   @else
                   <span class="text-muted">N/A</span>
                   @endif
@@ -139,9 +156,14 @@
                     class="d-inline">
                     @csrf
                     <button type="submit" class="btn btn-sm btn-outline-primary">
-                      <i class="fas fa-key me-1"></i>{{ $student->has_login_access ? 'Reset Default Password' : 'Create Login Access' }}
+                      <i class="fas fa-key me-1"></i>{{ $student->has_login_access ? ' Reset ' : 'Create Access' }}
                     </button>
                   </form>
+                </td>
+                <td>
+                  <a href="{{ route('itcell.student-login-access.course-allotment.index', $student->id) }}" class="btn btn-sm btn-outline-success mt-1">
+                    <i class="fas fa-book-medical me-1"></i> Courses
+                  </a>
                 </td>
               </tr>
               @empty
@@ -169,6 +191,49 @@
     const bulkResetBtn = document.getElementById('bulkResetBtn');
     const bulkStudentIds = document.getElementById('bulkStudentIds');
     const bulkResetForm = document.getElementById('bulkResetForm');
+    const copyButtons = Array.from(document.querySelectorAll('.js-copy-password'));
+    const toggleButtons = Array.from(document.querySelectorAll('.js-toggle-password'));
+
+    function maskPassword(password) {
+      if (!password) {
+        return '********';
+      }
+
+      return '*'.repeat(Math.max(password.length, 8));
+    }
+
+    function copyToClipboard(text) {
+      if (!text) {
+        return Promise.reject(new Error('No text to copy'));
+      }
+
+      if (navigator.clipboard && window.isSecureContext) {
+        return navigator.clipboard.writeText(text);
+      }
+
+      return new Promise((resolve, reject) => {
+        const textarea = document.createElement('textarea');
+        textarea.value = text;
+        textarea.setAttribute('readonly', 'readonly');
+        textarea.style.position = 'fixed';
+        textarea.style.left = '-9999px';
+        document.body.appendChild(textarea);
+        textarea.select();
+
+        try {
+          const ok = document.execCommand('copy');
+          document.body.removeChild(textarea);
+          if (!ok) {
+            reject(new Error('Copy command failed'));
+            return;
+          }
+          resolve();
+        } catch (error) {
+          document.body.removeChild(textarea);
+          reject(error);
+        }
+      });
+    }
 
     function selectedValues() {
       return checkboxes.filter((item) => item.checked).map((item) => item.value);
@@ -205,6 +270,61 @@
 
     checkboxes.forEach((item) => {
       item.addEventListener('change', syncUi);
+    });
+
+    copyButtons.forEach((button) => {
+      button.addEventListener('click', function() {
+        const password = (button.getAttribute('data-password') || '').trim();
+        if (!password) {
+          alert('Password not available to copy.');
+          return;
+        }
+
+        const originalHtml = button.innerHTML;
+        copyToClipboard(password)
+          .then(() => {
+            button.innerHTML = '<i class="fas fa-check me-1"></i>Copied';
+            setTimeout(() => {
+              button.innerHTML = originalHtml;
+            }, 1200);
+          })
+          .catch(() => {
+            alert('Unable to copy password. Please copy manually.');
+          });
+      });
+    });
+
+    toggleButtons.forEach((button) => {
+      button.addEventListener('click', function() {
+        const container = button.closest('td');
+        if (!container) {
+          return;
+        }
+
+        const passwordBadge = container.querySelector('.js-password-text');
+        if (!passwordBadge) {
+          return;
+        }
+
+        const password = (passwordBadge.getAttribute('data-password') || '').trim();
+        if (!password) {
+          alert('Password not available.');
+          return;
+        }
+
+        const currentlyVisible = passwordBadge.getAttribute('data-visible') === '1';
+        if (currentlyVisible) {
+          passwordBadge.textContent = maskPassword(password);
+          passwordBadge.setAttribute('data-visible', '0');
+          button.innerHTML = '<i class="fas fa-eye me-1"></i>';
+          button.setAttribute('title', 'Show password');
+        } else {
+          passwordBadge.textContent = password;
+          passwordBadge.setAttribute('data-visible', '1');
+          button.innerHTML = '<i class="fas fa-eye-slash me-1"></i>';
+          button.setAttribute('title', 'Hide password');
+        }
+      });
     });
 
     if (bulkResetForm) {
