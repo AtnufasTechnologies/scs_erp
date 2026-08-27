@@ -231,13 +231,43 @@ class TrainingPlacementController extends Controller
   public function jobApplicationsIndex(Request $request)
   {
     $search = trim((string) $request->input('search', ''));
+    $placementId = (int) $request->input('placement_id', 0);
+    $selectedStatus = trim((string) $request->input('status', ''));
     $searchLike = '%' . $search . '%';
+
+    $statusOptions = [
+      'submitted' => 'Submitted',
+      'under_review' => 'Under Review',
+      'shortlisted' => 'Shortlisted',
+      'interview_scheduled' => 'Interview Scheduled',
+      'selected' => 'Selected',
+      'rejected' => 'Rejected',
+      'on_hold' => 'On Hold',
+    ];
+
+    $placementsForFilter = PlacementOpportunity::query()
+      ->orderByDesc('id')
+      ->get(['id', 'title', 'company_name']);
+
+    $documentationLabelMap = collect($this->documentationRequirementOptions())
+      ->mapWithKeys(function ($label, $key) {
+        return [$this->normalizeDocKey((string) $key) => (string) $label];
+      })
+      ->all();
 
     $applicationsQuery = PlacementApplication::query()
       ->with([
-        'placement:id,title,company_name,category',
+        'placement:id,title,company_name,category,documentation_required',
         'student:id,first_name,last_name,roll_no,register_no,mail_id',
       ]);
+
+    if ($placementId > 0) {
+      $applicationsQuery->where('placement_opportunity_id', $placementId);
+    }
+
+    if ($selectedStatus !== '' && array_key_exists($selectedStatus, $statusOptions)) {
+      $applicationsQuery->where('status', $selectedStatus);
+    }
 
     if ($search !== '') {
       $applicationsQuery->where(function ($query) use ($searchLike) {
@@ -263,7 +293,36 @@ class TrainingPlacementController extends Controller
     return view('tpo.training-placement.job-applications', [
       'applications' => $applications,
       'search' => $search,
+      'placementId' => $placementId,
+      'selectedStatus' => $selectedStatus,
+      'statusOptions' => $statusOptions,
+      'placementsForFilter' => $placementsForFilter,
+      'documentationLabelMap' => $documentationLabelMap,
     ]);
+  }
+
+  public function updateJobApplicationProgress(Request $request, PlacementApplication $application)
+  {
+    $statusOptions = [
+      'submitted',
+      'under_review',
+      'shortlisted',
+      'interview_scheduled',
+      'selected',
+      'rejected',
+      'on_hold',
+    ];
+
+    $validated = $request->validate([
+      'status' => 'required|string|in:' . implode(',', $statusOptions),
+      'remarks' => 'nullable|string|max:1000',
+    ]);
+
+    $application->status = (string) $validated['status'];
+    $application->remarks = trim((string) ($validated['remarks'] ?? '')) ?: null;
+    $application->save();
+
+    return back()->with('success', 'Application progress updated successfully.');
   }
 
   public function storeTraining(Request $request)
@@ -1026,6 +1085,87 @@ class TrainingPlacementController extends Controller
     $analytics = $this->buildTrainingAnalytics($trainings);
 
     return view('tpo.training-placement.analytics', compact('analytics'));
+  }
+
+  public function placementReportIndex(Request $request)
+  {
+    $search = trim((string) $request->input('search', ''));
+    $placementId = (int) $request->input('placement_id', 0);
+    $searchLike = '%' . $search . '%';
+
+    $baseQuery = PlacementApplication::query()
+      ->with([
+        'placement:id,title,company_name,category',
+        'student' => function ($query) {
+          $query->with('campusmaster:id,name');
+        },
+      ])
+      ->where('status', 'selected');
+
+    if ($placementId > 0) {
+      $baseQuery->where('placement_opportunity_id', $placementId);
+    }
+
+    if ($search !== '') {
+      $baseQuery->where(function ($query) use ($searchLike) {
+        $query->whereHas('placement', function ($placementQuery) use ($searchLike) {
+          $placementQuery->where('title', 'like', $searchLike)
+            ->orWhere('company_name', 'like', $searchLike);
+        })->orWhereHas('student', function ($studentQuery) use ($searchLike) {
+          $studentQuery->where('first_name', 'like', $searchLike)
+            ->orWhere('last_name', 'like', $searchLike)
+            ->orWhere('roll_no', 'like', $searchLike)
+            ->orWhere('register_no', 'like', $searchLike)
+            ->orWhere('mail_id', 'like', $searchLike);
+        });
+      });
+    }
+
+    $selectedRows = (clone $baseQuery)->get();
+
+    $insights = [
+      'total_selected_records' => $selectedRows->count(),
+      'unique_selected_students' => $selectedRows->pluck('student_id')->filter()->unique()->count(),
+      'unique_selected_jobs' => $selectedRows->pluck('placement_opportunity_id')->filter()->unique()->count(),
+      'unique_companies' => $selectedRows->map(fn($row) => (string) ($row->placement->company_name ?? ''))
+        ->filter(fn($name) => $name !== '')
+        ->unique()
+        ->count(),
+      'selection_by_job' => $selectedRows
+        ->groupBy(fn($row) => (string) ($row->placement->title ?? 'N/A'))
+        ->map(fn($rows, $title) => [
+          'title' => $title,
+          'count' => $rows->count(),
+        ])
+        ->sortByDesc('count')
+        ->values(),
+      'selection_by_company' => $selectedRows
+        ->groupBy(fn($row) => (string) ($row->placement->company_name ?? 'N/A'))
+        ->map(fn($rows, $company) => [
+          'company' => $company,
+          'count' => $rows->count(),
+        ])
+        ->sortByDesc('count')
+        ->values(),
+    ];
+
+    $selectedApplications = $baseQuery
+      ->latest('updated_at')
+      ->latest('id')
+      ->paginate(25)
+      ->appends($request->query());
+
+    $placementsForFilter = PlacementOpportunity::query()
+      ->orderByDesc('id')
+      ->get(['id', 'title', 'company_name']);
+
+    return view('tpo.training-placement.placement-report', [
+      'selectedApplications' => $selectedApplications,
+      'search' => $search,
+      'placementId' => $placementId,
+      'placementsForFilter' => $placementsForFilter,
+      'insights' => $insights,
+    ]);
   }
 
   public function optedStudentsIndex(Request $request)

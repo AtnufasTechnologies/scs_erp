@@ -248,6 +248,20 @@
                       <span class="badge bg-light text-dark border">{{ ucfirst((string) ($job->category ?? 'Opportunity')) }}</span>
                       @if($existingApplication)
                       <span class="badge bg-success">Applied</span>
+                      @php
+                      $progressStatus = strtolower((string) ($existingApplication->status ?? 'submitted'));
+                      $progressBadgeClass = 'bg-secondary';
+                      if (in_array($progressStatus, ['under_review', 'shortlisted', 'interview_scheduled'], true)) {
+                      $progressBadgeClass = 'bg-info text-dark';
+                      } elseif ($progressStatus === 'selected') {
+                      $progressBadgeClass = 'bg-success';
+                      } elseif ($progressStatus === 'rejected') {
+                      $progressBadgeClass = 'bg-danger';
+                      } elseif ($progressStatus === 'on_hold') {
+                      $progressBadgeClass = 'bg-warning text-dark';
+                      }
+                      @endphp
+                      <span class="badge {{ $progressBadgeClass }}">{{ ucwords(str_replace('_', ' ', $progressStatus)) }}</span>
                       @endif
                     </div>
 
@@ -271,6 +285,9 @@
 
                     @if($existingApplication)
                     <div class="mt-2 section-muted">Applied on {{ optional($existingApplication->applied_at)->format('d M Y h:i A') }}</div>
+                    @if(!empty($existingApplication->remarks))
+                    <div class="mt-1 small text-muted"><span class="fw-semibold">TPO Update:</span> {{ $existingApplication->remarks }}</div>
+                    @endif
                     @endif
                   </div>
 

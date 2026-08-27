@@ -1599,6 +1599,8 @@ Route::group(['prefix' => '/erp'], function () {
         Route::get('training-placement/placement', [TrainingPlacementController::class, 'placementIndex'])->name('tpo.training-placement.placement.index');
         Route::get('training-placement/job-description', [TrainingPlacementController::class, 'placementIndex'])->name('tpo.training-placement.job-description.index');
         Route::get('training-placement/job-applications', [TrainingPlacementController::class, 'jobApplicationsIndex'])->name('tpo.training-placement.job-applications.index');
+        Route::post('training-placement/job-applications/{application}/progress', [TrainingPlacementController::class, 'updateJobApplicationProgress'])->name('tpo.training-placement.job-applications.progress.update');
+        Route::get('training-placement/placement-report', [TrainingPlacementController::class, 'placementReportIndex'])->name('tpo.training-placement.placement-report.index');
         Route::get('training-placement/events', [TrainingPlacementController::class, 'eventsIndex'])->name('tpo.training-placement.events.index');
         Route::get('training-placement/analytics', [TrainingPlacementController::class, 'analytics'])->name('tpo.training-placement.analytics');
         Route::get('training-placement/opted-students', [TrainingPlacementController::class, 'optedStudentsIndex'])->name('tpo.training-placement.opted-students.index');

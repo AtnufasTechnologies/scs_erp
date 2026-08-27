@@ -84,11 +84,11 @@ use Illuminate\Support\Facades\Auth;
 
 
     <li>
-      <a href="javascript:;">
+      <a href="{{ route('tpo.training-placement.placement-report.index') }}" class="{{ request()->routeIs('tpo.training-placement.placement-report.*') ? 'active' : '' }}">
         <div class="parent-icon">
           <i class="fas fa-bullseye-arrow"></i>
         </div>
-        <div class="menu-title">Placement</div>
+        <div class="menu-title">Placement Report</div>
       </a>
     </li>
 

@@ -41,13 +41,33 @@
           </div>
 
           <form method="GET" action="{{ route('tpo.training-placement.job-applications.index') }}" class="row g-2 align-items-end">
-            <div class="col-md-9">
+            <div class="col-md-4">
               <label class="form-label fw-semibold mb-1">Search Applications</label>
               <input type="text" name="search" value="{{ $search ?? '' }}" class="form-control" placeholder="Search by student, roll no, register no, job title or company">
             </div>
-            <div class="col-md-3 d-flex gap-2">
-              <button type="submit" class="btn btn-primary w-100"><i class="fa fa-search"></i></button>
-              @if(!empty($search))
+            <div class="col-md-4">
+              <label class="form-label fw-semibold mb-1">Job Description</label>
+              <select name="placement_id" class="form-select">
+                <option value="">All Jobs</option>
+                @foreach(($placementsForFilter ?? collect()) as $placementFilter)
+                <option value="{{ $placementFilter->id }}" {{ (int) ($placementId ?? 0) === (int) $placementFilter->id ? 'selected' : '' }}>
+                  {{ $placementFilter->title }} @if(!empty($placementFilter->company_name)) ({{ $placementFilter->company_name }}) @endif
+                </option>
+                @endforeach
+              </select>
+            </div>
+            <div class="col-md-2">
+              <label class="form-label fw-semibold mb-1">Progress</label>
+              <select name="status" class="form-select">
+                <option value="">All Status</option>
+                @foreach(($statusOptions ?? []) as $statusValue => $statusLabel)
+                <option value="{{ $statusValue }}" {{ ($selectedStatus ?? '') === $statusValue ? 'selected' : '' }}>{{ $statusLabel }}</option>
+                @endforeach
+              </select>
+            </div>
+            <div class="col-md-2 d-flex gap-2">
+              <button type="submit" class="btn btn-primary w-100">Filter</button>
+              @if(!empty($search) || !empty($placementId) || !empty($selectedStatus))
               <a href="{{ route('tpo.training-placement.job-applications.index') }}" class="btn btn-outline-secondary w-100">Reset</a>
               @endif
             </div>
@@ -67,13 +87,25 @@
                   <th>Job Description</th>
                   <th>Status</th>
                   <th>Resume</th>
-                  <th>Documents</th>
+                  <th>Documents (As Required)</th>
+                  <th>Update Progress</th>
                 </tr>
               </thead>
               <tbody>
                 @foreach($applications as $application)
                 @php
                 $submittedDocuments = (array) ($application->submitted_documents ?? []);
+                $submittedNormalized = collect($submittedDocuments)->mapWithKeys(function ($doc, $docKey) {
+                return [strtolower(trim((string) $docKey)) => $doc];
+                })->all();
+                $requiredDocKeys = collect((array) ($application->placement->documentation_required ?? []))
+                ->map(fn($value) => strtolower(trim((string) $value)))
+                ->filter()
+                ->unique()
+                ->values();
+                $additionalSubmittedKeys = collect(array_keys($submittedNormalized))
+                ->reject(fn($docKey) => $requiredDocKeys->contains($docKey))
+                ->values();
                 @endphp
                 <tr>
                   <td>{{ optional($application->applied_at)->format('d M Y h:i A') ?: optional($application->created_at)->format('d M Y h:i A') }}</td>
@@ -86,7 +118,7 @@
                     <div class="fw-semibold">{{ $application->placement->title ?? 'N/A' }}</div>
                     <div class="small text-muted">{{ $application->placement->company_name ?? 'N/A' }}</div>
                   </td>
-                  <td><span class="badge bg-info text-dark text-uppercase">{{ $application->status ?? 'submitted' }}</span></td>
+                  <td><span class="badge bg-info text-dark text-uppercase">{{ str_replace('_', ' ', $application->status ?? 'submitted') }}</span></td>
                   <td>
                     @if(!empty($application->resume_file_path))
                     <a href="{{ Storage::disk('s3')->url($application->resume_file_path) }}" class="btn btn-sm btn-outline-primary" target="_blank">View Resume</a>
@@ -95,11 +127,44 @@
                     @endif
                   </td>
                   <td>
-                    @if(!empty($submittedDocuments))
+                    @if($requiredDocKeys->isNotEmpty())
+                    <div class="d-flex flex-column gap-1">
+                      @foreach($requiredDocKeys as $docKey)
+                      @php
+                      $doc = $submittedNormalized[$docKey] ?? null;
+                      $docLabel = $documentationLabelMap[$docKey] ?? ucwords(str_replace('_', ' ', $docKey));
+                      @endphp
+                      <div class="small">
+                        <span class="fw-semibold">{{ $docLabel }}:</span>
+                        @if(!empty($doc['file_path']))
+                        <a href="{{ Storage::disk('s3')->url($doc['file_path']) }}" target="_blank">View</a>
+                        @else
+                        <span class="text-danger">Missing</span>
+                        @endif
+                      </div>
+                      @endforeach
+                    </div>
+                    @if($additionalSubmittedKeys->isNotEmpty())
+                    <div class="small text-muted mt-1">Additional:</div>
+                    <div class="d-flex flex-column gap-1">
+                      @foreach($additionalSubmittedKeys as $docKey)
+                      @php $additionalDoc = $submittedNormalized[$docKey] ?? null; @endphp
+                      <div class="small">
+                        <span class="fw-semibold">{{ $documentationLabelMap[$docKey] ?? ucwords(str_replace('_', ' ', $docKey)) }}:</span>
+                        @if(!empty($additionalDoc['file_path']))
+                        <a href="{{ Storage::disk('s3')->url($additionalDoc['file_path']) }}" target="_blank">View</a>
+                        @else
+                        <span class="text-muted">N/A</span>
+                        @endif
+                      </div>
+                      @endforeach
+                    </div>
+                    @endif
+                    @elseif(!empty($submittedDocuments))
                     <div class="d-flex flex-column gap-1">
                       @foreach($submittedDocuments as $docKey => $doc)
                       <div class="small">
-                        <span class="fw-semibold">{{ ucwords(str_replace('_', ' ', $docKey)) }}:</span>
+                        <span class="fw-semibold">{{ $documentationLabelMap[strtolower(trim((string) $docKey))] ?? ucwords(str_replace('_', ' ', $docKey)) }}:</span>
                         @if(!empty($doc['file_path']))
                         <a href="{{ Storage::disk('s3')->url($doc['file_path']) }}" target="_blank">View</a>
                         @else
@@ -109,8 +174,20 @@
                       @endforeach
                     </div>
                     @else
-                    <span class="text-muted small">No extra docs</span>
+                    <span class="text-muted small">No required docs</span>
                     @endif
+                  </td>
+                  <td>
+                    <form method="POST" action="{{ route('tpo.training-placement.job-applications.progress.update', $application->id) }}" class="d-flex flex-column gap-2">
+                      @csrf
+                      <select name="status" class="form-select form-select-sm" required>
+                        @foreach(($statusOptions ?? []) as $statusValue => $statusLabel)
+                        <option value="{{ $statusValue }}" {{ ($application->status ?? 'submitted') === $statusValue ? 'selected' : '' }}>{{ $statusLabel }}</option>
+                        @endforeach
+                      </select>
+                      <textarea name="remarks" rows="2" class="form-control form-control-sm" maxlength="1000" placeholder="Add update note (optional)">{{ $application->remarks ?? '' }}</textarea>
+                      <button type="submit" class="btn btn-sm btn-success">Update</button>
+                    </form>
                   </td>
                 </tr>
                 @endforeach

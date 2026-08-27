@@ -231,6 +231,7 @@
                       <div class="mb-2">{{ $placement->apply_deadline ? $placement->apply_deadline->format('d M Y') : 'N/A' }}</div>
 
                       <div class="d-grid gap-2">
+                        <a class="btn btn-sm btn-outline-dark" href="{{ route('tpo.training-placement.job-applications.index', ['placement_id' => $placement->id]) }}">View Applicants</a>
                         <button class="btn btn-sm btn-outline-primary" type="button" data-bs-toggle="collapse" data-bs-target="#placementManage{{ $placement->id }}">Edit</button>
                         <form action="{{ route('tpo.training-placement.job-description.destroy', $placement->id) }}" method="POST" onsubmit="return confirm('Delete this item?')">
                           @csrf
