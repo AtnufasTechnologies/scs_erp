@@ -69,14 +69,31 @@
 
           </div>
           <form method="GET" action="{{ route('tpo.training-placement.job-description.index') }}" class="row g-2 align-items-end">
-            <div class="col-md-9">
+            <div class="col-md-4">
               <label class="form-label fw-semibold mb-1">Search Job Descriptions</label>
               <input type="text" name="search" value="{{ $placementSearch ?? '' }}" class="form-control" placeholder="Search by title, company, location, category, campus or department">
             </div>
-            <div class="col-md-3 d-flex gap-2">
-              <button type="submit" class="btn btn-primary w-100"><i class="fa fa-search"></i></button>
-              @if(!empty($placementSearch))
-              <a href="{{ route('tpo.training-placement.job-description.index') }}" class="btn btn-outline-secondary w-100">Reset</a>
+            <div class="col-md-3">
+              <label class="form-label fw-semibold mb-1">Category</label>
+              <select name="category" class="form-select">
+                <option value="">All Categories</option>
+                @foreach($categoryOptions as $value => $label)
+                <option value="{{ $value }}" {{ ($selectedCategory ?? '') === $value ? 'selected' : '' }}>{{ $label }}</option>
+                @endforeach
+              </select>
+            </div>
+            <div class="col-md-2">
+              <label class="form-label fw-semibold mb-1">Drive Date From</label>
+              <input type="date" name="date_from" value="{{ $dateFrom ?? '' }}" class="form-control">
+            </div>
+            <div class="col-md-2">
+              <label class="form-label fw-semibold mb-1">Drive Date To</label>
+              <input type="date" name="date_to" value="{{ $dateTo ?? '' }}" class="form-control">
+            </div>
+            <div class="col-md-1 d-flex justify-content-end gap-2 pt-1">
+              <button type="submit" class="btn btn-primary"><i class="fa fa-search"></i></button>
+              @if(!empty($placementSearch) || !empty($selectedCategory) || !empty($dateFrom) || !empty($dateTo))
+              <a href="{{ route('tpo.training-placement.job-description.index') }}" class="btn btn-outline-secondary">Reset</a>
               @endif
             </div>
           </form>
@@ -161,9 +178,9 @@
               return $documentationRequirementOptions[$docKey] ?? ucwords(str_replace('_', ' ', $docKey));
               })->values();
               @endphp
-              <div class="border rounded-3 p-3 mb-3 bg-white shadow-sm">
-                <div class="d-flex justify-content-between align-items-start gap-2 flex-wrap">
-                  <div class="w-100">
+              <div class="border rounded-3 p-2 mb-2 bg-white shadow-sm">
+                <div class="row g-2 align-items-start">
+                  <div class="col-lg-8">
                     <div class="d-flex flex-wrap align-items-center gap-2 mb-1">
                       <h6 class="mb-0 fw-bold">{{ $placement->title }}</h6>
                       <span class="badge bg-info text-dark">{{ $categoryOptions[$placement->category] ?? ucfirst($placement->category ?? 'N/A') }}</span>
@@ -181,30 +198,52 @@
                     </div>
                     @endif
 
-                    <p class="mb-2">{{ $placement->description }}</p>
-                    <div class="small text-muted mb-1">Campus: {{ $isBothCampusesAllDepartments ? 'Both Campuses' : ($placement->campus->name ?? 'N/A') }}</div>
-                    <div class="small text-muted mb-1">Location: {{ $placement->location }}{{ $placement->country ? ', ' . $placement->country : '' }}</div>
-                    <div class="small text-muted mb-1">Applicable Year: {{ $yearOptions[(int) $placement->student_year] ?? ($placement->student_year ?: 'N/A') }}</div>
-                    <div class="small text-muted mb-1">Departments: {{ $isBothCampusesAllDepartments ? 'All Departments (Both Campuses)' : ($isSelectedCampusAllDepartments ? 'All Departments (Selected Campus)' : ($selectedSubjectNames->isNotEmpty() ? $selectedSubjectNames->implode(', ') : 'N/A')) }}</div>
-                    @if($placement->category === 'internship')
-                    <div class="small text-muted mb-1">Internship Type: {{ $placement->internship_stipend_type === 'stipend' ? 'Stipend' : ($placement->internship_stipend_type === 'non_stipend' ? 'Non Stipend' : 'N/A') }}</div>
-                    @endif
-                    @if(in_array((string) $placement->category, ['placements', 'placement'], true))
-                    <div class="small text-muted mb-1">Placement Type: {{ $placementTypeOptions[$placement->placement_type] ?? 'N/A' }}</div>
-                    <div class="small text-muted mb-1">Opening Type: {{ $openingTypeOptions[$placement->opening_type] ?? 'N/A' }}</div>
-                    <div class="small text-muted mb-1">Documentation Needed: {{ $placementDocLabels->isNotEmpty() ? $placementDocLabels->implode(', ') : 'N/A' }}</div>
-                    @endif
-                    <div class="small text-muted mb-1">Applications Received: {{ (int) ($placement->applications_count ?? 0) }}</div>
-                    <div class="small text-muted mb-1">Company: {{ $placement->company_name ?: 'N/A' }}</div>
-                    <div class="small text-muted mb-1">Drive: {{ $placement->drive_date ? $placement->drive_date->format('d M Y') : 'N/A' }} | Deadline: {{ $placement->apply_deadline ? $placement->apply_deadline->format('d M Y') : 'N/A' }}</div>
+                    <div class="mb-2">{!! $placement->description !!}</div>
+
+                    <div class="row g-1 small text-muted">
+                      <div class="col-md-6"><span class="fw-semibold text-dark">Campus:</span> {{ $isBothCampusesAllDepartments ? 'Both Campuses' : ($placement->campus->name ?? 'N/A') }}</div>
+                      <div class="col-md-6"><span class="fw-semibold text-dark">Applicable Year:</span> {{ $yearOptions[(int) $placement->student_year] ?? ($placement->student_year ?: 'N/A') }}</div>
+                      <div class="col-md-6"><span class="fw-semibold text-dark">Location:</span> {{ $placement->location }}{{ $placement->country ? ', ' . $placement->country : '' }}</div>
+                      <div class="col-md-6"><span class="fw-semibold text-dark">Departments:</span> {{ $isBothCampusesAllDepartments ? 'All Departments (Both Campuses)' : ($isSelectedCampusAllDepartments ? 'All Departments (Selected Campus)' : ($selectedSubjectNames->isNotEmpty() ? $selectedSubjectNames->implode(', ') : 'N/A')) }}</div>
+                      @if($placement->category === 'internship')
+                      <div class="col-md-6"><span class="fw-semibold text-dark">Internship Type:</span> {{ $placement->internship_stipend_type === 'stipend' ? 'Stipend' : ($placement->internship_stipend_type === 'non_stipend' ? 'Non Stipend' : 'N/A') }}</div>
+                      @endif
+                      @if(in_array((string) $placement->category, ['placements', 'placement'], true))
+                      <div class="col-md-6"><span class="fw-semibold text-dark">Placement Type:</span> {{ $placementTypeOptions[$placement->placement_type] ?? 'N/A' }}</div>
+                      <div class="col-md-6"><span class="fw-semibold text-dark">Opening Type:</span> {{ $openingTypeOptions[$placement->opening_type] ?? 'N/A' }}</div>
+                      <div class="col-12"><span class="fw-semibold text-dark">Documentation Needed:</span> {{ $placementDocLabels->isNotEmpty() ? $placementDocLabels->implode(', ') : 'N/A' }}</div>
+                      @endif
+                    </div>
                   </div>
-                  <div class="d-flex gap-2">
-                    <button class="btn btn-sm btn-outline-primary" type="button" data-bs-toggle="collapse" data-bs-target="#placementManage{{ $placement->id }}">Edit</button>
-                    <form action="{{ route('tpo.training-placement.job-description.destroy', $placement->id) }}" method="POST" onsubmit="return confirm('Delete this item?')">
-                      @csrf
-                      @method('DELETE')
-                      <button class="btn btn-sm btn-outline-danger">Delete</button>
-                    </form>
+
+                  <div class="col-lg-4">
+                    <div class="border rounded-3 p-2 h-100 bg-light">
+                      <div class="small text-muted mb-1">Applications Received</div>
+                      <div class="h5 fw-bold mb-2">{{ (int) ($placement->applications_count ?? 0) }}</div>
+
+                      <div class="small text-muted mb-1">Company</div>
+                      <div class="fw-semibold mb-2">{{ $placement->company_name ?: 'N/A' }}</div>
+
+                      <div class="small text-muted mb-1">Drive Date</div>
+                      <div class="mb-2">{{ $placement->drive_date ? $placement->drive_date->format('d M Y') : 'N/A' }}</div>
+
+                      <div class="small text-muted mb-1">Apply Deadline</div>
+                      <div class="mb-2">{{ $placement->apply_deadline ? $placement->apply_deadline->format('d M Y') : 'N/A' }}</div>
+
+                      <div class="d-grid gap-2">
+                        <button class="btn btn-sm btn-outline-primary" type="button" data-bs-toggle="collapse" data-bs-target="#placementManage{{ $placement->id }}">Edit</button>
+                        <form action="{{ route('tpo.training-placement.job-description.destroy', $placement->id) }}" method="POST" onsubmit="return confirm('Delete this item?')">
+                          @csrf
+                          @method('DELETE')
+                          <button
+                            class="btn btn-sm btn-outline-danger w-100"
+                            {{ ((int) ($placement->applications_count ?? 0)) > 0 ? 'disabled' : '' }}
+                            title="{{ ((int) ($placement->applications_count ?? 0)) > 0 ? 'Cannot delete: students have already applied.' : 'Delete this item' }}">
+                            Delete
+                          </button>
+                        </form>
+                      </div>
+                    </div>
                   </div>
                 </div>
 
@@ -224,7 +263,7 @@
                               </div>
                               <div class="col-12">
                                 <label class="form-label fw-semibold">Description</label>
-                                <textarea class="form-control" name="description" rows="3" required>{{ $placement->description }}</textarea>
+                                <textarea class="form-control js-placement-description" name="description" rows="3">{{ $placement->description }}</textarea>
                               </div>
                               <div class="col-lg-4 col-md-6">
                                 <label class="form-label fw-semibold">Category</label>
@@ -425,16 +464,20 @@
       <div class="modal-body">
         <form action="{{ route('tpo.training-placement.job-description.store') }}" method="POST" enctype="multipart/form-data" class="js-placement-form">
           @csrf
+          <div class="card">
+            <div class="row">
+              <div class="mb-2">
+                <label class="form-label fw-semibold">Title *</label>
+                <input type="text" name="title" class="form-control" required>
+              </div>
 
-          <div class="mb-2">
-            <label class="form-label fw-semibold">Title *</label>
-            <input type="text" name="title" class="form-control" required>
+              <div class="mb-2">
+                <label class="form-label fw-semibold"> Description *</label>
+                <textarea name="description" class="form-control js-placement-description"></textarea>
+              </div>
+            </div>
           </div>
 
-          <div class="mb-2">
-            <label class="form-label fw-semibold"> Description *</label>
-            <textarea name="description" rows="3" class="form-control" required></textarea>
-          </div>
 
           <div class="row g-2 mb-2">
 
@@ -660,6 +703,62 @@
 <script>
   document.addEventListener('DOMContentLoaded', function() {
     var forms = document.querySelectorAll('.js-placement-form');
+    var ckEditors = new Map();
+
+    var ckConfig = {
+      removePlugins: [
+        'CKFinderUploadAdapter',
+        'CKFinder',
+        'EasyImage',
+        'Image',
+        'ImageCaption',
+        'ImageStyle',
+        'ImageToolbar',
+        'ImageUpload',
+        'MediaEmbed'
+      ]
+    };
+
+    function stripHtml(value) {
+      return String(value || '')
+        .replace(/<[^>]+>/g, ' ')
+        .replace(/&nbsp;/gi, ' ')
+        .trim();
+    }
+
+    function initEditorsIn(container) {
+      if (typeof ClassicEditor === 'undefined' || !container) {
+        return;
+      }
+
+      var textareas = container.querySelectorAll('.js-placement-description');
+      textareas.forEach(function(textarea) {
+        if (ckEditors.has(textarea)) {
+          return;
+        }
+
+        ClassicEditor.create(textarea, ckConfig)
+          .then(function(editor) {
+            ckEditors.set(textarea, editor);
+          })
+          .catch(function(error) {
+            console.error(error);
+          });
+      });
+    }
+
+    var createModal = document.getElementById('addCatalogItemModal');
+    if (createModal) {
+      createModal.addEventListener('shown.bs.modal', function() {
+        initEditorsIn(createModal);
+      });
+    }
+
+    document.querySelectorAll('[id^="placementManage"]').forEach(function(panel) {
+      panel.addEventListener('shown.bs.collapse', function() {
+        initEditorsIn(panel);
+      });
+    });
 
     forms.forEach(function(form) {
       var categorySelect = form.querySelector('.js-placement-category') || form.querySelector('select[name="category"]');
@@ -816,7 +915,36 @@
         applicabilityScopeSelect.addEventListener('change', applyApplicabilityScopeRules);
         applyApplicabilityScopeRules();
       }
+
+      form.addEventListener('submit', function(event) {
+        var descriptions = form.querySelectorAll('.js-placement-description');
+        var hasInvalidDescription = false;
+
+        descriptions.forEach(function(textarea) {
+          var editor = ckEditors.get(textarea);
+
+          if (editor) {
+            var data = editor.getData();
+            textarea.value = data;
+            if (stripHtml(data) === '') {
+              hasInvalidDescription = true;
+            }
+            return;
+          }
+
+          if (stripHtml(textarea.value) === '') {
+            hasInvalidDescription = true;
+          }
+        });
+
+        if (hasInvalidDescription) {
+          event.preventDefault();
+          alert('Please enter description before submitting.');
+        }
+      });
     });
+
+    initEditorsIn(document);
   });
 </script>
 

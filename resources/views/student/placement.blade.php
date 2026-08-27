@@ -191,6 +191,36 @@
           <span class="section-muted">Applicable opportunities based on your profile</span>
         </div>
         <div class="p-3">
+          <form method="GET" action="{{ route('student.console.placement') }}" class="row g-2 align-items-end mb-3">
+            <div class="col-lg-4 col-md-6">
+              <label class="form-label fw-semibold mb-1">Search</label>
+              <input type="text" name="search" value="{{ $placementSearch ?? '' }}" class="form-control" placeholder="Title, company, location, category">
+            </div>
+            <div class="col-lg-3 col-md-6">
+              <label class="form-label fw-semibold mb-1">Category</label>
+              <select name="category" class="form-select">
+                <option value="">All Categories</option>
+                @foreach(($categoryOptions ?? []) as $value => $label)
+                <option value="{{ $value }}" {{ ($selectedCategory ?? '') === $value ? 'selected' : '' }}>{{ $label }}</option>
+                @endforeach
+              </select>
+            </div>
+            <div class="col-lg-2 col-md-6">
+              <label class="form-label fw-semibold mb-1">Deadline From</label>
+              <input type="date" name="date_from" value="{{ $dateFrom ?? '' }}" class="form-control">
+            </div>
+            <div class="col-lg-2 col-md-6">
+              <label class="form-label fw-semibold mb-1">Deadline To</label>
+              <input type="date" name="date_to" value="{{ $dateTo ?? '' }}" class="form-control">
+            </div>
+            <div class="col-lg-1 col-md-12 d-flex justify-content-end gap-2">
+              <button type="submit" class="btn btn-primary">Filter</button>
+              @if(!empty($placementSearch) || !empty($selectedCategory) || !empty($dateFrom) || !empty($dateTo))
+              <a href="{{ route('student.console.placement') }}" class="btn btn-outline-secondary">Reset</a>
+              @endif
+            </div>
+          </form>
+
           @if($jobs->count() > 0)
           <div class="row g-3">
             @foreach($jobs as $job)
@@ -221,7 +251,7 @@
                       <span><i class="far fa-calendar-alt me-1"></i>Apply by {{ $job->apply_deadline ? $job->apply_deadline->format('d M Y') : 'N/A' }}</span>
                     </div>
 
-                    <p class="mb-2">{{ $job->description }}</p>
+                    <div class="mb-2">{!! $job->description !!}</div>
 
                     <div>
                       @if($requiredDocKeys->isNotEmpty())

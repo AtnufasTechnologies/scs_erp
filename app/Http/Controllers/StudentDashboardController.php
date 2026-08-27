@@ -452,15 +452,25 @@ class StudentDashboardController extends Controller
     ]);
   }
 
-  public function placementPage()
+  public function placementPage(Request $request)
   {
     [$trainingPlacementOptIn, $trainingPlacementFormTemplate, $tpStatus] = $this->resolveTrainingPlacementState();
+
+    $placementSearch = trim((string) $request->input('search', ''));
+    $selectedCategory = trim((string) $request->input('category', ''));
+    $dateFrom = trim((string) $request->input('date_from', ''));
+    $dateTo = trim((string) $request->input('date_to', ''));
+
+    if ($dateFrom !== '' && $dateTo !== '' && $dateFrom > $dateTo) {
+      [$dateFrom, $dateTo] = [$dateTo, $dateFrom];
+    }
 
     $studentId = (int) $this->getStudent();
     $userId = (int) Auth::id();
     $student = StudentMaster::query()->find($studentId);
 
     $availableJobs = collect();
+    $categoryOptions = [];
     $myApplications = collect();
     $myDocuments = collect();
     $documentationLabelMap = $this->documentationLabelMap();
@@ -484,9 +494,56 @@ class StudentDashboardController extends Controller
         ->latest('id')
         ->get();
 
-      $availableJobs = $allActiveJobs->filter(function ($job) use ($student) {
+      $applicableJobs = $allActiveJobs->filter(function ($job) use ($student) {
         return $this->isJobApplicableToStudent($job, $student);
       })->values();
+
+      $categoryOptions = $applicableJobs
+        ->pluck('category')
+        ->filter()
+        ->map(fn($value) => (string) $value)
+        ->unique()
+        ->sort()
+        ->mapWithKeys(function ($value) {
+          return [$value => ucwords(str_replace('_', ' ', $value))];
+        })
+        ->toArray();
+
+      $availableJobs = $applicableJobs
+        ->when($placementSearch !== '', function ($jobs) use ($placementSearch) {
+          $needle = strtolower($placementSearch);
+
+          return $jobs->filter(function ($job) use ($needle) {
+            $haystack = strtolower(implode(' ', [
+              (string) ($job->title ?? ''),
+              (string) ($job->description ?? ''),
+              (string) ($job->company_name ?? ''),
+              (string) ($job->location ?? ''),
+              (string) ($job->country ?? ''),
+              (string) ($job->category ?? ''),
+            ]));
+
+            return str_contains($haystack, $needle);
+          });
+        })
+        ->when($selectedCategory !== '', function ($jobs) use ($selectedCategory) {
+          if (in_array($selectedCategory, ['placements', 'placement'], true)) {
+            return $jobs->filter(fn($job) => in_array((string) ($job->category ?? ''), ['placements', 'placement'], true));
+          }
+
+          return $jobs->where('category', $selectedCategory);
+        })
+        ->when($dateFrom !== '', function ($jobs) use ($dateFrom) {
+          return $jobs->filter(function ($job) use ($dateFrom) {
+            return !empty($job->apply_deadline) && optional($job->apply_deadline)->format('Y-m-d') >= $dateFrom;
+          });
+        })
+        ->when($dateTo !== '', function ($jobs) use ($dateTo) {
+          return $jobs->filter(function ($job) use ($dateTo) {
+            return !empty($job->apply_deadline) && optional($job->apply_deadline)->format('Y-m-d') <= $dateTo;
+          });
+        })
+        ->values();
     }
 
     $applicationMap = $myApplications->keyBy('placement_opportunity_id');
@@ -500,6 +557,11 @@ class StudentDashboardController extends Controller
       'applicationMap' => $applicationMap,
       'myDocuments' => $myDocuments,
       'documentationLabelMap' => $documentationLabelMap,
+      'categoryOptions' => $categoryOptions,
+      'placementSearch' => $placementSearch,
+      'selectedCategory' => $selectedCategory,
+      'dateFrom' => $dateFrom,
+      'dateTo' => $dateTo,
       'studentRecord' => $student,
       'currentUserId' => $userId,
     ]);

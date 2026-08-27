@@ -92,7 +92,7 @@
           <form method="GET" action="{{ route('tpo.training-placement.student-opt-in-forms.index') }}" class="row g-2 align-items-end">
             <div class="col-md-10">
               <label class="form-label fw-semibold mb-1">Search Student</label>
-              <input type="text" name="search" value="{{ $search }}" class="form-control" placeholder="Search by name, roll, register, email">
+              <input type="text" name="search" value="{{ $search }}" class="form-control" placeholder="Search by name, roll, register, email, program, pathway, track, combo">
             </div>
             <div class="col-md-2 d-flex gap-2">
               <button type="submit" class="btn btn-primary w-100">Search</button>
@@ -101,6 +101,55 @@
               @endif
             </div>
           </form>
+        </div>
+      </div>
+
+      <div class="row g-3 mb-3">
+        <div class="col-md-6 col-lg-3">
+          <div class="card border-0 shadow-sm h-100">
+            <div class="card-body">
+              <div class="text-muted small">Students Opted For Program</div>
+              <h4 class="mb-0 fw-bold text-primary">{{ (int) ($totalOptedStudents ?? 0) }}</h4>
+            </div>
+          </div>
+        </div>
+        <div class="col-md-6 col-lg-3">
+          <div class="card border-0 shadow-sm h-100">
+            <div class="card-body">
+              <div class="text-muted small">Enrolled Program Groups</div>
+              <h4 class="mb-0 fw-bold text-success">{{ (int) ($optedProgramsCount ?? 0) }}</h4>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="card border-0 shadow-sm mb-3">
+        <div class="card-header bg-transparent fw-bold">Opted Students By Enrolled Program</div>
+        <div class="card-body p-0">
+          @if(!empty($optedProgramAnalytics) && $optedProgramAnalytics->isNotEmpty())
+          <div class="table-responsive">
+            <table class="table table-sm mb-0 align-middle">
+              <thead>
+                <tr>
+                  <th class="px-3">Program Code</th>
+                  <th>Program Name</th>
+                  <th class="text-end pe-3">Opted Students</th>
+                </tr>
+              </thead>
+              <tbody>
+                @foreach($optedProgramAnalytics as $programRow)
+                <tr>
+                  <td class="px-3 fw-semibold">{{ $programRow['program_code'] }}</td>
+                  <td>{{ $programRow['program_name'] }}</td>
+                  <td class="text-end pe-3">{{ (int) $programRow['opted_count'] }}</td>
+                </tr>
+                @endforeach
+              </tbody>
+            </table>
+          </div>
+          @else
+          <div class="p-3 text-muted">No opted student records found for analytics.</div>
+          @endif
         </div>
       </div>
 
@@ -114,7 +163,7 @@
                   <th>#</th>
                   <th>Student</th>
                   <th>Roll / Register</th>
-                  <th>Department / Campus</th>
+                  <th>Enrolled Program / Campus</th>
                   <th>Current Year / Semester</th>
                   <th>Current Status</th>
                   <th class="text-end">Review Actions</th>
@@ -129,6 +178,33 @@
                 }
                 $hasForm = !empty($student->form_file_path ?? '');
                 $approvalStatus = strtolower((string) ($student->approval_status ?? 'in_review'));
+
+                $programCodeParts = [];
+                $programCodeParts[] = !empty($student->new_program_id) ? ('PRG-' . $student->new_program_id) : 'PRG-NA';
+                if (!empty($student->academic_pathway_id)) {
+                $programCodeParts[] = 'AP-' . $student->academic_pathway_id;
+                }
+                if (!empty($student->degree_track_id)) {
+                $programCodeParts[] = 'DT-' . $student->degree_track_id;
+                }
+                if (!empty($student->selected_combo_id)) {
+                $programCodeParts[] = !empty($student->selected_combo_code) ? $student->selected_combo_code : ('COMBO-' . $student->selected_combo_id);
+                }
+                $programCodeDisplay = implode(' / ', $programCodeParts);
+
+                $programNameParts = [];
+                $programNameParts[] = !empty($student->enrolled_program_name_base) ? $student->enrolled_program_name_base : (!empty($student->new_program_id) ? ('Program #' . $student->new_program_id) : 'Program N/A');
+                if (!empty($student->academic_pathway_id)) {
+                $programNameParts[] = 'Pathway: ' . (!empty($student->academic_pathway_name) ? $student->academic_pathway_name : ('#' . $student->academic_pathway_id));
+                }
+                if (!empty($student->degree_track_id)) {
+                $programNameParts[] = 'Track: ' . (!empty($student->degree_track_name) ? $student->degree_track_name : ('#' . $student->degree_track_id));
+                }
+                if (!empty($student->selected_combo_id)) {
+                $comboName = !empty($student->selected_combo_title) ? $student->selected_combo_title : (!empty($student->selected_combo_name) ? $student->selected_combo_name : ('#' . $student->selected_combo_id));
+                $programNameParts[] = 'Combo: ' . $comboName;
+                }
+                $programNameDisplay = implode(' | ', $programNameParts);
                 @endphp
                 <tr>
                   <td>{{ $students->firstItem() + $index }}</td>
@@ -141,7 +217,8 @@
                     <div class="small text-muted">Reg: {{ $student->register_no ?: 'N/A' }}</div>
                   </td>
                   <td>
-                    <div class="small">{{ $student->department_name ?: 'N/A' }}</div>
+                    <div class="small">{{ $programCodeDisplay }}</div>
+                    <div class="small text-muted">{{ $programNameDisplay }}</div>
                     <div class="small text-muted">{{ $student->campus_name ?: 'N/A' }}</div>
                   </td>
                   <td>

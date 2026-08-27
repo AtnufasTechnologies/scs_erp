@@ -152,6 +152,14 @@ class TrainingPlacementController extends Controller
   public function placementIndex(Request $request)
   {
     $placementSearch = trim((string) $request->input('search', ''));
+    $selectedCategory = trim((string) $request->input('category', ''));
+    $dateFrom = trim((string) $request->input('date_from', ''));
+    $dateTo = trim((string) $request->input('date_to', ''));
+
+    if ($dateFrom !== '' && $dateTo !== '' && $dateFrom > $dateTo) {
+      [$dateFrom, $dateTo] = [$dateTo, $dateFrom];
+    }
+
     $placementSearchLike = '%' . $placementSearch . '%';
 
     $placementsQuery = PlacementOpportunity::with(['subject', 'campus']);
@@ -174,7 +182,24 @@ class TrainingPlacementController extends Controller
       });
     }
 
+    if ($selectedCategory !== '') {
+      if (in_array($selectedCategory, ['placements', 'placement'], true)) {
+        $placementsQuery->whereIn('category', ['placements', 'placement']);
+      } else {
+        $placementsQuery->where('category', $selectedCategory);
+      }
+    }
+
+    if ($dateFrom !== '') {
+      $placementsQuery->whereDate('drive_date', '>=', $dateFrom);
+    }
+
+    if ($dateTo !== '') {
+      $placementsQuery->whereDate('drive_date', '<=', $dateTo);
+    }
+
     $placements = $placementsQuery->withCount('applications')->latest()->get();
+
     $subjects = Subject::orderBy('title')->get(['id', 'title', 'code', 'campus_id']);
     $subjectLookup = $subjects->keyBy('id');
     $campuses = Campus::orderBy('name')->get(['id', 'name']);
@@ -196,7 +221,10 @@ class TrainingPlacementController extends Controller
       'documentationRequirementOptions',
       'monthOptions',
       'yearOptions',
-      'placementSearch'
+      'placementSearch',
+      'selectedCategory',
+      'dateFrom',
+      'dateTo'
     ));
   }
 
@@ -791,6 +819,10 @@ class TrainingPlacementController extends Controller
 
   public function destroyPlacement(PlacementOpportunity $placement)
   {
+    if ($placement->applications()->exists()) {
+      return back()->with('error', 'This job description cannot be deleted because students have already applied.');
+    }
+
     if ($placement->logo_path) {
       Storage::disk('s3')->delete($placement->logo_path);
     }
@@ -1066,6 +1098,14 @@ class TrainingPlacementController extends Controller
       && Schema::hasColumn('training_placement_opt_ins', 'approved_by')
       && Schema::hasColumn('training_placement_opt_ins', 'approved_at');
     $masterTemplate = null;
+    $hasNewProgramColumn = Schema::hasColumn('student_masters', 'new_program_id');
+    $hasAcademicPathwayColumn = Schema::hasColumn('student_masters', 'academic_pathway_id');
+    $hasDegreeTrackColumn = Schema::hasColumn('student_masters', 'degree_track_id');
+    $hasSelectedComboColumn = Schema::hasColumn('student_masters', 'selected_combo_id');
+    $hasSubjectsTable = Schema::hasTable('subjects');
+    $hasSubjectCodeColumn = $hasSubjectsTable && Schema::hasColumn('subjects', 'code');
+    $hasSubjectTitleColumn = $hasSubjectsTable && Schema::hasColumn('subjects', 'title');
+    $hasSubjectNameColumn = $hasSubjectsTable && Schema::hasColumn('subjects', 'name');
 
     if (Schema::hasTable('training_placement_form_templates')) {
       $masterTemplate = TrainingPlacementFormTemplate::query()
@@ -1102,6 +1142,67 @@ class TrainingPlacementController extends Controller
         'u.id as user_id',
         'u.email as user_email',
       ]);
+
+    if ($hasNewProgramColumn) {
+      $studentsQuery->leftJoin('student_program as sp', 'sp.id', '=', 'sm.new_program_id')
+        ->addSelect([
+          'sm.new_program_id',
+          'sp.name as enrolled_program_name_base',
+        ]);
+    } else {
+      $studentsQuery->addSelect(DB::raw('NULL as new_program_id'));
+      $studentsQuery->addSelect(DB::raw('NULL as enrolled_program_name_base'));
+    }
+
+    if ($hasAcademicPathwayColumn && Schema::hasTable('academic_pathway_masters')) {
+      $studentsQuery->leftJoin('academic_pathway_masters as apm', 'apm.id', '=', 'sm.academic_pathway_id')
+        ->addSelect([
+          'sm.academic_pathway_id',
+          'apm.name as academic_pathway_name',
+        ]);
+    } else {
+      $studentsQuery->addSelect(DB::raw('NULL as academic_pathway_id'));
+      $studentsQuery->addSelect(DB::raw('NULL as academic_pathway_name'));
+    }
+
+    if ($hasDegreeTrackColumn && Schema::hasTable('degree_track_masters')) {
+      $studentsQuery->leftJoin('degree_track_masters as dtm', 'dtm.id', '=', 'sm.degree_track_id')
+        ->addSelect([
+          'sm.degree_track_id',
+          'dtm.name as degree_track_name',
+        ]);
+    } else {
+      $studentsQuery->addSelect(DB::raw('NULL as degree_track_id'));
+      $studentsQuery->addSelect(DB::raw('NULL as degree_track_name'));
+    }
+
+    if ($hasSelectedComboColumn && $hasSubjectsTable) {
+      $studentsQuery->leftJoin('subjects as subj', 'subj.id', '=', 'sm.selected_combo_id')
+        ->addSelect('sm.selected_combo_id');
+
+      if ($hasSubjectCodeColumn) {
+        $studentsQuery->addSelect('subj.code as selected_combo_code');
+      } else {
+        $studentsQuery->addSelect(DB::raw('NULL as selected_combo_code'));
+      }
+
+      if ($hasSubjectTitleColumn) {
+        $studentsQuery->addSelect('subj.title as selected_combo_title');
+      } else {
+        $studentsQuery->addSelect(DB::raw('NULL as selected_combo_title'));
+      }
+
+      if ($hasSubjectNameColumn) {
+        $studentsQuery->addSelect('subj.name as selected_combo_name');
+      } else {
+        $studentsQuery->addSelect(DB::raw('NULL as selected_combo_name'));
+      }
+    } else {
+      $studentsQuery->addSelect(DB::raw('NULL as selected_combo_id'));
+      $studentsQuery->addSelect(DB::raw('NULL as selected_combo_code'));
+      $studentsQuery->addSelect(DB::raw('NULL as selected_combo_title'));
+      $studentsQuery->addSelect(DB::raw('NULL as selected_combo_name'));
+    }
 
     if (Schema::hasColumn('student_masters', 'current_year')) {
       $studentsQuery->addSelect('sm.current_year');
@@ -1165,15 +1266,92 @@ class TrainingPlacementController extends Controller
 
     if ($search !== '') {
       $like = '%' . $search . '%';
-      $studentsQuery->where(function ($query) use ($like) {
+      $studentsQuery->where(function ($query) use ($like, $hasNewProgramColumn, $hasAcademicPathwayColumn, $hasDegreeTrackColumn, $hasSelectedComboColumn, $hasSubjectsTable, $hasSubjectCodeColumn, $hasSubjectTitleColumn, $hasSubjectNameColumn) {
         $query->where('sm.first_name', 'like', $like)
           ->orWhere('sm.last_name', 'like', $like)
           ->orWhere('sm.roll_no', 'like', $like)
           ->orWhere('sm.register_no', 'like', $like)
           ->orWhere('sm.mail_id', 'like', $like)
           ->orWhere('u.email', 'like', $like);
+
+        if ($hasNewProgramColumn) {
+          $query->orWhere('sp.name', 'like', $like);
+        }
+        if ($hasAcademicPathwayColumn && Schema::hasTable('academic_pathway_masters')) {
+          $query->orWhere('apm.name', 'like', $like);
+        }
+        if ($hasDegreeTrackColumn && Schema::hasTable('degree_track_masters')) {
+          $query->orWhere('dtm.name', 'like', $like);
+        }
+        if ($hasSelectedComboColumn && $hasSubjectsTable) {
+          if ($hasSubjectCodeColumn) {
+            $query->orWhere('subj.code', 'like', $like);
+          }
+          if ($hasSubjectTitleColumn) {
+            $query->orWhere('subj.title', 'like', $like);
+          }
+          if ($hasSubjectNameColumn) {
+            $query->orWhere('subj.name', 'like', $like);
+          }
+        }
       });
     }
+
+    $analyticsRows = (clone $studentsQuery)->get();
+    $totalOptedStudents = $analyticsRows->count();
+
+    $optedProgramAnalytics = $analyticsRows
+      ->groupBy(function ($student) {
+        return implode('|', [
+          (int) ($student->new_program_id ?? 0),
+          (int) ($student->academic_pathway_id ?? 0),
+          (int) ($student->degree_track_id ?? 0),
+          (int) ($student->selected_combo_id ?? 0),
+        ]);
+      })
+      ->map(function ($students, $compositeKey) {
+        $first = $students->first();
+        [$programId, $pathwayId, $degreeTrackId, $comboId] = array_map('intval', explode('|', (string) $compositeKey));
+
+        $programCodeParts = [];
+        $programCodeParts[] = 'PRG-' . ($programId > 0 ? $programId : 'NA');
+        if ($pathwayId > 0) {
+          $programCodeParts[] = 'AP-' . $pathwayId;
+        }
+        if ($degreeTrackId > 0) {
+          $programCodeParts[] = 'DT-' . $degreeTrackId;
+        }
+        if ($comboId > 0) {
+          $programCodeParts[] = !empty($first->selected_combo_code)
+            ? (string) $first->selected_combo_code
+            : ('COMBO-' . $comboId);
+        }
+
+        $programNameParts = [];
+        $programNameParts[] = !empty($first->enrolled_program_name_base)
+          ? (string) $first->enrolled_program_name_base
+          : ($programId > 0 ? ('Program #' . $programId) : 'Program N/A');
+        if ($pathwayId > 0) {
+          $programNameParts[] = 'Pathway: ' . (!empty($first->academic_pathway_name) ? (string) $first->academic_pathway_name : ('#' . $pathwayId));
+        }
+        if ($degreeTrackId > 0) {
+          $programNameParts[] = 'Track: ' . (!empty($first->degree_track_name) ? (string) $first->degree_track_name : ('#' . $degreeTrackId));
+        }
+        if ($comboId > 0) {
+          $comboName = (string) ($first->selected_combo_title ?? $first->selected_combo_name ?? ('#' . $comboId));
+          $programNameParts[] = 'Combo: ' . $comboName;
+        }
+
+        return [
+          'program_code' => implode(' / ', $programCodeParts),
+          'program_name' => implode(' | ', $programNameParts),
+          'opted_count' => $students->count(),
+        ];
+      })
+      ->sortByDesc('opted_count')
+      ->values();
+
+    $optedProgramsCount = $optedProgramAnalytics->count();
 
     $students = $studentsQuery
       ->orderBy('sm.roll_no')
@@ -1187,6 +1365,9 @@ class TrainingPlacementController extends Controller
       'hasOptInTable' => $hasOptInTable,
       'hasApprovalColumns' => $hasApprovalColumns,
       'masterTemplate' => $masterTemplate,
+      'totalOptedStudents' => $totalOptedStudents,
+      'optedProgramsCount' => $optedProgramsCount,
+      'optedProgramAnalytics' => $optedProgramAnalytics,
     ]);
   }
 
