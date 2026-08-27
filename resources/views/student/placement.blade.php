@@ -191,6 +191,12 @@
           <span class="section-muted">Applicable opportunities based on your profile</span>
         </div>
         <div class="p-3">
+          @if(isset($hasOptedForPlacement) && !$hasOptedForPlacement)
+          <div class="alert alert-warning mb-3">
+            Job descriptions are visible only for students who opted for Training and Placement.
+          </div>
+          @endif
+
           <form method="GET" action="{{ route('student.console.placement') }}" class="row g-2 align-items-end mb-3">
             <div class="col-lg-4 col-md-6">
               <label class="form-label fw-semibold mb-1">Search</label>

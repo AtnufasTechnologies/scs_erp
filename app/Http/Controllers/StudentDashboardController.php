@@ -39,6 +39,7 @@ use App\Models\StudentDocument;
 use App\Models\StudentDocumentMaster;
 use App\Models\UserHasRole;
 use App\Services\StudentTimetableService;
+use App\Models\Subject;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
@@ -473,9 +474,12 @@ class StudentDashboardController extends Controller
     $categoryOptions = [];
     $myApplications = collect();
     $myDocuments = collect();
+    $hasOptedForPlacement = false;
     $documentationLabelMap = $this->documentationLabelMap();
 
     if ($student) {
+      $hasOptedForPlacement = $this->hasStudentOptedForTrainingPlacement($studentId);
+
       $myDocuments = StudentDocument::query()
         ->where('student_id', $studentId)
         ->where('is_active', 1)
@@ -489,14 +493,17 @@ class StudentDashboardController extends Controller
         ->latest('id')
         ->get();
 
-      $allActiveJobs = PlacementOpportunity::query()
-        ->where('is_active', 1)
-        ->latest('id')
-        ->get();
+      $applicableJobs = collect();
+      if ($hasOptedForPlacement) {
+        $allActiveJobs = PlacementOpportunity::query()
+          ->where('is_active', 1)
+          ->latest('id')
+          ->get();
 
-      $applicableJobs = $allActiveJobs->filter(function ($job) use ($student) {
-        return $this->isJobApplicableToStudent($job, $student);
-      })->values();
+        $applicableJobs = $allActiveJobs->filter(function ($job) use ($student) {
+          return $this->isJobApplicableToStudent($job, $student);
+        })->values();
+      }
 
       $categoryOptions = $applicableJobs
         ->pluck('category')
@@ -562,6 +569,7 @@ class StudentDashboardController extends Controller
       'selectedCategory' => $selectedCategory,
       'dateFrom' => $dateFrom,
       'dateTo' => $dateTo,
+      'hasOptedForPlacement' => $hasOptedForPlacement,
       'studentRecord' => $student,
       'currentUserId' => $userId,
     ]);
@@ -743,6 +751,10 @@ class StudentDashboardController extends Controller
     $studentId = (int) $this->getStudent();
     $userId = (int) Auth::id();
     $student = StudentMaster::query()->findOrFail($studentId);
+
+    if (!$this->hasStudentOptedForTrainingPlacement($studentId)) {
+      return redirect()->route('student.console.placement')->with('error', 'Only students who opted for Training and Placement can apply.');
+    }
 
     if ((int) $placement->is_active !== 1) {
       return redirect()->route('student.console.placement')->with('error', 'This opportunity is not open for applications.');
@@ -1903,6 +1915,10 @@ class StudentDashboardController extends Controller
 
   private function isJobApplicableToStudent(PlacementOpportunity $job, StudentMaster $student): bool
   {
+    if (!$this->hasStudentOptedForTrainingPlacement((int) $student->id)) {
+      return false;
+    }
+
     $studentYear = $this->normalizeYearBucket((string) ($student->current_year ?? ''));
     $allowedYear = $this->normalizeYearBucket((string) ($job->student_year ?? ''));
 
@@ -1918,6 +1934,122 @@ class StudentDashboardController extends Controller
     if (strcasecmp($allowedYear, 'passout') !== 0 && strcasecmp($studentYear, $allowedYear) !== 0) {
       return false;
     }
+
+    $jobCampusId = (int) ($job->campus_id ?? 0);
+    $studentCampusId = (int) ($student->campus_id ?? 0);
+    $studentProgramId = (int) ($student->new_program_id ?? 0);
+    $studentBatchId = (int) ($student->batch ?? 0);
+    $studentSelectedComboId = (int) ($student->selected_combo_id ?? 0);
+
+    $selectedSubjectIds = collect((array) ($job->subject_ids ?? []))
+      ->map(fn($id) => (int) $id)
+      ->filter(fn($id) => $id > 0)
+      ->unique()
+      ->values();
+
+    if ($selectedSubjectIds->isEmpty() && !empty($job->subject_id)) {
+      $selectedSubjectIds = collect([(int) $job->subject_id]);
+    }
+
+    if ($selectedSubjectIds->isEmpty()) {
+      if ($jobCampusId > 0) {
+        return $studentCampusId === $jobCampusId;
+      }
+
+      return true;
+    }
+
+    if (!Schema::hasTable('subjects')) {
+      return $studentSelectedComboId > 0 && $selectedSubjectIds->contains($studentSelectedComboId);
+    }
+
+    $normalizedSelectedIds = $selectedSubjectIds->sort()->values();
+
+    static $allSubjectIdsCache = null;
+    if ($allSubjectIdsCache === null) {
+      $allSubjectIdsCache = Subject::query()
+        ->pluck('id')
+        ->map(fn($id) => (int) $id)
+        ->filter(fn($id) => $id > 0)
+        ->sort()
+        ->values();
+    }
+
+    $isBothCampusesAllDepartments = $allSubjectIdsCache->isNotEmpty()
+      && $normalizedSelectedIds->values()->all() === $allSubjectIdsCache->values()->all();
+
+    if ($isBothCampusesAllDepartments) {
+      return true;
+    }
+
+    $isSelectedCampusAllDepartments = false;
+    if ($jobCampusId > 0) {
+      static $campusSubjectIdsCache = [];
+      if (!array_key_exists($jobCampusId, $campusSubjectIdsCache)) {
+        $campusSubjectIdsCache[$jobCampusId] = Subject::query()
+          ->where('campus_id', $jobCampusId)
+          ->pluck('id')
+          ->map(fn($id) => (int) $id)
+          ->filter(fn($id) => $id > 0)
+          ->sort()
+          ->values();
+      }
+
+      $campusSubjectIds = $campusSubjectIdsCache[$jobCampusId];
+      $isSelectedCampusAllDepartments = $campusSubjectIds->isNotEmpty()
+        && $normalizedSelectedIds->values()->all() === $campusSubjectIds->values()->all();
+    }
+
+    if ($isSelectedCampusAllDepartments) {
+      return $jobCampusId > 0 && $studentCampusId === $jobCampusId;
+    }
+
+    if (!Schema::hasTable('subject_has_student_progams') || $studentProgramId <= 0) {
+      return $studentSelectedComboId > 0 && $selectedSubjectIds->contains($studentSelectedComboId);
+    }
+
+    $offeredQuery = SubjectHasStudentProgam::query()
+      ->whereIn('subject_id', $selectedSubjectIds->all())
+      ->where('student_program_id', $studentProgramId);
+
+    if (Schema::hasColumn('subject_has_student_progams', 'deleted_at')) {
+      $offeredQuery->whereNull('deleted_at');
+    }
+
+    if ($jobCampusId > 0 && Schema::hasColumn('subject_has_student_progams', 'campus_id')) {
+      $offeredQuery->where('campus_id', $jobCampusId);
+    }
+
+    if ($studentBatchId > 0 && Schema::hasColumn('subject_has_student_progams', 'batch_id')) {
+      $offeredQuery->where('batch_id', $studentBatchId);
+    }
+
+    if ($offeredQuery->exists()) {
+      return true;
+    }
+
+    return $studentSelectedComboId > 0 && $selectedSubjectIds->contains($studentSelectedComboId);
+  }
+
+  private function hasStudentOptedForTrainingPlacement(int $studentId): bool
+  {
+    if ($studentId <= 0 || !Schema::hasTable('training_placement_opt_ins')) {
+      return false;
+    }
+
+    $query = TrainingPlacementOptIn::query()
+      ->where('student_id', $studentId)
+      ->whereNotNull('form_file_path');
+
+    if (Schema::hasColumn('training_placement_opt_ins', 'policy_accepted')) {
+      $query->where('policy_accepted', 1);
+    }
+
+    if (Schema::hasColumn('training_placement_opt_ins', 'opted_at')) {
+      $query->whereNotNull('opted_at');
+    }
+
+    return $query->exists();
 
     return true;
   }
