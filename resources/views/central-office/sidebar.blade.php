@@ -21,6 +21,12 @@
       </a>
     </li>
     <li>
+      <a href="{{ route('central-office.employees.index') }}">
+        <div class="parent-icon"><i class="fas fa-chalkboard-teacher"></i></div>
+        <div class="menu-title">Employee List</div>
+      </a>
+    </li>
+    <li>
       <a href="{{ route('central-office.admissions.batch-wise') }}">
         <div class="parent-icon"><i class="fas fa-layer-group"></i></div>
         <div class="menu-title">Admission Batch Data</div>
@@ -43,13 +49,13 @@
 
     <div class="top-navbar-right ms-auto">
       <ul class="navbar-nav align-items-center">
-        <li class="nav-item">
+        <!-- <li class="nav-item">
           <a class="nav-link" href="{{ route('scms.logout') }}">
             <div class="mode-icon text-light">
               <i class="fas fa-sign-out-alt text-light"></i> Logout
             </div>
           </a>
-        </li>
+        </li> -->
       </ul>
     </div>
   </nav>

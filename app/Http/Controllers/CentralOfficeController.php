@@ -6,9 +6,13 @@ use App\Exports\CentralOfficeStudentTemplateExport;
 use App\Models\AdmissionApplication;
 use App\Models\AdmissionRegistration;
 use App\Models\BatchMaster;
+use App\Models\Faculty;
 use App\Models\StudentMaster;
+use App\Models\SubjectFacultyMaster;
 use App\Models\UserHasRole;
 use Illuminate\Http\Request;
+use Illuminate\Pagination\LengthAwarePaginator;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
@@ -16,6 +20,20 @@ use Maatwebsite\Excel\Facades\Excel;
 
 class CentralOfficeController extends Controller
 {
+  private function resolveSiliguriCampusId(): int
+  {
+    $campusId = (int) DB::table('campuses')
+      ->where(function ($query) {
+        $query->where('slug', 'siliguri-campus')
+          ->orWhere('slug', 'siliguri')
+          ->orWhere('name', 'like', '%Siliguri%');
+      })
+      ->orderBy('id')
+      ->value('id');
+
+    return $campusId > 0 ? $campusId : 0;
+  }
+
   private function ensureCentralOfficeAccess(): void
   {
     if (!Auth::check()) {
@@ -110,9 +128,202 @@ class CentralOfficeController extends Controller
       ->orderByDesc('ar.batch');
   }
 
+  private function buildEmployeesQuery(int $departmentId, string $status, string $search, int $campusId)
+  {
+    $normalizedStatus = strtolower(trim($status));
+    if (!in_array($normalizedStatus, ['active', 'left', 'deleted', 'all'], true)) {
+      $normalizedStatus = 'active';
+    }
+
+    $query = Faculty::query()->select('faculties.*');
+
+    // Derive sortable academic context from subject/deanery mappings.
+    $query->selectSub(function ($subQuery) {
+      $subQuery->from('subject_faculty_masters as sfm')
+        ->join('subjects as s', 's.id', '=', 'sfm.subject_id')
+        ->whereColumn('sfm.faculty_id', 'faculties.id')
+        ->whereNull('s.deleted_at')
+        ->selectRaw('MIN(s.title)');
+    }, 'primary_department_name');
+
+    $query->selectSub(function ($subQuery) {
+      $subQuery->from('subject_faculty_masters as sfm')
+        ->join('subjects as s', 's.id', '=', 'sfm.subject_id')
+        ->leftJoin('deanery_dept_pivots as ddp', function ($join) {
+          $join->on('ddp.dept_id', '=', 's.id');
+          $join->whereNull('ddp.deleted_at');
+        })
+        ->leftJoin('deaneries as d', 'd.id', '=', 'ddp.deanery_id')
+        ->whereColumn('sfm.faculty_id', 'faculties.id')
+        ->whereNull('s.deleted_at')
+        ->selectRaw('MIN(d.title)');
+    }, 'primary_deanery_name');
+
+    if ($campusId > 0) {
+      $query->where('CAMPUS_ID', $campusId);
+    }
+
+    if ($normalizedStatus === 'all') {
+      $query->withTrashed();
+    }
+
+    if ($normalizedStatus === 'deleted') {
+      $query->onlyTrashed();
+    }
+
+    if ($normalizedStatus === 'active') {
+      $query->whereNull('deleted_at')
+        ->where(function ($inner) {
+          $inner->whereNull('IS_LEFT')->orWhere('IS_LEFT', 0);
+        });
+    }
+
+    if ($normalizedStatus === 'left') {
+      $query->whereNull('deleted_at')
+        ->where('IS_LEFT', 1);
+    }
+
+    $query->when($departmentId > 0, function ($q) use ($departmentId) {
+      $q->whereExists(function ($subQuery) use ($departmentId) {
+        $subQuery->select(DB::raw(1))
+          ->from('subject_faculty_masters as sfm')
+          ->join('subjects as s', 's.id', '=', 'sfm.subject_id')
+          ->whereColumn('sfm.faculty_id', 'faculties.id')
+          ->where('sfm.subject_id', $departmentId)
+          ->whereNull('s.deleted_at');
+      });
+    })
+      ->when($search !== '', function ($q) use ($search) {
+        $q->where(function ($inner) use ($search) {
+          $inner->where('USER_CODE', 'like', "%{$search}%")
+            ->orWhere('FIRST_NAME', 'like', "%{$search}%")
+            ->orWhere('MIDDLE_NAME', 'like', "%{$search}%")
+            ->orWhere('LAST_NAME', 'like', "%{$search}%")
+            ->orWhere('MAIL_ID', 'like', "%{$search}%")
+            ->orWhere('MOBILE_NO', 'like', "%{$search}%");
+        });
+      })
+      ->orderByRaw("COALESCE(primary_deanery_name, 'ZZZ') ASC")
+      ->orderByRaw("COALESCE(primary_department_name, 'ZZZ') ASC")
+      ->orderBy('FIRST_NAME')
+      ->orderBy('LAST_NAME')
+      ->orderBy('id');
+
+    return $query;
+  }
+
+  private function attachEmployeeAcademicContext(Collection $employees, int $campusId): Collection
+  {
+    if ($employees->isEmpty()) {
+      return $employees;
+    }
+
+    $facultyIds = $employees
+      ->pluck('id')
+      ->map(fn($id) => (int) $id)
+      ->filter(fn($id) => $id > 0)
+      ->unique()
+      ->values();
+
+    if ($facultyIds->isEmpty()) {
+      return $employees;
+    }
+
+    $rows = DB::table('subject_faculty_masters as sfm')
+      ->join('subjects as s', 's.id', '=', 'sfm.subject_id')
+      ->leftJoin('deanery_dept_pivots as ddp', function ($join) {
+        $join->on('ddp.dept_id', '=', 's.id');
+        $join->whereNull('ddp.deleted_at');
+      })
+      ->leftJoin('deaneries as d', 'd.id', '=', 'ddp.deanery_id')
+      ->whereIn('sfm.faculty_id', $facultyIds->all())
+      ->whereNull('s.deleted_at')
+      ->when($campusId > 0, fn($query) => $query->where('s.campus_id', $campusId))
+      ->select('sfm.faculty_id', 's.id as subject_id', 's.title as subject_title', 'd.title as deanery_title')
+      ->get();
+
+    $contextByFaculty = $rows
+      ->groupBy('faculty_id')
+      ->map(function ($items) {
+        $departmentNames = $items
+          ->map(fn($item) => trim((string) ($item->subject_title ?? '')))
+          ->filter(fn($value) => $value !== '')
+          ->unique()
+          ->values();
+
+        $deaneryNames = $items
+          ->map(fn($item) => trim((string) ($item->deanery_title ?? '')))
+          ->filter(fn($value) => $value !== '')
+          ->unique()
+          ->values();
+
+        return [
+          'department_names' => $departmentNames,
+          'deanery_names' => $deaneryNames,
+        ];
+      });
+
+    return $employees->map(function ($employee) use ($contextByFaculty) {
+      $context = $contextByFaculty->get((int) $employee->id, [
+        'department_names' => collect(),
+        'deanery_names' => collect(),
+      ]);
+
+      $employee->subject_departments = $context['department_names'];
+      $employee->deanery_names = $context['deanery_names'];
+
+      return $employee;
+    });
+  }
+
+  private function getFacultyDeleteBlockers(int $facultyId): array
+  {
+    $checks = [
+      ['table' => 'subject_has_routines', 'label' => 'timetable routines'],
+      ['table' => 'teaching_assignments', 'label' => 'teaching assignments'],
+      ['table' => 'teaching_assignment_faculties', 'label' => 'co-faculty assignments'],
+    ];
+
+    return collect($checks)
+      ->map(function ($check) use ($facultyId) {
+        $table = (string) $check['table'];
+        $label = (string) $check['label'];
+
+        if (!Schema::hasTable($table) || !Schema::hasColumn($table, 'faculty_id')) {
+          return null;
+        }
+
+        $query = DB::table($table)->where('faculty_id', $facultyId);
+
+        if (Schema::hasColumn($table, 'deleted_at')) {
+          $query->whereNull('deleted_at');
+        }
+
+        if ($table === 'teaching_assignments' && Schema::hasColumn($table, 'is_active')) {
+          $query->where('is_active', 1);
+        }
+
+        $count = (int) $query->count();
+
+        if ($count <= 0) {
+          return null;
+        }
+
+        return [
+          'table' => $table,
+          'label' => $label,
+          'count' => $count,
+        ];
+      })
+      ->filter()
+      ->values()
+      ->all();
+  }
+
   public function dashboard()
   {
     $this->ensureCentralOfficeAccess();
+    $siliguriCampusId = $this->resolveSiliguriCampusId();
 
     $studentTable = (new StudentMaster())->getTable();
 
@@ -131,6 +342,10 @@ class CentralOfficeController extends Controller
       ->count();
 
     $totalBatches = BatchMaster::count();
+    $totalEmployees = Faculty::query()
+      ->whereNull('deleted_at')
+      ->when($siliguriCampusId > 0, fn($query) => $query->where('CAMPUS_ID', $siliguriCampusId))
+      ->count();
 
     $recentAdmissions = AdmissionRegistration::query()
       ->latest('id')
@@ -141,6 +356,7 @@ class CentralOfficeController extends Controller
       'activeStudents' => $activeStudents,
       'leftStudents' => $leftStudents,
       'totalBatches' => $totalBatches,
+      'totalEmployees' => $totalEmployees,
       'recentAdmissions' => $recentAdmissions,
     ]);
   }
@@ -165,6 +381,53 @@ class CentralOfficeController extends Controller
       'batchId' => $batchId,
       'status' => $status,
       'search' => $search,
+    ]);
+  }
+
+  public function employees(Request $request)
+  {
+    $this->ensureCentralOfficeAccess();
+    $siliguriCampusId = $this->resolveSiliguriCampusId();
+
+    $departmentId = (int) $request->input('department_id', 0);
+    $status = strtolower(trim((string) $request->input('status', 'active')));
+    if (!in_array($status, ['active', 'left', 'deleted', 'all'], true)) {
+      $status = 'active';
+    }
+    $search = trim((string) $request->input('search', ''));
+
+    $employees = $this->buildEmployeesQuery($departmentId, $status, $search, $siliguriCampusId)
+      ->paginate(25)
+      ->appends($request->query());
+
+    $enrichedItems = $this->attachEmployeeAcademicContext(collect($employees->items()), $siliguriCampusId);
+    $employees = new LengthAwarePaginator(
+      $enrichedItems,
+      $employees->total(),
+      $employees->perPage(),
+      $employees->currentPage(),
+      [
+        'path' => $request->url(),
+        'query' => $request->query(),
+      ]
+    );
+
+    $departments = DB::table('subjects')
+      ->whereNull('deleted_at')
+      ->when($siliguriCampusId > 0, fn($query) => $query->where('campus_id', $siliguriCampusId))
+      ->orderBy('title')
+      ->get(['id', 'title']);
+
+    return view('central-office.employees.index', [
+      'employees' => $employees,
+      'departments' => $departments,
+      'departmentId' => $departmentId,
+      'status' => $status,
+      'search' => $search,
+      'totalEmployeesCollege' => Faculty::query()
+        ->whereNull('deleted_at')
+        ->when($siliguriCampusId > 0, fn($query) => $query->where('CAMPUS_ID', $siliguriCampusId))
+        ->count(),
     ]);
   }
 
@@ -239,6 +502,85 @@ class CentralOfficeController extends Controller
     $student->save();
 
     return redirect()->back()->with('success', 'Student reactivated successfully.');
+  }
+
+  public function exportEmployees(Request $request)
+  {
+    $this->ensureCentralOfficeAccess();
+    $siliguriCampusId = $this->resolveSiliguriCampusId();
+
+    $departmentId = (int) $request->input('department_id', 0);
+    $status = strtolower(trim((string) $request->input('status', 'active')));
+    if (!in_array($status, ['active', 'left', 'deleted', 'all'], true)) {
+      $status = 'active';
+    }
+    $search = trim((string) $request->input('search', ''));
+
+    $rows = $this->buildEmployeesQuery($departmentId, $status, $search, $siliguriCampusId)->get();
+    $rows = $this->attachEmployeeAcademicContext($rows, $siliguriCampusId);
+    $filename = 'central-office-employees-' . date('Y-m-d-His') . '.csv';
+
+    return response()->streamDownload(function () use ($rows) {
+      $handle = fopen('php://output', 'w');
+      fputcsv($handle, ['Employee Code', 'Name', 'Email', 'Mobile', 'Department (Subjects)', 'Deanery', 'Designation', 'Employee Type', 'Status', 'Date of Joining']);
+
+      foreach ($rows as $row) {
+        $statusLabel = 'Active';
+        if (!empty($row->deleted_at)) {
+          $statusLabel = 'Deleted';
+        } elseif ((int) ($row->IS_LEFT ?? 0) === 1) {
+          $statusLabel = 'Left';
+        }
+
+        fputcsv($handle, [
+          (string) ($row->USER_CODE ?? ''),
+          trim((string) ($row->FIRST_NAME ?? '') . ' ' . (string) ($row->MIDDLE_NAME ?? '') . ' ' . (string) ($row->LAST_NAME ?? '')),
+          (string) ($row->MAIL_ID ?? ''),
+          (string) ($row->MOBILE_NO ?? ''),
+          (string) collect($row->subject_departments ?? [])->implode(', '),
+          (string) collect($row->deanery_names ?? [])->implode(', '),
+          (string) ($row->designation ?? ''),
+          (string) ($row->employee_type ?? ''),
+          $statusLabel,
+          (string) ($row->DOJ ?? ''),
+        ]);
+      }
+
+      fclose($handle);
+    }, $filename, [
+      'Content-Type' => 'text/csv',
+    ]);
+  }
+
+  public function destroyEmployee(int $id)
+  {
+    $this->ensureCentralOfficeAccess();
+    $siliguriCampusId = $this->resolveSiliguriCampusId();
+
+    $faculty = Faculty::withTrashed()->findOrFail($id);
+    if ($faculty->trashed()) {
+      return redirect()->back()->with('error', 'Faculty is already deleted.');
+    }
+
+    if ($siliguriCampusId > 0 && (int) ($faculty->CAMPUS_ID ?? 0) !== $siliguriCampusId) {
+      return redirect()->back()->with('error', 'Only Siliguri campus employees can be managed from this panel.');
+    }
+
+    $blockers = $this->getFacultyDeleteBlockers((int) $faculty->id);
+    if (!empty($blockers)) {
+      $details = collect($blockers)
+        ->map(fn($item) => ucfirst((string) $item['label']) . ': ' . (int) $item['count'])
+        ->implode(', ');
+
+      return redirect()->back()->with('error', 'Faculty cannot be deleted due to active links (' . $details . '). Please unlink/clear mappings first.');
+    }
+
+    DB::transaction(function () use ($faculty) {
+      SubjectFacultyMaster::where('faculty_id', $faculty->id)->delete();
+      $faculty->delete();
+    });
+
+    return redirect()->back()->with('success', 'Faculty deleted successfully.');
   }
 
   public function admissionsBatchWise(Request $request)

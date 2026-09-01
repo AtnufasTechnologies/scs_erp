@@ -231,6 +231,16 @@ $isAssistant = $roleType === 'account-office-assistant';
     </li>
     @endif
 
+    <li class="menu-label">System</li>
+    <li>
+      <a href="{{ url('logout') }}">
+        <div class="parent-icon">
+          <i class="fas fa-sign-out-alt"></i>
+        </div>
+        <div class="menu-title">Logout</div>
+      </a>
+    </li>
+
   </ul>
 </aside>
 <!--end account-office sidebar -->
@@ -245,7 +255,7 @@ $isAssistant = $roleType === 'account-office-assistant';
     <div class="top-navbar-right ms-auto">
 
       <ul class="navbar-nav align-items-center">
-        <li class="nav-item mobile-search-button">
+        <!-- <li class="nav-item mobile-search-button">
           <a class="nav-link" href="javascript:;">
             <div class="">
               <ion-icon name="search-sharp"></ion-icon>
@@ -266,7 +276,7 @@ $isAssistant = $roleType === 'account-office-assistant';
               <i class="fas fa-sign-out-alt text-light"></i> Logout
             </div>
           </a>
-        </li>
+        </li> -->
 
 
       </ul>

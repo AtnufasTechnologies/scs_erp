@@ -185,7 +185,7 @@ class LoginController extends Controller
 
     function forgotPassword()
     {
-        return view('auth.forgot-password');
+        return redirect()->route('login', ['panel' => 'forgot']);
     }
 
     public function dashboardSwitcher()

@@ -1454,6 +1454,9 @@ Route::group(['prefix' => '/erp'], function () {
         Route::get('students/export', [CentralOfficeController::class, 'exportStudents'])->name('central-office.students.export');
         Route::post('students/{id}/mark-left', [CentralOfficeController::class, 'markLeft'])->name('central-office.students.mark-left');
         Route::post('students/{id}/reactivate', [CentralOfficeController::class, 'reactivate'])->name('central-office.students.reactivate');
+        Route::get('employees', [CentralOfficeController::class, 'employees'])->name('central-office.employees.index');
+        Route::get('employees/export', [CentralOfficeController::class, 'exportEmployees'])->name('central-office.employees.export');
+        Route::delete('employees/{id}', [CentralOfficeController::class, 'destroyEmployee'])->name('central-office.employees.destroy');
         Route::get('admissions/batch-wise', [CentralOfficeController::class, 'admissionsBatchWise'])->name('central-office.admissions.batch-wise');
         Route::get('admissions/batch-wise/export', [CentralOfficeController::class, 'exportAdmissionsBatchWise'])->name('central-office.admissions.batch-wise.export');
     });

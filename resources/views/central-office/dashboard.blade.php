@@ -16,7 +16,7 @@
     </div>
 
     <div class="row g-3 mb-4">
-      <div class="col-md-4">
+      <div class="col-md-3">
         <div class="card border-0 shadow-sm h-100">
           <div class="card-body">
             <div class="text-muted small">Active Students</div>
@@ -24,7 +24,7 @@
           </div>
         </div>
       </div>
-      <div class="col-md-4">
+      <div class="col-md-3">
         <div class="card border-0 shadow-sm h-100">
           <div class="card-body">
             <div class="text-muted small">Left Students</div>
@@ -32,7 +32,15 @@
           </div>
         </div>
       </div>
-      <div class="col-md-4">
+      <div class="col-md-3">
+        <div class="card border-0 shadow-sm h-100">
+          <div class="card-body">
+            <div class="text-muted small">Total Employees (Siliguri Campus)</div>
+            <div class="display-6 fw-bold text-dark">{{ $totalEmployees }}</div>
+          </div>
+        </div>
+      </div>
+      <div class="col-md-3">
         <div class="card border-0 shadow-sm h-100">
           <div class="card-body">
             <div class="text-muted small">Total Batches</div>
