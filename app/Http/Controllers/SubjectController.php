@@ -619,8 +619,8 @@ class SubjectController extends Controller
                 ->where('sm.campus_id', (int) $subject->campus_id)
                 ->when(Schema::hasColumn('student_masters', 'is_left'), fn($query) => $query->where('sm.is_left', 0))
                 ->when($offeredCourseIds->isNotEmpty(), fn($query) => $query->whereIn('student_attendances.course_id', $offeredCourseIds->all()))
-                ->whereDate('student_attendances.attendance_date', '>=', $attendanceFrom)
-                ->whereDate('student_attendances.attendance_date', '<=', $attendanceTo)
+                ->when($attendanceFrom, fn($query) => $query->whereDate('student_attendances.attendance_date', '>=', $attendanceFrom))
+                ->when($attendanceTo, fn($query) => $query->whereDate('student_attendances.attendance_date', '<=', $attendanceTo))
                 ->when($attendanceBatch, fn($query) => $query->where('sm.batch', $attendanceBatch))
                 ->when($applyCourseFilter && $attendanceCourseId, fn($query) => $query->where('student_attendances.course_id', $attendanceCourseId));
         };
