@@ -209,6 +209,11 @@ class StudentQuizController extends Controller
 
     $quiz = $this->eligibleQuizQuery($student)->findOrFail($id);
 
+    if ($this->isQuizClosed($quiz)) {
+      $this->autoSubmitExpiredAttempts($student->id, $quiz->id);
+      return redirect()->route('student.fa1.index')->with('info', 'Exam window closed. You can no longer access this paper.');
+    }
+
     $this->autoSubmitExpiredAttempts($student->id, $quiz->id);
 
     $attempt = QuizAttempt::where('quiz_id', $quiz->id)
@@ -256,6 +261,11 @@ class StudentQuizController extends Controller
     }
 
     $quiz = $this->eligibleQuizQuery($student)->with(['questions.options'])->findOrFail($id);
+
+    if ($this->isQuizClosed($quiz)) {
+      $this->autoSubmitExpiredAttempts($student->id, $quiz->id);
+      return redirect()->route('student.fa1.index')->with('info', 'Exam window closed. You can no longer access this paper.');
+    }
 
     $this->autoSubmitExpiredAttempts($student->id, $quiz->id);
 
@@ -308,6 +318,11 @@ class StudentQuizController extends Controller
     }
 
     $quiz = $this->eligibleQuizQuery($student)->findOrFail($id);
+
+    if ($this->isQuizClosed($quiz)) {
+      $this->autoSubmitExpiredAttempts($student->id, $quiz->id);
+      return response()->json(['message' => 'Exam window closed. You can no longer answer this paper.'], 422);
+    }
 
     $request->validate([
       'question_id' => 'required|integer',
@@ -383,6 +398,11 @@ class StudentQuizController extends Controller
     }
 
     $quiz = $this->eligibleQuizQuery($student)->findOrFail($id);
+
+    if ($this->isQuizClosed($quiz)) {
+      $this->autoSubmitExpiredAttempts($student->id, $quiz->id);
+      return redirect()->route('student.fa1.index')->with('info', 'Exam window closed. Attempt submission is locked.');
+    }
 
     $this->autoSubmitExpiredAttempts($student->id, $quiz->id);
 
@@ -535,7 +555,7 @@ class StudentQuizController extends Controller
   {
     $now = now();
 
-    return $this->portalQuizQuery($student)
+    return $this->basePortalQuizQuery($student)
       ->where('open_at', '<=', $now)
       ->orderBy('open_at', 'desc');
   }
@@ -543,6 +563,15 @@ class StudentQuizController extends Controller
   private function portalQuizQuery(StudentMaster $student)
   {
     $now = now();
+
+    return $this->basePortalQuizQuery($student)
+      ->where(function ($query) use ($now) {
+        $query->whereNull('close_at')->orWhere('close_at', '>', $now);
+      });
+  }
+
+  private function basePortalQuizQuery(StudentMaster $student)
+  {
     $fa1ComponentId = $this->fa1ComponentId();
     $hasQuizTeachingAssignmentColumn = Schema::hasColumn('quizzes', 'teaching_assignment_id');
     $hasTeachingAssignmentColumn = Schema::hasColumn('subject_has_routines', 'teaching_assignment_id');
@@ -551,9 +580,6 @@ class StudentQuizController extends Controller
 
     $query = Quiz::query()
       ->where('is_published', true)
-      ->where(function ($query) use ($now) {
-        $query->whereNull('close_at')->orWhere('close_at', '>=', $now);
-      })
       ->where(function ($query) use ($fa1ComponentId) {
         if ($fa1ComponentId) {
           $query->where('sup_cia_component_id', $fa1ComponentId);
@@ -629,6 +655,11 @@ class StudentQuizController extends Controller
         $existsQuery->whereNull('scr.deleted_at');
       }
     });
+  }
+
+  private function isQuizClosed(Quiz $quiz): bool
+  {
+    return (bool) ($quiz->close_at && now()->greaterThanOrEqualTo($quiz->close_at));
   }
 
   private function fa1ComponentId(): ?int
@@ -766,8 +797,17 @@ class StudentQuizController extends Controller
   {
     $query = QuizAttempt::where('student_id', $studentId)
       ->where('status', 'in_progress')
-      ->whereNotNull('expires_at')
-      ->where('expires_at', '<=', now());
+      ->where(function ($attemptQuery) {
+        $attemptQuery
+          ->where(function ($expiryQuery) {
+            $expiryQuery->whereNotNull('expires_at')
+              ->where('expires_at', '<=', now());
+          })
+          ->orWhereHas('quiz', function ($quizQuery) {
+            $quizQuery->whereNotNull('close_at')
+              ->where('close_at', '<=', now());
+          });
+      });
 
     if ($quizId) {
       $query->where('quiz_id', $quizId);

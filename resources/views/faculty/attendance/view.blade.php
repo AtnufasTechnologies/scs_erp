@@ -76,6 +76,43 @@ use Carbon\Carbon;
 
 
 
+    <div class="card mb-4">
+      <div class="card-header d-flex justify-content-between align-items-center">
+        <h5 class="mb-0"><i class="fa fa-id-card me-2"></i>Student Wise Attendance Details</h5>
+        <span class="badge bg-primary">{{ ($studentWiseStats ?? collect())->count() }} Students</span>
+      </div>
+      <div class="card-body">
+        @if(($studentWiseStats ?? collect())->isEmpty())
+        <div class="alert alert-info mb-0">
+          <i class="bi bi-info-circle me-2"></i>No student summary available for selected filters.
+        </div>
+        @else
+        <div class="row g-3">
+          @foreach($studentWiseStats as $student)
+          <div class="col-md-6 col-xl-4">
+            <div class="border rounded-3 p-3 h-100" style="background: #f8fafc; border-color: #e2e8f0 !important;">
+              <div class="d-flex justify-content-between align-items-start mb-2">
+                <div>
+                  <div class="fw-bold text-dark">{{ $student['student_name'] }}</div>
+                  <div class="small text-muted">{{ $student['roll_no'] }}</div>
+                </div>
+                <span class="badge {{ (float) $student['percentage'] >= 75 ? 'bg-success' : 'bg-danger' }}">
+                  {{ number_format((float) $student['percentage'], 2) }}%
+                </span>
+              </div>
+              <div class="d-flex gap-2 flex-wrap">
+                <span class="badge bg-success-subtle text-success border">Present: {{ $student['present_count'] }}</span>
+                <span class="badge bg-danger-subtle text-danger border">Absent: {{ $student['absent_count'] }}</span>
+                <span class="badge bg-secondary-subtle text-secondary border">Total: {{ $student['total_count'] }}</span>
+              </div>
+            </div>
+          </div>
+          @endforeach
+        </div>
+        @endif
+      </div>
+    </div>
+
     <!-- Attendance Records Table (Simple Layout) -->
 
     <div class="card-header">

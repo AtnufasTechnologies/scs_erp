@@ -1214,7 +1214,11 @@ class AttendanceController extends Controller
     $query = StudentAttendance::orderBy('attendance_date', 'desc')
       ->latest()
       ->whereIn('routine_id', $accessibleRoutineIds->all())
-      ->with('hourmaster');
+      ->with([
+        'hourmaster',
+        'student',
+        'courseinfo.coursetypemaster',
+      ]);
 
 
     if (!empty($request->attendance_date)) {
@@ -1226,10 +1230,35 @@ class AttendanceController extends Controller
 
     $data = $query->get();
 
+    $studentWiseStats = $data
+      ->filter(fn($record) => $record->student)
+      ->groupBy('student_id')
+      ->map(function ($records) {
+        $first = $records->first();
+        $total = $records->count();
+        $present = $records->filter(function ($record) {
+          return in_array(strtolower((string) $record->status), ['present', 'late', 'excused'], true);
+        })->count();
+        $absent = $total - $present;
+
+        return [
+          'student_id' => (int) ($first->student_id ?? 0),
+          'roll_no' => (string) ($first->student->roll_no ?? 'N/A'),
+          'student_name' => trim(((string) ($first->student->first_name ?? '')) . ' ' . ((string) ($first->student->middle_name ?? '')) . ' ' . ((string) ($first->student->last_name ?? ''))) ?: 'N/A',
+          'present_count' => $present,
+          'absent_count' => $absent,
+          'total_count' => $total,
+          'percentage' => $total > 0 ? round(($present / $total) * 100, 2) : 0,
+        ];
+      })
+      ->sortBy('student_name', SORT_NATURAL | SORT_FLAG_CASE)
+      ->values();
+
 
     return view('faculty.attendance.view', [
       'syllabusAssignments' => $syllabusAssignments,
       'attendanceRecords' => $data,
+      'studentWiseStats' => $studentWiseStats,
 
     ]);
   }
