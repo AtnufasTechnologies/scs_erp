@@ -84,13 +84,13 @@
                     <span class="badge bg-primary">Not Started</span>
                     @endif
                   </td>
-                  <!-- <td>
+                  <td>
                     @if($canAttempt)
                     <a href="{{ route('student.fa1.lobby', $quiz->id) }}" class="btn btn-sm btn-primary">Select</a>
                     @else
                     <button class="btn btn-sm btn-outline-secondary" disabled>No Attempts Left</button>
                     @endif
-                  </td> -->
+                  </td>
                 </tr>
                 @empty
                 <tr>
