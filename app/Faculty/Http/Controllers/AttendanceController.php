@@ -1590,7 +1590,7 @@ class AttendanceController extends Controller
     }
 
     // Get all subjects assigned to this faculty
-    $syllabusAssignments = $this->applyFacultyRoutineAccess(SubjectHasRoutine::query(), $facultyId)
+    $allSyllabusAssignments = $this->applyFacultyRoutineAccess(SubjectHasRoutine::query(), $facultyId)
       ->with([
         'syllabus.subject:id,title',
         'syllabus.batchmaster:id,batch_name',
@@ -1601,11 +1601,24 @@ class AttendanceController extends Controller
       ])
       ->orderBy('syllabus_id')
       ->orderBy('shift')
-      ->get()
+      ->get();
+
+    $routineScopeMap = $allSyllabusAssignments
+      ->groupBy(fn($routine) => $this->buildRoutineIdentityKey($routine))
+      ->map(function ($rows) {
+        return $rows
+          ->pluck('id')
+          ->map(fn($id) => (int) $id)
+          ->filter(fn($id) => $id > 0)
+          ->unique()
+          ->values();
+      });
+
+    $syllabusAssignments = $allSyllabusAssignments
       ->unique(fn($routine) => $this->buildRoutineIdentityKey($routine))
       ->values();
 
-    $assignmentRows = $syllabusAssignments->map(function ($routine) use ($facultyId) {
+    $assignmentRows = $syllabusAssignments->map(function ($routine) use ($facultyId, $routineScopeMap) {
       $assignment = $routine->teachingAssignment ?: $routine->teachingAllocation;
       $courseMaster = $routine->syllabus->courseLink->courseMaster ?? null;
       $courseCode = trim((string) ($courseMaster->course_code ?? ''));
@@ -1613,32 +1626,37 @@ class AttendanceController extends Controller
       $courseTitle = trim((string) ($courseMaster->course_title ?? 'N/A'));
       $courseType = trim((string) ($courseMaster->coursetypemaster->title ?? ''));
       $assignmentId = (int) ($assignment->id ?? 0);
+      $rosterAssignmentIds = collect([
+        (int) ($routine->teachingAssignment->id ?? 0),
+        (int) ($routine->teachingAllocation->id ?? 0),
+        $assignmentId,
+      ])
+        ->filter(fn($id) => (int) $id > 0)
+        ->map(fn($id) => (int) $id)
+        ->unique()
+        ->values();
       $courseId = (int) ($routine->syllabus->course_id ?? ($assignment->course_id ?? 0));
       $programType = $this->normalizeProgramTypeLabel($routine->program_type ?? $routine->syllabus->program_type ?? 'UG');
+      $routineScopeIds = collect($routineScopeMap->get($this->buildRoutineIdentityKey($routine), collect()))
+        ->map(fn($id) => (int) $id)
+        ->filter(fn($id) => $id > 0)
+        ->unique()
+        ->values();
 
       $studentCount = 0;
-      if ($assignmentId > 0 && $courseId > 0) {
-        $studentCount = $this->scopeStudentRosterQuery(
-          StudentCourseRoster::query(),
-          $assignmentId,
-          $courseId,
-          (int) ($routine->id ?? 0),
-          true
-        )
-          ->count();
+      if ($rosterAssignmentIds->isNotEmpty() && $courseId > 0) {
+        $rosterQuery = StudentCourseRoster::query()
+          ->whereIn('ta_id', $rosterAssignmentIds->all())
+          ->where('course_id', $courseId);
 
-        if ($studentCount === 0) {
-          $eligibleStudents = $this->getEligibleStudentsForRoutine(
-            $routine->syllabus,
-            $routine,
-            (int) ($routine->syllabus->batch_id ?? 0),
-            (int) ($routine->syllabus->semester_id ?? 0),
-            $courseId,
-            false
-          );
-
-          $studentCount = (int) $eligibleStudents->count();
+        if ($this->hasStudentRosterRoutineScope() && $routineScopeIds->isNotEmpty()) {
+          $rosterQuery->where(function ($routineScope) use ($routineScopeIds) {
+            $routineScope->whereIn('routine_id', $routineScopeIds->all())
+              ->orWhereNull('routine_id');
+          });
         }
+
+        $studentCount = (int) $rosterQuery->count();
       }
 
       $deliveryType = strtoupper(trim((string) (

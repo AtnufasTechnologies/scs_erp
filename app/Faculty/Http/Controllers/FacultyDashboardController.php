@@ -576,6 +576,59 @@ class FacultyDashboardController extends Controller
     return date('h:i A', $timestamp);
   }
 
+  private function hasStudentRosterRoutineScope(): bool
+  {
+    static $hasRoutineColumn = null;
+    if ($hasRoutineColumn === null) {
+      $hasRoutineColumn = Schema::hasTable('student_course_rosters')
+        && Schema::hasColumn('student_course_rosters', 'routine_id');
+    }
+
+    return (bool) $hasRoutineColumn;
+  }
+
+  private function scopeStudentRosterQuery($query, array $assignmentIds, int $courseId, array $routineIds = [], bool $includeLegacyNullRoutine = false)
+  {
+    $assignmentIds = collect($assignmentIds)
+      ->map(fn($id) => (int) $id)
+      ->filter(fn($id) => $id > 0)
+      ->unique()
+      ->values();
+
+    if ($assignmentIds->isEmpty() || $courseId <= 0) {
+      return $query->whereRaw('1 = 0');
+    }
+
+    $query->whereIn('ta_id', $assignmentIds->all())
+      ->where('course_id', $courseId);
+
+    if ($this->hasStudentRosterRoutineScope()) {
+      $routineIds = collect($routineIds)
+        ->map(fn($id) => (int) $id)
+        ->filter(fn($id) => $id > 0)
+        ->unique()
+        ->values();
+
+      if ($routineIds->isNotEmpty() || $includeLegacyNullRoutine) {
+        $query->where(function ($routineScope) use ($routineIds, $includeLegacyNullRoutine) {
+          if ($routineIds->isNotEmpty()) {
+            $routineScope->whereIn('routine_id', $routineIds->all());
+          }
+
+          if ($includeLegacyNullRoutine) {
+            if ($routineIds->isNotEmpty()) {
+              $routineScope->orWhereNull('routine_id');
+            } else {
+              $routineScope->whereNull('routine_id');
+            }
+          }
+        });
+      }
+    }
+
+    return $query;
+  }
+
   function subjects(Request $request)
   {
     $userId = Auth::user()->id;
@@ -585,7 +638,7 @@ class FacultyDashboardController extends Controller
     $requestedProgramType = strtoupper(trim((string) $request->query('program_type', 'ALL')));
     $programType = in_array($requestedProgramType, ['UG', 'PG', 'ALL'], true) ? $requestedProgramType : 'ALL';
 
-    $routineSelectColumns = ['syllabus_id', 'shift', 'teaching_group_id', 'teaching_assignment_id'];
+    $routineSelectColumns = ['id', 'syllabus_id', 'shift', 'teaching_group_id', 'teaching_assignment_id'];
     if ($hasTeachingAllocationLink) {
       $routineSelectColumns[] = 'teaching_allocation_id';
     }
@@ -618,19 +671,53 @@ class FacultyDashboardController extends Controller
 
     $assignmentContexts = $assignedRoutines
       ->map(function ($row) {
-        $assignmentId = (int) (($row->teaching_assignment_id ?? 0) ?: ($row->teaching_allocation_id ?? 0));
+        $teachingAssignmentId = (int) ($row->teaching_assignment_id ?? 0);
+        $teachingAllocationId = (int) ($row->teaching_allocation_id ?? 0);
+        $assignmentId = (int) ($teachingAssignmentId ?: $teachingAllocationId);
         $syllabusId = (int) ($row->syllabus_id ?? 0);
+        $rosterAssignmentIds = collect([$teachingAssignmentId, $teachingAllocationId])
+          ->filter(fn($id) => (int) $id > 0)
+          ->map(fn($id) => (int) $id)
+          ->unique()
+          ->values()
+          ->all();
 
         return [
+          'routine_id' => (int) ($row->id ?? 0),
           'syllabus_id' => $syllabusId,
           'shift' => strtolower(trim((string) ($row->shift ?? ''))),
           'teaching_group_id' => (int) ($row->teaching_group_id ?? 0),
           'teaching_assignment_id' => $assignmentId,
+          'roster_assignment_ids' => $rosterAssignmentIds,
           'key' => $syllabusId . '_' . $assignmentId,
         ];
       })
       ->filter(fn($ctx) => (int) ($ctx['syllabus_id'] ?? 0) > 0 && (int) ($ctx['teaching_assignment_id'] ?? 0) > 0)
-      ->unique('key')
+      ->groupBy('key')
+      ->map(function ($groupedContexts) {
+        $first = $groupedContexts->first();
+        $routineIds = $groupedContexts
+          ->pluck('routine_id')
+          ->map(fn($id) => (int) $id)
+          ->filter(fn($id) => $id > 0)
+          ->unique()
+          ->values()
+          ->all();
+
+        $rosterAssignmentIds = $groupedContexts
+          ->pluck('roster_assignment_ids')
+          ->flatten(1)
+          ->map(fn($id) => (int) $id)
+          ->filter(fn($id) => $id > 0)
+          ->unique()
+          ->values()
+          ->all();
+
+        $first['routine_ids'] = $routineIds;
+        $first['roster_assignment_ids'] = $rosterAssignmentIds;
+
+        return $first;
+      })
       ->values();
 
     $assignedSyllabusIds = $assignmentContexts
@@ -702,9 +789,20 @@ class FacultyDashboardController extends Controller
         $base = $syllabusById->get((int) $ctx['syllabus_id']);
         $row = clone $base;
         $assignmentId = (int) ($ctx['teaching_assignment_id'] ?? 0);
+        $row->routine_id = (int) ($ctx['routine_id'] ?? 0);
+        $row->routine_ids = collect($ctx['routine_ids'] ?? [(int) ($ctx['routine_id'] ?? 0)])
+          ->map(fn($id) => (int) $id)
+          ->filter(fn($id) => $id > 0)
+          ->unique()
+          ->values();
         $row->assigned_shift = (string) ($ctx['shift'] ?? '');
         $row->teaching_group_id = (int) ($ctx['teaching_group_id'] ?? 0);
         $row->teaching_assignment_id = $assignmentId;
+        $row->roster_assignment_ids = collect($ctx['roster_assignment_ids'] ?? [])
+          ->map(fn($id) => (int) $id)
+          ->filter(fn($id) => $id > 0)
+          ->unique()
+          ->values();
         $row->teaching_assignment_ids = collect([$assignmentId]);
         $row->assigned_delivery_type = (string) ($assignmentDeliveryTypeMap[$assignmentId] ?? '');
         return $row;
@@ -816,43 +914,23 @@ class FacultyDashboardController extends Controller
         ->unique('id')
         ->values();
 
-      $assignmentIds = collect($syllabus->teaching_assignment_ids ?? [(int) ($syllabus->teaching_assignment_id ?? 0)])
+      $assignmentIds = collect($syllabus->roster_assignment_ids ?? $syllabus->teaching_assignment_ids ?? [(int) ($syllabus->teaching_assignment_id ?? 0)])
         ->map(fn($id) => (int) $id)
         ->filter(fn($id) => $id > 0)
         ->unique()
         ->values();
 
       if ($courseId > 0 && $assignmentIds->isNotEmpty()) {
-        $rosterRows = StudentCourseRoster::query()
+        $rosterRows = $this->scopeStudentRosterQuery(
+          StudentCourseRoster::query(),
+          $assignmentIds->all(),
+          $courseId,
+          collect($syllabus->routine_ids ?? [(int) ($syllabus->routine_id ?? 0)])->all(),
+          true
+        )
           ->with('studentmaster:id,roll_no,register_no,first_name,last_name,new_program_id,batch')
-          ->whereIn('ta_id', $assignmentIds->all())
-          ->where('course_id', $courseId)
           ->orderBy('id')
           ->get();
-
-        if ($rosterRows->isEmpty()) {
-          $resolvedRows = $this->studentRosterEngine->getRoster($courseId, [
-            'batch_id' => (int) ($syllabus->batch_id ?? 0),
-            'semester_id' => (int) ($syllabus->semester_id ?? 0),
-            'delivery_type' => (string) ($syllabus->assigned_delivery_type ?? ''),
-            'selection_type' => (string) data_get($syllabus, 'courseLink.courseMaster.coursetypemaster.title', ''),
-            'offering_dept' => (int) ($syllabus->subject_id ?? 0),
-          ]);
-
-          $rosterRows = $resolvedRows->map(function ($resolved) {
-            return (object) [
-              'student_id' => (int) ($resolved['student_id'] ?? 0),
-              'studentmaster' => (object) [
-                'roll_no' => (string) ($resolved['roll_no'] ?? ''),
-                'register_no' => (string) ($resolved['register_no'] ?? ''),
-                'first_name' => (string) (data_get($resolved, 'first_name', data_get($resolved, 'student_name', ''))),
-                'last_name' => (string) (data_get($resolved, 'last_name', '')),
-                'new_program_id' => (int) ($resolved['program_id'] ?? 0),
-                'batch' => (int) ($resolved['batch_id'] ?? 0),
-              ],
-            ];
-          })->values();
-        }
       } else {
         $rosterRows = collect();
       }
