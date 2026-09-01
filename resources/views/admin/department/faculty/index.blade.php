@@ -351,7 +351,7 @@ $facultyIdsWithTimetable = collect($facultyTimetables ?? [])
               </button>
               @endif
 
-              <form action="{{ route('department.faculty.delete', $item->faculty->id) }}" method="POST" onsubmit="return confirm('Are you sure you want to remove this faculty from the department?');" style="display:inline;">
+              <form action="{{ route('department.faculty.delete', $item->id) }}" method="POST" onsubmit="return confirm('Are you sure you want to remove this faculty from the department?');" style="display:inline;">
                 @csrf
                 @method('DELETE')
                 <button type="submit" class="btn btn-modern" style="background: #fee2e2; color: #991b1b; padding: 10px 16px; font-size: 13px;" title="Remove">

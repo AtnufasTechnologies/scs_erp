@@ -432,6 +432,13 @@ class SubjectController extends Controller
             return redirect()->back()->with('info', 'Subject not found or user not assigned to any department');
         }
 
+        $request->validate([
+            'attendance_from' => 'nullable|date',
+            'attendance_to' => 'nullable|date',
+            'attendance_batch' => 'nullable|integer|exists:batch_masters,id',
+            'attendance_course_id' => 'nullable|integer|exists:program_course_masters,id',
+        ]);
+
         // Course Master
         $courseMaster = $subject;
 
@@ -565,6 +572,169 @@ class SubjectController extends Controller
         $allSubjects = Subject::orderBy('title')->get();
         $allCampuses = Campus::all();
 
+        $hasDateRange = $request->filled('attendance_from') || $request->filled('attendance_to');
+        $attendanceFrom = null;
+        $attendanceTo = null;
+
+        if ($hasDateRange) {
+            $attendanceFrom = $request->filled('attendance_from')
+                ? Carbon::parse((string) $request->input('attendance_from'))->toDateString()
+                : Carbon::parse((string) $request->input('attendance_to'))->toDateString();
+            $attendanceTo = $request->filled('attendance_to')
+                ? Carbon::parse((string) $request->input('attendance_to'))->toDateString()
+                : $attendanceFrom;
+
+            if ($attendanceFrom > $attendanceTo) {
+                [$attendanceFrom, $attendanceTo] = [$attendanceTo, $attendanceFrom];
+            }
+        }
+
+        $attendanceBatch = $request->filled('attendance_batch') ? (int) $request->attendance_batch : null;
+        $offeredCourseIds = SubjectCourseMaster::query()
+            ->where('subject_id', $subjectId)
+            ->whereNotNull('course_master_id')
+            ->pluck('course_master_id')
+            ->map(fn($id) => (int) $id)
+            ->filter(fn($id) => $id > 0)
+            ->unique()
+            ->values();
+
+        $attendanceCourseId = $request->filled('attendance_course_id') ? (int) $request->attendance_course_id : null;
+        if ($attendanceCourseId && !$offeredCourseIds->contains($attendanceCourseId)) {
+            $attendanceCourseId = null;
+        }
+
+        $buildAttendanceQuery = function (bool $applyCourseFilter = false) use (
+            $subjectId,
+            $subject,
+            $attendanceFrom,
+            $attendanceTo,
+            $attendanceBatch,
+            $attendanceCourseId,
+            $offeredCourseIds
+        ) {
+            return StudentAttendance::query()
+                ->join('student_masters as sm', 'sm.id', '=', 'student_attendances.student_id')
+                ->where('sm.department', $subjectId)
+                ->where('sm.campus_id', (int) $subject->campus_id)
+                ->when(Schema::hasColumn('student_masters', 'is_left'), fn($query) => $query->where('sm.is_left', 0))
+                ->when($offeredCourseIds->isNotEmpty(), fn($query) => $query->whereIn('student_attendances.course_id', $offeredCourseIds->all()))
+                ->whereDate('student_attendances.attendance_date', '>=', $attendanceFrom)
+                ->whereDate('student_attendances.attendance_date', '<=', $attendanceTo)
+                ->when($attendanceBatch, fn($query) => $query->where('sm.batch', $attendanceBatch))
+                ->when($applyCourseFilter && $attendanceCourseId, fn($query) => $query->where('student_attendances.course_id', $attendanceCourseId));
+        };
+
+        $courseWiseAttendance = $buildAttendanceQuery(true)
+            ->leftJoin('program_course_masters as pcm', 'pcm.id', '=', 'student_attendances.course_id')
+            ->whereNotNull('student_attendances.course_id')
+            ->groupBy('student_attendances.course_id', 'pcm.course_code', 'pcm.course_title')
+            ->orderBy('pcm.course_title')
+            ->select([
+                'student_attendances.course_id',
+                'pcm.course_code',
+                'pcm.course_title',
+                DB::raw('COUNT(*) as total_records'),
+                DB::raw("SUM(CASE WHEN student_attendances.status IN ('present','late','excused') THEN 1 ELSE 0 END) as attended_records"),
+            ])
+            ->get()
+            ->map(function ($row) {
+                $total = (int) ($row->total_records ?? 0);
+                $attended = (int) ($row->attended_records ?? 0);
+                $percentage = $total > 0 ? round(($attended / $total) * 100, 2) : 0;
+                return [
+                    'course_id' => (int) ($row->course_id ?? 0),
+                    'course_label' => trim(((string) ($row->course_code ?? '')) . ' - ' . ((string) ($row->course_title ?? '')), ' -') ?: 'Unknown Course',
+                    'attendance_percentage' => $percentage,
+                    'attended_records' => $attended,
+                    'total_records' => $total,
+                ];
+            })
+            ->values();
+
+        $dateWiseAttendance = $buildAttendanceQuery(true)
+            ->groupBy('student_attendances.attendance_date')
+            ->orderBy('student_attendances.attendance_date')
+            ->select([
+                'student_attendances.attendance_date',
+                DB::raw('COUNT(*) as total_records'),
+                DB::raw("SUM(CASE WHEN student_attendances.status IN ('present','late','excused') THEN 1 ELSE 0 END) as attended_records"),
+            ])
+            ->get()
+            ->map(function ($row) {
+                $total = (int) ($row->total_records ?? 0);
+                $attended = (int) ($row->attended_records ?? 0);
+                return [
+                    'date' => Carbon::parse($row->attendance_date)->format('d M Y'),
+                    'attendance_percentage' => $total > 0 ? round(($attended / $total) * 100, 2) : 0,
+                    'attended_records' => $attended,
+                    'total_records' => $total,
+                ];
+            })
+            ->values();
+
+        $overallAttendanceTotals = $buildAttendanceQuery(true)
+            ->select([
+                DB::raw('COUNT(*) as total_records'),
+                DB::raw("SUM(CASE WHEN student_attendances.status IN ('present','late','excused') THEN 1 ELSE 0 END) as attended_records"),
+            ])
+            ->first();
+
+        $overallTotalRecords = (int) ($overallAttendanceTotals->total_records ?? 0);
+        $overallAttendedRecords = (int) ($overallAttendanceTotals->attended_records ?? 0);
+        $overallAttendancePercentage = $overallTotalRecords > 0 ? round(($overallAttendedRecords / $overallTotalRecords) * 100, 2) : 0;
+
+        $buildAttendanceAlertQuery = function () use (
+            $subjectId,
+            $subject,
+            $offeredCourseIds
+        ) {
+            return StudentAttendance::query()
+                ->join('student_masters as sm', 'sm.id', '=', 'student_attendances.student_id')
+                ->where('sm.department', $subjectId)
+                ->where('sm.campus_id', (int) $subject->campus_id)
+                ->when(Schema::hasColumn('student_masters', 'is_left'), fn($query) => $query->where('sm.is_left', 0))
+                ->when($offeredCourseIds->isNotEmpty(), fn($query) => $query->whereIn('student_attendances.course_id', $offeredCourseIds->all()));
+        };
+
+        $attendanceAlertStudents = $buildAttendanceAlertQuery()
+            ->leftJoin('student_program as sp', 'sp.id', '=', 'sm.new_program_id')
+            ->groupBy('sm.id', 'sm.roll_no', 'sm.first_name', 'sm.last_name', 'sp.name')
+            ->select([
+                'sm.id as student_id',
+                'sm.roll_no',
+                'sm.first_name',
+                'sm.last_name',
+                'sp.name as program_name',
+                DB::raw('COUNT(*) as total_records'),
+                DB::raw("SUM(CASE WHEN student_attendances.status IN ('present','late','excused') THEN 1 ELSE 0 END) as attended_records"),
+            ])
+            ->get()
+            ->map(function ($row) {
+                $total = (int) ($row->total_records ?? 0);
+                $attended = (int) ($row->attended_records ?? 0);
+                $percentage = $total > 0 ? round(($attended / $total) * 100, 2) : 0;
+                return [
+                    'student_id' => (int) ($row->student_id ?? 0),
+                    'roll_no' => (string) ($row->roll_no ?? '-'),
+                    'student_name' => trim(((string) ($row->first_name ?? '')) . ' ' . ((string) ($row->last_name ?? ''))) ?: '-',
+                    'program_name' => (string) ($row->program_name ?? '-'),
+                    'attendance_percentage' => $percentage,
+                    'attended_records' => $attended,
+                    'total_records' => $total,
+                ];
+            })
+            ->filter(fn($row) => (float) $row['attendance_percentage'] < 75)
+            ->sortBy('attendance_percentage')
+            ->values();
+
+        $belowThresholdCount = $attendanceAlertStudents->count();
+
+        $attendanceCourses = ProgramCourseMaster::query()
+            ->whereIn('id', $offeredCourseIds->all())
+            ->orderBy('course_title')
+            ->get(['id', 'course_code', 'course_title']);
+
         return view('admin.subject.department-dashboard', [
             'data' => $courseMaster,
             'students_count' => $studentsCount,
@@ -581,6 +751,240 @@ class SubjectController extends Controller
             'allSubjects' => $allSubjects,
             'allCampuses' => $allCampuses,
             'allBatches' => $batches,
+            'attendanceFrom' => $attendanceFrom,
+            'attendanceTo' => $attendanceTo,
+            'attendanceBatch' => $attendanceBatch,
+            'attendanceCourseId' => $attendanceCourseId,
+            'attendanceCourses' => $attendanceCourses,
+            'courseWiseAttendance' => $courseWiseAttendance,
+            'dateWiseAttendance' => $dateWiseAttendance,
+            'overallAttendancePercentage' => $overallAttendancePercentage,
+            'overallAttendedRecords' => $overallAttendedRecords,
+            'overallTotalRecords' => $overallTotalRecords,
+            'attendanceAlertStudents' => $attendanceAlertStudents,
+            'attendanceAlertCount' => $attendanceAlertStudents->count(),
+            'belowThresholdCount' => $belowThresholdCount,
+        ]);
+    }
+
+    function exportDepartmentAttendanceAlerts(Request $request)
+    {
+        $userId = Auth::id();
+        $subjectId = SubjectHasDeptAdmin::where('user_id', $userId)->value('subject_id');
+        $subject = Subject::find($subjectId);
+
+        if (!$subject) {
+            return redirect()->route('department.dashboard')->with('info', 'Subject not found or user not assigned to any department');
+        }
+        $offeredCourseIds = SubjectCourseMaster::query()
+            ->where('subject_id', $subjectId)
+            ->whereNotNull('course_master_id')
+            ->pluck('course_master_id')
+            ->map(fn($id) => (int) $id)
+            ->filter(fn($id) => $id > 0)
+            ->unique()
+            ->values();
+
+        $buildAttendanceQuery = function () use (
+            $subjectId,
+            $subject,
+            $offeredCourseIds
+        ) {
+            return StudentAttendance::query()
+                ->join('student_masters as sm', 'sm.id', '=', 'student_attendances.student_id')
+                ->where('sm.department', $subjectId)
+                ->where('sm.campus_id', (int) $subject->campus_id)
+                ->when(Schema::hasColumn('student_masters', 'is_left'), fn($query) => $query->where('sm.is_left', 0))
+                ->when($offeredCourseIds->isNotEmpty(), fn($query) => $query->whereIn('student_attendances.course_id', $offeredCourseIds->all()));
+        };
+
+        $rows = $buildAttendanceQuery()
+            ->leftJoin('student_program as sp', 'sp.id', '=', 'sm.new_program_id')
+            ->groupBy('sm.id', 'sm.roll_no', 'sm.first_name', 'sm.last_name', 'sp.name')
+            ->select([
+                'sm.id as student_id',
+                'sm.roll_no',
+                'sm.first_name',
+                'sm.last_name',
+                'sp.name as program_name',
+                DB::raw('COUNT(*) as total_records'),
+                DB::raw("SUM(CASE WHEN student_attendances.status IN ('present','late','excused') THEN 1 ELSE 0 END) as attended_records"),
+            ])
+            ->get()
+            ->map(function ($row) {
+                $total = (int) ($row->total_records ?? 0);
+                $attended = (int) ($row->attended_records ?? 0);
+                $percentage = $total > 0 ? round(($attended / $total) * 100, 2) : 0;
+                if ($percentage >= 75) {
+                    return null;
+                }
+
+                return [
+                    'student_id' => (int) ($row->student_id ?? 0),
+                    'roll_no' => (string) ($row->roll_no ?? '-'),
+                    'student_name' => trim(((string) ($row->first_name ?? '')) . ' ' . ((string) ($row->last_name ?? ''))) ?: '-',
+                    'program_name' => (string) ($row->program_name ?? '-'),
+                    'attended_records' => $attended,
+                    'total_records' => $total,
+                    'attendance_percentage' => $percentage,
+                ];
+            })
+            ->filter()
+            ->sortBy('attendance_percentage')
+            ->values();
+
+        $fileName = 'attendance_alert_students_' . Carbon::now()->format('Ymd_His') . '.csv';
+
+        return response()->streamDownload(function () use ($rows) {
+            $output = fopen('php://output', 'w');
+            fputcsv($output, [
+                'Student ID',
+                'Roll No',
+                'Student Name',
+                'Program',
+                'Present Records',
+                'Total Records',
+                'Current Attendance %',
+            ]);
+
+            foreach ($rows as $row) {
+                fputcsv($output, [
+                    $row['student_id'],
+                    $row['roll_no'],
+                    $row['student_name'],
+                    $row['program_name'],
+                    $row['attended_records'],
+                    $row['total_records'],
+                    number_format((float) $row['attendance_percentage'], 2),
+                ]);
+            }
+
+            fclose($output);
+        }, $fileName, [
+            'Content-Type' => 'text/csv',
+        ]);
+    }
+
+    function studentAttendanceDetails(Request $request)
+    {
+        $request->validate([
+            'id' => 'required|integer|exists:student_masters,id',
+            'rollno' => 'required|string',
+            'attendance_from' => 'nullable|date',
+            'attendance_to' => 'nullable|date',
+            'attendance_course_id' => 'nullable|integer|exists:program_course_masters,id',
+        ]);
+
+        $userId = Auth::id();
+        $subjectId = SubjectHasDeptAdmin::where('user_id', $userId)->value('subject_id');
+        $subject = Subject::find($subjectId);
+
+        if (!$subject) {
+            return redirect()->route('department.dashboard')->with('info', 'Subject not found or user not assigned to any department');
+        }
+
+        $student = StudentMaster::query()
+            ->where('id', (int) $request->id)
+            ->where('roll_no', (string) $request->rollno)
+            ->where('department', $subjectId)
+            ->where('campus_id', (int) $subject->campus_id)
+            ->firstOrFail(['id', 'roll_no', 'first_name', 'last_name', 'new_program_id', 'batch']);
+
+        $offeredCourseIds = SubjectCourseMaster::query()
+            ->where('subject_id', $subjectId)
+            ->whereNotNull('course_master_id')
+            ->pluck('course_master_id')
+            ->map(fn($id) => (int) $id)
+            ->filter(fn($id) => $id > 0)
+            ->unique()
+            ->values();
+
+        $attendanceCourseId = $request->filled('attendance_course_id') ? (int) $request->attendance_course_id : null;
+        if ($attendanceCourseId && !$offeredCourseIds->contains($attendanceCourseId)) {
+            $attendanceCourseId = null;
+        }
+
+        $hasDateRange = $request->filled('attendance_from') || $request->filled('attendance_to');
+        $attendanceFrom = null;
+        $attendanceTo = null;
+
+        if ($hasDateRange) {
+            $attendanceFrom = $request->filled('attendance_from')
+                ? Carbon::parse((string) $request->input('attendance_from'))->toDateString()
+                : Carbon::parse((string) $request->input('attendance_to'))->toDateString();
+            $attendanceTo = $request->filled('attendance_to')
+                ? Carbon::parse((string) $request->input('attendance_to'))->toDateString()
+                : $attendanceFrom;
+
+            if ($attendanceFrom > $attendanceTo) {
+                [$attendanceFrom, $attendanceTo] = [$attendanceTo, $attendanceFrom];
+            }
+        }
+
+        $attendanceCourses = ProgramCourseMaster::query()
+            ->whereIn('id', $offeredCourseIds->all())
+            ->orderBy('course_title')
+            ->get(['id', 'course_code', 'course_title']);
+
+        $baseAttendanceQuery = StudentAttendance::query()
+            ->where('student_id', (int) $student->id)
+            ->when($attendanceFrom, fn($query) => $query->whereDate('attendance_date', '>=', $attendanceFrom))
+            ->when($attendanceTo, fn($query) => $query->whereDate('attendance_date', '<=', $attendanceTo))
+            ->when($offeredCourseIds->isNotEmpty(), fn($query) => $query->whereIn('course_id', $offeredCourseIds->all()))
+            ->when($attendanceCourseId, fn($query) => $query->where('course_id', $attendanceCourseId));
+
+        $attendanceSummaryByCourse = (clone $baseAttendanceQuery)
+            ->leftJoin('program_course_masters as pcm', 'pcm.id', '=', 'student_attendances.course_id')
+            ->groupBy('student_attendances.course_id', 'pcm.course_code', 'pcm.course_title')
+            ->orderBy('pcm.course_title')
+            ->select([
+                'student_attendances.course_id',
+                'pcm.course_code',
+                'pcm.course_title',
+                DB::raw('COUNT(*) as total_records'),
+                DB::raw("SUM(CASE WHEN student_attendances.status IN ('present','late','excused') THEN 1 ELSE 0 END) as attended_records"),
+            ])
+            ->get()
+            ->map(function ($row) {
+                $total = (int) ($row->total_records ?? 0);
+                $attended = (int) ($row->attended_records ?? 0);
+                return [
+                    'course_label' => trim(((string) ($row->course_code ?? '')) . ' - ' . ((string) ($row->course_title ?? '')), ' -') ?: 'Unknown Course',
+                    'attended_records' => $attended,
+                    'total_records' => $total,
+                    'attendance_percentage' => $total > 0 ? round(($attended / $total) * 100, 2) : 0,
+                ];
+            })
+            ->values();
+
+        $attendanceTimeline = (clone $baseAttendanceQuery)
+            ->leftJoin('program_course_masters as pcm', 'pcm.id', '=', 'student_attendances.course_id')
+            ->orderBy('student_attendances.attendance_date', 'desc')
+            ->orderBy('student_attendances.id', 'desc')
+            ->get([
+                'student_attendances.attendance_date',
+                'student_attendances.status',
+                'pcm.course_code',
+                'pcm.course_title',
+            ]);
+
+        $totalRecords = $attendanceTimeline->count();
+        $attendedRecords = $attendanceTimeline->whereIn('status', ['present', 'late', 'excused'])->count();
+        $overallPercentage = $totalRecords > 0 ? round(($attendedRecords / $totalRecords) * 100, 2) : 0;
+
+        return view('admin.subject.student-attendance-details', [
+            'student' => $student,
+            'subject' => $subject,
+            'hasDateRange' => $hasDateRange,
+            'attendanceFrom' => $attendanceFrom,
+            'attendanceTo' => $attendanceTo,
+            'attendanceCourseId' => $attendanceCourseId,
+            'attendanceCourses' => $attendanceCourses,
+            'attendanceSummaryByCourse' => $attendanceSummaryByCourse,
+            'attendanceTimeline' => $attendanceTimeline,
+            'totalRecords' => $totalRecords,
+            'attendedRecords' => $attendedRecords,
+            'overallPercentage' => $overallPercentage,
         ]);
     }
 

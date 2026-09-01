@@ -885,6 +885,7 @@ Route::group(['prefix' => '/erp'], function () {
 
     Route::group(['prefix' => '/deptartment',], function () {
         Route::get('dashboard', [SubjectController::class, 'departmentDashboard'])->name('department.dashboard');
+        Route::get('dashboard/attendance-alerts/export', [SubjectController::class, 'exportDepartmentAttendanceAlerts'])->name('department.dashboard.attendance-alerts.export');
         Route::get('fa1-quizzes', [QuizOversightController::class, 'index'])->name('department.quizzes.index');
         Route::get('fa1-quizzes/{quizId}/results', [QuizOversightController::class, 'results'])->name('department.quizzes.results');
         Route::get('enrolled-programs/by-batch', [SubjectController::class, 'fetchEnrolledProgramsByBatch'])->name('department.batch.enrolled-programs');
@@ -986,6 +987,7 @@ Route::group(['prefix' => '/erp'], function () {
         Route::get('integrated-program-student-mappings/{combinationId}', [SubjectController::class, 'integratedProgramStudentMappings'])->name('department.integrated.program.student.mappings');
         Route::get('all-students', [SubjectController::class, 'allStudents'])->name('department.all.students');
         Route::get('student-profile', [SubjectController::class, 'studentProfile'])->name('department.student.profile');
+        Route::get('student-attendance-details', [SubjectController::class, 'studentAttendanceDetails'])->name('department.student.attendance.details');
         Route::get('faculty-list/{subjectId}/{slug}', [SubjectController::class, 'deptFacultyList'])->name('department.faculty.list');
         // Department Activities
         Route::get('activities/{subjectId}', [DepartmentActivityController::class, 'index'])->name('department.activities.index');

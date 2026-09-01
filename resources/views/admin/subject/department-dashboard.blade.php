@@ -131,6 +131,52 @@ if (Schema::hasTable('integrated_program_sublayer_settings')) {
       min-width: 78vw;
     }
   }
+
+  .attendance-filter-card {
+    border: 1px solid #e5e7eb;
+    border-radius: 14px;
+    background: #ffffff;
+    box-shadow: 0 10px 28px rgba(15, 23, 42, 0.05);
+    padding: 16px;
+  }
+
+  .attendance-summary-card {
+    border-radius: 14px;
+    padding: 14px;
+    background: #f8fafc;
+    border: 1px solid #e2e8f0;
+  }
+
+  .attendance-summary-value {
+    font-size: 28px;
+    font-weight: 700;
+    color: #0f172a;
+    line-height: 1;
+  }
+
+  .attendance-table-wrap {
+    max-height: 360px;
+    overflow: auto;
+  }
+
+  .attendance-chart-wrap {
+    position: relative;
+    width: 100%;
+    height: 260px;
+    max-height: 260px;
+  }
+
+  .attendance-chart-wrap canvas {
+    width: 100% !important;
+    height: 100% !important;
+  }
+
+  @media (max-width: 768px) {
+    .attendance-chart-wrap {
+      height: 210px;
+      max-height: 210px;
+    }
+  }
 </style>
 
 <!-- Main Content -->
@@ -398,9 +444,171 @@ if (Schema::hasTable('integrated_program_sublayer_settings')) {
     </div>
 
     <!-- Right Column: Stats and Actions -->
-    <div class="col-lg-7">
+    <div class="col-lg-12">
       <div class="row g-3 mb-4">
+        <div class="col-12">
+          <div class="attendance-filter-card">
+            <div class="d-flex justify-content-between align-items-center mb-3">
+              <h5 class="mb-0" style="color: #1a1a1a; font-weight: 700;">
+                <i class="fas fa-chart-line me-2" style="color: #0ea5e9;"></i>Attendance Analytics
+              </h5>
+              <span class="badge" style="background: #ecfeff; color: #0c4a6e; border: 1px solid #bae6fd;">
+                Date Wise + Course Wise
+              </span>
+            </div>
 
+            <form method="GET" action="{{ route('department.dashboard') }}" class="row g-2 align-items-end mb-3">
+              <input type="hidden" name="batch" value="{{ request('batch') }}">
+
+              <div class="col-md-3">
+                <label for="attendanceFrom" class="form-label fw-semibold" style="color: #475569;">From Date</label>
+                <input type="date" name="attendance_from" id="attendanceFrom" class="form-control" value="{{ $attendanceFrom }}">
+              </div>
+
+              <div class="col-md-3">
+                <label for="attendanceTo" class="form-label fw-semibold" style="color: #475569;">To Date</label>
+                <input type="date" name="attendance_to" id="attendanceTo" class="form-control" value="{{ $attendanceTo }}">
+              </div>
+
+              <div class="col-md-2">
+                <label for="attendanceBatch" class="form-label fw-semibold" style="color: #475569;">Batch</label>
+                <select name="attendance_batch" id="attendanceBatch" class="form-select">
+                  <option value="">All Batches</option>
+                  @foreach($batches as $batch)
+                  <option value="{{ $batch->id }}" {{ (int) ($attendanceBatch ?? 0) === (int) $batch->id ? 'selected' : '' }}>
+                    {{ $batch->batch_name }}
+                  </option>
+                  @endforeach
+                </select>
+              </div>
+
+              <div class="col-md-4">
+                <label for="attendanceCourseId" class="form-label fw-semibold" style="color: #475569;">Course (Date Wise Trend)</label>
+                <select name="attendance_course_id" id="attendanceCourseId" class="dselect-example">
+                  <option value="">All Courses</option>
+                  @foreach($attendanceCourses as $course)
+                  <option value="{{ $course->id }}" {{ (int) ($attendanceCourseId ?? 0) === (int) $course->id ? 'selected' : '' }}>
+                    {{ trim(($course->course_code ?? '') . ' - ' . ($course->course_title ?? ''), ' -') }}
+                  </option>
+                  @endforeach
+                </select>
+              </div>
+
+              <div class="col-12 d-flex gap-2 mt-1">
+                <button type="submit" class="btn btn-modern" style="background: #0284c7; color: #fff;">
+                  <i class="fas fa-filter me-1"></i>Check Percentage
+                </button>
+                <a href="{{ route('department.dashboard', ['batch' => request('batch')]) }}" class="btn btn-light border">
+                  <i class="fas fa-rotate-left me-1"></i>Reset
+                </a>
+              </div>
+            </form>
+
+            <div class="row g-2 mb-3">
+              <div class="col-md-4">
+                <div class="attendance-summary-card">
+                  <div style="font-size: 12px; color: #64748b;">Overall Attendance</div>
+                  <div class="attendance-summary-value">{{ number_format((float) $overallAttendancePercentage, 2) }}%</div>
+                  <div style="font-size: 12px; color: #64748b;">{{ $overallAttendedRecords }} / {{ $overallTotalRecords }} records present</div>
+                </div>
+              </div>
+              <div class="col-md-4">
+                <div class="attendance-summary-card">
+                  <div style="font-size: 12px; color: #64748b;">Attendance Alerts</div>
+                  <div class="attendance-summary-value" style="color: #dc2626;">{{ $attendanceAlertCount }}</div>
+                  <div style="font-size: 12px; color: #64748b;">{{ $belowThresholdCount }} students below 75%</div>
+                </div>
+              </div>
+              <div class="col-md-4">
+                <div class="attendance-summary-card">
+                  <div style="font-size: 12px; color: #64748b;">Date Range</div>
+                  <div style="font-size: 18px; font-weight: 700; color: #1e293b;">{{ \Carbon\Carbon::parse($attendanceFrom)->format('d M Y') }}</div>
+                  <div style="font-size: 13px; color: #64748b;">to {{ \Carbon\Carbon::parse($attendanceTo)->format('d M Y') }}</div>
+                </div>
+              </div>
+            </div>
+
+            <div class="row g-3">
+              <div class="col-12">
+                <div class="course-card">
+                  <h6 style="font-weight: 700; color: #0f172a;">Course Wise Attendance Percentage</h6>
+                  @if(($courseWiseAttendance ?? collect())->count() > 0)
+                  <div class="attendance-chart-wrap">
+                    <canvas id="courseWiseAttendanceChart"></canvas>
+                  </div>
+                  @else
+                  <p class="mb-0" style="color: #94a3b8;">No attendance data found for selected filters.</p>
+                  @endif
+                </div>
+              </div>
+
+              <div class="col-12">
+                <div class="course-card">
+                  <h6 style="font-weight: 700; color: #0f172a;">Date Wise Attendance Percentage</h6>
+                  @if(($dateWiseAttendance ?? collect())->count() > 0)
+                  <div class="attendance-chart-wrap">
+                    <canvas id="dateWiseAttendanceChart"></canvas>
+                  </div>
+                  @else
+                  <p class="mb-0" style="color: #94a3b8;">No date-wise attendance entries in this window.</p>
+                  @endif
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+      </div>
+    </div>
+  </div>
+
+  <div class="table-modern mt-4">
+    <div class="p-4">
+      <div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
+        <h5 style="color: #1a1a1a; font-weight: 700; margin: 0;">Attendance Alert Students</h5>
+        <div class="d-flex align-items-center gap-2">
+          <a href="{{ route('department.dashboard.attendance-alerts.export') }}" class="btn btn-sm btn-outline-primary">
+            <i class="fas fa-download me-1"></i>Export CSV
+          </a>
+          <span class="badge" style="background: #fee2e2; color: #991b1b; border: 1px solid #fecaca;">{{ $attendanceAlertCount }} Students</span>
+        </div>
+      </div>
+
+      <div class="attendance-table-wrap">
+        <table class="table table-hover align-middle mb-0">
+          <thead class="table-light" style="position: sticky; top: 0; z-index: 1;">
+            <tr>
+              <th style="font-size: 12px; text-transform: uppercase; color: #64748b;">Roll No</th>
+              <th style="font-size: 12px; text-transform: uppercase; color: #64748b;">Student Name</th>
+              <th style="font-size: 12px; text-transform: uppercase; color: #64748b;">Program</th>
+              <th style="font-size: 12px; text-transform: uppercase; color: #64748b;">Present / Total</th>
+              <th style="font-size: 12px; text-transform: uppercase; color: #64748b;">Current %</th>
+            </tr>
+          </thead>
+          <tbody>
+            @forelse($attendanceAlertStudents as $student)
+            <tr>
+              <td>
+                <a href="{{ route('department.student.attendance.details', ['id' => $student['student_id'], 'rollno' => $student['roll_no']]) }}" class="fw-semibold" style="color: #0369a1; text-decoration: none;" title="View attendance details">
+                  {{ $student['roll_no'] }}
+                </a>
+              </td>
+              <td>{{ $student['student_name'] }}</td>
+              <td>{{ $student['program_name'] }}</td>
+              <td>{{ $student['attended_records'] }} / {{ $student['total_records'] }}</td>
+              <td>
+                <span class="badge" style="background: #fee2e2; color: #991b1b; border: 1px solid #fecaca;">
+                  {{ number_format((float) $student['attendance_percentage'], 2) }}%
+                </span>
+              </td>
+            </tr>
+            @empty
+            <tr>
+              <td colspan="5" class="text-center" style="color: #64748b;">No students below 75% in overall attendance records.</td>
+            </tr>
+            @endforelse
+          </tbody>
+        </table>
       </div>
     </div>
   </div>
@@ -418,11 +626,15 @@ if (Schema::hasTable('integrated_program_sublayer_settings')) {
 
       <div class="mb-3">
         <form method="GET" action="" class="d-flex align-items-center gap-2">
+          <input type="hidden" name="attendance_from" value="{{ $attendanceFrom }}">
+          <input type="hidden" name="attendance_to" value="{{ $attendanceTo }}">
+          <input type="hidden" name="attendance_batch" value="{{ $attendanceBatch }}">
+          <input type="hidden" name="attendance_course_id" value="{{ $attendanceCourseId }}">
           <label for="batchFilter" class="fw-semibold" style="color: #6b7280;">Filter by Batch:</label>
           <select name="batch" id="batchFilter" class="form-select" style="width: 200px; border-radius: 10px; border: 1px solid #e5e7eb;" onchange="this.form.submit()">
             <option value="">All Batches</option>
             @foreach($batches as $batch)
-            <option value="{{ $batch->id }}" {{ request('batch_id') == $batch->id ? 'selected' : '' }}>
+            <option value="{{ $batch->id }}" {{ request('batch') == $batch->id ? 'selected' : '' }}>
               {{ $batch->batch_name }}
             </option>
             @endforeach
@@ -823,6 +1035,119 @@ if (Schema::hasTable('integrated_program_sublayer_settings')) {
         if (!programBlock.classList.contains('d-none')) {
           initProgramSelectUi();
         }
+      });
+    }
+  });
+</script>
+
+<script>
+  document.addEventListener('DOMContentLoaded', function() {
+    if (typeof Chart === 'undefined') {
+      return;
+    }
+
+    const courseWise = JSON.parse('{!! addslashes(json_encode($courseWiseAttendance)) !!}');
+    const dateWise = JSON.parse('{!! addslashes(json_encode($dateWiseAttendance)) !!}');
+
+    const courseChartCanvas = document.getElementById('courseWiseAttendanceChart');
+    if (courseChartCanvas && Array.isArray(courseWise) && courseWise.length > 0) {
+      new Chart(courseChartCanvas, {
+        type: 'bar',
+        data: {
+          labels: courseWise.map(function(item) {
+            return item.course_label;
+          }),
+          datasets: [{
+            label: 'Attendance %',
+            data: courseWise.map(function(item) {
+              return item.attendance_percentage;
+            }),
+            backgroundColor: 'rgba(14, 165, 233, 0.45)',
+            borderColor: 'rgba(2, 132, 199, 1)',
+            borderWidth: 1.5,
+            borderRadius: 8,
+            maxBarThickness: 32,
+          }],
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          scales: {
+            y: {
+              beginAtZero: true,
+              max: 100,
+              ticks: {
+                callback: function(value) {
+                  return value + '%';
+                },
+              },
+            },
+          },
+          plugins: {
+            legend: {
+              display: true,
+            },
+            tooltip: {
+              callbacks: {
+                label: function(context) {
+                  return context.parsed.y + '%';
+                },
+              },
+            },
+          },
+        },
+      });
+    }
+
+    const dateChartCanvas = document.getElementById('dateWiseAttendanceChart');
+    if (dateChartCanvas && Array.isArray(dateWise) && dateWise.length > 0) {
+      new Chart(dateChartCanvas, {
+        type: 'line',
+        data: {
+          labels: dateWise.map(function(item) {
+            return item.date;
+          }),
+          datasets: [{
+            label: 'Attendance %',
+            data: dateWise.map(function(item) {
+              return item.attendance_percentage;
+            }),
+            fill: true,
+            tension: 0.3,
+            pointRadius: 3,
+            pointBackgroundColor: '#0369a1',
+            backgroundColor: 'rgba(14, 165, 233, 0.18)',
+            borderColor: '#0369a1',
+            borderWidth: 2,
+          }],
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          scales: {
+            y: {
+              beginAtZero: true,
+              max: 100,
+              ticks: {
+                callback: function(value) {
+                  return value + '%';
+                },
+              },
+            },
+          },
+          plugins: {
+            legend: {
+              display: true,
+            },
+            tooltip: {
+              callbacks: {
+                label: function(context) {
+                  return context.parsed.y + '%';
+                },
+              },
+            },
+          },
+        },
       });
     }
   });

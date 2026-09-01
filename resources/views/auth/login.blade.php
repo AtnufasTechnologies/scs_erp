@@ -456,10 +456,14 @@
     font-size: 18px;
   }
 
-  .toggle-password {
+  .input-group .toggle-password {
     left: auto;
     right: 15px;
     cursor: pointer;
+  }
+
+  .input-group input[type="password"] {
+    padding-right: 50px;
   }
 
   .input-group input {
