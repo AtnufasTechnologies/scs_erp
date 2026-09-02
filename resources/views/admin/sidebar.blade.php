@@ -379,6 +379,7 @@ $hasSuperAdminRole = $roleNames->contains('super-admin');
             <div class="menu-title">Lateral Entry</div>
           </a>
         </li>
+        @if($roleNames->contains('itcell') || $hasSuperAdminRole)
         <li>
           <a href="{{ route('itcell.direct-student-entry.index') }}">
             <div class="parent-icon">
@@ -387,6 +388,7 @@ $hasSuperAdminRole = $roleNames->contains('super-admin');
             <div class="menu-title">Direct Student Entry</div>
           </a>
         </li>
+        @endif
         <li>
           <a href="{{ route('itcell.student-campus-transfer.index') }}">
             <div class="parent-icon">

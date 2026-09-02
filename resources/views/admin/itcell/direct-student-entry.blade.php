@@ -271,7 +271,7 @@
     </div>
   </main>
 </div>
-
+@include('includes.footer')
 <script>
   (function() {
     const campusSelect = document.getElementById('campusSelect');
