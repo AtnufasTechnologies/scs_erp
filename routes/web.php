@@ -199,6 +199,8 @@ Route::group(['prefix' => '/erp'], function () {
         Route::post('itcell-generate-librarycode', [ITCellController::class, 'generateLibraryCode'])->name('itcell.generate.librarycode');
         Route::post('itcell-generate-excel-studentdata', [ITCellController::class, 'generateExcelStudentData'])->name('itcell.generate.excel.studentdata');
         Route::get('itcell/fa1-quizzes', [QuizOversightController::class, 'index'])->name('itcell.quizzes.index');
+        Route::get('itcell/fa1-quizzes/purge', [QuizOversightController::class, 'purgePage'])->name('itcell.quizzes.purge');
+        Route::post('itcell/fa1-quizzes/purge-selected', [QuizOversightController::class, 'purgeSelected'])->name('itcell.quizzes.purge-selected');
         Route::get('itcell/fa1-quizzes/{quizId}/results', [QuizOversightController::class, 'results'])->name('itcell.quizzes.results');
         Route::get('itcell/fa1-quizzes/{quizId}/question-sheet/export', [QuizOversightController::class, 'exportQuestionSheet'])->name('itcell.quizzes.question-sheet.export');
         Route::post('itcell/fa1-quizzes/{quizId}/question-sheet/import', [QuizOversightController::class, 'importQuestionSheet'])->name('itcell.quizzes.question-sheet.import');

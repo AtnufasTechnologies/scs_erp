@@ -259,6 +259,135 @@ class QuizOversightController extends Controller
     ]);
   }
 
+  public function purgePage(Request $request)
+  {
+    $role = $this->resolveAuthorizedRole();
+    if ($role !== 'itcell') {
+      abort(403, 'Only ITCELL can access quiz purge utility.');
+    }
+
+    $quizDateInput = trim((string) $request->query('quiz_date', ''));
+    $quizDate = null;
+
+    if ($quizDateInput !== '') {
+      try {
+        $quizDate = Carbon::parse($quizDateInput)->toDateString();
+      } catch (\Throwable $e) {
+        $quizDateInput = '';
+      }
+    }
+
+    $quizzes = collect();
+    if ($quizDate) {
+      $quizzes = Quiz::query()
+        ->whereDate('open_at', $quizDate)
+        ->with([
+          'course:id,course_title,course_code',
+          'subject:id,title',
+          'faculty:id,FIRST_NAME,MIDDLE_NAME,LAST_NAME,DEPARTMENT',
+          'creator:id,name',
+        ])
+        ->withCount([
+          'questions',
+          'attempts as submitted_attempts_count' => function ($query) {
+            $query->where('status', 'submitted');
+          },
+        ])
+        ->orderBy('open_at')
+        ->orderByDesc('id')
+        ->get();
+    }
+
+    return view('quiz.oversight.purge', [
+      'role' => $role,
+      'quizDate' => $quizDate,
+      'quizDateInput' => $quizDateInput,
+      'quizzes' => $quizzes,
+    ]);
+  }
+
+  public function purgeSelected(Request $request)
+  {
+    $role = $this->resolveAuthorizedRole();
+    if ($role !== 'itcell') {
+      abort(403, 'Only ITCELL can perform quiz data purge.');
+    }
+
+    $validated = $request->validate([
+      'quiz_date' => 'required|date',
+      'quiz_ids' => 'required|array|min:1',
+      'quiz_ids.*' => 'required|integer|exists:quizzes,id',
+      'confirm_text' => 'required|string',
+    ]);
+
+    $quizDate = Carbon::parse((string) $validated['quiz_date'])->toDateString();
+    $confirmText = strtoupper(trim((string) $validated['confirm_text']));
+
+    if ($confirmText !== 'DELETE') {
+      return redirect()->route('itcell.quizzes.purge', ['quiz_date' => $quizDate])
+        ->with('error', 'Confirmation failed. Type DELETE to purge selected quizzes.');
+    }
+
+    $selectedQuizIds = collect($validated['quiz_ids'])
+      ->map(fn($id) => (int) $id)
+      ->filter(fn($id) => $id > 0)
+      ->unique()
+      ->values();
+
+    $quizRows = Quiz::query()
+      ->whereIn('id', $selectedQuizIds->all())
+      ->whereDate('open_at', $quizDate)
+      ->get([
+        'id',
+        'course_id',
+        'batch_id',
+        'semester_id',
+        'sup_cia_component_id',
+        'cia_group_id',
+      ]);
+
+    if ($quizRows->isEmpty()) {
+      return redirect()->route('itcell.quizzes.purge', ['quiz_date' => $quizDate])
+        ->with('error', 'No selected quizzes matched date ' . $quizDate . '.');
+    }
+
+    $stats = [
+      'quizzes' => 0,
+      'attempts' => 0,
+      'attempt_answers' => 0,
+      'attempt_permissions' => 0,
+      'questions' => 0,
+      'question_options' => 0,
+      'cia_marks' => 0,
+      'fa_marks' => 0,
+      'cia_group_component' => 0,
+    ];
+
+    DB::transaction(function () use ($quizRows, &$stats) {
+      foreach ($quizRows as $quiz) {
+        $this->purgeSingleQuizData($quiz, $stats);
+      }
+    });
+
+    $requestedCount = (int) $selectedQuizIds->count();
+    $purgedCount = (int) ($stats['quizzes'] ?? 0);
+    $skippedCount = max(0, $requestedCount - $purgedCount);
+
+    $summary = 'Selected quiz purge completed for ' . $quizDate
+      . '. Purged=' . $purgedCount
+      . ', Skipped=' . $skippedCount
+      . ', Attempts=' . $stats['attempts']
+      . ', Answers=' . $stats['attempt_answers']
+      . ', Permissions=' . $stats['attempt_permissions']
+      . ', Questions=' . $stats['questions']
+      . ', Options=' . $stats['question_options']
+      . ', CIA Marks=' . $stats['cia_marks']
+      . ', FA Marks=' . $stats['fa_marks']
+      . ', CIA Group Rows=' . $stats['cia_group_component'] . '.';
+
+    return redirect()->route('itcell.quizzes.purge', ['quiz_date' => $quizDate])->with('success', $summary);
+  }
+
   public function results(Request $request, int $quizId)
   {
     $role = $this->resolveAuthorizedRole();
@@ -589,6 +718,114 @@ class QuizOversightController extends Controller
     return (int) ($map[$normalized] ?? 0);
   }
 
+  private function purgeSingleQuizData($quiz, array &$stats): void
+  {
+    $quizId = (int) ($quiz->id ?? 0);
+    if ($quizId <= 0) {
+      return;
+    }
+
+    $stats['quizzes']++;
+
+    $attemptRows = DB::table('quiz_attempts')
+      ->where('quiz_id', $quizId)
+      ->get(['id', 'student_id', 'attempt_no']);
+
+    $attemptIds = $attemptRows
+      ->pluck('id')
+      ->map(fn($id) => (int) $id)
+      ->filter(fn($id) => $id > 0)
+      ->values();
+
+    $attemptStudentIds = $attemptRows
+      ->pluck('student_id')
+      ->map(fn($id) => (int) $id)
+      ->filter(fn($id) => $id > 0)
+      ->unique()
+      ->values();
+
+    $attemptNumbers = $attemptRows
+      ->pluck('attempt_no')
+      ->map(fn($n) => (int) $n)
+      ->filter(fn($n) => $n > 0)
+      ->unique()
+      ->values();
+
+    $questionIds = DB::table('quiz_questions')
+      ->where('quiz_id', $quizId)
+      ->pluck('id')
+      ->map(fn($id) => (int) $id)
+      ->filter(fn($id) => $id > 0)
+      ->values();
+
+    if ($attemptIds->isNotEmpty()) {
+      $stats['attempt_answers'] += (int) DB::table('quiz_attempt_answers')
+        ->whereIn('quiz_attempt_id', $attemptIds->all())
+        ->delete();
+    }
+
+    if ($questionIds->isNotEmpty()) {
+      $stats['attempt_answers'] += (int) DB::table('quiz_attempt_answers')
+        ->whereIn('quiz_question_id', $questionIds->all())
+        ->delete();
+
+      $stats['question_options'] += (int) DB::table('quiz_question_options')
+        ->whereIn('quiz_question_id', $questionIds->all())
+        ->delete();
+
+      $stats['questions'] += (int) DB::table('quiz_questions')
+        ->whereIn('id', $questionIds->all())
+        ->delete();
+    }
+
+    $stats['attempt_permissions'] += (int) DB::table('quiz_attempt_permissions')
+      ->where('quiz_id', $quizId)
+      ->delete();
+
+    $stats['attempts'] += (int) DB::table('quiz_attempts')
+      ->where('quiz_id', $quizId)
+      ->delete();
+
+    if (Schema::hasTable('cia_marks')) {
+      $ciaMarksQuery = DB::table('cia_marks')
+        ->where('COURSE_GROUP_ID', (int) ($quiz->cia_group_id ?? 0));
+
+      if (Schema::hasColumn('cia_marks', 'SUP_CIA_COMPONENT_ID')) {
+        $ciaMarksQuery->where('SUP_CIA_COMPONENT_ID', (int) ($quiz->sup_cia_component_id ?? 0));
+      }
+
+      $stats['cia_marks'] += (int) $ciaMarksQuery->delete();
+    }
+
+    if (Schema::hasTable('fa_marks') && $attemptStudentIds->isNotEmpty() && $attemptNumbers->isNotEmpty()) {
+      $faMarksQuery = DB::table('fa_marks')
+        ->whereIn('student_id', $attemptStudentIds->all())
+        ->where('course_id', (int) ($quiz->course_id ?? 0))
+        ->where('component_id', (int) ($quiz->sup_cia_component_id ?? 0))
+        ->whereIn('attempt', $attemptNumbers->all());
+
+      if ((int) ($quiz->batch_id ?? 0) > 0) {
+        $faMarksQuery->where('batch_id', (int) $quiz->batch_id);
+      }
+
+      if ((int) ($quiz->semester_id ?? 0) > 0) {
+        $faMarksQuery->where('semester_id', (int) $quiz->semester_id);
+      }
+
+      $stats['fa_marks'] += (int) $faMarksQuery->delete();
+    }
+
+    if (Schema::hasTable('cia_group_component')) {
+      $stats['cia_group_component'] += (int) DB::table('cia_group_component')
+        ->where('CIA_GROUP_ID', (int) ($quiz->cia_group_id ?? 0))
+        ->delete();
+    }
+
+    DB::table('quizzes')
+      ->where('id', $quizId)
+      ->delete();
+  }
+
   private function recalculateSubmittedAttemptScores(Quiz $quiz): int
   {
     $submittedAttempts = QuizAttempt::query()
@@ -841,25 +1078,20 @@ class QuizOversightController extends Controller
       $selectedAssignmentId = (int) ($candidateAssignmentIds->first() ?? 0);
     }
 
-    $assignmentIds = $selectedAssignmentId > 0
-      ? collect([$selectedAssignmentId])
-      : collect();
+    $resolvedAssignmentId = $this->inferBestAssignmentIdFromRosterPopulation(
+      $quiz,
+      $candidateAssignmentIds,
+      $selectedAssignmentId
+    );
 
-    if ($assignmentIds->isEmpty()) {
+    if ($resolvedAssignmentId <= 0) {
       return [
         'source' => 'roster',
         'students' => collect(),
       ];
     }
 
-    $studentIds = StudentCourseRoster::query()
-      ->whereIn('ta_id', $assignmentIds->all())
-      ->where('course_id', (int) $quiz->course_id)
-      ->pluck('student_id')
-      ->map(fn($studentId) => (int) $studentId)
-      ->filter(fn($studentId) => $studentId > 0)
-      ->unique()
-      ->values();
+    $studentIds = $this->rosterStudentIdsForQuizAssignment($quiz, $resolvedAssignmentId);
 
     return [
       'source' => 'roster',
@@ -902,6 +1134,66 @@ class QuizOversightController extends Controller
       ->value('ta_id');
 
     return (int) ($bestAssignmentId ?? 0);
+  }
+
+  private function inferBestAssignmentIdFromRosterPopulation(Quiz $quiz, $candidateAssignmentIds, int $preferredAssignmentId = 0): int
+  {
+    $candidateIds = collect($candidateAssignmentIds)
+      ->map(fn($id) => (int) $id)
+      ->filter(fn($id) => $id > 0)
+      ->unique()
+      ->values();
+
+    if ($preferredAssignmentId > 0) {
+      $candidateIds = collect([$preferredAssignmentId])
+        ->merge($candidateIds)
+        ->map(fn($id) => (int) $id)
+        ->filter(fn($id) => $id > 0)
+        ->unique()
+        ->values();
+    }
+
+    if ($candidateIds->isEmpty()) {
+      return 0;
+    }
+
+    $bestAssignmentId = 0;
+    $bestCount = 0;
+
+    foreach ($candidateIds as $assignmentId) {
+      $count = (int) StudentCourseRoster::query()
+        ->where('ta_id', (int) $assignmentId)
+        ->where('course_id', (int) $quiz->course_id)
+        ->distinct('student_id')
+        ->count('student_id');
+
+      if ($count > $bestCount) {
+        $bestCount = $count;
+        $bestAssignmentId = (int) $assignmentId;
+      }
+
+      if ((int) $assignmentId === $preferredAssignmentId && $count > 0) {
+        return (int) $assignmentId;
+      }
+    }
+
+    return $bestCount > 0 ? $bestAssignmentId : 0;
+  }
+
+  private function rosterStudentIdsForQuizAssignment(Quiz $quiz, int $assignmentId)
+  {
+    if ($assignmentId <= 0) {
+      return collect();
+    }
+
+    return StudentCourseRoster::query()
+      ->where('ta_id', (int) $assignmentId)
+      ->where('course_id', (int) $quiz->course_id)
+      ->pluck('student_id')
+      ->map(fn($studentId) => (int) $studentId)
+      ->filter(fn($studentId) => $studentId > 0)
+      ->unique()
+      ->values();
   }
 
   private function expectedStudentIdsForQuiz(Quiz $quiz)

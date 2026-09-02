@@ -29,7 +29,10 @@
       <h4 class="mb-0">ITCell FA1 Quiz Monitor</h4>
       <small class="text-muted">All faculty-created quizzes with analytics overview.</small>
     </div>
-    <a href="{{ route('admin.dashboard') }}" class="btn btn-outline-secondary btn-sm">Back to Dashboard</a>
+    <div class="d-flex align-items-center gap-2">
+      <a href="{{ route('itcell.quizzes.purge') }}" class="btn btn-danger btn-sm">Quiz Purge Utility</a>
+      <a href="{{ route('admin.dashboard') }}" class="btn btn-outline-secondary btn-sm">Back to Dashboard</a>
+    </div>
   </div>
 
   @include('quiz.oversight.partials.table')

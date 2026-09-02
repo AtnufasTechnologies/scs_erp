@@ -1154,120 +1154,33 @@ class QuizController extends Controller
       $selectedAssignmentId = (int) ($candidateAssignmentIds->first() ?? 0);
     }
 
-    $assignmentIds = $selectedAssignmentId > 0
-      ? collect([$selectedAssignmentId])
-      : collect();
+    $resolvedAssignmentId = $this->inferBestAssignmentIdFromRosterPopulation(
+      $quiz,
+      $candidateAssignmentIds,
+      $selectedAssignmentId
+    );
 
-    $scopedRoutineIds = collect($routineRows)
-      ->filter(function ($routine) use ($selectedAssignmentId, $hasTeachingAssignmentColumn, $hasTeachingAllocationColumn) {
-        if ($selectedAssignmentId <= 0) {
-          return false;
-        }
-
-        if ($hasTeachingAssignmentColumn && (int) ($routine->teaching_assignment_id ?? 0) === $selectedAssignmentId) {
-          return true;
-        }
-
-        if ($hasTeachingAllocationColumn && (int) ($routine->teaching_allocation_id ?? 0) === $selectedAssignmentId) {
-          return true;
-        }
-
-        return false;
-      })
-      ->pluck('id')
-      ->map(fn($id) => (int) $id)
-      ->filter(fn($id) => $id > 0)
-      ->unique()
-      ->values();
+    $studentIds = collect();
+    if ($resolvedAssignmentId > 0) {
+      $studentIds = $this->rosterStudentIdsForQuizAssignment($quiz, $resolvedAssignmentId);
+    }
 
     $students = collect();
-
-    if ($assignmentIds->isNotEmpty()) {
-      $hasRosterRoutineIdColumn = Schema::hasColumn('student_course_rosters', 'routine_id');
-
-      $studentIdsQuery = StudentCourseRoster::query()
-        ->whereIn('ta_id', $assignmentIds->all())
-        ->where('course_id', (int) $quiz->course_id)
-        ->when(
-          $hasRosterRoutineIdColumn && $scopedRoutineIds->isNotEmpty(),
-          fn($query) => $query->whereIn('routine_id', $scopedRoutineIds->all())
-        )
-        ->when(
-          (int) ($quiz->batch_id ?? 0) > 0,
-          function ($query) use ($quiz) {
-            $query->whereExists(function ($studentQuery) use ($quiz) {
-              $studentQuery->select(DB::raw(1))
-                ->from('student_masters as sm')
-                ->whereColumn('sm.id', 'student_course_rosters.student_id')
-                ->where('sm.batch', (int) $quiz->batch_id);
-            });
-          }
-        );
-
-      if ((int) ($quiz->semester_id ?? 0) > 0 && Schema::hasTable('student_course_infos') && Schema::hasColumn('student_course_infos', 'semester')) {
-        $hasStudentCourseInfoIsActive = Schema::hasColumn('student_course_infos', 'is_active');
-        $studentIdsQuery->whereExists(function ($semesterQuery) use ($quiz, $hasStudentCourseInfoIsActive) {
-          $semesterQuery->select(DB::raw(1))
-            ->from('student_course_infos as sci')
-            ->whereColumn('sci.student_id', 'student_course_rosters.student_id')
-            ->where('sci.course_id', (int) $quiz->course_id)
-            ->where('sci.semester', (int) $quiz->semester_id);
-
-          if ($hasStudentCourseInfoIsActive) {
-            $semesterQuery
-              ->where(function ($activeQuery) {
-                $activeQuery->where('sci.is_active', 1)->orWhereNull('sci.is_active');
-              });
-          }
-        });
-      }
-
-      if (Schema::hasColumn('subject_has_syllabi', 'program_type')) {
-        $quizProgramType = strtoupper(trim((string) SubjectHasSyllabus::query()
-          ->where('id', (int) ($quiz->syllabus_id ?? 0))
-          ->value('program_type')));
-
-        if ($quizProgramType !== '') {
-          if (str_starts_with($quizProgramType, 'UG')) {
-            $quizProgramType = 'UG';
-          } elseif (str_starts_with($quizProgramType, 'PG')) {
-            $quizProgramType = 'PG';
-          }
-
-          $studentIdsQuery->whereExists(function ($programQuery) use ($quizProgramType) {
-            $programQuery->select(DB::raw(1))
-              ->from('student_masters as sm')
-              ->leftJoin('student_program as sp', 'sp.id', '=', 'sm.new_program_id')
-              ->leftJoin('student_program_type_masters as sptm', 'sptm.id', '=', 'sp.program_type')
-              ->whereColumn('sm.id', 'student_course_rosters.student_id')
-              ->whereRaw("UPPER(TRIM(COALESCE(sptm.name, sp.program_type, ''))) LIKE ?", [$quizProgramType . '%']);
-          });
-        }
-      }
-
-      $studentIds = $studentIdsQuery
-        ->pluck('student_id')
-        ->map(fn($studentId) => (int) $studentId)
-        ->filter(fn($studentId) => $studentId > 0)
-        ->unique()
-        ->values();
-
-      if ($studentIds->isNotEmpty()) {
-        $students = DB::table('student_masters as sm')
-          ->whereIn('sm.id', $studentIds->all())
-          ->where(function ($query) {
-            $query->where('sm.is_deleted', 0)
-              ->orWhereNull('sm.is_deleted');
-          })
-          ->where(function ($query) {
-            $query->where('sm.is_left', 0)
-              ->orWhereNull('sm.is_left');
-          })
-          ->select('sm.id', 'sm.first_name', 'sm.last_name', 'sm.roll_no', 'sm.register_no')
-          ->orderBy('sm.roll_no')
-          ->orderBy('sm.first_name')
-          ->get();
-      }
+    if ($studentIds->isNotEmpty()) {
+      $students = DB::table('student_masters as sm')
+        ->whereIn('sm.id', $studentIds->all())
+        ->where(function ($query) {
+          $query->where('sm.is_deleted', 0)
+            ->orWhereNull('sm.is_deleted');
+        })
+        ->where(function ($query) {
+          $query->where('sm.is_left', 0)
+            ->orWhereNull('sm.is_left');
+        })
+        ->select('sm.id', 'sm.first_name', 'sm.last_name', 'sm.roll_no', 'sm.register_no')
+        ->orderBy('sm.roll_no')
+        ->orderBy('sm.first_name')
+        ->get();
     }
 
     return [
@@ -1311,6 +1224,66 @@ class QuizController extends Controller
       ->value('ta_id');
 
     return (int) ($bestAssignmentId ?? 0);
+  }
+
+  private function inferBestAssignmentIdFromRosterPopulation(Quiz $quiz, $candidateAssignmentIds, int $preferredAssignmentId = 0): int
+  {
+    $candidateIds = collect($candidateAssignmentIds)
+      ->map(fn($id) => (int) $id)
+      ->filter(fn($id) => $id > 0)
+      ->unique()
+      ->values();
+
+    if ($preferredAssignmentId > 0) {
+      $candidateIds = collect([$preferredAssignmentId])
+        ->merge($candidateIds)
+        ->map(fn($id) => (int) $id)
+        ->filter(fn($id) => $id > 0)
+        ->unique()
+        ->values();
+    }
+
+    if ($candidateIds->isEmpty()) {
+      return 0;
+    }
+
+    $bestAssignmentId = 0;
+    $bestCount = 0;
+
+    foreach ($candidateIds as $assignmentId) {
+      $count = (int) StudentCourseRoster::query()
+        ->where('ta_id', (int) $assignmentId)
+        ->where('course_id', (int) $quiz->course_id)
+        ->distinct('student_id')
+        ->count('student_id');
+
+      if ($count > $bestCount) {
+        $bestCount = $count;
+        $bestAssignmentId = (int) $assignmentId;
+      }
+
+      if ((int) $assignmentId === $preferredAssignmentId && $count > 0) {
+        return (int) $assignmentId;
+      }
+    }
+
+    return $bestCount > 0 ? $bestAssignmentId : 0;
+  }
+
+  private function rosterStudentIdsForQuizAssignment(Quiz $quiz, int $assignmentId)
+  {
+    if ($assignmentId <= 0) {
+      return collect();
+    }
+
+    return StudentCourseRoster::query()
+      ->where('ta_id', (int) $assignmentId)
+      ->where('course_id', (int) $quiz->course_id)
+      ->pluck('student_id')
+      ->map(fn($studentId) => (int) $studentId)
+      ->filter(fn($studentId) => $studentId > 0)
+      ->unique()
+      ->values();
   }
 
   private function expectedStudentCountForQuiz(Quiz $quiz): int
