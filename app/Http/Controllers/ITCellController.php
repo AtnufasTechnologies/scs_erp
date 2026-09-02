@@ -604,11 +604,23 @@ class ITCellController extends Controller
         $infoCreated = false;
         $infoRestored = false;
 
+        $studentProgramTypeRaw = DB::table('student_program')
+            ->where('id', (int) ($student->new_program_id ?? 0))
+            ->value('program_type');
+
+        $studentProgramType = strtoupper(trim((string) ($studentProgramTypeRaw ?? '')));
+        if ($studentProgramType === '1') {
+            $studentProgramType = 'UG';
+        } elseif ($studentProgramType === '2') {
+            $studentProgramType = 'PG';
+        }
+
         DB::transaction(function () use (
             $student,
             $course,
             $semesterId,
             $academicYear,
+            $studentProgramType,
             $infoColumns,
             $rosterColumns,
             &$rosterCreated,
@@ -632,6 +644,9 @@ class ITCellController extends Controller
                     'course_id' => (int) $course->id,
                     'ta_id' => 0,
                     'routine_id' => null,
+                    'batch_id' => (int) ($student->batch ?? 0),
+                    'semester_id' => $semesterId,
+                    'program_type' => $studentProgramType !== '' ? $studentProgramType : null,
                 ];
 
                 $rosterPayload = collect($rosterPayload)

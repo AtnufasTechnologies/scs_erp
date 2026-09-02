@@ -1086,84 +1086,13 @@ class QuizController extends Controller
 
   private function resolveQuizEligibleStudents(Quiz $quiz): array
   {
-    $hasTeachingAssignmentColumn = Schema::hasColumn('subject_has_routines', 'teaching_assignment_id');
-    $hasTeachingAllocationColumn = Schema::hasColumn('subject_has_routines', 'teaching_allocation_id');
+    $resolvedAssignmentId = (int) ($quiz->teaching_assignment_id ?? 0);
 
-    if (!$hasTeachingAssignmentColumn && !$hasTeachingAllocationColumn) {
-      return [
-        'source' => 'roster',
-        'students' => collect(),
-      ];
+    if ($resolvedAssignmentId <= 0) {
+      $resolvedAssignmentId = $this->resolveLegacyQuizAssignmentId($quiz);
     }
 
-    $routineQuery = $this->queryFacultyAssignedRoutines((int) $quiz->faculty_id)
-      ->where('syllabus_id', (int) $quiz->syllabus_id);
-
-    if (Schema::hasColumn('subject_has_routines', 'deleted_at')) {
-      $routineQuery->whereNull('deleted_at');
-    }
-
-    $selectColumns = [];
-    if ($hasTeachingAssignmentColumn) {
-      $selectColumns[] = 'teaching_assignment_id';
-    }
-    if ($hasTeachingAllocationColumn) {
-      $selectColumns[] = 'teaching_allocation_id';
-    }
-
-    $extractAssignmentIds = function ($routines) use ($hasTeachingAssignmentColumn, $hasTeachingAllocationColumn) {
-      return collect($routines)
-        ->flatMap(function ($routine) use ($hasTeachingAssignmentColumn, $hasTeachingAllocationColumn) {
-          $ids = [];
-
-          if ($hasTeachingAssignmentColumn) {
-            $ids[] = (int) ($routine->teaching_assignment_id ?? 0);
-          }
-
-          if ($hasTeachingAllocationColumn) {
-            $ids[] = (int) ($routine->teaching_allocation_id ?? 0);
-          }
-
-          return $ids;
-        })
-        ->filter(fn($id) => $id > 0)
-        ->unique()
-        ->values();
-    };
-
-    $routineRows = $routineQuery->get(array_values(array_unique(array_merge(['id'], $selectColumns))));
-    $candidateAssignmentIds = $extractAssignmentIds($routineRows);
-
-    // Legacy quizzes may not store teaching_assignment_id and their linked routines may be soft-deleted.
-    if ($candidateAssignmentIds->isEmpty() && method_exists($routineQuery->getModel(), 'withTrashed')) {
-      $legacyRoutineQuery = $this->queryFacultyAssignedRoutines((int) $quiz->faculty_id)
-        ->withTrashed()
-        ->where('syllabus_id', (int) $quiz->syllabus_id);
-
-      $routineRows = $legacyRoutineQuery->get(array_values(array_unique(array_merge(['id'], $selectColumns))));
-      $candidateAssignmentIds = $extractAssignmentIds($routineRows);
-    }
-
-    $selectedAssignmentId = (int) ($quiz->teaching_assignment_id ?? 0);
-
-    if ($selectedAssignmentId <= 0 && $candidateAssignmentIds->count() > 1) {
-      $selectedAssignmentId = $this->inferQuizAssignmentIdFromRoster($quiz, $candidateAssignmentIds);
-    }
-
-    if ($selectedAssignmentId <= 0) {
-      $selectedAssignmentId = (int) ($candidateAssignmentIds->first() ?? 0);
-    }
-
-    $resolvedAssignmentId = $this->inferBestAssignmentIdFromRosterPopulation(
-      $quiz,
-      $candidateAssignmentIds,
-      $selectedAssignmentId
-    );
-
-    $studentIds = collect();
-    if ($resolvedAssignmentId > 0) {
-      $studentIds = $this->rosterStudentIdsForQuizAssignment($quiz, $resolvedAssignmentId);
-    }
+    $studentIds = $this->rosterStudentIdsForQuizAssignment($quiz, $resolvedAssignmentId);
 
     $students = collect();
     if ($studentIds->isNotEmpty()) {
@@ -1187,6 +1116,78 @@ class QuizController extends Controller
       'source' => 'roster',
       'students' => $students,
     ];
+  }
+
+  private function resolveLegacyQuizAssignmentId(Quiz $quiz): int
+  {
+    $candidateIds = $this->candidateAssignmentIdsFromSyllabus($quiz);
+
+    if ($candidateIds->isEmpty()) {
+      return 0;
+    }
+
+    if ($candidateIds->count() === 1) {
+      return (int) $candidateIds->first();
+    }
+
+    return $this->inferQuizAssignmentIdFromRoster($quiz, $candidateIds);
+  }
+
+  private function candidateAssignmentIdsFromSyllabus(Quiz $quiz)
+  {
+    $hasTeachingAssignmentColumn = Schema::hasColumn('subject_has_routines', 'teaching_assignment_id');
+    $hasTeachingAllocationColumn = Schema::hasColumn('subject_has_routines', 'teaching_allocation_id');
+
+    if (!$hasTeachingAssignmentColumn && !$hasTeachingAllocationColumn) {
+      return collect();
+    }
+
+    $routineQuery = $this->queryFacultyAssignedRoutines((int) $quiz->faculty_id)
+      ->where('syllabus_id', (int) $quiz->syllabus_id);
+
+    if (Schema::hasColumn('subject_has_routines', 'deleted_at')) {
+      $routineQuery->whereNull('deleted_at');
+    }
+
+    $selectColumns = [];
+    if ($hasTeachingAssignmentColumn) {
+      $selectColumns[] = 'teaching_assignment_id';
+    }
+    if ($hasTeachingAllocationColumn) {
+      $selectColumns[] = 'teaching_allocation_id';
+    }
+
+    $extract = function ($rows) use ($hasTeachingAssignmentColumn, $hasTeachingAllocationColumn) {
+      return collect($rows)
+        ->flatMap(function ($row) use ($hasTeachingAssignmentColumn, $hasTeachingAllocationColumn) {
+          $ids = [];
+
+          if ($hasTeachingAssignmentColumn) {
+            $ids[] = (int) ($row->teaching_assignment_id ?? 0);
+          }
+
+          if ($hasTeachingAllocationColumn) {
+            $ids[] = (int) ($row->teaching_allocation_id ?? 0);
+          }
+
+          return $ids;
+        })
+        ->filter(fn($id) => $id > 0)
+        ->unique()
+        ->values();
+    };
+
+    $candidateIds = $extract($routineQuery->get($selectColumns));
+
+    if ($candidateIds->isEmpty() && method_exists($routineQuery->getModel(), 'withTrashed')) {
+      $legacyQuery = $this->queryFacultyAssignedRoutines((int) $quiz->faculty_id)
+        ->withTrashed()
+        ->where('syllabus_id', (int) $quiz->syllabus_id);
+
+      $candidateIds = $extract($legacyQuery->get($selectColumns));
+    }
+
+    return $candidateIds;
   }
 
   private function inferQuizAssignmentIdFromRoster(Quiz $quiz, $candidateAssignmentIds): int
@@ -1213,9 +1214,21 @@ class QuizController extends Controller
       return 0;
     }
 
-    $bestAssignmentId = StudentCourseRoster::query()
+    $bestAssignmentId = $this->baseRosterScopeQuery($quiz, true)
       ->whereIn('ta_id', $candidateIds->all())
-      ->where('course_id', (int) $quiz->course_id)
+      ->whereIn('student_id', $attemptedStudentIds->all())
+      ->select('ta_id', DB::raw('COUNT(DISTINCT student_id) as matched_students'))
+      ->groupBy('ta_id')
+      ->orderByDesc('matched_students')
+      ->orderBy('ta_id')
+      ->value('ta_id');
+
+    if ((int) ($bestAssignmentId ?? 0) > 0) {
+      return (int) $bestAssignmentId;
+    }
+
+    $bestAssignmentId = $this->baseRosterScopeQuery($quiz, false)
+      ->whereIn('ta_id', $candidateIds->all())
       ->whereIn('student_id', $attemptedStudentIds->all())
       ->select('ta_id', DB::raw('COUNT(DISTINCT student_id) as matched_students'))
       ->groupBy('ta_id')
@@ -1226,64 +1239,71 @@ class QuizController extends Controller
     return (int) ($bestAssignmentId ?? 0);
   }
 
-  private function inferBestAssignmentIdFromRosterPopulation(Quiz $quiz, $candidateAssignmentIds, int $preferredAssignmentId = 0): int
-  {
-    $candidateIds = collect($candidateAssignmentIds)
-      ->map(fn($id) => (int) $id)
-      ->filter(fn($id) => $id > 0)
-      ->unique()
-      ->values();
-
-    if ($preferredAssignmentId > 0) {
-      $candidateIds = collect([$preferredAssignmentId])
-        ->merge($candidateIds)
-        ->map(fn($id) => (int) $id)
-        ->filter(fn($id) => $id > 0)
-        ->unique()
-        ->values();
-    }
-
-    if ($candidateIds->isEmpty()) {
-      return 0;
-    }
-
-    $bestAssignmentId = 0;
-    $bestCount = 0;
-
-    foreach ($candidateIds as $assignmentId) {
-      $count = (int) StudentCourseRoster::query()
-        ->where('ta_id', (int) $assignmentId)
-        ->where('course_id', (int) $quiz->course_id)
-        ->distinct('student_id')
-        ->count('student_id');
-
-      if ($count > $bestCount) {
-        $bestCount = $count;
-        $bestAssignmentId = (int) $assignmentId;
-      }
-
-      if ((int) $assignmentId === $preferredAssignmentId && $count > 0) {
-        return (int) $assignmentId;
-      }
-    }
-
-    return $bestCount > 0 ? $bestAssignmentId : 0;
-  }
-
   private function rosterStudentIdsForQuizAssignment(Quiz $quiz, int $assignmentId)
   {
     if ($assignmentId <= 0) {
       return collect();
     }
 
-    return StudentCourseRoster::query()
+    $scopedIds = $this->baseRosterScopeQuery($quiz, true)
       ->where('ta_id', (int) $assignmentId)
-      ->where('course_id', (int) $quiz->course_id)
       ->pluck('student_id')
       ->map(fn($studentId) => (int) $studentId)
       ->filter(fn($studentId) => $studentId > 0)
       ->unique()
       ->values();
+
+    if ($scopedIds->isNotEmpty()) {
+      return $scopedIds;
+    }
+
+    return $this->baseRosterScopeQuery($quiz, false)
+      ->where('ta_id', (int) $assignmentId)
+      ->pluck('student_id')
+      ->map(fn($studentId) => (int) $studentId)
+      ->filter(fn($studentId) => $studentId > 0)
+      ->unique()
+      ->values();
+  }
+
+  private function baseRosterScopeQuery(Quiz $quiz, bool $applyContextScope = true)
+  {
+    $query = StudentCourseRoster::query()
+      ->where('course_id', (int) $quiz->course_id);
+
+    if (!$applyContextScope) {
+      return $query;
+    }
+
+    $hasSyllabusColumn = Schema::hasColumn('student_course_rosters', 'syllabus_id');
+    $hasBatchColumn = Schema::hasColumn('student_course_rosters', 'batch_id');
+    $hasSemesterColumn = Schema::hasColumn('student_course_rosters', 'semester_id');
+    $hasProgramTypeColumn = Schema::hasColumn('student_course_rosters', 'program_type');
+
+    if ($hasSyllabusColumn && (int) ($quiz->syllabus_id ?? 0) > 0) {
+      $query->where('syllabus_id', (int) $quiz->syllabus_id);
+      return $query;
+    }
+
+    if ($hasBatchColumn && (int) ($quiz->batch_id ?? 0) > 0) {
+      $query->where('batch_id', (int) $quiz->batch_id);
+    }
+
+    if ($hasSemesterColumn && (int) ($quiz->semester_id ?? 0) > 0) {
+      $query->where('semester_id', (int) $quiz->semester_id);
+    }
+
+    if ($hasProgramTypeColumn && (int) ($quiz->syllabus_id ?? 0) > 0) {
+      $programType = strtoupper(trim((string) DB::table('subject_has_syllabi')
+        ->where('id', (int) $quiz->syllabus_id)
+        ->value('program_type')));
+
+      if ($programType !== '') {
+        $query->whereRaw('UPPER(TRIM(program_type)) = ?', [$programType]);
+      }
+    }
+
+    return $query;
   }
 
   private function expectedStudentCountForQuiz(Quiz $quiz): int

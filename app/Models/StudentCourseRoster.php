@@ -14,6 +14,11 @@ class StudentCourseRoster extends Model
         'routine_id',
         'ta_id',
         'course_id',
+        'subject_id',
+        'syllabus_id',
+        'batch_id',
+        'semester_id',
+        'program_type',
         'student_id',
     ];
 

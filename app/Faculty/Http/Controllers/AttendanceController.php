@@ -174,7 +174,7 @@ class AttendanceController extends Controller
     return $query;
   }
 
-  private function buildStudentRosterPayload(int $assignmentId, int $courseId, int $studentId, int $routineId): array
+  private function buildStudentRosterPayload(int $assignmentId, int $courseId, int $studentId, int $routineId, ?SubjectHasRoutine $routine = null): array
   {
     $payload = [
       'ta_id' => $assignmentId,
@@ -185,6 +185,29 @@ class AttendanceController extends Controller
     if ($this->hasStudentRosterRoutineScope()) {
       $payload['routine_id'] = $routineId;
     }
+
+    $syllabus = $routine?->syllabus;
+    if ($syllabus) {
+      $payload['subject_id'] = (int) ($syllabus->subject_id ?? 0);
+      $payload['syllabus_id'] = (int) ($syllabus->id ?? 0);
+      $payload['batch_id'] = (int) ($syllabus->batch_id ?? 0);
+      $payload['semester_id'] = (int) ($syllabus->semester_id ?? 0);
+
+      $programType = $this->normalizeProgramTypeLabel($routine->program_type ?? $syllabus->program_type ?? '');
+      if ($programType !== '') {
+        $payload['program_type'] = $programType;
+      }
+    }
+
+    $payload = collect($payload)
+      ->reject(function ($value, $key) {
+        if (in_array($key, ['subject_id', 'syllabus_id', 'batch_id', 'semester_id'], true)) {
+          return (int) $value <= 0;
+        }
+
+        return $key === 'program_type' && trim((string) $value) === '';
+      })
+      ->all();
 
     return $payload;
   }
@@ -1894,13 +1917,13 @@ class AttendanceController extends Controller
     }
 
     $targetRoutine = SubjectHasRoutine::with([
-      'syllabus:id,course_id',
+      'syllabus:id,course_id,subject_id,batch_id,semester_id,program_type',
       'teachingAssignment:id,course_id,faculty_id',
       'teachingAllocation:id,course_id,faculty_id',
     ])->find($targetRoutineId);
 
     $sourceRoutine = SubjectHasRoutine::with([
-      'syllabus:id,course_id',
+      'syllabus:id,course_id,subject_id,batch_id,semester_id,program_type',
       'teachingAssignment:id,course_id,faculty_id',
       'teachingAllocation:id,course_id,faculty_id',
       'syllabus.courseLink.courseMaster:id,course_code,course_title',
@@ -1973,7 +1996,8 @@ class AttendanceController extends Controller
         (int) $targetRecord->id,
         $targetCourseId,
         (int) $studentId,
-        $targetRoutineId
+        $targetRoutineId,
+        $targetRoutine
       ));
       $added++;
     }
@@ -2097,7 +2121,8 @@ class AttendanceController extends Controller
         (int) $record->id,
         $courseId,
         $studentId,
-        $routineId
+        $routineId,
+        $routine
       ));
       $affected++;
     }
