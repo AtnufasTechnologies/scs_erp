@@ -97,6 +97,13 @@
                   @foreach($syllabusAssignments as $item)
                   @php
                   $deliveryType = trim((string) ($item->teachingAssignment->delivery_type ?? $item->teachingAllocation->delivery_type ?? 'Regular'));
+                  $programTypeRaw = strtoupper(trim((string) ($item->syllabus->program_type ?? '')));
+                  if (str_starts_with($programTypeRaw, 'UG')) {
+                  $programTypeRaw = 'UG';
+                  } elseif (str_starts_with($programTypeRaw, 'PG')) {
+                  $programTypeRaw = 'PG';
+                  }
+                  $programTypeLabel = $programTypeRaw !== '' ? $programTypeRaw : 'N/A';
                   @endphp
                   <option value="{{ $item->id }}"
                     data-semester-id="{{ $item->syllabus->semester_id ?? '' }}"
@@ -105,13 +112,15 @@
                     data-syllabus-id="{{ $item->syllabus->id ?? '' }}"
                     data-course-id="{{ $item->syllabus->courseLink->courseMaster->id ?? '' }}"
                     data-shift="{{ strtolower($item->shift ?? 'common') }}"
-                    data-delivery-type="{{ $deliveryType }}">
+                    data-delivery-type="{{ $deliveryType }}"
+                    data-program-type="{{ $programTypeLabel }}">
                     {{ $item->syllabus->courseLink->courseMaster->course_title ?? 'N/A' }}
                     ({{ $item->syllabus->courseLink->courseMaster->course_code ?? 'N/A' }})
                     - {{ $item->syllabus->semestermaster->title ?? 'N/A' }}
                     | Batch: {{ $item->syllabus->batchmaster->batch_name ?? 'N/A' }}
                     | Shift: {{ ucfirst($item->shift ?? 'common') }}
                     | Delivery: {{ $deliveryType }}
+                    | Program: {{ $programTypeLabel }}
                   </option>
                   @endforeach
                 </select>
@@ -119,6 +128,10 @@
 
               <div class="subject-meta mb-3 js-subject-meta">
                 <span class="k">Delivery Type</span>
+                <span class="v">Select a subject to view</span>
+              </div>
+              <div class="subject-meta mb-3 js-program-type-meta">
+                <span class="k">Program Type</span>
                 <span class="v">Select a subject to view</span>
               </div>
               <div class="subject-meta mb-3 js-student-count-meta">
@@ -183,6 +196,13 @@
                   @foreach($syllabusAssignments as $item)
                   @php
                   $deliveryType = trim((string) ($item->teachingAssignment->delivery_type ?? $item->teachingAllocation->delivery_type ?? 'Regular'));
+                  $programTypeRaw = strtoupper(trim((string) ($item->syllabus->program_type ?? '')));
+                  if (str_starts_with($programTypeRaw, 'UG')) {
+                  $programTypeRaw = 'UG';
+                  } elseif (str_starts_with($programTypeRaw, 'PG')) {
+                  $programTypeRaw = 'PG';
+                  }
+                  $programTypeLabel = $programTypeRaw !== '' ? $programTypeRaw : 'N/A';
                   @endphp
                   <option value="{{ $item->id }}"
                     data-semester-id="{{ $item->syllabus->semester_id ?? '' }}"
@@ -191,13 +211,15 @@
                     data-syllabus-id="{{ $item->syllabus->id ?? '' }}"
                     data-course-id="{{ $item->syllabus->courseLink->courseMaster->id ?? '' }}"
                     data-shift="{{ strtolower($item->shift ?? 'common') }}"
-                    data-delivery-type="{{ $deliveryType }}">
+                    data-delivery-type="{{ $deliveryType }}"
+                    data-program-type="{{ $programTypeLabel }}">
                     {{ $item->syllabus->courseLink->courseMaster->course_title ?? 'N/A' }}
                     ({{ $item->syllabus->courseLink->courseMaster->course_code ?? 'N/A' }})
                     - {{ $item->syllabus->semestermaster->title ?? 'N/A' }}
                     | Batch: {{ $item->syllabus->batchmaster->batch_name ?? 'N/A' }}
                     | Shift: {{ ucfirst($item->shift ?? 'common') }}
                     | Delivery: {{ $deliveryType }}
+                    | Program: {{ $programTypeLabel }}
                   </option>
                   @endforeach
                 </select>
@@ -205,6 +227,10 @@
 
               <div class="subject-meta mb-3 js-subject-meta">
                 <span class="k">Delivery Type</span>
+                <span class="v">Select a subject to view</span>
+              </div>
+              <div class="subject-meta mb-3 js-program-type-meta">
+                <span class="k">Program Type</span>
                 <span class="v">Select a subject to view</span>
               </div>
               <div class="subject-meta mb-3 js-student-count-meta">
@@ -463,6 +489,7 @@
     function wireAttendanceCard(card) {
       const subjectSelect = card.querySelector('.js-subject-select');
       const subjectMeta = card.querySelector('.js-subject-meta .v');
+      const programTypeMeta = card.querySelector('.js-program-type-meta .v');
       const studentCountMeta = card.querySelector('.js-student-count-meta .v');
       const hourSelect = card.querySelector('.js-hour-select');
       const attendanceDate = card.querySelector('.js-attendance-date');
@@ -484,6 +511,10 @@
         }
         const selectedOption = subjectSelect.options[subjectSelect.selectedIndex];
         subjectMeta.textContent = selectedOption?.dataset?.deliveryType || 'Select a subject to view';
+
+        if (programTypeMeta) {
+          programTypeMeta.textContent = selectedOption?.dataset?.programType || 'Select a subject to view';
+        }
       }
 
       async function loadResolvedStudentCount() {
