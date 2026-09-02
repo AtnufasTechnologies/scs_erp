@@ -33,6 +33,7 @@ class StudentMaster extends Model
         'campus_id',
         'roll_no',
         'register_no',
+        'library_code',
         'university_register_no',
         'current_year',
         'admission_date',

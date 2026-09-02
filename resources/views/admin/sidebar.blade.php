@@ -380,6 +380,14 @@ $hasSuperAdminRole = $roleNames->contains('super-admin');
           </a>
         </li>
         <li>
+          <a href="{{ route('itcell.direct-student-entry.index') }}">
+            <div class="parent-icon">
+              <i class="fas fa-id-card"></i>
+            </div>
+            <div class="menu-title">Direct Student Entry</div>
+          </a>
+        </li>
+        <li>
           <a href="{{ route('itcell.student-campus-transfer.index') }}">
             <div class="parent-icon">
               <i class="fas fa-exchange-alt"></i>

@@ -402,6 +402,175 @@ class ITCellController extends Controller
         ]);
     }
 
+    public function directStudentEntryIndex()
+    {
+        $this->assertItcellAccess();
+
+        $campuses = Campus::query()->orderBy('name')->get(['id', 'name']);
+        $batches = BatchMaster::query()->orderByDesc('id')->get(['id', 'batch_name']);
+        $departments = Subject::query()->orderBy('title')->get(['id', 'title', 'campus_id']);
+        $programs = StudentProgram::query()->orderBy('name')->get(['id', 'name', 'code', 'campus_id']);
+        $semesters = Semester::query()->orderBy('id')->get(['id', 'title']);
+        $bloodGroups = BloodGroupMaster::query()->orderBy('name')->get(['id', 'name']);
+        $religions = ReligionMaster::query()->orderBy('name')->get(['id', 'name']);
+        $nationalities = NationalityMaster::query()->orderBy('name')->get(['id', 'name']);
+
+        return view('admin.itcell.direct-student-entry', [
+            'campuses' => $campuses,
+            'batches' => $batches,
+            'departments' => $departments,
+            'programs' => $programs,
+            'semesters' => $semesters,
+            'bloodGroups' => $bloodGroups,
+            'religions' => $religions,
+            'nationalities' => $nationalities,
+        ]);
+    }
+
+    public function storeDirectStudentEntry(Request $request)
+    {
+        $this->assertItcellAccess();
+
+        $request->merge([
+            'roll_no' => trim((string) $request->input('roll_no')),
+            'register_no' => trim((string) $request->input('register_no')),
+            'library_code' => trim((string) $request->input('library_code')),
+            'mail_id' => strtolower(trim((string) $request->input('mail_id'))),
+        ]);
+
+        $validated = $request->validate([
+            'user_code' => 'nullable|integer|min:1',
+            'first_name' => 'required|string|max:100',
+            'last_name' => 'nullable|string|max:100',
+            'gender' => 'required|in:1,2',
+            'dob' => 'nullable|date',
+            'mobile_no' => 'nullable|string|max:15',
+            'mail_id' => 'nullable|email|max:150',
+            'campus_id' => 'required|integer|exists:campuses,id',
+            'department' => 'required|integer|exists:subjects,id',
+            'new_program_id' => 'required|integer|exists:student_program,id',
+            'batch' => 'required|integer|exists:batch_masters,id',
+            'admission_date' => 'required|date',
+            'current_year' => 'required|integer|min:1|max:6',
+            'semester' => 'required|integer|exists:semesters,id',
+            'roll_no' => [
+                'required',
+                'string',
+                'max:100',
+                Rule::unique('student_masters', 'roll_no')->where(fn($query) => $query->whereNull('deleted_at')),
+            ],
+            'register_no' => [
+                'required',
+                'string',
+                'max:100',
+                Rule::unique('student_masters', 'register_no')->where(fn($query) => $query->whereNull('deleted_at')),
+            ],
+            'library_code' => [
+                'nullable',
+                'string',
+                'max:50',
+                Rule::unique('student_masters', 'library_code')->where(fn($query) => $query->whereNull('deleted_at')),
+            ],
+            'father_name' => 'nullable|string|max:255',
+            'mother_name' => 'nullable|string|max:255',
+            'guardian_name' => 'nullable|string|max:255',
+            'fr_mobile_no' => 'nullable|string|max:20',
+            'mr_mobile_no' => 'nullable|string|max:20',
+            'guardian_mobile_no' => 'nullable|string|max:20',
+            'fr_occupation' => 'nullable|string|max:255',
+            'mr_occupation' => 'nullable|string|max:255',
+            'blood_group_id' => 'nullable|integer|exists:blood_group_masters,id',
+            'religion' => 'nullable|integer|exists:religion_masters,id',
+            'nationality' => 'nullable|integer|exists:nationality_masters,id',
+            'mother_tongue' => 'nullable|string|max:120',
+            'caste' => 'nullable|string|max:120',
+            'aadhar_no' => 'nullable|string|max:30',
+            'annual_income' => 'nullable|numeric|min:0|max:999999999',
+            'address' => 'nullable|string|max:1200',
+            'remarks' => 'nullable|string|max:500',
+        ]);
+
+        $program = StudentProgram::query()->findOrFail((int) $validated['new_program_id']);
+        if ((int) ($program->campus_id ?? 0) > 0 && (int) $program->campus_id !== (int) $validated['campus_id']) {
+            throw ValidationException::withMessages([
+                'new_program_id' => 'Selected program does not belong to the selected campus.',
+            ]);
+        }
+
+        $department = Subject::query()->findOrFail((int) $validated['department']);
+        if ((int) ($department->campus_id ?? 0) > 0 && (int) $department->campus_id !== (int) $validated['campus_id']) {
+            throw ValidationException::withMessages([
+                'department' => 'Selected department does not belong to the selected campus.',
+            ]);
+        }
+
+        $batch = BatchMaster::query()->findOrFail((int) $validated['batch']);
+        $batchYear = (int) preg_replace('/\D+/', '', (string) ($batch->batch_name ?? '0'));
+        $graduationYear = $batchYear > 0 ? $batchYear + 4 : null;
+
+        $student = DB::transaction(function () use ($validated, $graduationYear, $department) {
+            $student = StudentMaster::create([
+                'user_code' => $validated['user_code'] ?? null,
+                'first_name' => $validated['first_name'],
+                'last_name' => $validated['last_name'] ?? null,
+                'gender' => $validated['gender'],
+                'dob' => $validated['dob'] ?? null,
+                'mobile_no' => $validated['mobile_no'] ?? null,
+                'mail_id' => $validated['mail_id'] ?? null,
+                'campus_id' => (int) $validated['campus_id'],
+                'department' => (int) $validated['department'],
+                'academic_dept_id' => (int) $department->id,
+                'new_program_id' => (int) $validated['new_program_id'],
+                'batch' => (int) $validated['batch'],
+                'admission_date' => $validated['admission_date'],
+                'current_year' => (int) $validated['current_year'],
+                'graduation_year' => $graduationYear,
+                'roll_no' => $validated['roll_no'],
+                'register_no' => $validated['register_no'],
+                'library_code' => $validated['library_code'] ?? null,
+                'blood_group_id' => $validated['blood_group_id'] ?? null,
+                'religion' => $validated['religion'] ?? null,
+                'nationality' => $validated['nationality'] ?? null,
+                'mother_tongue' => $validated['mother_tongue'] ?? null,
+                'caste' => $validated['caste'] ?? null,
+                'aadhar_no' => $validated['aadhar_no'] ?? null,
+                'father_name' => $validated['father_name'] ?? null,
+                'mother_name' => $validated['mother_name'] ?? null,
+                'guardian_name' => $validated['guardian_name'] ?? null,
+                'fr_mobile_no' => $validated['fr_mobile_no'] ?? null,
+                'mr_mobile_no' => $validated['mr_mobile_no'] ?? null,
+                'guardian_mobile_no' => $validated['guardian_mobile_no'] ?? null,
+                'fr_occupation' => $validated['fr_occupation'] ?? null,
+                'mr_occupation' => $validated['mr_occupation'] ?? null,
+                'annual_income' => $validated['annual_income'] ?? null,
+                'address' => $validated['address'] ?? null,
+                'remarks' => $validated['remarks'] ?? 'Created via ITCELL direct student entry',
+                'status' => 'active',
+                'user_type' => 'student',
+            ]);
+
+            StudentSemesterConfig::where('student_id', $student->id)->update([
+                'current_semester' => 0,
+            ]);
+
+            StudentSemesterConfig::updateOrCreate(
+                [
+                    'student_id' => $student->id,
+                    'semester_id' => (string) $validated['semester'],
+                ],
+                [
+                    'current_semester' => 1,
+                ]
+            );
+
+            return $student;
+        });
+
+        return redirect()
+            ->route('itcell.direct-student-entry.index')
+            ->with('success', 'Student created in student master successfully (ID: ' . $student->id . ').');
+    }
+
     public function resetStudentDefaultPassword(int $studentId)
     {
         $userRole = StaticController::fetchUserRole((int) Auth::id());
