@@ -205,11 +205,11 @@ use Carbon\Carbon;
                           </div>
 
                           <div class="mb-3">
-                            <label class="form-label fw-semibold">Extra Remark <span class="text-danger">*</span></label>
-                            <select name="extra" class="form-select" required>
+                            <label class="form-label fw-semibold">Extra Remark (optional)</label>
+                            <select name="extra" class="form-select">
                               <option value="">--Select--</option>
-                              <option value="late" {{ $record->status === 'late' ? 'selected' : '' }}>Late</option>
-                              <option value="excused" {{ $record->status === 'excused' ? 'selected' : '' }}>Excused</option>
+                              <option value="late" {{ $record->extra === 'late' ? 'selected' : '' }}>Late</option>
+                              <option value="excused" {{ $record->extra === 'excused' ? 'selected' : '' }}>Excused</option>
                             </select>
                           </div>
                         </div>
