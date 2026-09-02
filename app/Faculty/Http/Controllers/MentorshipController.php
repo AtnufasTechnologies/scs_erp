@@ -92,6 +92,35 @@ class MentorshipController extends Controller
       'assignments' => fn($q) => $q->orderByDesc('created_at'),
     ])->findOrFail($id);
 
+    $existingStudentIds = $group->students
+      ->pluck('id')
+      ->map(fn($studentId) => (int) $studentId)
+      ->filter(fn($studentId) => $studentId > 0)
+      ->values();
+
+    $facultyCampusId = (int) (Faculty::query()
+      ->where('id', (int) $facultyId)
+      ->value('CAMPUS_ID') ?? 0);
+
+    $availableStudentsQuery = StudentMaster::query()
+      ->select('id', 'first_name', 'last_name', 'roll_no', 'register_no')
+      ->where(function ($query) {
+        $query->where('is_left', 0)->orWhereNull('is_left');
+      })
+      ->orderBy('roll_no')
+      ->orderBy('first_name')
+      ->orderBy('last_name');
+
+    if ($facultyCampusId > 0) {
+      $availableStudentsQuery->where('campus_id', $facultyCampusId);
+    }
+
+    if ($existingStudentIds->isNotEmpty()) {
+      $availableStudentsQuery->whereNotIn('id', $existingStudentIds->all());
+    }
+
+    $availableStudents = $availableStudentsQuery->get();
+
     $sessions    = $group->sessions;
     $assignments = $group->assignments;
 
@@ -104,6 +133,7 @@ class MentorshipController extends Controller
       'group',
       'sessions',
       'assignments',
+      'availableStudents',
       'totalStudents',
       'totalSessions',
       'completedSessions',
@@ -240,7 +270,8 @@ class MentorshipController extends Controller
       ->where('student_id', $studentId)
       ->delete();
 
-    return response()->json(['success' => true, 'message' => 'Student removed from group.']);
+    return redirect()->back()->with('success', 'Deleted');
+    // return response()->json(['success' => true, 'message' => 'Student removed from group.']);
   }
 
   // ──────────────────────────────────────────────────────────

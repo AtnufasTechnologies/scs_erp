@@ -70,15 +70,15 @@ File: style.css
     --theme-btn-success-text: #ffffff;
     --theme-btn-success-rgb: 22, 163, 74;
 
-    --theme-btn-danger-bg: #dc2626;
-    --theme-btn-danger-hover: #b91c1c;
+    --theme-btn-danger-bg: #d84d4d;
+    --theme-btn-danger-hover: #d84d4d;
     --theme-btn-danger-border: #b91c1c;
     --theme-btn-danger-text: #ffffff;
     --theme-btn-danger-rgb: 220, 38, 38;
 
-    --theme-btn-warning-bg: #f59e0b;
-    --theme-btn-warning-hover: #d97706;
-    --theme-btn-warning-border: #d97706;
+    --theme-btn-warning-bg: #ffdb64;
+    --theme-btn-warning-hover: #ffdb64;
+    --theme-btn-warning-border: #f0cb51;
     --theme-btn-warning-text: #111827;
     --theme-btn-warning-rgb: 245, 158, 11;
 
