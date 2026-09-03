@@ -472,6 +472,12 @@ class LoginController extends Controller
             case 'central-office-incharge':
                 return 'central-office.dashboard';
 
+            case 'international-office':
+            case 'international_office':
+            case 'international-office-incharge':
+            case 'international-office-officer':
+                return 'international-office.dashboard';
+
             case 'super-admin':
             case 'admin':
             case 'itcell':

@@ -41,6 +41,12 @@ use App\Http\Controllers\FeePaymentController;
 use App\Http\Controllers\StudentDashboardController;
 use App\Http\Controllers\StudentResultController;
 use App\Http\Controllers\InvigilationDutyController;
+use App\Http\Controllers\InternationalOfficeActivityMasterController;
+use App\Http\Controllers\InternationalOffice\DashboardController as InternationalOfficeDashboardController;
+use App\Http\Controllers\InternationalOffice\EventController as InternationalOfficeEventController;
+use App\Http\Controllers\InternationalOffice\EventFinanceController as InternationalOfficeEventFinanceController;
+use App\Http\Controllers\InternationalOffice\EventIqacReportController as InternationalOfficeEventIqacReportController;
+use App\Http\Controllers\InternationalOffice\InstitutionController as InternationalOfficeInstitutionController;
 use App\Http\Controllers\LoginController;
 use App\Http\Controllers\StudentAuthController;
 use App\Http\Controllers\StudentQuizController;
@@ -206,6 +212,19 @@ Route::group(['prefix' => '/erp'], function () {
         Route::get('itcell/fa1-quizzes/{quizId}/results', [QuizOversightController::class, 'results'])->name('itcell.quizzes.results');
         Route::get('itcell/fa1-quizzes/{quizId}/question-sheet/export', [QuizOversightController::class, 'exportQuestionSheet'])->name('itcell.quizzes.question-sheet.export');
         Route::post('itcell/fa1-quizzes/{quizId}/question-sheet/import', [QuizOversightController::class, 'importQuestionSheet'])->name('itcell.quizzes.question-sheet.import');
+
+        Route::get('international-office/activity-master', [InternationalOfficeActivityMasterController::class, 'index'])
+            ->middleware('check.international.office.access')
+            ->name('admin.international-office.activity-master.index');
+        Route::post('international-office/activity-master', [InternationalOfficeActivityMasterController::class, 'store'])
+            ->middleware('check.international.office.access')
+            ->name('admin.international-office.activity-master.store');
+        Route::put('international-office/activity-master/{id}', [InternationalOfficeActivityMasterController::class, 'update'])
+            ->middleware('check.international.office.access')
+            ->name('admin.international-office.activity-master.update');
+        Route::delete('international-office/activity-master/{id}', [InternationalOfficeActivityMasterController::class, 'destroy'])
+            ->middleware('check.international.office.access')
+            ->name('admin.international-office.activity-master.destroy');
 
         //master
         Route::group(['prefix' => '/master'], function () {
@@ -1465,6 +1484,38 @@ Route::group(['prefix' => '/erp'], function () {
         Route::delete('employees/{id}', [CentralOfficeController::class, 'destroyEmployee'])->name('central-office.employees.destroy');
         Route::get('admissions/batch-wise', [CentralOfficeController::class, 'admissionsBatchWise'])->name('central-office.admissions.batch-wise');
         Route::get('admissions/batch-wise/export', [CentralOfficeController::class, 'exportAdmissionsBatchWise'])->name('central-office.admissions.batch-wise.export');
+    });
+
+    // ========================================================
+    // International Office Module
+    Route::group(['prefix' => '/international-office', 'middleware' => ['check.international.office.access']], function () {
+        Route::get('dashboard', [InternationalOfficeDashboardController::class, 'index'])->name('international-office.dashboard');
+        Route::get('activitytypemaster', [InternationalOfficeDashboardController::class, 'activityMaster'])->name('activity.type.master');
+        Route::post('activitytypemaster', [InternationalOfficeDashboardController::class, 'storeActivityType'])->name('international-office.activity-type-master.store');
+        Route::put('activitytypemaster/{id}', [InternationalOfficeDashboardController::class, 'updateActivityType'])->name('international-office.activity-type-master.update');
+        Route::post('activitytypemaster/{id}/toggle', [InternationalOfficeDashboardController::class, 'toggleActivityType'])->name('international-office.activity-type-master.toggle');
+        Route::delete('activitytypemaster/{id}', [InternationalOfficeDashboardController::class, 'destroyActivityType'])->name('international-office.activity-type-master.destroy');
+
+        Route::get('events', [InternationalOfficeEventController::class, 'index'])->name('international-office.events.index');
+        Route::post('events', [InternationalOfficeEventController::class, 'store'])->name('international-office.events.store');
+        Route::get('events/{id}/edit', [InternationalOfficeEventController::class, 'edit'])->name('international-office.events.edit');
+        Route::put('events/{id}', [InternationalOfficeEventController::class, 'update'])->name('international-office.events.update');
+        Route::delete('events/{id}', [InternationalOfficeEventController::class, 'destroy'])->name('international-office.events.destroy');
+
+        Route::get('events/{id}/finances', [InternationalOfficeEventFinanceController::class, 'index'])->name('international-office.events.finances.index');
+        Route::post('events/{id}/finances', [InternationalOfficeEventFinanceController::class, 'store'])->name('international-office.events.finances.store');
+        Route::put('events/{id}/finances/{noteId}', [InternationalOfficeEventFinanceController::class, 'update'])->name('international-office.events.finances.update');
+        Route::delete('events/{id}/finances/{noteId}', [InternationalOfficeEventFinanceController::class, 'destroy'])->name('international-office.events.finances.destroy');
+
+        Route::get('events/{id}/iqac-reports', [InternationalOfficeEventIqacReportController::class, 'index'])->name('international-office.events.iqac-reports.index');
+        Route::post('events/{id}/iqac-reports', [InternationalOfficeEventIqacReportController::class, 'store'])->name('international-office.events.iqac-reports.store');
+        Route::put('events/{id}/iqac-reports/{reportId}', [InternationalOfficeEventIqacReportController::class, 'update'])->name('international-office.events.iqac-reports.update');
+        Route::delete('events/{id}/iqac-reports/{reportId}', [InternationalOfficeEventIqacReportController::class, 'destroy'])->name('international-office.events.iqac-reports.destroy');
+
+        Route::get('institutions', [InternationalOfficeInstitutionController::class, 'index'])->name('international-office.institutions.index');
+        Route::post('institutions', [InternationalOfficeInstitutionController::class, 'store'])->name('international-office.institutions.store');
+        Route::put('institutions/{id}', [InternationalOfficeInstitutionController::class, 'update'])->name('international-office.institutions.update');
+        Route::delete('institutions/{id}', [InternationalOfficeInstitutionController::class, 'destroy'])->name('international-office.institutions.destroy');
     });
 
     // ========================================================

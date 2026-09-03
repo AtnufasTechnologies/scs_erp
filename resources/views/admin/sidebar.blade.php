@@ -11,6 +11,13 @@ $roleNames = UserHasRole::where('user_id', $userId)
   ->map(fn($role) => strtolower(trim((string) $role)))
   ->values();
 $hasSuperAdminRole = $roleNames->contains('super-admin');
+$canAccessInternationalOffice = $roleNames->contains(function ($role) {
+  return in_array($role, ['admin', 'super-admin', 'itcell'], true)
+    || $role === 'international-office'
+    || $role === 'international_office'
+    || str_starts_with($role, 'international-office')
+    || str_starts_with($role, 'international_office');
+});
 ?>
 <!--start sidebar -->
 <aside class="sidebar-wrapper" data-simplebar="true">
@@ -51,6 +58,17 @@ $hasSuperAdminRole = $roleNames->contains('super-admin');
         <div class="menu-title">Admission Applications</div>
       </a>
     </li>
+
+    @if($canAccessInternationalOffice)
+    <li>
+      <a href="{{ route('admin.international-office.activity-master.index') }}">
+        <div class="parent-icon">
+          <i class="fas fa-globe-asia"></i>
+        </div>
+        <div class="menu-title">International Office</div>
+      </a>
+    </li>
+    @endif
 
     <!-- Master -->
     <li>
