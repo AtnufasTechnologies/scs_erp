@@ -58,14 +58,14 @@
       </a>
     </li>
 
-    <li>
+    <!-- <li>
       <a href="{{route('faculty.workdiary')}}">
         <div class="parent-icon">
           <i class="fas fa-briefcase"></i>
         </div>
         <div class="menu-title">Work Diary </div>
       </a>
-    </li>
+    </li> -->
 
     <li>
       <a href="{{route('faculty.attendance.index')}}">
