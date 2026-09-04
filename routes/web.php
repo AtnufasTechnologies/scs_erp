@@ -54,6 +54,7 @@ use App\Http\Controllers\ModerationDutyController;
 use App\Http\Controllers\PaymentBatchController;
 use App\Http\Controllers\PrincipalController;
 use App\Http\Controllers\PrincipalMonitoringController;
+use App\Http\Controllers\ReceptionistController;
 use App\Http\Controllers\PromotionController;
 use App\Http\Controllers\QuizOversightController;
 use App\Http\Controllers\SeatingAllocationController;
@@ -1357,6 +1358,25 @@ Route::group(['prefix' => '/erp'], function () {
         Route::put('vp-management/{id}', [PrincipalController::class, 'vpUpdate'])->name('principal.vp.update');
         Route::post('vp-management/{id}/toggle-status', [PrincipalController::class, 'vpToggleStatus'])->name('principal.vp.toggle-status');
         Route::delete('vp-management/{id}', [PrincipalController::class, 'vpDestroy'])->name('principal.vp.destroy');
+    });
+
+    // ========================================================
+    // Receptionist Module Routes
+    Route::group(['prefix' => '/receptionist'], function () {
+        Route::get('dashboard', [ReceptionistController::class, 'dashboard'])->name('receptionist.dashboard');
+
+        Route::get('faculty', [ReceptionistController::class, 'facultyIndex'])->name('receptionist.faculty.index');
+        Route::get('faculty/{id}/timetable', [ReceptionistController::class, 'facultyTimetable'])->name('receptionist.faculty.timetable');
+
+        Route::get('appointments', [ReceptionistController::class, 'appointments'])->name('receptionist.appointments.index');
+        Route::post('appointments', [ReceptionistController::class, 'storeAppointment'])->name('receptionist.appointments.store');
+        Route::put('appointments/{id}', [ReceptionistController::class, 'updateAppointment'])->name('receptionist.appointments.update');
+        Route::delete('appointments/{id}', [ReceptionistController::class, 'destroyAppointment'])->name('receptionist.appointments.destroy');
+
+        Route::get('work-diary', [ReceptionistController::class, 'workDiary'])->name('receptionist.work-diary.index');
+        Route::post('work-diary', [ReceptionistController::class, 'storeWorkDiary'])->name('receptionist.work-diary.store');
+        Route::put('work-diary/{id}', [ReceptionistController::class, 'updateWorkDiary'])->name('receptionist.work-diary.update');
+        Route::delete('work-diary/{id}', [ReceptionistController::class, 'destroyWorkDiary'])->name('receptionist.work-diary.destroy');
     });
 
     // ========================================================

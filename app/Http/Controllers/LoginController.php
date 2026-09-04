@@ -478,6 +478,11 @@ class LoginController extends Controller
             case 'international-office-officer':
                 return 'international-office.dashboard';
 
+            case 'receptionist':
+            case 'reception':
+            case 'front-office':
+                return 'receptionist.dashboard';
+
             case 'super-admin':
             case 'admin':
             case 'itcell':
