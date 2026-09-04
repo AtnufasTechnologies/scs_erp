@@ -73,6 +73,7 @@ use App\Http\Controllers\HrPayrollController;
 use App\Http\Controllers\HrDesignationController;
 use App\Http\Controllers\HrGradeLevelController;
 use App\Http\Controllers\HrApiMetrixController;
+use App\Http\Controllers\HrBiometricAttendanceController;
 use App\Http\Controllers\Hr\ApiScoreController;
 use App\Http\Controllers\SyllabusPdfController;
 use App\Http\Controllers\SubjectController;
@@ -1651,6 +1652,9 @@ Route::group(['prefix' => '/erp'], function () {
         Route::get('payroll', [HrPayrollController::class, 'index'])->name('hr.payroll.index');
         Route::get('payroll/{id}', [HrPayrollController::class, 'show'])->name('hr.payroll.show');
         Route::get('payroll/statistics/overview', [HrPayrollController::class, 'statistics'])->name('hr.payroll.statistics');
+
+        // Biometric Attendance Logs
+        Route::get('biometric-attendance', [HrBiometricAttendanceController::class, 'index'])->name('hr.biometric-attendance.index');
 
         // API Score Management (Academic Performance Indicator)
         Route::get('api-scores', [ApiScoreController::class, 'index'])->name('hr.api-scores.index');

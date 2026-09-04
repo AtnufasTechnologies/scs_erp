@@ -60,6 +60,16 @@ Route::group(['prefix' => 'faculty'], function () {
 Route::group(['prefix' => 'student'], function () {
     Route::post('login', [StudentApiController::class, 'login']);
     Route::post('student-profile', [StudentApiController::class, 'stdprofile']);
+    Route::post('dashboard', [StudentApiController::class, 'dashboard']);
+    Route::post('profile', [StudentApiController::class, 'profile']);
+    Route::post('courses', [StudentApiController::class, 'courses']);
+    Route::post('timetable', [StudentApiController::class, 'timetable']);
+    Route::post('attendance-summary', [StudentApiController::class, 'attendanceSummary']);
+    Route::post('marks', [StudentApiController::class, 'marks']);
+    Route::post('results', [StudentApiController::class, 'results']);
+    Route::post('training-placement/dashboard', [StudentApiController::class, 'trainingPlacementDashboard']);
+    Route::post('training-placement/opportunities', [StudentApiController::class, 'placementOpportunities']);
+    Route::post('training-placement/applications', [StudentApiController::class, 'placementApplications']);
 
 
     // Student QR attendance scan endpoint (temporary signed URL) - POST only.
@@ -68,43 +78,3 @@ Route::group(['prefix' => 'student'], function () {
 
 //recieve biometric  attendance direct from Hikvision IVMS 4200 Device
 Route::post('/biometric/attendance', [BiometricWebhookController::class, 'receiveAttendance']);
-
-Route::prefix('webhooks/erp/naac')->middleware('verify.erp.naac.webhook')->group(function () {
-    Route::get('ping', [ErpNaacWebhookController::class, 'ping']);
-    Route::post('', [ErpNaacWebhookController::class, 'webhook']);
-
-    Route::get('snapshot', [ErpNaacWebhookController::class, 'snapshot']);
-    Route::get('cycles/full', [ErpNaacWebhookController::class, 'listCyclesFull']);
-    Route::get('cycles', [ErpNaacWebhookController::class, 'listCycles']);
-
-    Route::post('cycles', [ErpNaacWebhookController::class, 'upsertCycle']);
-    Route::put('cycles/{id}', [ErpNaacWebhookController::class, 'updateCycle']);
-    Route::delete('cycles/{id}', [ErpNaacWebhookController::class, 'deleteCycle']);
-
-    Route::post('sessions', [ErpNaacWebhookController::class, 'upsertSession']);
-    Route::put('sessions/{id}', [ErpNaacWebhookController::class, 'updateSession']);
-    Route::delete('sessions/{id}', [ErpNaacWebhookController::class, 'deleteSession']);
-
-    Route::post('supporting-docs', [ErpNaacWebhookController::class, 'upsertSupportingDoc']);
-    Route::put('supporting-docs/{id}', [ErpNaacWebhookController::class, 'updateSupportingDoc']);
-    Route::delete('supporting-docs/{id}', [ErpNaacWebhookController::class, 'deleteSupportingDoc']);
-
-    Route::post('multi-docs', [ErpNaacWebhookController::class, 'upsertMultiDoc']);
-    Route::put('multi-docs/{id}', [ErpNaacWebhookController::class, 'updateMultiDoc']);
-    Route::delete('multi-docs/{id}', [ErpNaacWebhookController::class, 'deleteMultiDoc']);
-
-    Route::post('criterian-docs', [ErpNaacWebhookController::class, 'upsertCriterianDoc']);
-    Route::put('criterian-docs/{id}', [ErpNaacWebhookController::class, 'updateCriterianDoc']);
-    Route::delete('criterian-docs/{id}', [ErpNaacWebhookController::class, 'deleteCriterianDoc']);
-
-    Route::post('multi-doc-items', [ErpNaacWebhookController::class, 'upsertMultiDocItem']);
-    Route::put('multi-doc-items/{id}', [ErpNaacWebhookController::class, 'updateMultiDocItem']);
-    Route::delete('multi-doc-items/{id}', [ErpNaacWebhookController::class, 'deleteMultiDocItem']);
-
-    Route::post('criterian-doc-items', [ErpNaacWebhookController::class, 'upsertCriterianDocItem']);
-    Route::put('criterian-doc-items/{id}', [ErpNaacWebhookController::class, 'updateCriterianDocItem']);
-    Route::delete('criterian-doc-items/{id}', [ErpNaacWebhookController::class, 'deleteCriterianDocItem']);
-
-    Route::post('single-content', [ErpNaacWebhookController::class, 'createSingleContent']);
-    Route::put('single-content/{id}', [ErpNaacWebhookController::class, 'updateSingleContent']);
-});

@@ -111,6 +111,12 @@
         <div class="menu-title">Payroll Statistics</div>
       </a>
     </li>
+    <li>
+      <a href="{{ route('hr.biometric-attendance.index') }}">
+        <div class="parent-icon"><i class="fas fa-fingerprint"></i></div>
+        <div class="menu-title">Biometric Attendance</div>
+      </a>
+    </li>
 
     <li class="menu-label">API Score Management</li>
     <li>

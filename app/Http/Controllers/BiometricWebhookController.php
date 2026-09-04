@@ -2,6 +2,8 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\BiometricAttendanceLog;
+use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
 
@@ -9,13 +11,14 @@ class BiometricWebhookController extends Controller
 {
     public function receiveAttendance(Request $request)
     {
-        // 1. Raw body / form payload capture
         $rawContent = $request->getContent();
         $payload = $request->all();
 
-        // If sent as nested JSON in event_log key
         if ($request->has('event_log')) {
-            $payload = json_decode($request->input('event_log'), true);
+            $decoded = json_decode((string) $request->input('event_log'), true);
+            if (is_array($decoded)) {
+                $payload = $decoded;
+            }
         }
 
         Log::channel('single')->info('Hikvision Punch Event:', [
@@ -23,22 +26,44 @@ class BiometricWebhookController extends Controller
             'raw' => $rawContent
         ]);
 
-        // 2. Extract Event Details
         $accessEvent = $payload['AccessControllerEvent'] ?? $payload['AcsEvent'] ?? $payload;
-        $employeeId = $accessEvent['employeeNoString'] ?? null;
-        $punchTime = $accessEvent['dateTime'] ?? $accessEvent['time'] ?? now();
 
-        if ($employeeId) {
-            // Save to attendance table in ERP
-            /*
-            \App\Models\Attendance::create([
-                'employee_id' => $employeeId,
-                'punch_time' => $punchTime,
-            ]);
-            */
+        $employeeNo = $accessEvent['employeeNoString']
+            ?? $accessEvent['employeeNo']
+            ?? $accessEvent['cardNo']
+            ?? null;
+
+        $punchTimeRaw = $accessEvent['dateTime']
+            ?? $accessEvent['time']
+            ?? $payload['dateTime']
+            ?? null;
+
+        $punchTime = null;
+        if (!empty($punchTimeRaw)) {
+            try {
+                $punchTime = Carbon::parse((string) $punchTimeRaw);
+            } catch (\Throwable $e) {
+                $punchTime = now();
+            }
         }
 
-        // 3. Return 200 OK
-        return response()->json(['status' => 'OK'], 200);
+        BiometricAttendanceLog::create([
+            'employee_no' => $employeeNo,
+            'punch_time' => $punchTime,
+            'event_type' => $accessEvent['eventType'] ?? $accessEvent['majorEventType'] ?? null,
+            'device_ip' => $accessEvent['ipAddress'] ?? $payload['ipAddress'] ?? null,
+            'device_name' => $accessEvent['deviceName'] ?? $payload['deviceName'] ?? null,
+            'verify_mode' => $accessEvent['currentVerifyMode'] ?? $accessEvent['verifyMode'] ?? null,
+            'door_no' => isset($accessEvent['doorNo']) ? (string) $accessEvent['doorNo'] : null,
+            'source_ip' => $request->ip(),
+            'payload' => is_array($payload) ? $payload : null,
+            'raw_payload' => $rawContent,
+        ]);
+
+        return response()->json([
+            'status' => 'OK',
+            'saved' => true,
+            'employee_no' => $employeeNo,
+        ], 200);
     }
 }
