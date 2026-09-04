@@ -49,6 +49,9 @@
               <a href="{{ route('event-coordinator.report', $event) }}" class="btn btn-light btn-sm">
                 <i class="fas fa-file-alt me-1"></i>Full Report
               </a>
+              <a href="{{ route('event-coordinator.events.iqac-reports.index', $event->id) }}" class="btn btn-warning btn-sm">
+                <i class="fas fa-check-square me-1"></i>IQAC Report
+              </a>
             </div>
           </div>
           <!-- Budget Summary -->
@@ -98,7 +101,7 @@
         </li>
         <li class="nav-item">
           <a class="nav-link" data-bs-toggle="tab" href="#tab-sponsors">
-            <i class="fas fa-handshake me-1"></i>Sponsors 
+            <i class="fas fa-handshake me-1"></i>Sponsors
             <span class="badge bg-success ms-1">{{ $event->sponsors->count() }}</span>
           </a>
         </li>
@@ -719,11 +722,11 @@
   document.addEventListener('DOMContentLoaded', function() {
     // Track all forms that have been submitted
     const submittedForms = new WeakSet();
-    
+
     // Handle all form submissions
     document.addEventListener('submit', function(e) {
       const form = e.target;
-      
+
       // Check if form is already being submitted
       if (submittedForms.has(form)) {
         e.preventDefault();
@@ -731,10 +734,10 @@
         console.log('Form already submitted, preventing duplicate');
         return false;
       }
-      
+
       // Get the submit button
       const submitBtn = form.querySelector('button[type="submit"]');
-      
+
       // Check if button is already disabled
       if (submitBtn && submitBtn.disabled) {
         e.preventDefault();
@@ -742,16 +745,16 @@
         console.log('Submit button already disabled, preventing duplicate');
         return false;
       }
-      
+
       // Mark form as submitted
       submittedForms.add(form);
-      
+
       // Disable submit button
       if (submitBtn) {
         submitBtn.disabled = true;
         const originalText = submitBtn.innerHTML;
         submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i>Processing...';
-        
+
         // Re-enable after 5 seconds as fallback (in case of validation errors or slow network)
         setTimeout(() => {
           submitBtn.disabled = false;
@@ -760,7 +763,7 @@
         }, 5000);
       }
     }, true); // Use capture phase to catch event early
-    
+
     // Reset form state when modal is closed
     document.querySelectorAll('.modal').forEach(modal => {
       modal.addEventListener('hidden.bs.modal', function() {

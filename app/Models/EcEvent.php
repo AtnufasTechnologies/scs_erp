@@ -55,6 +55,11 @@ class EcEvent extends Model
     return $this->belongsTo(User::class, 'created_by');
   }
 
+  public function iqacReports()
+  {
+    return $this->hasMany(EcEventIqacReport::class, 'ec_event_id');
+  }
+
   public function getTotalExpenseAttribute()
   {
     return $this->fundTransactions()->where('type', 'expense')->sum('amount');

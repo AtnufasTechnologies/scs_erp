@@ -26,6 +26,11 @@ class ApiAuth
             return $next($request);
         }
 
+        // ✅ Skip generic API key check for ERP NAAC webhook (uses dedicated token middleware)
+        if ($request->is('api/webhooks/erp/naac') || $request->is('api/webhooks/erp/naac/*')) {
+            return $next($request);
+        }
+
         $key = env('ERP_APIKEY');
         $apikey = $request->header('authorization');
 

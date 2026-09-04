@@ -1,10 +1,9 @@
 <?php
 
-namespace App\Http\Controllers\InternationalOffice;
+namespace App\Http\Controllers;
 
-use App\Http\Controllers\Controller;
-use App\Models\InternationalOfficeEvent;
-use App\Models\InternationalOfficeEventIqacReport;
+use App\Models\EcEvent;
+use App\Models\EcEventIqacReport;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Schema;
@@ -14,14 +13,14 @@ class EventIqacReportController extends Controller
 {
   public function index($eventId)
   {
-    $event = InternationalOfficeEvent::with('activityType:id,title')->findOrFail($eventId);
+    $event = EcEvent::findOrFail($eventId);
 
-    $reports = InternationalOfficeEventIqacReport::where('international_office_event_id', $event->id)
+    $reports = EcEventIqacReport::where('ec_event_id', $event->id)
       ->orderByDesc('submitted_on')
       ->orderByDesc('id')
       ->get();
 
-    return view('international-office.events.iqac-report', [
+    return view('event-coordinator.events.iqac-report', [
       'event' => $event,
       'reports' => $reports,
     ]);
@@ -29,7 +28,7 @@ class EventIqacReportController extends Controller
 
   public function store(Request $request, $eventId)
   {
-    $event = InternationalOfficeEvent::findOrFail($eventId);
+    $event = EcEvent::findOrFail($eventId);
 
     $validated = $request->validate([
       'report_title' => 'nullable|string|max:255',
@@ -38,10 +37,10 @@ class EventIqacReportController extends Controller
       'submission_note' => 'nullable|string|max:2000',
     ]);
 
-    $reportFilePath = $request->file('report_file')->store('international-office/events/iqac-reports', 'public');
+    $reportFilePath = $request->file('report_file')->store('ec-events/iqac-reports', 'public');
 
     $createPayload = [
-      'international_office_event_id' => $event->id,
+      'ec_event_id' => $event->id,
       'report_title' => $validated['report_title'] ?? null,
       'submitted_on' => $validated['submitted_on'],
       'report_file_path' => $reportFilePath,
@@ -49,30 +48,30 @@ class EventIqacReportController extends Controller
       'submitted_by_user_id' => Auth::id(),
     ];
 
-    if (Schema::hasColumn('international_office_event_iqac_reports', 'approval_status')) {
+    if (Schema::hasColumn('ec_event_iqac_reports', 'approval_status')) {
       $createPayload['approval_status'] = 'pending';
     }
-    if (Schema::hasColumn('international_office_event_iqac_reports', 'review_remarks')) {
+    if (Schema::hasColumn('ec_event_iqac_reports', 'review_remarks')) {
       $createPayload['review_remarks'] = null;
     }
-    if (Schema::hasColumn('international_office_event_iqac_reports', 'reviewed_by_user_id')) {
+    if (Schema::hasColumn('ec_event_iqac_reports', 'reviewed_by_user_id')) {
       $createPayload['reviewed_by_user_id'] = null;
     }
-    if (Schema::hasColumn('international_office_event_iqac_reports', 'reviewed_at')) {
+    if (Schema::hasColumn('ec_event_iqac_reports', 'reviewed_at')) {
       $createPayload['reviewed_at'] = null;
     }
 
-    InternationalOfficeEventIqacReport::create($createPayload);
+    EcEventIqacReport::create($createPayload);
 
-    return redirect()->route('international-office.events.iqac-reports.index', $event->id)
+    return redirect()->route('event-coordinator.events.iqac-reports.index', $event->id)
       ->with('success', 'IQAC report submitted successfully.');
   }
 
   public function update(Request $request, $eventId, $reportId)
   {
-    $event = InternationalOfficeEvent::findOrFail($eventId);
+    $event = EcEvent::findOrFail($eventId);
 
-    $report = InternationalOfficeEventIqacReport::where('international_office_event_id', $event->id)
+    $report = EcEventIqacReport::where('ec_event_id', $event->id)
       ->where('id', $reportId)
       ->firstOrFail();
 
@@ -88,7 +87,7 @@ class EventIqacReportController extends Controller
       if ($reportFilePath) {
         Storage::disk('public')->delete($reportFilePath);
       }
-      $reportFilePath = $request->file('report_file')->store('international-office/events/iqac-reports', 'public');
+      $reportFilePath = $request->file('report_file')->store('ec-events/iqac-reports', 'public');
     }
 
     $updatePayload = [
@@ -98,30 +97,30 @@ class EventIqacReportController extends Controller
       'submission_note' => $validated['submission_note'] ?? null,
     ];
 
-    if (Schema::hasColumn('international_office_event_iqac_reports', 'approval_status')) {
+    if (Schema::hasColumn('ec_event_iqac_reports', 'approval_status')) {
       $updatePayload['approval_status'] = 'pending';
     }
-    if (Schema::hasColumn('international_office_event_iqac_reports', 'review_remarks')) {
+    if (Schema::hasColumn('ec_event_iqac_reports', 'review_remarks')) {
       $updatePayload['review_remarks'] = null;
     }
-    if (Schema::hasColumn('international_office_event_iqac_reports', 'reviewed_by_user_id')) {
+    if (Schema::hasColumn('ec_event_iqac_reports', 'reviewed_by_user_id')) {
       $updatePayload['reviewed_by_user_id'] = null;
     }
-    if (Schema::hasColumn('international_office_event_iqac_reports', 'reviewed_at')) {
+    if (Schema::hasColumn('ec_event_iqac_reports', 'reviewed_at')) {
       $updatePayload['reviewed_at'] = null;
     }
 
     $report->update($updatePayload);
 
-    return redirect()->route('international-office.events.iqac-reports.index', $event->id)
+    return redirect()->route('event-coordinator.events.iqac-reports.index', $event->id)
       ->with('success', 'IQAC report updated successfully.');
   }
 
   public function destroy($eventId, $reportId)
   {
-    $event = InternationalOfficeEvent::findOrFail($eventId);
+    $event = EcEvent::findOrFail($eventId);
 
-    $report = InternationalOfficeEventIqacReport::where('international_office_event_id', $event->id)
+    $report = EcEventIqacReport::where('ec_event_id', $event->id)
       ->where('id', $reportId)
       ->firstOrFail();
 
@@ -131,7 +130,7 @@ class EventIqacReportController extends Controller
 
     $report->delete();
 
-    return redirect()->route('international-office.events.iqac-reports.index', $event->id)
+    return redirect()->route('event-coordinator.events.iqac-reports.index', $event->id)
       ->with('success', 'IQAC report deleted successfully.');
   }
 }

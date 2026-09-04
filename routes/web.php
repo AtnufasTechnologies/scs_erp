@@ -47,6 +47,7 @@ use App\Http\Controllers\InternationalOffice\EventController as InternationalOff
 use App\Http\Controllers\InternationalOffice\EventFinanceController as InternationalOfficeEventFinanceController;
 use App\Http\Controllers\InternationalOffice\EventIqacReportController as InternationalOfficeEventIqacReportController;
 use App\Http\Controllers\InternationalOffice\InstitutionController as InternationalOfficeInstitutionController;
+use App\Http\Controllers\IqacController;
 use App\Http\Controllers\LoginController;
 use App\Http\Controllers\StudentAuthController;
 use App\Http\Controllers\StudentQuizController;
@@ -62,6 +63,7 @@ use App\Http\Controllers\StudentCreditController;
 use App\Http\Controllers\CourseOfferingController;
 use App\Http\Controllers\CourseSeatController;
 use App\Http\Controllers\EventCoordinatorController;
+use App\Http\Controllers\EventIqacReportController;
 use App\Http\Controllers\HrFacultyController;
 use App\Http\Controllers\HrLeaveController;
 use App\Http\Controllers\HrFdpController;
@@ -1415,6 +1417,10 @@ Route::group(['prefix' => '/erp'], function () {
 
         // Report
         Route::get('events/{event}/report', [EventCoordinatorController::class, 'report'])->name('event-coordinator.report');
+        Route::get('events/{id}/iqac-reports', [EventIqacReportController::class, 'index'])->name('event-coordinator.events.iqac-reports.index');
+        Route::post('events/{id}/iqac-reports', [EventIqacReportController::class, 'store'])->name('event-coordinator.events.iqac-reports.store');
+        Route::put('events/{id}/iqac-reports/{reportId}', [EventIqacReportController::class, 'update'])->name('event-coordinator.events.iqac-reports.update');
+        Route::delete('events/{id}/iqac-reports/{reportId}', [EventIqacReportController::class, 'destroy'])->name('event-coordinator.events.iqac-reports.destroy');
     });
 
     // ========================================================
@@ -1536,6 +1542,19 @@ Route::group(['prefix' => '/erp'], function () {
         Route::post('institutions', [InternationalOfficeInstitutionController::class, 'store'])->name('international-office.institutions.store');
         Route::put('institutions/{id}', [InternationalOfficeInstitutionController::class, 'update'])->name('international-office.institutions.update');
         Route::delete('institutions/{id}', [InternationalOfficeInstitutionController::class, 'destroy'])->name('international-office.institutions.destroy');
+    });
+
+    // ========================================================
+    // IQAC Module
+    Route::group(['prefix' => '/iqac', 'middleware' => ['check.iqac.access']], function () {
+        Route::get('dashboard', [IqacController::class, 'dashboard'])->name('iqac.dashboard');
+        Route::get('international-office-reports', [IqacController::class, 'internationalOfficeReports'])->name('iqac.international-office.reports');
+        Route::post('international-office-reports/{reportId}/status', [IqacController::class, 'updateInternationalOfficeReportStatus'])->name('iqac.international-office.reports.status');
+        Route::get('departmental-activities', [IqacController::class, 'departmentalActivities'])->name('iqac.departmental-activities.index');
+        Route::post('departmental-activities/{activityId}/status', [IqacController::class, 'updateDepartmentalActivityStatus'])->name('iqac.departmental-activities.status');
+        Route::get('dean-student-affairs', [IqacController::class, 'deanStudentAffairs'])->name('iqac.dean-student-affairs.index');
+        Route::get('event-controller-reports', [IqacController::class, 'eventControllerReports'])->name('iqac.event-controller-reports.index');
+        Route::post('event-controller-reports/{reportId}/status', [IqacController::class, 'updateEventControllerReportStatus'])->name('iqac.event-controller-reports.status');
     });
 
     // ========================================================

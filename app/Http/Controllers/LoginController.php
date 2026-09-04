@@ -483,6 +483,11 @@ class LoginController extends Controller
             case 'front-office':
                 return 'receptionist.dashboard';
 
+            case 'iqac':
+            case 'iqac-incharge':
+            case 'iqac-coordinator':
+                return 'iqac.dashboard';
+
             case 'super-admin':
             case 'admin':
             case 'itcell':

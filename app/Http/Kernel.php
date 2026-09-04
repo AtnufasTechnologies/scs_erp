@@ -74,6 +74,8 @@ class Kernel extends HttpKernel
         'check.dcoe.access' => \App\Http\Middleware\CheckDcoeAccess::class,
         'check.dean.access' => \App\Http\Middleware\CheckDeanAccess::class,
         'check.international.office.access' => \App\Http\Middleware\CheckInternationalOfficeAccess::class,
+        'check.iqac.access' => \App\Http\Middleware\CheckIqacAccess::class,
+        'verify.erp.naac.webhook' => \App\Http\Middleware\VerifyErpNaacWebhookToken::class,
         // 'check.student.access' => \App\Http\Middleware\CheckStudentAccess::class,
         // 'block.student.access' => \App\Http\Middleware\BlockStudentAccess::class,
 

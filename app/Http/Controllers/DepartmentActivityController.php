@@ -10,6 +10,7 @@ use App\Models\SubjectHasDeptAdmin;
 use App\Models\SubjectFacultyMaster;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Facades\Validator;
 
@@ -96,6 +97,19 @@ class DepartmentActivityController extends Controller
     $data = $request->except('banner_image');
     $data['created_by'] = Auth::id();
 
+    if (Schema::hasColumn('department_activities', 'iqac_approval_status')) {
+      $data['iqac_approval_status'] = 'pending';
+    }
+    if (Schema::hasColumn('department_activities', 'iqac_review_remarks')) {
+      $data['iqac_review_remarks'] = null;
+    }
+    if (Schema::hasColumn('department_activities', 'iqac_reviewed_by_user_id')) {
+      $data['iqac_reviewed_by_user_id'] = null;
+    }
+    if (Schema::hasColumn('department_activities', 'iqac_reviewed_at')) {
+      $data['iqac_reviewed_at'] = null;
+    }
+
     // Handle banner image upload
     if ($request->hasFile('banner_image')) {
       $file = $request->file('banner_image');
@@ -144,6 +158,19 @@ class DepartmentActivityController extends Controller
 
     $data = $request->except('banner_image');
     $data['updated_by'] = Auth::id();
+
+    if (Schema::hasColumn('department_activities', 'iqac_approval_status')) {
+      $data['iqac_approval_status'] = 'pending';
+    }
+    if (Schema::hasColumn('department_activities', 'iqac_review_remarks')) {
+      $data['iqac_review_remarks'] = null;
+    }
+    if (Schema::hasColumn('department_activities', 'iqac_reviewed_by_user_id')) {
+      $data['iqac_reviewed_by_user_id'] = null;
+    }
+    if (Schema::hasColumn('department_activities', 'iqac_reviewed_at')) {
+      $data['iqac_reviewed_at'] = null;
+    }
 
     // Handle banner image upload
     if ($request->hasFile('banner_image')) {

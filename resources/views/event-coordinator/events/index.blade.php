@@ -84,6 +84,10 @@
                       class="btn btn-sm btn-outline-info me-1" title="Report">
                       <i class="fas fa-file-alt"></i>
                     </a>
+                    <a href="{{ route('event-coordinator.events.iqac-reports.index', $event->id) }}"
+                      class="btn btn-sm btn-outline-success me-1" title="IQAC Report">
+                      <i class="fas fa-check-square"></i>
+                    </a>
                     <form action="{{ route('event-coordinator.events.destroy', $event) }}" method="POST"
                       class="d-inline" onsubmit="return confirm('Delete this event?')">
                       @csrf @method('DELETE')

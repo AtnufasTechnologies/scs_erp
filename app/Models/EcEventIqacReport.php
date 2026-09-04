@@ -5,12 +5,14 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 
-class InternationalOfficeEventIqacReport extends Model
+class EcEventIqacReport extends Model
 {
   use HasFactory;
 
+  protected $table = 'ec_event_iqac_reports';
+
   protected $fillable = [
-    'international_office_event_id',
+    'ec_event_id',
     'report_title',
     'submitted_on',
     'report_file_path',
@@ -29,7 +31,7 @@ class InternationalOfficeEventIqacReport extends Model
 
   public function event()
   {
-    return $this->belongsTo(InternationalOfficeEvent::class, 'international_office_event_id');
+    return $this->belongsTo(EcEvent::class, 'ec_event_id');
   }
 
   public function submittedBy()

@@ -27,6 +27,10 @@ class DepartmentActivity extends Model
     'budget',
     'actual_expense',
     'status',
+    'iqac_approval_status',
+    'iqac_review_remarks',
+    'iqac_reviewed_by_user_id',
+    'iqac_reviewed_at',
     'remarks',
     'banner_image',
     'attachments',
@@ -36,6 +40,7 @@ class DepartmentActivity extends Model
 
   protected $casts = [
     'activity_date' => 'date',
+    'iqac_reviewed_at' => 'datetime',
     'attachments' => 'array',
     'budget' => 'decimal:2',
     'actual_expense' => 'decimal:2'
