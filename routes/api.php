@@ -60,13 +60,13 @@ Route::group(['prefix' => 'faculty'], function () {
 Route::group(['prefix' => 'student'], function () {
     Route::post('login', [StudentApiController::class, 'login']);
     Route::post('student-profile', [StudentApiController::class, 'stdprofile']);
-    Route::post('dashboard', [StudentApiController::class, 'dashboard']);
     Route::post('profile', [StudentApiController::class, 'profile']);
     Route::post('courses', [StudentApiController::class, 'courses']);
+    Route::post('courses-syllabus', [StudentApiController::class, 'coursesWithSyllabus']);
+    Route::post('course-details', [StudentApiController::class, 'courseDetails']);
     Route::post('timetable', [StudentApiController::class, 'timetable']);
     Route::post('attendance-summary', [StudentApiController::class, 'attendanceSummary']);
-    Route::post('marks', [StudentApiController::class, 'marks']);
-    Route::post('results', [StudentApiController::class, 'results']);
+
     Route::post('training-placement/dashboard', [StudentApiController::class, 'trainingPlacementDashboard']);
     Route::post('training-placement/opportunities', [StudentApiController::class, 'placementOpportunities']);
     Route::post('training-placement/applications', [StudentApiController::class, 'placementApplications']);
