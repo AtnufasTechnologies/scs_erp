@@ -111,7 +111,18 @@ return asset('storage/' . $path);
     const submitBtn = document.getElementById('submitQuizBtn');
     const csrf = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '{{ csrf_token() }}';
     const lockKey = 'fa1_exam_lock_{{ $quiz->id }}_{{ $attempt->id }}';
-    const tabId = Math.random().toString(36).slice(2);
+    const tabIdentityKey = 'fa1_exam_tab_id_{{ $quiz->id }}_{{ $attempt->id }}';
+    const tabId = (() => {
+      const existing = sessionStorage.getItem(tabIdentityKey);
+      if (existing) {
+        return existing;
+      }
+
+      const created = Math.random().toString(36).slice(2);
+      sessionStorage.setItem(tabIdentityKey, created);
+      return created;
+    })();
+    const TAB_SWITCH_GRACE_MS = 5000;
     const ua = navigator.userAgent || '';
     const isIOS = /iPad|iPhone|iPod/.test(ua) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
     const isSafariEngine = /Safari/i.test(ua) && !/CriOS|FxiOS|EdgiOS|OPiOS|Chrome|Android/i.test(ua);
@@ -120,6 +131,7 @@ return asset('storage/' . $path);
     const useSafariCompatibilityMode = isIOS && isSafariEngine && iosMajorVersion !== null && iosMajorVersion <= 16;
     let hasSubmittedByRestriction = false;
     let hasCleanedUp = false;
+    let visibilityViolationTimer = null;
 
     function formatTime(sec) {
       const mm = Math.floor(sec / 60).toString().padStart(2, '0');
@@ -166,6 +178,10 @@ return asset('storage/' . $path);
       }
 
       hasCleanedUp = true;
+      if (visibilityViolationTimer) {
+        clearTimeout(visibilityViolationTimer);
+        visibilityViolationTimer = null;
+      }
       sessionStorage.removeItem('fa1_force_fullscreen');
 
       try {
@@ -216,6 +232,31 @@ return asset('storage/' . $path);
       }
     }
 
+    function scheduleVisibilityRestriction(reason) {
+      if (hasSubmittedByRestriction) {
+        return;
+      }
+
+      if (visibilityViolationTimer) {
+        clearTimeout(visibilityViolationTimer);
+      }
+
+      visibilityViolationTimer = setTimeout(function() {
+        if (document.hidden || document.webkitHidden) {
+          submitByRestriction(reason);
+        }
+      }, TAB_SWITCH_GRACE_MS);
+    }
+
+    function clearVisibilityRestrictionTimer() {
+      if (!visibilityViolationTimer) {
+        return;
+      }
+
+      clearTimeout(visibilityViolationTimer);
+      visibilityViolationTimer = null;
+    }
+
     if (hasActiveForeignTab()) {
       submitByRestriction('multiple_tab_open');
       return;
@@ -258,9 +299,11 @@ return asset('storage/' . $path);
 
     document.addEventListener('visibilitychange', function() {
       if (document.hidden) {
-        submitByRestriction('tab_switch_detected');
+        scheduleVisibilityRestriction('tab_switch_detected');
         return;
       }
+
+      clearVisibilityRestrictionTimer();
 
       if (hasActiveForeignTab()) {
         submitByRestriction('multiple_tab_open');
@@ -270,29 +313,20 @@ return asset('storage/' . $path);
     // iOS Safari can skip some focus/visibility events in specific app-switch flows.
     document.addEventListener('webkitvisibilitychange', function() {
       if (document.webkitHidden) {
-        submitByRestriction('tab_switch_detected');
-      }
-    });
-
-    window.addEventListener('pagehide', function() {
-      submitByRestriction('tab_switch_detected');
-    });
-
-    window.addEventListener('freeze', function() {
-      submitByRestriction('tab_switch_detected');
-    });
-
-    if (!useSafariCompatibilityMode) {
-      window.addEventListener('blur', function() {
-        submitByRestriction('window_focus_lost');
-      });
-    }
-
-    foregroundGuard = setInterval(() => {
-      if (document.hidden || document.webkitHidden || (typeof document.hasFocus === 'function' && !document.hasFocus())) {
-        submitByRestriction('tab_switch_detected');
+        scheduleVisibilityRestriction('tab_switch_detected');
         return;
       }
+
+      clearVisibilityRestrictionTimer();
+    });
+
+    foregroundGuard = setInterval(() => {
+      if (document.hidden || document.webkitHidden) {
+        scheduleVisibilityRestriction('tab_switch_detected');
+        return;
+      }
+
+      clearVisibilityRestrictionTimer();
 
       if (hasActiveForeignTab()) {
         submitByRestriction('multiple_tab_open');
@@ -302,6 +336,7 @@ return asset('storage/' . $path);
     window.addEventListener('beforeunload', function() {
       clearInterval(lockHeartbeat);
       clearInterval(foregroundGuard);
+      clearVisibilityRestrictionTimer();
       cleanupExamMode();
     });
 

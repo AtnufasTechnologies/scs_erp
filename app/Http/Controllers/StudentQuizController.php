@@ -859,7 +859,7 @@ class StudentQuizController extends Controller
 
     $questionIds = $quiz->questions->pluck('id')->all();
     $sessionQuestionIds = session($questionOrderKey, []);
-    if (empty($sessionQuestionIds) || count(array_intersect($sessionQuestionIds, $questionIds)) !== count($questionIds)) {
+    if (!$this->hasExactIdSet($sessionQuestionIds, $questionIds)) {
       $sessionQuestionIds = $questionIds;
       if ($quiz->shuffle_questions) {
         shuffle($sessionQuestionIds);
@@ -878,7 +878,7 @@ class StudentQuizController extends Controller
 
       $optionIds = $question->options->pluck('id')->all();
       $stored = $sessionOptionOrders[$question->id] ?? [];
-      if (empty($stored) || count(array_intersect($stored, $optionIds)) !== count($optionIds)) {
+      if (!$this->hasExactIdSet($stored, $optionIds)) {
         $stored = $optionIds;
         if ($quiz->shuffle_options) {
           shuffle($stored);
@@ -903,6 +903,35 @@ class StudentQuizController extends Controller
     session([$optionOrderKey => $sessionOptionOrders]);
 
     return $result;
+  }
+
+  private function hasExactIdSet($storedIds, array $expectedIds): bool
+  {
+    if (!is_array($storedIds)) {
+      return false;
+    }
+
+    $normalize = function (array $ids): array {
+      return array_values(array_unique(array_map(function ($id) {
+        return (int) $id;
+      }, $ids)));
+    };
+
+    $normalizedStored = $normalize($storedIds);
+    $normalizedExpected = $normalize($expectedIds);
+
+    if (count($normalizedStored) !== count($storedIds)) {
+      return false;
+    }
+
+    if (count($normalizedStored) !== count($normalizedExpected)) {
+      return false;
+    }
+
+    sort($normalizedStored);
+    sort($normalizedExpected);
+
+    return $normalizedStored === $normalizedExpected;
   }
 
   function resetQuizPassword()
