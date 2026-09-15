@@ -3,11 +3,23 @@
 use App\Models\Subject;
 use App\Models\StudentMaster;
 use App\Models\BatchMaster;
+use App\Models\AcademicPathwayMaster;
+use App\Models\DegreeTrackMaster;
+use App\Models\UserHasRole;
+use Illuminate\Support\Facades\Auth;
 
 $batches = BatchMaster::all();
+$pathways = AcademicPathwayMaster::orderBy('id')->get();
+$degreeTracks = DegreeTrackMaster::orderBy('name')->get();
+$roleType = (string) UserHasRole::where('user_id', Auth::id())->value('role_name');
+$isAccountOfficeRole = strpos($roleType, 'account-office') === 0;
 ?>
 @include('includes.header')
+@if($isAccountOfficeRole)
+@include('admin.accounts.sidebar')
+@else
 @include('admin.sidebar')
+@endif
 
 <style>
   .student-master-container {
@@ -79,7 +91,7 @@ $batches = BatchMaster::all();
 
   .search-filters {
     display: grid;
-    grid-template-columns: 2fr 1fr;
+    grid-template-columns: 2fr 1fr 1fr 1fr;
     gap: 12px;
     margin-bottom: 16px;
   }
@@ -551,6 +563,8 @@ $batches = BatchMaster::all();
 
   <div class="search-container">
     <?php $selectedBatchId = request()->input('batch_id'); ?>
+    <?php $selectedPathwayId = request()->input('academic_pathway_id'); ?>
+    <?php $selectedDegreeTrackId = request()->input('degree_track_id'); ?>
     <div class="search-filters">
       <div class="search-box">
         <input type="text" id="searchInput" placeholder="Search by name, roll no, register no, email..." autocomplete="off">
@@ -561,6 +575,22 @@ $batches = BatchMaster::all();
           <option value="">All Batches</option>
           @foreach ($batches as $batch)
           <option value="{{ $batch->id }}" {{ (string)$selectedBatchId === (string)$batch->id ? 'selected' : '' }}>{{ $batch->batch_name }}</option>
+          @endforeach
+        </select>
+      </div>
+      <div>
+        <select id="pathwayFilter" class="form-control" aria-label="Filter by academic pathway">
+          <option value="">All Pathways</option>
+          @foreach ($pathways as $pathway)
+          <option value="{{ $pathway->id }}" {{ (string)$selectedPathwayId === (string)$pathway->id ? 'selected' : '' }}>{{ $pathway->name }}</option>
+          @endforeach
+        </select>
+      </div>
+      <div>
+        <select id="degreeTrackFilter" class="form-control" aria-label="Filter by degree track">
+          <option value="">All Degree Tracks</option>
+          @foreach ($degreeTracks as $track)
+          <option value="{{ $track->id }}" {{ (string)$selectedDegreeTrackId === (string)$track->id ? 'selected' : '' }}>{{ $track->name }}</option>
           @endforeach
         </select>
       </div>
@@ -582,9 +612,13 @@ $batches = BatchMaster::all();
       <div class="student-card-header">
         <div class="student-info">
           <div class="student-name">{{ $item->first_name }} {{ $item->last_name }}</div>
+          @if($isAccountOfficeRole)
+          <span class="student-roll">{{ $item->roll_no }}</span>
+          @else
           <a href="{{ url('erp/admin/'.$item->id.'/std-profile/'.$item->roll_no) }}" class="student-roll">
             {{ $item->roll_no }}
           </a>
+          @endif
           <span class="badge badge-warning">📚 {{$item->library_code}}</span>
           <span class="badge badge-primary">{{ $item->academicpathway->name ?? ''}} - {{ $item->degreetrack->name ?? '' }}</span>
           <span class="badge badge-primary">{{ $item->singleselection->title ?? '' }}</span>
@@ -596,65 +630,15 @@ $batches = BatchMaster::all();
 
       </div>
 
-      <div class="student-details">
-        <div class="detail-item">
-          <span class="detail-label">Register No</span>
-          <span class="detail-value">{{ $item->register_no }}</span>
-        </div>
-
-        <div class="detail-item">
-          <span class="detail-label">Date of Birth</span>
-          <span class="detail-value">{{ $item->dob }}</span>
-        </div>
-
-        <div class="detail-item">
-          <span class="detail-label">Email</span>
-          <span class="detail-value">
-            <a href="mailto:{{ $item->mail_id }}">{{ $item->mail_id }}</a>
-          </span>
-        </div>
-
-        <div class="detail-item">
-          <span class="detail-label">Phone</span>
-          <span class="detail-value">{{ $item->mobile_no }}</span>
-        </div>
-
-        <div class="detail-item">
-          <span class="detail-label">Religion</span>
-          <span class="detail-value text-capitalize">{{ $item->religionmaster != null ? $item->religionmaster->name : 'N/A' }}</span>
-        </div>
-
-        <div class="detail-item">
-          <span class="detail-label">Campus</span>
-          <span class="detail-value">{{ $item->campusmaster != null ? $item->campusmaster->name : 'N/A' }}</span>
-        </div>
-
-        @if($item->stdprogramenrolled != null)
-        <div class="detail-item">
-          <span class="detail-label">Program Enrolled -
-
-            @if ($item->stdprogramenrolled->program_type != null)
-            <span class="text-success">{{$item->stdprogramenrolled->program_type == '1' ? 'UGC' : 'AICTE'}}</span>
-            @else
-            <span class="text-danger">UNMAPPED</span>
-            @endif
-
-          </span>
-          <span class="detail-value">{{ $item->stdprogramenrolled != null ? $item->stdprogramenrolled->code : 'N/A' }} - {{ $item->stdprogramenrolled != null ? $item->stdprogramenrolled->name : 'N/A' }}</span>
-        </div>
-        @else
-        <p> <span class="badge badge-danger">Critical Program Enrollment Issue Detected</span></p>
-        @endif
-
-
-      </div>
-
-
       <div class="academic-info">
         <div class="academic-tags">
+          <span class="academic-tag">
+            🎯 Program: {{ $item->stdprogramenrolled != null ? ($item->stdprogramenrolled->code . ' - ' . $item->stdprogramenrolled->name) : 'Not Mapped' }}
+          </span>
           <span class="academic-tag">📅 Batch: {{ $item->batchmaster != null ? $item->batchmaster->batch_name : 'N/A' }}</span>
           <span class="academic-tag">📖 Active Sem: {{ $semester ?? 'Not Set' }} </span>
           <span class="academic-tag">📊 Year: {{ $item->current_year }}</span>
+          @if(!$isAccountOfficeRole)
           <button
             type="button"
             class="btn btn-sm btn-outline-danger demote-semester-btn"
@@ -664,6 +648,7 @@ $batches = BatchMaster::all();
             {{ (int)($semester ?? 0) <= 1 ? 'disabled' : '' }}>
             Demote Semester
           </button>
+          @endif
         </div>
       </div>
     </div>
@@ -698,6 +683,9 @@ $batches = BatchMaster::all();
   const noResultsMessage = document.getElementById('noResultsMessage');
   const searchBox = document.querySelector('.search-box');
   const batchFilter = document.getElementById('batchFilter');
+  const pathwayFilter = document.getElementById('pathwayFilter');
+  const degreeTrackFilter = document.getElementById('degreeTrackFilter');
+  const isAccountOfficeRole = @json($isAccountOfficeRole);
   const studentMasterContainer = document.querySelector('.student-master-container');
 
   let searchTimeout;
@@ -705,8 +693,16 @@ $batches = BatchMaster::all();
   const currentUrl = window.location.pathname;
   const campusId = currentUrl.includes('sonada') ? 1 : 2;
   const initialBatchId = new URLSearchParams(window.location.search).get('batch_id') || '';
+  const initialPathwayId = new URLSearchParams(window.location.search).get('academic_pathway_id') || '';
+  const initialDegreeTrackId = new URLSearchParams(window.location.search).get('degree_track_id') || '';
   if (batchFilter && initialBatchId) {
     batchFilter.value = initialBatchId;
+  }
+  if (pathwayFilter && initialPathwayId) {
+    pathwayFilter.value = initialPathwayId;
+  }
+  if (degreeTrackFilter && initialDegreeTrackId) {
+    degreeTrackFilter.value = initialDegreeTrackId;
   }
   const totalStudents = parseInt(document.getElementById('totalStudents').value) || 0;
 
@@ -727,9 +723,7 @@ $batches = BatchMaster::all();
         <div class="student-card-header">
           <div class="student-info">
             <div class="student-name">${student.first_name} ${student.last_name}</div>
-            <a href="/erp/admin/${student.id}/std-profile/${student.roll_no}" class="student-roll">
-              ${student.roll_no}
-            </a>
+            ${isAccountOfficeRole ? `<span class="student-roll">${student.roll_no}</span>` : `<a href="/erp/admin/${student.id}/std-profile/${student.roll_no}" class="student-roll">${student.roll_no}</a>`}
                          ${student.library_code ? `<span class="badge badge-warning">📚 ${student.library_code}</span>` : ''}
             
               ${student.academicpathway?.name || student.degreetrack?.name ? `<span class="badge badge-primary">${student.academicpathway?.name || ''}${student.academicpathway?.name && student.degreetrack?.name ? ' - ' : ''}${student.degreetrack?.name || ''}</span>` : ''}
@@ -741,53 +735,13 @@ $batches = BatchMaster::all();
           </span>
         </div>
 
-        <div class="student-details">
-          <div class="detail-item">
-            <span class="detail-label">Register No</span>
-            <span class="detail-value">${student.register_no || 'N/A'}</span>
-          </div>
-
-          <div class="detail-item">
-            <span class="detail-label">Date of Birth</span>
-            <span class="detail-value">${student.dob || 'N/A'}</span>
-          </div>
-
-          <div class="detail-item">
-            <span class="detail-label">Email</span>
-            <span class="detail-value">
-              <a href="mailto:${student.mail_id}">${student.mail_id || 'N/A'}</a>
-            </span>
-          </div>
-
-          <div class="detail-item">
-            <span class="detail-label">Phone</span>
-            <span class="detail-value">${student.mobile_no || 'N/A'}</span>
-          </div>
-
-          <div class="detail-item">
-            <span class="detail-label">Religion</span>
-            <span class="detail-value text-capitalize">${student.religionmaster?.name || 'N/A'}</span>
-          </div>
-
-          <div class="detail-item">
-            <span class="detail-label">Campus</span>
-            <span class="detail-value">${student.campusmaster?.name || 'N/A'}</span>
-          </div>
-
-          <div class="detail-item">
-            <span class="detail-label ">Program Enrolled ${student.stdprogramenrolled?.program_type == null ? '<span class="text-danger">UNMAPPED</span>' : 
-            student.stdprogramenrolled?.program_type == '1' ? '<span class="text-success">UGC</span>' : '<span class="text-success">AICTE</span>'
-            }</span>
-            <span class="detail-value">${student.stdprogramenrolled ? `${student.stdprogramenrolled.code} - ${student.stdprogramenrolled.name}` : 'N/A'}</span>
-          </div>
-        </div>
-
         <div class="academic-info">
           <div class="academic-tags">
+            <span class="academic-tag">🎯 Program: ${student.stdprogramenrolled ? `${student.stdprogramenrolled.code} - ${student.stdprogramenrolled.name}` : 'Not Mapped'}</span>
             <span class="academic-tag">📅 Batch: ${student.batchmaster?.batch_name || 'N/A'}</span>
             <span class="academic-tag">📖 Active Sem: ${student.current_semester || 'Not Set'}</span>
             <span class="academic-tag">📊 Year: ${student.current_year || 'N/A'}</span>
-            <button
+            ${isAccountOfficeRole ? '' : `<button
               type="button"
               class="btn btn-sm btn-outline-danger demote-semester-btn"
               data-student-id="${student.id}"
@@ -795,7 +749,7 @@ $batches = BatchMaster::all();
               data-semester="${student.current_semester || 0}"
               ${(parseInt(student.current_semester || 0, 10) <= 1) ? 'disabled' : ''}>
               Demote Semester
-            </button>
+            </button>`}
           </div>
         </div>
       </div>
@@ -820,6 +774,8 @@ $batches = BatchMaster::all();
     showLoading();
 
     const selectedBatch = batchFilter ? batchFilter.value : '';
+    const selectedPathway = pathwayFilter ? pathwayFilter.value : '';
+    const selectedDegreeTrack = degreeTrackFilter ? degreeTrackFilter.value : '';
     const queryParams = new URLSearchParams({
       search: searchTerm,
       campus_id: campusId
@@ -827,6 +783,14 @@ $batches = BatchMaster::all();
 
     if (selectedBatch) {
       queryParams.append('batch_id', selectedBatch);
+    }
+
+    if (selectedPathway) {
+      queryParams.append('academic_pathway_id', selectedPathway);
+    }
+
+    if (selectedDegreeTrack) {
+      queryParams.append('degree_track_id', selectedDegreeTrack);
     }
 
     fetch(`/erp/admin/student-search?${queryParams.toString()}`, {
@@ -883,23 +847,48 @@ $batches = BatchMaster::all();
     }, 500); // Debounce for 500ms
   });
 
+  function handleFilterChange() {
+    const queryParams = new URLSearchParams(window.location.search);
+
+    const selectedBatch = batchFilter ? batchFilter.value : '';
+    const selectedPathway = pathwayFilter ? pathwayFilter.value : '';
+    const selectedDegreeTrack = degreeTrackFilter ? degreeTrackFilter.value : '';
+
+    if (selectedBatch) {
+      queryParams.set('batch_id', selectedBatch);
+    } else {
+      queryParams.delete('batch_id');
+    }
+
+    if (selectedPathway) {
+      queryParams.set('academic_pathway_id', selectedPathway);
+    } else {
+      queryParams.delete('academic_pathway_id');
+    }
+
+    if (selectedDegreeTrack) {
+      queryParams.set('degree_track_id', selectedDegreeTrack);
+    } else {
+      queryParams.delete('degree_track_id');
+    }
+
+    const nextUrl = queryParams.toString() ? `${currentUrl}?${queryParams.toString()}` : currentUrl;
+    window.history.replaceState({}, '', nextUrl);
+
+    clearTimeout(searchTimeout);
+    performSearch(searchInput.value.trim());
+  }
+
   if (batchFilter) {
-    batchFilter.addEventListener('change', function() {
-      const selectedBatch = this.value;
-      const queryParams = new URLSearchParams(window.location.search);
+    batchFilter.addEventListener('change', handleFilterChange);
+  }
 
-      if (selectedBatch) {
-        queryParams.set('batch_id', selectedBatch);
-      } else {
-        queryParams.delete('batch_id');
-      }
+  if (pathwayFilter) {
+    pathwayFilter.addEventListener('change', handleFilterChange);
+  }
 
-      const nextUrl = queryParams.toString() ? `${currentUrl}?${queryParams.toString()}` : currentUrl;
-      window.history.replaceState({}, '', nextUrl);
-
-      clearTimeout(searchTimeout);
-      performSearch(searchInput.value.trim());
-    });
+  if (degreeTrackFilter) {
+    degreeTrackFilter.addEventListener('change', handleFilterChange);
   }
 
   studentsGrid.addEventListener('click', function(event) {

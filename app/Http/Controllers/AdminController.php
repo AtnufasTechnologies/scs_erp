@@ -86,6 +86,8 @@ class AdminController extends Controller
     function stdMasterSonada()
     {
         $batchId = request()->input('batch_id');
+        $academicPathwayId = request()->input('academic_pathway_id');
+        $degreeTrackId = request()->input('degree_track_id');
 
         $data = StudentMaster::with([
             'religionmaster:id,name',
@@ -108,6 +110,14 @@ class AdminController extends Controller
             $data->where('batch', $batchId);
         }
 
+        if (!empty($academicPathwayId)) {
+            $data->where('academic_pathway_id', $academicPathwayId);
+        }
+
+        if (!empty($degreeTrackId)) {
+            $data->where('degree_track_id', $degreeTrackId);
+        }
+
         $data = $data->paginate(12)->appends(request()->query());
 
         return view('admin.students.student-master', ['data' => $data]);
@@ -116,6 +126,8 @@ class AdminController extends Controller
     function stdMasterSiliguri()
     {
         $batchId = request()->input('batch_id');
+        $academicPathwayId = request()->input('academic_pathway_id');
+        $degreeTrackId = request()->input('degree_track_id');
 
         $data = StudentMaster::with([
             'religionmaster:id,name',
@@ -136,6 +148,14 @@ class AdminController extends Controller
             $data->where('batch', $batchId);
         }
 
+        if (!empty($academicPathwayId)) {
+            $data->where('academic_pathway_id', $academicPathwayId);
+        }
+
+        if (!empty($degreeTrackId)) {
+            $data->where('degree_track_id', $degreeTrackId);
+        }
+
         $data = $data->paginate(12)->appends(request()->query());
 
         return view('admin.students.student-master', ['data' => $data]);
@@ -146,6 +166,8 @@ class AdminController extends Controller
         $searchTerm = $request->input('search');
         $campusId = $request->input('campus_id', 2); // Default to Siliguri
         $batchId = $request->input('batch_id');
+        $academicPathwayId = $request->input('academic_pathway_id');
+        $degreeTrackId = $request->input('degree_track_id');
 
         $query = StudentMaster::with([
             'religionmaster:id,name',
@@ -165,6 +187,14 @@ class AdminController extends Controller
 
         if (!empty($batchId)) {
             $query->where('batch', $batchId);
+        }
+
+        if (!empty($academicPathwayId)) {
+            $query->where('academic_pathway_id', $academicPathwayId);
+        }
+
+        if (!empty($degreeTrackId)) {
+            $query->where('degree_track_id', $degreeTrackId);
         }
 
         if (!empty($searchTerm)) {
@@ -215,6 +245,10 @@ class AdminController extends Controller
 
     function stdprofile(int $id, string $rollno)
     {
+        $roleType = (string) UserHasRole::where('user_id', Auth::id())->value('role_name');
+        if (strpos($roleType, 'account-office') === 0) {
+            abort(403, 'Account office users are not allowed to view full student profile data.');
+        }
 
         $data = StudentMaster::where('id', $id)->with([
             'religionmaster:id,name',

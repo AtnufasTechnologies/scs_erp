@@ -86,6 +86,38 @@ $isIncharge  = $roleType === 'account-office-incharge';
     </li>
     @endif
 
+    @if(
+    $isIncharge ||
+    StaticController::subMenuRights('student-master-sonada') ||
+    StaticController::subMenuRights('student-master-siliguri')
+    )
+    <li>
+      <a class="has-arrow" href="javascript:;">
+        <div class="parent-icon"><i class="fas fa-user-check"></i></div>
+        <div class="menu-title">Student Verification</div>
+      </a>
+      <ul>
+        @if($isIncharge || StaticController::subMenuRights('student-master-sonada'))
+        <li>
+          <a href="{{ route('sonada.studentmaster') }}">
+            <div class="parent-icon"><i class="fas fa-building"></i></div>
+            <div class="menu-title">View Students (Sonada)</div>
+          </a>
+        </li>
+        @endif
+
+        @if($isIncharge || StaticController::subMenuRights('student-master-siliguri'))
+        <li>
+          <a href="{{ route('siliguri.studentmaster') }}">
+            <div class="parent-icon"><i class="fas fa-building"></i></div>
+            <div class="menu-title">View Students (Siliguri)</div>
+          </a>
+        </li>
+        @endif
+      </ul>
+    </li>
+    @endif
+
     <li class="menu-label">Masters</li>
 
     @if($isIncharge || StaticController::subMenuRights('bank-master'))
