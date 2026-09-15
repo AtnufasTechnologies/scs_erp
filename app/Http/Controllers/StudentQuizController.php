@@ -590,103 +590,123 @@ class StudentQuizController extends Controller
         $query->whereRaw('1 = 0');
       });
 
+    $permissionOverride = function ($permissionQuery) use ($student) {
+      $permissionQuery->select(DB::raw(1))
+        ->from('quiz_attempt_permissions as qap')
+        ->whereColumn('qap.quiz_id', 'quizzes.id')
+        ->where('qap.student_id', (int) $student->id)
+        ->where('qap.max_attempts', '>', 0);
+    };
+
     if (!$hasQuizTeachingAssignmentColumn && !$hasTeachingAssignmentColumn && !$hasTeachingAllocationColumn) {
-      return $query->whereRaw('1 = 0');
+      return $query->whereExists($permissionOverride);
     }
 
-    return $query->whereExists(function ($existsQuery) use (
+    return $query->where(function ($eligibilityQuery) use (
       $student,
       $hasQuizTeachingAssignmentColumn,
       $hasTeachingAssignmentColumn,
       $hasTeachingAllocationColumn,
       $hasRosterDeletedAtColumn,
-      $hasRosterRoutineColumn
+      $hasRosterRoutineColumn,
+      $permissionOverride
     ) {
-      $existsQuery->select(DB::raw(1))
-        ->from('student_course_rosters as scr')
-        ->where('scr.student_id', (int) $student->id)
-        ->whereColumn('scr.course_id', 'quizzes.course_id')
-        ->where(function ($matchQuery) use ($hasQuizTeachingAssignmentColumn, $hasTeachingAssignmentColumn, $hasTeachingAllocationColumn, $hasRosterRoutineColumn) {
-          $matchViaSyllabusRoutine = function ($routineQuery) use ($hasTeachingAssignmentColumn, $hasTeachingAllocationColumn) {
-            $routineQuery->select(DB::raw(1))
-              ->from('subject_has_routines as shr')
-              ->whereColumn('shr.syllabus_id', 'quizzes.syllabus_id')
-              ->whereColumn('shr.faculty_id', 'quizzes.faculty_id')
-              ->where(function ($assignmentQuery) use ($hasTeachingAssignmentColumn, $hasTeachingAllocationColumn) {
-                if ($hasTeachingAssignmentColumn) {
-                  $assignmentQuery->whereColumn('scr.ta_id', 'shr.teaching_assignment_id');
-                }
+      $eligibilityQuery->whereExists(function ($existsQuery) use (
+        $student,
+        $hasQuizTeachingAssignmentColumn,
+        $hasTeachingAssignmentColumn,
+        $hasTeachingAllocationColumn,
+        $hasRosterDeletedAtColumn,
+        $hasRosterRoutineColumn
+      ) {
+        $existsQuery->select(DB::raw(1))
+          ->from('student_course_rosters as scr')
+          ->where('scr.student_id', (int) $student->id)
+          ->whereColumn('scr.course_id', 'quizzes.course_id')
+          ->where(function ($matchQuery) use ($hasQuizTeachingAssignmentColumn, $hasTeachingAssignmentColumn, $hasTeachingAllocationColumn, $hasRosterRoutineColumn) {
+            $matchViaSyllabusRoutine = function ($routineQuery) use ($hasTeachingAssignmentColumn, $hasTeachingAllocationColumn) {
+              $routineQuery->select(DB::raw(1))
+                ->from('subject_has_routines as shr')
+                ->whereColumn('shr.syllabus_id', 'quizzes.syllabus_id')
+                ->whereColumn('shr.faculty_id', 'quizzes.faculty_id')
+                ->where(function ($assignmentQuery) use ($hasTeachingAssignmentColumn, $hasTeachingAllocationColumn) {
+                  if ($hasTeachingAssignmentColumn) {
+                    $assignmentQuery->whereColumn('scr.ta_id', 'shr.teaching_assignment_id');
+                  }
 
-                if ($hasTeachingAllocationColumn) {
-                  $assignmentQuery->orWhereColumn('scr.ta_id', 'shr.teaching_allocation_id');
-                }
-              });
-          };
+                  if ($hasTeachingAllocationColumn) {
+                    $assignmentQuery->orWhereColumn('scr.ta_id', 'shr.teaching_allocation_id');
+                  }
+                });
+            };
 
-          if ($hasRosterRoutineColumn) {
-            $matchQuery->where(function ($routineScopedQuery) use ($hasQuizTeachingAssignmentColumn, $hasTeachingAssignmentColumn, $hasTeachingAllocationColumn, $matchViaSyllabusRoutine) {
-              $routineScopedQuery->whereExists(function ($routineJoinQuery) use ($hasTeachingAssignmentColumn, $hasTeachingAllocationColumn) {
-                $routineJoinQuery->select(DB::raw(1))
-                  ->from('subject_has_routines as shr')
-                  ->whereColumn('shr.id', 'scr.routine_id')
-                  ->whereColumn('shr.syllabus_id', 'quizzes.syllabus_id')
-                  ->whereColumn('shr.faculty_id', 'quizzes.faculty_id')
-                  ->where(function ($assignmentQuery) use ($hasTeachingAssignmentColumn, $hasTeachingAllocationColumn) {
-                    if ($hasTeachingAssignmentColumn) {
-                      $assignmentQuery->whereColumn('scr.ta_id', 'shr.teaching_assignment_id');
-                    }
-
-                    if ($hasTeachingAllocationColumn) {
-                      $assignmentQuery->orWhereColumn('scr.ta_id', 'shr.teaching_allocation_id');
-                    }
-                  });
-              });
-
-              $routineScopedQuery->orWhere(function ($legacyQuery) use ($hasQuizTeachingAssignmentColumn, $hasTeachingAssignmentColumn, $hasTeachingAllocationColumn, $matchViaSyllabusRoutine) {
-                $legacyQuery->whereNull('scr.routine_id')
-                  ->where(function ($fallbackMatchQuery) use ($hasQuizTeachingAssignmentColumn, $hasTeachingAssignmentColumn, $hasTeachingAllocationColumn, $matchViaSyllabusRoutine) {
-                    $hasDirectMatchCondition = false;
-
-                    if ($hasQuizTeachingAssignmentColumn) {
-                      $fallbackMatchQuery->whereColumn('scr.ta_id', 'quizzes.teaching_assignment_id');
-                      $hasDirectMatchCondition = true;
-                    }
-
-                    if ($hasTeachingAssignmentColumn || $hasTeachingAllocationColumn) {
-                      if ($hasDirectMatchCondition) {
-                        $fallbackMatchQuery->orWhereExists($matchViaSyllabusRoutine);
-                      } else {
-                        $fallbackMatchQuery->whereExists($matchViaSyllabusRoutine);
+            if ($hasRosterRoutineColumn) {
+              $matchQuery->where(function ($routineScopedQuery) use ($hasQuizTeachingAssignmentColumn, $hasTeachingAssignmentColumn, $hasTeachingAllocationColumn, $matchViaSyllabusRoutine) {
+                $routineScopedQuery->whereExists(function ($routineJoinQuery) use ($hasTeachingAssignmentColumn, $hasTeachingAllocationColumn) {
+                  $routineJoinQuery->select(DB::raw(1))
+                    ->from('subject_has_routines as shr')
+                    ->whereColumn('shr.id', 'scr.routine_id')
+                    ->whereColumn('shr.syllabus_id', 'quizzes.syllabus_id')
+                    ->whereColumn('shr.faculty_id', 'quizzes.faculty_id')
+                    ->where(function ($assignmentQuery) use ($hasTeachingAssignmentColumn, $hasTeachingAllocationColumn) {
+                      if ($hasTeachingAssignmentColumn) {
+                        $assignmentQuery->whereColumn('scr.ta_id', 'shr.teaching_assignment_id');
                       }
-                    }
-                  });
+
+                      if ($hasTeachingAllocationColumn) {
+                        $assignmentQuery->orWhereColumn('scr.ta_id', 'shr.teaching_allocation_id');
+                      }
+                    });
+                });
+
+                $routineScopedQuery->orWhere(function ($legacyQuery) use ($hasQuizTeachingAssignmentColumn, $hasTeachingAssignmentColumn, $hasTeachingAllocationColumn, $matchViaSyllabusRoutine) {
+                  $legacyQuery->whereNull('scr.routine_id')
+                    ->where(function ($fallbackMatchQuery) use ($hasQuizTeachingAssignmentColumn, $hasTeachingAssignmentColumn, $hasTeachingAllocationColumn, $matchViaSyllabusRoutine) {
+                      $hasDirectMatchCondition = false;
+
+                      if ($hasQuizTeachingAssignmentColumn) {
+                        $fallbackMatchQuery->whereColumn('scr.ta_id', 'quizzes.teaching_assignment_id');
+                        $hasDirectMatchCondition = true;
+                      }
+
+                      if ($hasTeachingAssignmentColumn || $hasTeachingAllocationColumn) {
+                        if ($hasDirectMatchCondition) {
+                          $fallbackMatchQuery->orWhereExists($matchViaSyllabusRoutine);
+                        } else {
+                          $fallbackMatchQuery->whereExists($matchViaSyllabusRoutine);
+                        }
+                      }
+                    });
+                });
               });
-            });
 
-            return;
-          }
-
-          $hasDirectMatchCondition = false;
-
-          // Primary path: use backfilled quiz assignment context directly.
-          if ($hasQuizTeachingAssignmentColumn) {
-            $matchQuery->whereColumn('scr.ta_id', 'quizzes.teaching_assignment_id');
-            $hasDirectMatchCondition = true;
-          }
-
-          // Legacy fallback: allow older quizzes without stored assignment context.
-          if ($hasTeachingAssignmentColumn || $hasTeachingAllocationColumn) {
-            if ($hasDirectMatchCondition) {
-              $matchQuery->orWhereExists($matchViaSyllabusRoutine);
-            } else {
-              $matchQuery->whereExists($matchViaSyllabusRoutine);
+              return;
             }
-          }
-        });
 
-      if ($hasRosterDeletedAtColumn) {
-        $existsQuery->whereNull('scr.deleted_at');
-      }
+            $hasDirectMatchCondition = false;
+
+            // Primary path: use backfilled quiz assignment context directly.
+            if ($hasQuizTeachingAssignmentColumn) {
+              $matchQuery->whereColumn('scr.ta_id', 'quizzes.teaching_assignment_id');
+              $hasDirectMatchCondition = true;
+            }
+
+            // Legacy fallback: allow older quizzes without stored assignment context.
+            if ($hasTeachingAssignmentColumn || $hasTeachingAllocationColumn) {
+              if ($hasDirectMatchCondition) {
+                $matchQuery->orWhereExists($matchViaSyllabusRoutine);
+              } else {
+                $matchQuery->whereExists($matchViaSyllabusRoutine);
+              }
+            }
+          });
+
+        if ($hasRosterDeletedAtColumn) {
+          $existsQuery->whereNull('scr.deleted_at');
+        }
+      });
+
+      $eligibilityQuery->orWhereExists($permissionOverride);
     });
   }
 

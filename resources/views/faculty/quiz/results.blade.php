@@ -72,7 +72,7 @@
               </div>
               <div class="col-md-8">
                 <label class="form-label fw-bold">Select Students (Mulit Select)</label>
-                <select class="select-multiple" name="student_ids[]" multiple size="8" @if($enrolledStudents->isNotEmpty()) required @else disabled @endif>
+                <select class="select-multiple" name="student_ids[]" multiple size="8" @if($enrolledStudents->isEmpty()) disabled @endif>
                   @foreach($enrolledStudents as $student)
                   @php
                   $used = (int) ($attemptCounts[$student->id] ?? 0);
@@ -88,9 +88,14 @@
                 <small class="text-muted d-block mt-2">No students found in StudentCourseRoster for this quiz.</small>
                 @endif
               </div>
+              <div class="col-12">
+                <label class="form-label fw-bold">Emergency Roll Numbers (Optional)</label>
+                <textarea name="roll_numbers" class="form-control" rows="2" placeholder="Example: USL2025EDMC001, USL2025ENMC026"></textarea>
+                <small class="text-muted">Use comma, space, or newline separated roll numbers to grant emergency access.</small>
+              </div>
             </div>
             <div class="mt-3">
-              <button type="submit" class="btn btn-primary" @disabled($enrolledStudents->isEmpty())>Update Attempt Permission</button>
+              <button type="submit" class="btn btn-primary">Update Attempt Permission</button>
             </div>
           </form>
         </div>

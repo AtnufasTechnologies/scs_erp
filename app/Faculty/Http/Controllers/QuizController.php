@@ -1019,13 +1019,48 @@ class QuizController extends Controller
       ->firstOrFail();
 
     $request->validate([
-      'student_ids' => 'required|array|min:1',
+      'student_ids' => 'nullable|array',
       'student_ids.*' => 'required|integer|exists:student_masters,id',
+      'roll_numbers' => 'nullable|string',
       'max_attempts' => 'required|integer|min:2|max:10',
     ]);
 
-    DB::transaction(function () use ($request, $quiz) {
-      foreach ($request->student_ids as $studentId) {
+    $studentIds = collect($request->input('student_ids', []))
+      ->map(fn($studentId) => (int) $studentId)
+      ->filter(fn($studentId) => $studentId > 0)
+      ->unique();
+
+    $rawRollNumbers = preg_split('/[\s,;]+/', (string) $request->input('roll_numbers', ''));
+    $normalizedRollNumbers = collect($rawRollNumbers)
+      ->map(fn($rollNo) => strtoupper(trim((string) $rollNo)))
+      ->filter(fn($rollNo) => $rollNo !== '')
+      ->unique()
+      ->values();
+
+    if ($normalizedRollNumbers->isNotEmpty()) {
+      $matchedStudentIds = DB::table('student_masters')
+        ->whereIn(DB::raw('UPPER(TRIM(roll_no))'), $normalizedRollNumbers->all())
+        ->where(function ($query) {
+          $query->whereNull('is_deleted')->orWhere('is_deleted', 0);
+        })
+        ->where(function ($query) {
+          $query->whereNull('is_left')->orWhere('is_left', 0);
+        })
+        ->pluck('id')
+        ->map(fn($studentId) => (int) $studentId)
+        ->filter(fn($studentId) => $studentId > 0)
+        ->unique();
+
+      $studentIds = $studentIds->merge($matchedStudentIds)->unique()->values();
+    }
+
+    if ($studentIds->isEmpty()) {
+      return redirect()->route('faculty.fa1.results', $quiz->id)
+        ->with('error', 'Provide at least one student (select list or roll numbers).');
+    }
+
+    DB::transaction(function () use ($request, $quiz, $studentIds) {
+      foreach ($studentIds as $studentId) {
         QuizAttemptPermission::updateOrCreate(
           [
             'quiz_id' => $quiz->id,

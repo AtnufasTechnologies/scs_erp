@@ -41,6 +41,20 @@
           </div>
           @endif
 
+          @if(session('success'))
+          <div class="alert alert-success alert-dismissible fade show mt-3" role="alert">
+            {{ session('success') }}
+            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+          </div>
+          @endif
+
+          @if(session('error'))
+          <div class="alert alert-danger alert-dismissible fade show mt-3" role="alert">
+            {{ session('error') }}
+            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+          </div>
+          @endif
+
           <div class="card shadow-sm border-0 mt-3">
             <div class="card-body">
               <div class="d-flex justify-content-between align-items-start flex-wrap gap-2">
@@ -100,6 +114,51 @@
               </div>
             </div>
           </div>
+
+          @if($role === 'itcell')
+          <div id="emergency-access" class="card shadow-sm border-0 mt-3">
+            <div class="card-header bg-white py-3">
+              <h6 class="mb-0 fw-bold">Emergency Student Access Override</h6>
+            </div>
+            <div class="card-body">
+              <form method="POST" action="{{ route('itcell.quizzes.allow-attempts', $quiz->id) }}" class="row g-3">
+                @csrf
+                <div class="col-md-3">
+                  <label class="form-label fw-bold">Set Max Attempts</label>
+                  <input type="number" min="1" max="10" name="max_attempts" class="form-control" value="1" required>
+                </div>
+                <div class="col-md-9">
+                  <label class="form-label fw-bold">Roll Numbers</label>
+                  <textarea name="roll_numbers" class="form-control" rows="2" placeholder="Example: USL2025EDMC001, USL2025ENMC026" required></textarea>
+                  <small class="text-muted">Separate values with comma, space, or new line. This bypasses roster visibility for emergencies.</small>
+                </div>
+                <div class="col-12">
+                  <button type="submit" class="btn btn-primary">Grant Emergency Access</button>
+                </div>
+              </form>
+
+              <hr class="my-4">
+
+              <form method="POST" action="{{ route('itcell.quizzes.revoke-attempts', $quiz->id) }}" class="row g-3" onsubmit="return confirm('Reset emergency access for the provided roll numbers on this quiz?');">
+                @csrf
+                <div class="col-md-9">
+                  <label class="form-label fw-bold">Reset by Roll Numbers</label>
+                  <textarea name="roll_numbers" class="form-control" rows="2" placeholder="Example: USL2025EDMC001, USL2025ENMC026" required></textarea>
+                  <small class="text-muted">Only this quiz will be affected.</small>
+                </div>
+                <div class="col-md-3 d-flex align-items-end">
+                  <button type="submit" class="btn btn-outline-danger w-100">Reset Selected Access</button>
+                </div>
+              </form>
+
+              <form method="POST" action="{{ route('itcell.quizzes.revoke-attempts', $quiz->id) }}" class="mt-3" onsubmit="return confirm('This will remove ALL emergency access rows for this quiz. Continue?');">
+                @csrf
+                <input type="hidden" name="reset_all" value="1">
+                <button type="submit" class="btn btn-danger">Reset All Emergency Access (This Quiz)</button>
+              </form>
+            </div>
+          </div>
+          @endif
 
           <div class="card shadow-sm border-0 mt-3">
             <div class="card-header bg-white py-3">

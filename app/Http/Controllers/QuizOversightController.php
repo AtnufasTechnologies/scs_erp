@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\Quiz;
 use App\Models\QuizAttempt;
+use App\Models\QuizAttemptPermission;
 use App\Models\QuizQuestion;
 use App\Models\QuizQuestionOption;
 use App\Models\StudentCourseRoster;
@@ -443,6 +444,206 @@ class QuizOversightController extends Controller
       'averageScore' => $avgScore,
       'monitorIndexRoute' => $this->monitorIndexRouteName($role),
     ]);
+  }
+
+  public function emergencyAccess()
+  {
+    $role = $this->resolveAuthorizedRole();
+    if ($role !== 'itcell') {
+      abort(403, 'Only ITCELL can access emergency FA1 tools.');
+    }
+
+    $now = now();
+    $query = $this->scopedQuizQueryForRole($role);
+
+    $quizId = (int) ((clone $query)
+      ->where('is_published', 1)
+      ->orderByRaw(
+        'CASE
+            WHEN open_at IS NOT NULL AND open_at <= ? AND (close_at IS NULL OR close_at > ?) THEN 0
+            WHEN open_at IS NOT NULL AND open_at > ? THEN 1
+            ELSE 2
+          END',
+        [$now, $now, $now]
+      )
+      ->orderBy('open_at')
+      ->orderByDesc('id')
+      ->value('id'));
+
+    if ($quizId <= 0) {
+      $quizId = (int) ((clone $query)->orderByDesc('id')->value('id'));
+    }
+
+    if ($quizId <= 0) {
+      return redirect()->route('itcell.quizzes.index')
+        ->with('error', 'No quizzes available for emergency access.');
+    }
+
+    return redirect()->to(route('itcell.quizzes.results', ['quizId' => $quizId]) . '#emergency-access');
+  }
+
+  public function allowAttempts(Request $request, int $quizId)
+  {
+    $role = $this->resolveAuthorizedRole();
+    if ($role !== 'itcell') {
+      abort(403, 'Only ITCELL can grant emergency attempt permissions.');
+    }
+
+    $quiz = Quiz::query()->findOrFail($quizId);
+
+    $validated = $request->validate([
+      'student_ids' => 'nullable|array',
+      'student_ids.*' => 'required|integer|exists:student_masters,id',
+      'roll_numbers' => 'nullable|string',
+      'max_attempts' => 'required|integer|min:1|max:10',
+    ]);
+
+    $studentIds = collect($validated['student_ids'] ?? [])
+      ->map(fn($studentId) => (int) $studentId)
+      ->filter(fn($studentId) => $studentId > 0)
+      ->unique();
+
+    $rawRollNumbers = preg_split('/[\s,;]+/', (string) ($validated['roll_numbers'] ?? ''));
+    $normalizedRollNumbers = collect($rawRollNumbers)
+      ->map(fn($rollNo) => strtoupper(trim((string) $rollNo)))
+      ->filter(fn($rollNo) => $rollNo !== '')
+      ->unique()
+      ->values();
+
+    $unresolvedRollNumbers = collect();
+    if ($normalizedRollNumbers->isNotEmpty()) {
+      $matchedStudents = DB::table('student_masters')
+        ->whereIn(DB::raw('UPPER(TRIM(roll_no))'), $normalizedRollNumbers->all())
+        ->where(function ($query) {
+          $query->whereNull('is_deleted')->orWhere('is_deleted', 0);
+        })
+        ->where(function ($query) {
+          $query->whereNull('is_left')->orWhere('is_left', 0);
+        })
+        ->get(['id', 'roll_no']);
+
+      $matchedRollNumbers = $matchedStudents
+        ->map(fn($student) => strtoupper(trim((string) ($student->roll_no ?? ''))))
+        ->filter(fn($rollNo) => $rollNo !== '')
+        ->unique()
+        ->values();
+
+      $unresolvedRollNumbers = $normalizedRollNumbers->diff($matchedRollNumbers)->values();
+
+      $matchedStudentIds = $matchedStudents
+        ->pluck('id')
+        ->map(fn($studentId) => (int) $studentId)
+        ->filter(fn($studentId) => $studentId > 0)
+        ->unique();
+
+      $studentIds = $studentIds->merge($matchedStudentIds)->unique()->values();
+    }
+
+    if ($studentIds->isEmpty()) {
+      return redirect()->route('itcell.quizzes.results', $quiz->id)
+        ->with('error', 'No valid students found. Provide valid roll numbers or student IDs.');
+    }
+
+    DB::transaction(function () use ($studentIds, $quiz, $validated) {
+      foreach ($studentIds as $studentId) {
+        QuizAttemptPermission::updateOrCreate(
+          [
+            'quiz_id' => (int) $quiz->id,
+            'student_id' => (int) $studentId,
+          ],
+          [
+            'max_attempts' => (int) $validated['max_attempts'],
+            'allowed_by' => (int) Auth::id(),
+          ]
+        );
+      }
+    });
+
+    $message = 'Emergency attempt permission saved for ' . $studentIds->count() . ' students.';
+    if ($unresolvedRollNumbers->isNotEmpty()) {
+      $message .= ' Unresolved roll numbers: ' . $unresolvedRollNumbers->implode(', ') . '.';
+    }
+
+    return redirect()->route('itcell.quizzes.results', $quiz->id)
+      ->with('success', $message);
+  }
+
+  public function revokeAttempts(Request $request, int $quizId)
+  {
+    $role = $this->resolveAuthorizedRole();
+    if ($role !== 'itcell') {
+      abort(403, 'Only ITCELL can reset emergency attempt permissions.');
+    }
+
+    $quiz = Quiz::query()->findOrFail($quizId);
+
+    $validated = $request->validate([
+      'student_ids' => 'nullable|array',
+      'student_ids.*' => 'required|integer|exists:student_masters,id',
+      'roll_numbers' => 'nullable|string',
+      'reset_all' => 'nullable|boolean',
+    ]);
+
+    $resetAll = (bool) ($validated['reset_all'] ?? false);
+
+    $studentIds = collect($validated['student_ids'] ?? [])
+      ->map(fn($studentId) => (int) $studentId)
+      ->filter(fn($studentId) => $studentId > 0)
+      ->unique();
+
+    $rawRollNumbers = preg_split('/[\s,;]+/', (string) ($validated['roll_numbers'] ?? ''));
+    $normalizedRollNumbers = collect($rawRollNumbers)
+      ->map(fn($rollNo) => strtoupper(trim((string) $rollNo)))
+      ->filter(fn($rollNo) => $rollNo !== '')
+      ->unique()
+      ->values();
+
+    $unresolvedRollNumbers = collect();
+    if ($normalizedRollNumbers->isNotEmpty()) {
+      $matchedStudents = DB::table('student_masters')
+        ->whereIn(DB::raw('UPPER(TRIM(roll_no))'), $normalizedRollNumbers->all())
+        ->get(['id', 'roll_no']);
+
+      $matchedRollNumbers = $matchedStudents
+        ->map(fn($student) => strtoupper(trim((string) ($student->roll_no ?? ''))))
+        ->filter(fn($rollNo) => $rollNo !== '')
+        ->unique()
+        ->values();
+
+      $unresolvedRollNumbers = $normalizedRollNumbers->diff($matchedRollNumbers)->values();
+
+      $matchedStudentIds = $matchedStudents
+        ->pluck('id')
+        ->map(fn($studentId) => (int) $studentId)
+        ->filter(fn($studentId) => $studentId > 0)
+        ->unique();
+
+      $studentIds = $studentIds->merge($matchedStudentIds)->unique()->values();
+    }
+
+    $deleteQuery = QuizAttemptPermission::query()->where('quiz_id', (int) $quiz->id);
+
+    if (!$resetAll) {
+      if ($studentIds->isEmpty()) {
+        return redirect()->route('itcell.quizzes.results', $quiz->id)
+          ->with('error', 'Provide roll numbers (or student IDs) to reset emergency access.');
+      }
+
+      $deleteQuery->whereIn('student_id', $studentIds->all());
+    }
+
+    $deletedCount = (int) $deleteQuery->delete();
+
+    $message = $resetAll
+      ? 'Emergency access reset completed for this quiz. Removed rows: ' . $deletedCount . '.'
+      : 'Emergency access reset completed. Removed rows: ' . $deletedCount . '.';
+
+    if ($unresolvedRollNumbers->isNotEmpty()) {
+      $message .= ' Unresolved roll numbers: ' . $unresolvedRollNumbers->implode(', ') . '.';
+    }
+
+    return redirect()->route('itcell.quizzes.results', $quiz->id)
+      ->with('success', $message);
   }
 
   public function exportQuestionSheet(int $quizId)
