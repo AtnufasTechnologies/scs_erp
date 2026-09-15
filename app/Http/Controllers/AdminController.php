@@ -2382,6 +2382,7 @@ class AdminController extends Controller
         $query = FeesStructure::with([
             'program.campus',
             'batch',
+            'degreeTrack:id,name',
             'feepvthead.head.bankmaster',
             'feepvthead.head:id,head_name,bank_acc_id',
             'feecoursemaster:id,name',
@@ -2402,6 +2403,18 @@ class AdminController extends Controller
             $query->where('batch_id', $request->batch_id);
         }
 
+        if (!empty($request->academic_pathway_id)) {
+            $query->where('academic_pathway_id', $request->academic_pathway_id);
+        }
+
+        if (!empty($request->degree_track_id) && Schema::hasColumn((new FeesStructure())->getTable(), 'degree_track_id')) {
+            $query->where('degree_track_id', $request->degree_track_id);
+        }
+
+        if (!empty($request->std_current_year)) {
+            $query->where('std_current_year', $request->std_current_year);
+        }
+
         $data = $query->latest()->get();
 
 
@@ -2417,6 +2430,7 @@ class AdminController extends Controller
             'batch' => 'required',
             'course' => 'required',
             'academic_pathway_id' => 'required|in:1,2',
+            'degree_track_id' => 'required|integer|exists:degree_track_masters,id',
             'heads' => 'required|array|min:1',
             'amounts' => 'required|array|min:1',
             'reminder_date' => 'required',
@@ -2428,11 +2442,26 @@ class AdminController extends Controller
 
         ]);
 
+        $degreeTrackId = (int) $request->degree_track_id;
+        if (in_array((int) $request->academic_pathway_id, [1, 2], true)) {
+            $regularDegreeTrackId = DegreeTrackMaster::query()
+                ->whereRaw('LOWER(name) = ?', ['regular'])
+                ->value('id');
+
+            if (empty($regularDegreeTrackId)) {
+                return redirect()->back()->with('error', 'Single/Dual Major requires a Regular degree track, but no Regular track exists.');
+            }
+
+            $degreeTrackId = (int) $regularDegreeTrackId;
+        }
+
 
         // Check for duplicate fee structure
         $duplicate = FeesStructure::where('batch_id', $request->batch)
             ->where('program_id', $request->program)
             ->where('course_name', $request->course)
+            ->where('academic_pathway_id', $request->academic_pathway_id)
+            ->where('degree_track_id', $degreeTrackId)
             ->where('std_current_year', $request->applicable_year)
             ->where('yearly_pay_order', $request->yearly_pay_order)
             ->first();
@@ -2444,6 +2473,7 @@ class AdminController extends Controller
         $rec = new FeesStructure();
         $rec->program_id = $request->program; //ug pg
         $rec->academic_pathway_id = $request->academic_pathway_id; //1 single major, 2 dual major
+        $rec->degree_track_id = $degreeTrackId;
         $rec->batch_id = $request->batch; //batch master: id
         $rec->course_name = $request->course; //fee course master: id
         $rec->reminder_date = $request->reminder_date;
@@ -2835,12 +2865,27 @@ class AdminController extends Controller
             'program' => 'required',
             'batch' => 'required',
             'academic_pathway_id' => 'required|in:1,2',
+            'degree_track_id' => 'required|integer|exists:degree_track_masters,id',
         ]);
         $id = $request->id;
+
+        $degreeTrackId = (int) $request->degree_track_id;
+        if (in_array((int) $request->academic_pathway_id, [1, 2], true)) {
+            $regularDegreeTrackId = DegreeTrackMaster::query()
+                ->whereRaw('LOWER(name) = ?', ['regular'])
+                ->value('id');
+
+            if (empty($regularDegreeTrackId)) {
+                return redirect()->back()->with('error', 'Single/Dual Major requires a Regular degree track, but no Regular track exists.');
+            }
+
+            $degreeTrackId = (int) $regularDegreeTrackId;
+        }
 
         FeesStructure::where('id', $id)->update([
             'program_id' => $request->program,
             'academic_pathway_id' => $request->academic_pathway_id,
+            'degree_track_id' => $degreeTrackId,
             'batch_id' => $request->batch,
             'reminder_date' => $request->reminder_date,
             'due_date' => $request->due_date,

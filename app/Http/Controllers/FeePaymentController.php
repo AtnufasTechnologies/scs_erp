@@ -20,6 +20,7 @@ use Illuminate\Support\Facades\Log;
 use Easebuzz\PayWithEasebuzzLaravel\Lib\EasebuzzLib\Easebuzz;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
 use App\Models\BatchMaster;
 use App\Models\FeeHead;
 use App\Models\CollegeBankAccount;
@@ -46,10 +47,25 @@ class FeePaymentController extends Controller
             ->toArray();
     }
 
-    private function applyAcademicPathwayFilter($query, StudentMaster $student)
+    private function applyFeeStructureApplicabilityFilters($query, StudentMaster $student)
     {
-        if (!empty($student->academic_pathway_id)) {
-            $query->where('academic_pathway_id', $student->academic_pathway_id);
+        if (Schema::hasColumn('fees_structures', 'academic_pathway_id')) {
+            if (!empty($student->academic_pathway_id)) {
+                $query->where('academic_pathway_id', (int) $student->academic_pathway_id);
+            } else {
+                $query->whereNull('academic_pathway_id');
+            }
+        }
+
+        if (Schema::hasColumn('fees_structures', 'degree_track_id')) {
+            if (!empty($student->degree_track_id)) {
+                $query->where(function ($subQuery) use ($student) {
+                    $subQuery->where('degree_track_id', (int) $student->degree_track_id)
+                        ->orWhereNull('degree_track_id');
+                });
+            } else {
+                $query->whereNull('degree_track_id');
+            }
         }
 
         return $query;
@@ -57,6 +73,9 @@ class FeePaymentController extends Controller
 
     function index(Request $request)
     {
+        $sortBy = $request->input('sort_by', 'name');
+        $sortDir = strtolower($request->input('sort_dir', 'asc')) === 'desc' ? 'desc' : 'asc';
+
         // ---- Base Query ----
         $query = StudentMaster::with([
             'batchmaster',
@@ -65,6 +84,7 @@ class FeePaymentController extends Controller
             'stdfeestructure',
             // 'stdfeestructure.programspivot',
             'stdprogramenrolled',  //newly added direct link to student program
+            'degreetrack',
             'feepayment'
         ]);
 
@@ -89,8 +109,40 @@ class FeePaymentController extends Controller
             $query->where('new_program_id', $request->filter_pgr);
         }
 
+        if ($request->filter_campus) {
+            $query->where('campus_id', (int) $request->filter_campus);
+        }
+
+        if ($request->filter_year) {
+            $query->where('current_year', (int) $request->filter_year);
+        }
+
+        if ($request->filter_pathway) {
+            $query->where('academic_pathway_id', (int) $request->filter_pathway);
+        }
+
+        if ($request->filter_degree_track) {
+            $query->where('degree_track_id', (int) $request->filter_degree_track);
+        }
+
+        if ($request->payment_state === 'paid') {
+            $query->whereHas('feepayment', function ($q) {
+                $q->where('status', 'success');
+            });
+        } elseif ($request->payment_state === 'unpaid') {
+            $query->whereDoesntHave('feepayment', function ($q) {
+                $q->where('status', 'success');
+            });
+        }
+
+        if ($sortBy === 'name') {
+            $query->orderBy('first_name', $sortDir)->orderBy('last_name', $sortDir);
+        } else {
+            $query->orderBy('first_name', 'asc')->orderBy('last_name', 'asc');
+        }
+
         // ---- PAGINATION ----
-        $data = $query->paginate(36)->withQueryString(); // <<<<<< THIS IS THE KEY
+        $data = $query->paginate(36)->appends($request->query());
 
 
         // ---- TRANSFORM EACH RECORD USING through() ----
@@ -112,7 +164,7 @@ class FeePaymentController extends Controller
                 })
                 ->whereIn('std_current_year', range(1, $student->current_year));
 
-            $applicableFS = $this->applyAcademicPathwayFilter($applicableFS, $student)->get();
+            $applicableFS = $this->applyFeeStructureApplicabilityFilters($applicableFS, $student)->get();
             $lateFeePerDay = LateFee::where('status', 1)->value('late_fee_amount'); // 100
 
             $fsWithStatus = $applicableFS->map(function ($fs) use ($student, $lateFeePerDay, $exemptions, $hasBlanketExemption) {
@@ -233,6 +285,7 @@ class FeePaymentController extends Controller
                 'academic_pathway_label' => ((int) ($student->academic_pathway_id ?? 0) === 1)
                     ? 'Single Major'
                     : (((int) ($student->academic_pathway_id ?? 0) === 2) ? 'Dual Major' : 'Not Set'),
+                'degree_track_label' => $student->degreetrack->name ?? 'Not Set',
                 'current_year' => $student->current_year,
                 'fee_status' => $fsWithStatus
             ];
@@ -538,7 +591,7 @@ class FeePaymentController extends Controller
             ->whereIn('std_current_year', range(1, $student->current_year))
             ->orderBy('std_current_year');
 
-        $applicableFS = $this->applyAcademicPathwayFilter($applicableFS, $student)->get();
+        $applicableFS = $this->applyFeeStructureApplicabilityFilters($applicableFS, $student)->get();
         // ---- PREPARE FEE STATUS ----
         $feeStatus = $applicableFS->map(function ($fs) use ($student, $lateFeePerDay, $exemptions, $hasBlanketExemption) {
             // Success payment
@@ -771,14 +824,14 @@ class FeePaymentController extends Controller
         // ---- STUDENT ----
         $student = StudentMaster::find($studentId);
 
-        $allowedFeeIds = $this->applyAcademicPathwayFilter(
+        $allowedFeeIds = $this->applyFeeStructureApplicabilityFilters(
             FeesStructure::whereIn('id', $feeStructureIds),
             $student
         )->pluck('id')->map(fn($id) => (int) $id)->toArray();
 
         $invalidFeeIds = array_diff(array_map('intval', $feeStructureIds), $allowedFeeIds);
         if (!empty($invalidFeeIds)) {
-            return back()->withErrors('Selected fee structure does not match the student major pathway.');
+            return back()->withErrors('Selected fee structure does not match the student academic pathway and degree track.');
         }
 
         // ---- INVOICE ----
@@ -1320,7 +1373,7 @@ class FeePaymentController extends Controller
             ->orderBy('std_current_year')
             ->orderBy('quarter_no');
 
-        $feeStructures = $this->applyAcademicPathwayFilter($feeStructures, $student)->get();
+        $feeStructures = $this->applyFeeStructureApplicabilityFilters($feeStructures, $student)->get();
 
         return response()->json($feeStructures);
     }
@@ -1366,7 +1419,7 @@ class FeePaymentController extends Controller
             ->whereIn('std_current_year', range(1, $student->current_year))
             ->orderBy('std_current_year');
 
-        $applicableFS = $this->applyAcademicPathwayFilter($applicableFS, $student)->get();
+        $applicableFS = $this->applyFeeStructureApplicabilityFilters($applicableFS, $student)->get();
 
         // Only show fee structures for which late fee has been paid
         $paidFeeStructureIds = \App\Models\StudentPayment::where('late_fee_amount', '>', 0)
@@ -1559,7 +1612,7 @@ class FeePaymentController extends Controller
                 ->whereIn('std_current_year', range(1, $student->current_year))
                 ->where('is_payable', 1);
 
-            $applicableFS = $this->applyAcademicPathwayFilter($applicableFS, $student)->get();
+            $applicableFS = $this->applyFeeStructureApplicabilityFilters($applicableFS, $student)->get();
 
             foreach ($applicableFS as $fs) {
                 $payment = $student->feepayment

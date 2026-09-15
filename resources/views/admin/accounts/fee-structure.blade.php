@@ -7,6 +7,7 @@ use App\Models\FeeHead;
 use App\Models\LateFee;
 use App\Models\MainProgram;
 use App\Models\ProgramGroup;
+use App\Models\DegreeTrackMaster;
 use App\Models\StudentProgram;
 
 $batches = BatchMaster::all();
@@ -16,6 +17,7 @@ $feecoursemaster = FeeCourseMaster::latest()->get();
 $programgroups = ProgramGroup::with(['programInfo'])->get();
 $latefee = LateFee::find(1);
 $studentprograms = StudentProgram::with('campusmaster')->orderby('code', 'ASC')->get();
+$degreeTracks = DegreeTrackMaster::orderBy('name', 'ASC')->get();
 
 $yearGradients = [
   1 => 'linear-gradient(-45deg, #1565c0, #42a5f5)',
@@ -41,6 +43,77 @@ $batchColorPalette = [
 @include('includes.header')
 @include('admin.accounts.sidebar')
 
+<style>
+  .fs-toolbar {
+    border: 1px solid #d9e2ec;
+    border-radius: 14px;
+    background: linear-gradient(180deg, #f8fbff 0%, #f3f7fc 100%);
+  }
+
+  .fs-toolbar .toolbar-title {
+    font-size: 0.95rem;
+    letter-spacing: 0.02em;
+    color: #0f172a;
+  }
+
+  .fs-toolbar .toolbar-note {
+    font-size: 0.78rem;
+    color: #64748b;
+  }
+
+  .fs-filter-label {
+    font-size: 0.72rem;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: #475569;
+    margin-bottom: 0.35rem;
+  }
+
+  .fs-toolbar .form-select,
+  .fs-toolbar .form-control,
+  .fs-toolbar .input-group-text {
+    border-color: #cbd5e1;
+    box-shadow: none !important;
+  }
+
+  .fs-toolbar .form-select:focus,
+  .fs-toolbar .form-control:focus {
+    border-color: #2563eb;
+  }
+
+  .fs-search .input-group-text {
+    background: #ffffff;
+    color: #64748b;
+  }
+
+  .fs-toolbar .btn-primary {
+    background: #1d4ed8;
+    border-color: #1d4ed8;
+  }
+
+  .fs-toolbar .btn-primary:hover {
+    background: #1e40af;
+    border-color: #1e40af;
+  }
+
+  .fs-utility-card {
+    background: #ffffff;
+    border: 1px solid #dbe4ef;
+    border-radius: 10px;
+    padding: 0.7rem 0.8rem;
+  }
+
+  .fs-utility-title {
+    font-size: 0.72rem;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: #475569;
+    margin-bottom: 0.4rem;
+  }
+</style>
+
 <!-- Page Header -->
 <div class="d-flex align-items-center justify-content-between mb-3">
   <div>
@@ -50,6 +123,9 @@ $batchColorPalette = [
   <div class="d-flex gap-2">
     <button class="btn btn-outline-success" data-bs-toggle="modal" data-bs-target="#cloneAllModal">
       <i class="fa fa-clone me-1"></i> Clone All to New Batch
+    </button>
+    <button type="button" class="btn btn-outline-secondary" data-bs-toggle="modal" data-bs-target="#lateFeeSettingsModal">
+      <i class="fa fa-cog me-1"></i> Late Fee Settings
     </button>
     <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#add">
       <i class="fa fa-plus-circle me-1"></i> Add New Structure
@@ -122,40 +198,107 @@ $batchColorPalette = [
 
 
 <!-- Toolbar -->
-<div class="card shadow-sm mb-3">
-  <div class="card-body py-2">
-    <div class="row g-2 align-items-center">
-      <div class="col-md-3">
-        <form action="{{url('erp/admin/accounts/fee-structure')}}" method="get" class="d-flex gap-2 align-items-center">
-          <strong>Batch Filter</strong>
-          <select name="batch_id" class="form-select form-select-sm" style="max-width:180px;" onchange="this.form.submit()">
-            <option value="">All Batches</option>
-            @foreach($batches as $batch)
-            <option value="{{$batch->id}}" {{ request('batch_id') == $batch->id ? 'selected' : '' }}>{{$batch->batch_name}}</option>
-            @endforeach
-          </select>
-        </form>
-      </div>
-      <div class="col-md-3">
+<div class="card shadow-sm mb-3 fs-toolbar">
+  <div class="card-body py-3 px-3 px-lg-4">
+    <div class="d-flex flex-column flex-lg-row align-items-lg-center justify-content-between mb-3">
+      <h6 class="mb-1 mb-lg-0 fw-bold toolbar-title"><i class="fa fa-filter me-1 text-primary"></i>Filter Fee Structures</h6>
+      <small class="toolbar-note">Use structured filters to narrow fee policies instantly</small>
+    </div>
 
-        <input type="text" id="feeSearch" class="form-control form-control-sm" placeholder="Type to filter...">
-      </div>
-      <div class="col-md-6 d-flex justify-content-end">
-        <form action="" method="post" class="d-flex align-items-center gap-2">
-          @csrf
-          <span class="text-muted small fw-semibold"><i class="fa fa-clock me-1"></i>Late Fee:</span>
-          <div class="input-group input-group-sm" style="max-width:280px">
-            <span class="input-group-text bg-white"><i class="fa fa-rupee-sign text-secondary"></i></span>
-            <input type="number" name="late_fee_amount" class="form-control" value="{{$latefee->late_fee_amount}}" placeholder="Amount">
-            <select name="status" class="form-select">
-              <option value="1" {{$latefee->status == '1' ? 'selected' : ''}}>Active</option>
-              <option value="0" {{$latefee->status == '0' ? 'selected' : ''}}>Inactive</option>
+    <div class="row g-3 align-items-end">
+      <div class="col-lg-8">
+        <form action="{{url('erp/admin/accounts/fee-structure')}}" method="get" class="row g-2 align-items-end" id="feeStructureFilterForm" onsubmit="return false;">
+          <div class="col-lg-2 col-md-6">
+            <label class="form-label fs-filter-label">Batch</label>
+            <select name="batch_id" id="filterBatch" class="form-select form-select-sm">
+              <option value="">All Batches</option>
+              @foreach($batches as $batch)
+              <option value="{{$batch->id}}" {{ request('batch_id') == $batch->id ? 'selected' : '' }}>{{$batch->batch_name}}</option>
+              @endforeach
             </select>
-            <button type="submit" class="btn btn-success">Update</button>
+          </div>
+          <div class="col-lg-2 col-md-6">
+            <label class="form-label fs-filter-label">Academic Pathway</label>
+            <select name="academic_pathway_id" id="filterPathway" class="form-select form-select-sm">
+              <option value="">All Pathways</option>
+              <option value="1" {{ request('academic_pathway_id') == '1' ? 'selected' : '' }}>Single Major</option>
+              <option value="2" {{ request('academic_pathway_id') == '2' ? 'selected' : '' }}>Dual Major</option>
+            </select>
+          </div>
+          <div class="col-lg-2 col-md-6">
+            <label class="form-label fs-filter-label">Degree Track</label>
+            <select name="degree_track_id" id="filterDegreeTrack" class="form-select form-select-sm">
+              <option value="">All Degree Tracks</option>
+              @foreach($degreeTracks as $track)
+              <option value="{{ $track->id }}" {{ request('degree_track_id') == (string)$track->id ? 'selected' : '' }}>{{ $track->name }}</option>
+              @endforeach
+            </select>
+          </div>
+          <div class="col-lg-2 col-md-6">
+            <label class="form-label fs-filter-label">Year</label>
+            <select name="std_current_year" id="filterYear" class="form-select form-select-sm">
+              <option value="">All Years</option>
+              <option value="1" {{ request('std_current_year') == '1' ? 'selected' : '' }}>Year 1</option>
+              <option value="2" {{ request('std_current_year') == '2' ? 'selected' : '' }}>Year 2</option>
+              <option value="3" {{ request('std_current_year') == '3' ? 'selected' : '' }}>Year 3</option>
+              <option value="4" {{ request('std_current_year') == '4' ? 'selected' : '' }}>Year 4</option>
+              <option value="5" {{ request('std_current_year') == '5' ? 'selected' : '' }}>Year 5</option>
+            </select>
+          </div>
+          <div class="col-lg-2 col-md-6 d-flex gap-2">
+            <!-- <button type="button" id="applyFiltersBtn" class="btn btn-primary btn-sm">
+              <i class="fa fa-search me-1"></i>Apply
+            </button> -->
+            <button type="button" id="clearFiltersBtn" class="btn btn-outline-secondary btn-sm">
+              <i class="fa fa-undo me-1"></i>Reset
+            </button>
           </div>
         </form>
       </div>
 
+      <div class="col-lg-4 ">
+        <div class="fs-utility-card">
+          <label class="fs-utility-title">Quick Search</label>
+          <div class="input-group input-group-sm fs-search">
+            <span class="input-group-text"><i class="fa fa-search"></i></span>
+            <input type="text" id="feeSearch" class="form-control" placeholder="Search visible cards...">
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="modal fade" id="lateFeeSettingsModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title"><i class="fa fa-clock me-2 text-primary"></i>Late Fee Settings</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <form action="" method="post">
+        @csrf
+        <div class="modal-body">
+          <div class="mb-3">
+            <label class="form-label fw-semibold">Late Fee Amount</label>
+            <div class="input-group">
+              <span class="input-group-text bg-white"><i class="fa fa-rupee-sign text-secondary"></i></span>
+              <input type="number" name="late_fee_amount" class="form-control" value="{{$latefee->late_fee_amount}}" placeholder="Enter late fee amount" required>
+            </div>
+          </div>
+          <div>
+            <label class="form-label fw-semibold">Status</label>
+            <select name="status" class="form-select" required>
+              <option value="1" {{$latefee->status == '1' ? 'selected' : ''}}>Active</option>
+              <option value="0" {{$latefee->status == '0' ? 'selected' : ''}}>Inactive</option>
+            </select>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
+          <button type="submit" class="btn btn-success">Save Changes</button>
+        </div>
+      </form>
     </div>
   </div>
 </div>
@@ -217,10 +360,20 @@ $batchColorPalette = [
 
             <div class="col-lg-12">
               <label for="">Major Type *</label>
-              <select name="academic_pathway_id" class="form-control mb-3" required>
+              <select name="academic_pathway_id" class="form-control mb-3 pathway-select" required>
                 <option value="">--Select--</option>
                 <option value="1">Single Major</option>
                 <option value="2">Dual Major</option>
+              </select>
+            </div>
+
+            <div class="col-lg-12">
+              <label for="">Degree Track *</label>
+              <select name="degree_track_id" class="form-control mb-3 degree-track-select" required>
+                <option value="">--Select--</option>
+                @foreach ($degreeTracks as $track)
+                <option value="{{$track->id}}">{{$track->name}}</option>
+                @endforeach
               </select>
             </div>
 
@@ -307,7 +460,11 @@ $batchColorPalette = [
   $batchAccentColor = $batchColorPalette[$batchId % count($batchColorPalette)];
   $total = StaticController::feeStructureTotal($item->id);
   @endphp
-  <div class="col-xl-3 col-lg-4 col-md-6 mb-4">
+  <div class="col-xl-3 col-lg-4 col-md-6 mb-4 fee-card-col"
+    data-batch-id="{{ (int)($item->batch_id ?? 0) }}"
+    data-pathway-id="{{ (int)($item->academic_pathway_id ?? 0) }}"
+    data-degree-track-id="{{ (int)($item->degree_track_id ?? 0) }}"
+    data-year="{{ (int)($item->std_current_year ?? 0) }}">
     <div class="fee-card">
 
       {{-- Coloured top accent bar --}}
@@ -341,7 +498,9 @@ $batchColorPalette = [
           <i class="fa fa-map-marker-alt me-1"></i>{{ $item->program->campus->name ?? '—' }}
           &nbsp;&bull;&nbsp;
           <i class="fa fa-book me-1"></i>{{ $item->feecoursemaster->name ?? '—' }}
+          <br>
           <span class="badge {{$item->academic_pathway_id == 1 ? 'badge-paid' : 'badge-unpaid'}}"> {{$item->academic_pathway_id == 1 ? 'Single Major': 'Dual Major'}}</span>
+          <span class="badge badge-primary"> {{ $item->degreeTrack->name ?? 'Not Set' }}</span>
         </div>
 
         {{-- Dates --}}
@@ -531,9 +690,18 @@ $batchColorPalette = [
                   </div>
                   <div class="col-12">
                     <label class="form-label">Major Type *</label>
-                    <select name="academic_pathway_id" class="form-select" required>
+                    <select name="academic_pathway_id" class="form-select pathway-select" required>
                       <option value="1" {{ (int)($item->academic_pathway_id ?? 0) === 1 ? 'selected' : '' }}>Single Major</option>
                       <option value="2" {{ (int)($item->academic_pathway_id ?? 0) === 2 ? 'selected' : '' }}>Dual Major</option>
+                    </select>
+                  </div>
+                  <div class="col-12">
+                    <label class="form-label">Degree Track *</label>
+                    <select name="degree_track_id" class="form-select degree-track-select" required>
+                      <option value="">-- Select --</option>
+                      @foreach($degreeTracks as $track)
+                      <option value="{{ $track->id }}" {{ (int)($item->degree_track_id ?? 0) === (int)$track->id ? 'selected' : '' }}>{{ $track->name }}</option>
+                      @endforeach
                     </select>
                   </div>
                   <div class="col-12">
@@ -770,15 +938,107 @@ $batchColorPalette = [
 <script>
   // Fee card live search (toolbar)
   document.addEventListener('DOMContentLoaded', function() {
-    var searchInput = document.getElementById('feeSearch');
-    if (!searchInput) return;
-    searchInput.addEventListener('input', function() {
-      var query = this.value.toLowerCase();
-      document.querySelectorAll('.fee-card').forEach(function(card) {
-        var col = card.closest('[class*="col-"]');
-        if (col) col.style.display = card.innerText.toLowerCase().includes(query) ? '' : 'none';
-      });
+    function bindDualMajorRegularRule(form) {
+      const pathwaySelect = form.querySelector('select[name="academic_pathway_id"]');
+      const degreeTrackSelect = form.querySelector('select[name="degree_track_id"]');
+
+      if (!pathwaySelect || !degreeTrackSelect) {
+        return;
+      }
+
+      const findRegularOption = () => {
+        return Array.from(degreeTrackSelect.options).find(option => {
+          return String(option.value || '').trim() !== '' &&
+            String(option.textContent || '').trim().toLowerCase().indexOf('regular') !== -1;
+        }) || null;
+      };
+
+      const syncDegreeTrack = () => {
+        const selectedPathway = String(pathwaySelect.value || '');
+        const requiresRegularTrack = selectedPathway === '1' || selectedPathway === '2';
+        const regularOption = findRegularOption();
+
+        Array.from(degreeTrackSelect.options).forEach(option => {
+          if (String(option.value || '').trim() === '') {
+            option.disabled = false;
+            return;
+          }
+
+          option.disabled = requiresRegularTrack && regularOption ?
+            String(option.value) !== String(regularOption.value) :
+            false;
+        });
+
+        if (requiresRegularTrack && regularOption) {
+          degreeTrackSelect.value = String(regularOption.value);
+          degreeTrackSelect.dispatchEvent(new Event('change'));
+        }
+      };
+
+      pathwaySelect.addEventListener('change', syncDegreeTrack);
+      syncDegreeTrack();
+    }
+
+    document.querySelectorAll('form').forEach(function(form) {
+      bindDualMajorRegularRule(form);
     });
+
+    var searchInput = document.getElementById('feeSearch');
+    var batchFilter = document.getElementById('filterBatch');
+    var pathwayFilter = document.getElementById('filterPathway');
+    var degreeTrackFilter = document.getElementById('filterDegreeTrack');
+    var yearFilter = document.getElementById('filterYear');
+    var applyFiltersBtn = document.getElementById('applyFiltersBtn');
+    var clearFiltersBtn = document.getElementById('clearFiltersBtn');
+
+    function applyLocalFilters() {
+      var query = (searchInput && searchInput.value ? searchInput.value : '').toLowerCase().trim();
+      var batchValue = batchFilter ? String(batchFilter.value || '') : '';
+      var pathwayValue = pathwayFilter ? String(pathwayFilter.value || '') : '';
+      var degreeTrackValue = degreeTrackFilter ? String(degreeTrackFilter.value || '') : '';
+      var yearValue = yearFilter ? String(yearFilter.value || '') : '';
+
+      document.querySelectorAll('.fee-card-col').forEach(function(col) {
+        var card = col.querySelector('.fee-card');
+        if (!card) return;
+
+        var cardText = card.innerText.toLowerCase();
+        var textMatch = query === '' || cardText.includes(query);
+        var batchMatch = batchValue === '' || String(col.dataset.batchId || '') === batchValue;
+        var pathwayMatch = pathwayValue === '' || String(col.dataset.pathwayId || '') === pathwayValue;
+        var degreeTrackMatch = degreeTrackValue === '' || String(col.dataset.degreeTrackId || '') === degreeTrackValue;
+        var yearMatch = yearValue === '' || String(col.dataset.year || '') === yearValue;
+
+        col.style.display = textMatch && batchMatch && pathwayMatch && degreeTrackMatch && yearMatch ? '' : 'none';
+      });
+    }
+
+    if (searchInput) {
+      searchInput.addEventListener('input', applyLocalFilters);
+    }
+
+    [batchFilter, pathwayFilter, degreeTrackFilter, yearFilter].forEach(function(filterEl) {
+      if (filterEl) {
+        filterEl.addEventListener('change', applyLocalFilters);
+      }
+    });
+
+    if (applyFiltersBtn) {
+      applyFiltersBtn.addEventListener('click', applyLocalFilters);
+    }
+
+    if (clearFiltersBtn) {
+      clearFiltersBtn.addEventListener('click', function() {
+        if (batchFilter) batchFilter.value = '';
+        if (pathwayFilter) pathwayFilter.value = '';
+        if (degreeTrackFilter) degreeTrackFilter.value = '';
+        if (yearFilter) yearFilter.value = '';
+        if (searchInput) searchInput.value = '';
+        applyLocalFilters();
+      });
+    }
+
+    applyLocalFilters();
 
     // AJAX: Link Program Form Submission
     document.querySelectorAll('.link-program-form').forEach(function(form) {

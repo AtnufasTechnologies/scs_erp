@@ -7,7 +7,6 @@ use Illuminate\Support\Facades\Auth;
 $userId   = Auth::user()->id;
 $roleType = UserHasRole::where('user_id', $userId)->value('role_name');
 $isIncharge  = $roleType === 'account-office-incharge';
-$isAssistant = $roleType === 'account-office-assistant';
 ?>
 <!--start sidebar -->
 <aside class="sidebar-wrapper" data-simplebar="true">
@@ -39,9 +38,36 @@ $isAssistant = $roleType === 'account-office-assistant';
     </li>
     @endif
 
-    {{-- Accounts Office Modules --}}
+    <li class="menu-label">Operations</li>
 
     {{-- Incharge sees all; assistant sees only permitted --}}
+    @if($isIncharge || StaticController::subMenuRights('fee-collection-master'))
+    <li>
+      <a href="{{ url('erp/admin/accounts/std-fee-payments') }}">
+        <div class="parent-icon"><i class="fas fa-hand-holding-usd"></i></div>
+        <div class="menu-title">Fee Collection</div>
+      </a>
+    </li>
+    @endif
+
+    @if($isIncharge || StaticController::subMenuRights('fee-allpayments'))
+    <li>
+      <a href="{{ url('erp/admin/accounts/all-payments') }}">
+        <div class="parent-icon"><i class="fas fa-receipt"></i></div>
+        <div class="menu-title">All Payments</div>
+      </a>
+    </li>
+    @endif
+
+    @if($isIncharge || StaticController::subMenuRights('admission-application-fee'))
+    <li>
+      <a href="{{ url('erp/admin/accounts/admission-application-fee') }}">
+        <div class="parent-icon"><i class="fas fa-user-graduate"></i></div>
+        <div class="menu-title">Admission Application Fee</div>
+      </a>
+    </li>
+    @endif
+
     @if($isIncharge || StaticController::subMenuRights('late-fee-exemption'))
     <li>
       <a href="{{ url('erp/admin/accounts/late-fee-exemptions') }}">
@@ -51,14 +77,16 @@ $isAssistant = $roleType === 'account-office-assistant';
     </li>
     @endif
 
-    @if($isIncharge || StaticController::subMenuRights('late-fee-revenue-report'))
+    @if($isIncharge || StaticController::subMenuRights('defaulters-list'))
     <li>
-      <a href="{{ route('late-fee-revenue-report') }}">
-        <div class="parent-icon"><i class="fas fa-file-invoice-dollar"></i></div>
-        <div class="menu-title">Late Fee Revenue Report</div>
+      <a href="{{ route('defaulters-list') }}">
+        <div class="parent-icon"><i class="fas fa-exclamation-triangle"></i></div>
+        <div class="menu-title">Defaulters List</div>
       </a>
     </li>
     @endif
+
+    <li class="menu-label">Masters</li>
 
     @if($isIncharge || StaticController::subMenuRights('bank-master'))
     <li>
@@ -92,33 +120,6 @@ $isAssistant = $roleType === 'account-office-assistant';
       <a href="{{ url('erp/admin/accounts/fee-structure') }}">
         <div class="parent-icon"><i class="fas fa-sitemap"></i></div>
         <div class="menu-title">Fee Structure</div>
-      </a>
-    </li>
-    @endif
-
-    @if($isIncharge || StaticController::subMenuRights('fee-collection-master'))
-    <li>
-      <a href="{{ url('erp/admin/accounts/std-fee-payments') }}">
-        <div class="parent-icon"><i class="fas fa-hand-holding-usd"></i></div>
-        <div class="menu-title">Fee Collection</div>
-      </a>
-    </li>
-    @endif
-
-    @if($isIncharge || StaticController::subMenuRights('fee-allpayments'))
-    <li>
-      <a href="{{ url('erp/admin/accounts/all-payments') }}">
-        <div class="parent-icon"><i class="fas fa-receipt"></i></div>
-        <div class="menu-title">All Payments</div>
-      </a>
-    </li>
-    @endif
-
-    @if($isIncharge || StaticController::subMenuRights('admission-application-fee'))
-    <li>
-      <a href="{{ url('erp/admin/accounts/admission-application-fee') }}">
-        <div class="parent-icon"><i class="fas fa-user-graduate"></i></div>
-        <div class="menu-title">Admission Application Fee</div>
       </a>
     </li>
     @endif
@@ -167,16 +168,17 @@ $isAssistant = $roleType === 'account-office-assistant';
     </li>
     @endif
 
-    @if($isIncharge || StaticController::subMenuRights('defaulters-list'))
+    <li class="menu-label">Reports</li>
+
+    @if($isIncharge || StaticController::subMenuRights('late-fee-revenue-report'))
     <li>
-      <a href="{{ route('defaulters-list') }}">
-        <div class="parent-icon"><i class="fas fa-exclamation-triangle"></i></div>
-        <div class="menu-title">Defaulters List</div>
+      <a href="{{ route('late-fee-revenue-report') }}">
+        <div class="parent-icon"><i class="fas fa-file-invoice-dollar"></i></div>
+        <div class="menu-title">Late Fee Revenue Report</div>
       </a>
     </li>
     @endif
 
-    {{-- Payment Reports --}}
     @if($isIncharge || StaticController::subMenuRights('fee-head-wise-report'))
     <li>
       <a href="{{ route('accounts.fee-head-wise-report') }}">
@@ -215,6 +217,7 @@ $isAssistant = $roleType === 'account-office-assistant';
 
     {{-- Manage Assistants (Incharge Only) --}}
     @if($isIncharge)
+    <li class="menu-label">Administration</li>
     <li>
       <a class="has-arrow" href="javascript:;">
         <div class="parent-icon"><i class="fas fa-users-cog"></i></div>

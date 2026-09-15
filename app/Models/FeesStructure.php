@@ -50,4 +50,9 @@ class FeesStructure extends Model
     {
         return $this->hasMany(FeeStructureHasHead::class, 'fee_structure_id');
     }
+
+    function degreeTrack()
+    {
+        return $this->hasOne(DegreeTrackMaster::class, 'id', 'degree_track_id');
+    }
 }
