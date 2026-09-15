@@ -43,6 +43,15 @@ request('sort_dir') && request('sort_dir') !== 'asc' ? request('sort_dir') : nul
 @endphp
 
 <style>
+  :root {
+    --fee-card-border: #e3e8ef;
+    --fee-card-shadow: 0 12px 28px rgba(15, 23, 42, 0.08);
+    --fee-btn-online-start: #0a58ca;
+    --fee-btn-online-end: #1e73da;
+    --fee-btn-manual-start: #dc3545;
+    --fee-btn-manual-end: #c52636;
+  }
+
   .fee-toolbar {
     border: 1px solid #e3e8ef;
     border-radius: 14px;
@@ -116,6 +125,138 @@ request('sort_dir') && request('sort_dir') !== 'asc' ? request('sort_dir') : nul
     min-width: 130px;
   }
 
+  .student-card {
+    border: 1px solid var(--fee-card-border);
+    border-radius: 14px;
+    background: #fff;
+    box-shadow: var(--fee-card-shadow);
+    padding: 16px;
+    margin-bottom: 16px;
+    transition: transform 0.2s ease, box-shadow 0.2s ease;
+  }
+
+  .student-card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 16px 36px rgba(15, 23, 42, 0.12);
+  }
+
+  .student-card .card-heading {
+    font-size: 17px;
+    font-weight: 700;
+    color: #14243d;
+    line-height: 1.3;
+    margin-bottom: 2px;
+  }
+
+  .student-card .text-rollno {
+    font-size: 12px;
+    font-weight: 700;
+    letter-spacing: 0.45px;
+    color: #365276;
+  }
+
+  .student-card .meta-line {
+    font-size: 12px;
+    color: #5c6877;
+    margin-top: 3px;
+    line-height: 1.35;
+  }
+
+  .student-card hr {
+    border-top: 1px solid #e7edf5;
+    margin: 12px 0;
+  }
+
+  .student-card .fee-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: 12px;
+    padding: 12px;
+    border: 1px solid #e8eef6;
+    border-radius: 12px;
+    background: linear-gradient(180deg, #ffffff 0%, #f9fbfe 100%);
+    margin-bottom: 10px;
+  }
+
+  .student-card .fee-title {
+    font-size: 14px;
+    font-weight: 700;
+    color: #1c3252;
+    margin-bottom: 4px;
+  }
+
+  .student-card .text-title {
+    font-size: 13px;
+    font-weight: 600;
+    color: #20324a;
+    margin-top: 5px;
+  }
+
+  .student-card .badge-paid {
+    display: inline-block;
+    text-decoration: none;
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.35px;
+    border-radius: 999px;
+    padding: 7px 11px;
+    background: #e7f7ec;
+    color: #1f7a3f;
+    border: 1px solid #bfe8cb;
+  }
+
+  .student-card .copy-btn {
+    border-radius: 8px;
+    font-size: 11px;
+    min-height: 24px;
+  }
+
+  .card-actions {
+    min-width: 156px;
+  }
+
+  .btn-fee-action {
+    width: 100%;
+    border: 0;
+    border-radius: 10px;
+    font-weight: 600;
+    letter-spacing: 0.2px;
+    padding: 6px 10px;
+    box-shadow: 0 8px 14px rgba(15, 23, 42, 0.12);
+    transition: transform 0.16s ease, box-shadow 0.16s ease, filter 0.16s ease;
+  }
+
+  .btn-fee-action:hover {
+    transform: translateY(-1px);
+    filter: brightness(1.03);
+    box-shadow: 0 10px 18px rgba(15, 23, 42, 0.16);
+  }
+
+  .btn-pay-online {
+    color: #fff;
+    background: linear-gradient(90deg, var(--fee-btn-online-start) 0%, var(--fee-btn-online-end) 100%);
+  }
+
+  .btn-pay-manual {
+    color: #fff;
+    background: linear-gradient(90deg, var(--fee-btn-manual-start) 0%, var(--fee-btn-manual-end) 100%);
+  }
+
+  .btn-invoice-view {
+    border-radius: 10px;
+    font-weight: 600;
+    border-color: #b9c7da;
+    color: #27476e;
+    background: #f6f9fd;
+  }
+
+  .btn-invoice-view:hover {
+    background: #edf3fa;
+    border-color: #9db0cb;
+    color: #1f3f66;
+  }
+
   @media (max-width: 991.98px) {
     .fee-filter-group {
       margin-bottom: 10px;
@@ -125,6 +266,16 @@ request('sort_dir') && request('sort_dir') !== 'asc' ? request('sort_dir') : nul
     .fee-toolbar .btn-filter-reset {
       width: 100%;
       min-width: 0;
+    }
+
+    .card-actions {
+      min-width: 0;
+      width: 100%;
+    }
+
+    .student-card .fee-row {
+      flex-direction: column;
+      align-items: stretch;
     }
   }
 </style>
@@ -298,7 +449,7 @@ request('sort_dir') && request('sort_dir') !== 'asc' ? request('sort_dir') : nul
 
         <div>
           <a href="{{ url('erp/admin/accounts/invoice/'.$item['studentinfo']['rollno']) }}"
-            class="btn btn-outline-primary btn-sm">
+            class="btn btn-sm btn-invoice-view">
             All Invoices
           </a>
         </div>
@@ -363,19 +514,30 @@ request('sort_dir') && request('sort_dir') !== 'asc' ? request('sort_dir') : nul
             PAID
           </a>
           @else
-          <button class="btn btn-danger btn-sm manualPayBtn"
-            data-student-id="{{ $item['studentinfo']['id'] }}"
-            data-rollno="{{ $item['studentinfo']['rollno'] }}"
-            data-student-name="{{ $item['studentinfo']['fullname'] }}"
-            data-fee-id="{{ $fee['fee_structure_id'] }}"
-            data-quarter="{{ $fee['quarter'] }}"
-            data-amount="{{ $fee['payable_amount'] }}"
-            data-late-fee="{{ $fee['late_fee'] }}"
-            data-late-days="{{ $fee['late_days'] }}"
-            data-bs-toggle="modal"
-            data-bs-target="#manualPayModal">
-            PAY
-          </button>
+          <div class="d-flex flex-column gap-2 align-items-end card-actions">
+            <form action="{{ route('online.fee.payment') }}" method="POST" class="m-0"
+              onsubmit="return confirm('Proceed to online payment on behalf of this student?');">
+              @csrf
+              <input type="hidden" name="studentId" value="{{ $item['studentinfo']['id'] }}">
+              <input type="hidden" name="gateway" value="easebuzz">
+              <input type="hidden" name="fee_structure_id[]" value="{{ $fee['fee_structure_id'] }}">
+              <button type="submit" class="btn btn-sm btn-fee-action btn-pay-online"><i class="fa fa-globe me-1"></i>Pay Online</button>
+            </form>
+
+            <button class="btn btn-sm btn-fee-action btn-pay-manual manualPayBtn"
+              data-student-id="{{ $item['studentinfo']['id'] }}"
+              data-rollno="{{ $item['studentinfo']['rollno'] }}"
+              data-student-name="{{ $item['studentinfo']['fullname'] }}"
+              data-fee-id="{{ $fee['fee_structure_id'] }}"
+              data-quarter="{{ $fee['quarter'] }}"
+              data-amount="{{ $fee['payable_amount'] }}"
+              data-late-fee="{{ $fee['late_fee'] }}"
+              data-late-days="{{ $fee['late_days'] }}"
+              data-bs-toggle="modal"
+              data-bs-target="#manualPayModal">
+              <i class="fa fa-pen me-1"></i>Record Manual
+            </button>
+          </div>
           @endif
         </div>
       </div>
@@ -394,6 +556,50 @@ request('sort_dir') && request('sort_dir') !== 'asc' ? request('sort_dir') : nul
 
 @include('admin.accounts.manual-payment-modal')
 @include('includes.footer')
+@if(session('success') || session('error'))
+<script>
+  document.addEventListener('DOMContentLoaded', function() {
+    const message = @json(session('success') ?? session('error'));
+    const toastType = @json(session('success') ? 'success' : 'error');
+
+    if (!message) {
+      return;
+    }
+
+    if (typeof Swal !== 'undefined' && Swal && typeof Swal.fire === 'function') {
+      Swal.fire({
+        toast: true,
+        position: 'top-end',
+        icon: toastType,
+        title: message,
+        showConfirmButton: false,
+        timer: 3200,
+        timerProgressBar: true
+      });
+      return;
+    }
+
+    const fallbackToast = document.createElement('div');
+    fallbackToast.textContent = message;
+    fallbackToast.style.position = 'fixed';
+    fallbackToast.style.top = '18px';
+    fallbackToast.style.right = '18px';
+    fallbackToast.style.padding = '10px 14px';
+    fallbackToast.style.borderRadius = '8px';
+    fallbackToast.style.boxShadow = '0 8px 20px rgba(15, 23, 42, 0.16)';
+    fallbackToast.style.zIndex = '9999';
+    fallbackToast.style.fontSize = '13px';
+    fallbackToast.style.fontWeight = '600';
+    fallbackToast.style.color = '#fff';
+    fallbackToast.style.background = toastType === 'success' ? '#198754' : '#dc3545';
+    document.body.appendChild(fallbackToast);
+
+    setTimeout(function() {
+      fallbackToast.remove();
+    }, 3200);
+  });
+</script>
+@endif
 <script>
   document.addEventListener("DOMContentLoaded", () => {
     const batchProgramMap = @json($batchProgramMap);

@@ -384,6 +384,7 @@ Route::group(['prefix' => '/erp'], function () {
 
             Route::get('std-fee-payments', [FeePaymentController::class, 'index'])->name('student.fee.payments');
             Route::post('manual-payment-payment', [FeePaymentController::class, 'manualFeePayment'])->name('manual.fee.payment');
+            Route::post('online-payment-payment', [FeePaymentController::class, 'createOrder'])->name('online.fee.payment');
 
             Route::get('invoice/{id}', [FeePaymentController::class, 'generateInvoice']);
             Route::get('print-feereciept/{feeId}', [FeePaymentController::class, 'generateFeeReciept']);

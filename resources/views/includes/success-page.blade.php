@@ -55,6 +55,25 @@ if (Auth::check()) {
       color: #fff;
     }
 
+    .btn-back-link {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      background: #0f766e;
+      color: #fff;
+      font-weight: 600;
+      padding: 8px 16px;
+      border-radius: 6px;
+      text-decoration: none;
+      font-size: 14px;
+      cursor: pointer;
+    }
+
+    .btn-back-link:hover {
+      background: #0a5d58;
+      color: #fff;
+    }
+
     .action-bar {
       display: flex;
       gap: 10px;
@@ -66,11 +85,59 @@ if (Auth::check()) {
 </head>
 
 <body>
+  @if(session('success') || session('error'))
+  <script>
+    document.addEventListener('DOMContentLoaded', function() {
+      const message = @json(session('success') ?? session('error'));
+      const toastType = @json(session('success') ? 'success' : 'error');
+
+      if (!message) {
+        return;
+      }
+
+      if (typeof Swal !== 'undefined' && Swal && typeof Swal.fire === 'function') {
+        Swal.fire({
+          toast: true,
+          position: 'top-end',
+          icon: toastType,
+          title: message,
+          showConfirmButton: false,
+          timer: 3200,
+          timerProgressBar: true
+        });
+        return;
+      }
+
+      const fallbackToast = document.createElement('div');
+      fallbackToast.textContent = message;
+      fallbackToast.style.position = 'fixed';
+      fallbackToast.style.top = '18px';
+      fallbackToast.style.right = '18px';
+      fallbackToast.style.padding = '10px 14px';
+      fallbackToast.style.borderRadius = '8px';
+      fallbackToast.style.boxShadow = '0 8px 20px rgba(15, 23, 42, 0.16)';
+      fallbackToast.style.zIndex = '9999';
+      fallbackToast.style.fontSize = '13px';
+      fallbackToast.style.fontWeight = '600';
+      fallbackToast.style.color = '#fff';
+      fallbackToast.style.background = toastType === 'success' ? '#198754' : '#dc3545';
+      document.body.appendChild(fallbackToast);
+
+      setTimeout(function() {
+        fallbackToast.remove();
+      }, 3200);
+    });
+  </script>
+  @endif
+
   <div class="container">
 
     {{-- ACTION BAR - Hide for PDF --}}
     @if(!isset($isPdf) || !$isPdf)
     <div class="action-bar">
+      @if(request()->query('source') === 'accounts')
+      <a href="{{ url('erp/admin/accounts/std-fee-payments') }}" class="btn-back-link">Back to Fee Payments</a>
+      @endif
       <a onclick="window.print()" style="cursor:pointer" class="fa fa-print btn-print-link">
         &#128438; Print
       </a>

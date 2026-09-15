@@ -804,6 +804,8 @@ class FeePaymentController extends Controller
         $studentId = $request->studentId;
         $feeStructureIds = $request->fee_structure_id;
         $gateway = $request->gateway;
+        // Context must be inferred server-side; never trust client input for redirect targets.
+        $paymentContext = $request->is('erp/admin/accounts/*') ? 'accounts' : 'student';
 
         $payMaster = PaymentGatewayType::where('title', $gateway)->firstOrFail();
         $paymentGatewayId = $payMaster->id;
@@ -883,6 +885,9 @@ class FeePaymentController extends Controller
             $rec->late_days  = $lateDays;
             $rec->transaction_date = Carbon::now();
             $rec->gateway_type_id = $paymentGatewayId;
+            $rec->message = $paymentContext === 'accounts'
+                ? 'ONLINE_INITIATED_BY_ACCOUNTS'
+                : 'ONLINE_INITIATED_BY_STUDENT';
             $rec->save();
         }
         // ---- SPLIT PAYMENT (BASE AMOUNT ONLY) ----
@@ -915,7 +920,24 @@ class FeePaymentController extends Controller
         $productinfo = 'Salesian College Autonomous - Fee Payment';
         $roll_no = $student->roll_no;
 
-        $hashString = "$key|$txnid|$finalPayable|$productinfo|$first_name|$mail_id|$studentId|$roll_no|||||||||$salt";
+        $udfValues = [
+            (string) $studentId,
+            (string) $roll_no,
+            (string) $paymentContext,
+            '',
+            '',
+            '',
+            '',
+            '',
+            '',
+            ''
+        ];
+
+        $hashString = implode('|', array_merge(
+            [$key, $txnid, (string) $finalPayable, $productinfo, $first_name, $mail_id],
+            $udfValues,
+            [$salt]
+        ));
 
         $hash = strtolower(hash('sha512', $hashString));
 
@@ -935,6 +957,7 @@ class FeePaymentController extends Controller
                 'hash' => $hash,
                 'udf1' => $studentId,
                 'udf2' => $roll_no,
+                'udf3' => $paymentContext,
                 'split_payments' => $splitPayments
             ],
         ]);
@@ -950,12 +973,18 @@ class FeePaymentController extends Controller
 
     public function paymentSuccess(Request $request)
     {
+        $paymentContext = $this->resolvePaymentContext($request->input('txnid'), $request->input('udf3'));
+
         if (!$this->isValidEasebuzzResponseHash($request)) {
             Log::warning('Rejected payment success callback due to invalid hash', [
                 'txnid' => $request->txnid,
                 'easepayid' => $request->easepayid,
                 'ip' => $request->ip(),
             ]);
+
+            if ($paymentContext === 'accounts') {
+                return redirect('erp/admin/accounts/std-fee-payments')->with('error', 'Unable to verify payment response. Please contact support.');
+            }
 
             return redirect('erp/student/fee-payment/')->with('error', 'Unable to verify payment response. Please contact support.');
         }
@@ -976,7 +1005,13 @@ class FeePaymentController extends Controller
                     'message' => $msg,
                 ]
             );
-        //show success page to Student  
+
+        if ($paymentContext === 'accounts') {
+            return redirect('erp/admin/accounts/transaction-info/' . $txnid . '?source=accounts')
+                ->with('success', 'Online payment completed successfully.');
+        }
+
+        //show success page to Student
         return redirect('erp/student/transaction-success/' . $txnid);
     }
 
@@ -1048,12 +1083,18 @@ class FeePaymentController extends Controller
 
     public function paymentFailure(Request $request)
     {
+        $paymentContext = $this->resolvePaymentContext($request->input('txnid'), $request->input('udf3'));
+
         if (!$this->isValidEasebuzzResponseHash($request)) {
             Log::warning('Rejected payment failure callback due to invalid hash', [
                 'txnid' => $request->txnid,
                 'easepayid' => $request->easepayid,
                 'ip' => $request->ip(),
             ]);
+
+            if ($paymentContext === 'accounts') {
+                return redirect('erp/admin/accounts/std-fee-payments')->with('error', 'Unable to verify payment response. Please contact support.');
+            }
 
             return redirect('erp/student/fee-payment/')->with('error', 'Unable to verify payment response. Please contact support.');
         }
@@ -1071,6 +1112,10 @@ class FeePaymentController extends Controller
                     'message' => $msg,
                 ]
             );
+
+        if ($paymentContext === 'accounts') {
+            return redirect('erp/admin/accounts/std-fee-payments')->with('error', 'Transaction failed. Please try again.');
+        }
 
         return redirect('erp/student/fee-payment/')->with('error', 'Transaction Failed. Please try again.');
     }
@@ -1177,6 +1222,28 @@ class FeePaymentController extends Controller
         unset($payload['hash'], $payload['key'], $payload['salt']);
 
         return $payload;
+    }
+
+    private function resolvePaymentContext(?string $invoiceId, ?string $udf3): string
+    {
+        $contextFromDb = null;
+
+        if (!empty($invoiceId)) {
+            $contextMessage = StudentPayment::where('invoice_id', $invoiceId)
+                ->value('message');
+
+            if ($contextMessage === 'ONLINE_INITIATED_BY_ACCOUNTS') {
+                $contextFromDb = 'accounts';
+            } elseif ($contextMessage === 'ONLINE_INITIATED_BY_STUDENT') {
+                $contextFromDb = 'student';
+            }
+        }
+
+        if (!empty($contextFromDb)) {
+            return $contextFromDb;
+        }
+
+        return $udf3 === 'accounts' ? 'accounts' : 'student';
     }
 
 
