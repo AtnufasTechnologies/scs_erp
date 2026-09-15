@@ -24,6 +24,7 @@ use App\Http\Controllers\CoeAttendanceController;
 use App\Http\Controllers\CoeExamController;
 use App\Http\Controllers\DcoeManagementController;
 use App\Http\Controllers\CoeRegulationController;
+use App\Http\Controllers\CoeFa1ExaminationController;
 use App\Http\Controllers\DepartmentActivityController;
 use App\Http\Controllers\DeptLeaveController;
 use App\Http\Controllers\DummyNumberController;
@@ -1225,6 +1226,12 @@ Route::group(['prefix' => '/erp'], function () {
         Route::post('attendance/update-status', [CoeAttendanceController::class, 'updateStatus'])->name('coe.attendance.update-status');
 
         // COE Exam Management Routes
+        Route::get('exams/sa', function () {
+            return redirect()->route('coe.exams.index', ['module' => 'SA']);
+        })->name('coe.exams.sa');
+        Route::get('exams/fa2', function () {
+            return redirect()->route('coe.exams.index', ['module' => 'FA2']);
+        })->name('coe.exams.fa2');
         Route::get('exams', [CoeExamController::class, 'index'])->name('coe.exams.index');
         Route::get('exams/create', [CoeExamController::class, 'create'])->name('coe.exams.create');
         Route::post('exams', [CoeExamController::class, 'store'])->name('coe.exams.store');
@@ -1294,6 +1301,10 @@ Route::group(['prefix' => '/erp'], function () {
 
         // COE Internal Marks Review (FA Change Log)
         Route::get('internal-marks-review', [CoeInternalMarksReviewController::class, 'index'])->name('coe.internal-marks-review.index');
+
+        // COE FA1 Examinations Monitor
+        Route::get('fa1-examinations', [CoeFa1ExaminationController::class, 'index'])->name('coe.fa1-examinations.index');
+        Route::get('fa1-examinations/{quizId}', [CoeFa1ExaminationController::class, 'show'])->name('coe.fa1-examinations.show');
 
         // D.COE Management Routes (COE only)
         Route::group(['prefix' => 'dcoe-management'], function () {

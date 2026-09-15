@@ -39,6 +39,65 @@
     </div>
     <!--end welcome section-->
 
+    <div class="row mb-4">
+      <div class="col-12 mb-3">
+        <div class="d-flex align-items-center justify-content-between flex-wrap gap-2">
+          <h5 class="mb-0 fw-bold"><i class="fas fa-sitemap me-2 text-primary"></i>Assessment Modules</h5>
+          <small class="text-muted">Organized workflow for SA and FA-2</small>
+        </div>
+      </div>
+
+      <div class="col-lg-6 mb-3 mb-lg-0">
+        <div class="card shadow-sm border-0 h-100 module-card module-card-sa">
+          <div class="card-header bg-transparent border-bottom py-3 d-flex align-items-center justify-content-between">
+            <h6 class="mb-0 fw-bold"><i class="fas fa-clipboard-list me-2"></i>SA Module</h6>
+            <a href="{{ route('coe.exams.sa') }}" class="btn btn-sm btn-primary">Open</a>
+          </div>
+          <div class="card-body p-0">
+            <a href="{{ route('coe.exams.sa') }}" class="module-quick-link">
+              <i class="fas fa-calendar-alt text-primary"></i>
+              <span>SA Exams</span>
+            </a>
+            <a href="{{ route('coe.exams.create', ['module' => 'SA']) }}" class="module-quick-link">
+              <i class="fas fa-plus-circle text-success"></i>
+              <span>Create SA Exam</span>
+            </a>
+            <a href="{{ route('coe.marks.entry', ['module' => 'SA']) }}" class="module-quick-link">
+              <i class="fas fa-pen-square text-info"></i>
+              <span>SA Marks Entry</span>
+            </a>
+          </div>
+        </div>
+      </div>
+
+      <div class="col-lg-6">
+        <div class="card shadow-sm border-0 h-100 module-card module-card-fa2">
+          <div class="card-header bg-transparent border-bottom py-3 d-flex align-items-center justify-content-between">
+            <h6 class="mb-0 fw-bold"><i class="fas fa-layer-group me-2"></i>FA-2 Module</h6>
+            <a href="{{ route('coe.exams.fa2') }}" class="btn btn-sm btn-outline-primary">Open</a>
+          </div>
+          <div class="card-body p-0">
+            <a href="{{ route('coe.exams.fa2') }}" class="module-quick-link">
+              <i class="fas fa-calendar-check text-primary"></i>
+              <span>FA-2 Exams</span>
+            </a>
+            <a href="{{ route('coe.exams.create', ['module' => 'FA2']) }}" class="module-quick-link">
+              <i class="fas fa-plus-circle text-success"></i>
+              <span>Create FA-2 Exam</span>
+            </a>
+            <a href="{{ route('coe.marks.entry', ['module' => 'FA2']) }}" class="module-quick-link">
+              <i class="fas fa-pen-square text-info"></i>
+              <span>FA-2 Marks Entry</span>
+            </a>
+            <a href="{{ route('coe.internal-marks-review.index') }}" class="module-quick-link">
+              <i class="fas fa-history text-warning"></i>
+              <span>FA Marks Review</span>
+            </a>
+          </div>
+        </div>
+      </div>
+    </div>
+
     <!--start stats cards-->
     <div class="row mb-4">
       <div class="col-md-3">
@@ -449,6 +508,43 @@
 
   .card {
     transition: all 0.3s ease;
+  }
+
+  .module-card {
+    overflow: hidden;
+  }
+
+  .module-card-sa {
+    border-top: 3px solid #0d6efd !important;
+  }
+
+  .module-card-fa2 {
+    border-top: 3px solid #198754 !important;
+  }
+
+  .module-quick-link {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    padding: 0.85rem 1.25rem;
+    border-bottom: 1px solid rgba(0, 0, 0, 0.06);
+    color: #212529;
+    text-decoration: none;
+    transition: background-color 0.2s ease;
+  }
+
+  .module-quick-link:last-child {
+    border-bottom: 0;
+  }
+
+  .module-quick-link:hover {
+    background-color: rgba(13, 110, 253, 0.06);
+    color: #212529;
+  }
+
+  .module-quick-link i {
+    width: 16px;
+    text-align: center;
   }
 
   .card:hover {

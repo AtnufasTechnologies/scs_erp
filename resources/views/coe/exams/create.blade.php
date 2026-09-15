@@ -12,7 +12,7 @@
         <nav aria-label="breadcrumb">
           <ol class="breadcrumb mb-0 p-0">
             <li class="breadcrumb-item"><a href="{{ route('coe.dashboard') }}"><i class="bx bx-home-alt"></i></a></li>
-            <li class="breadcrumb-item"><a href="{{ route('coe.exams.index') }}">Exams</a></li>
+            <li class="breadcrumb-item"><a href="{{ route('coe.exams.index', ['module' => ($module ?? 'SA')]) }}">Exams</a></li>
             <li class="breadcrumb-item active" aria-current="page">Create Exam</li>
           </ol>
         </nav>
@@ -21,16 +21,26 @@
     <!--end breadcrumb-->
 
     <div class="container-fluid py-4">
+      @php
+      $activeModule = $module ?? 'SA';
+      @endphp
       <!-- Page Header -->
       <div class="row mb-4">
         <div class="col-12">
           <div class="card gradient-coe shadow-lg border-0">
             <div class="card-body p-4">
               <h3 class="text-white fw-bold mb-0">
-                <i class="fas fa-plus-circle me-2"></i>Create New Exam
+                <i class="fas fa-plus-circle me-2"></i>Create New {{ $activeModule === 'FA2' ? 'FA-2' : 'SA' }} Exam
               </h3>
             </div>
           </div>
+        </div>
+      </div>
+
+      <div class="row mb-3">
+        <div class="col-12 d-flex gap-2 flex-wrap">
+          <a href="{{ route('coe.exams.create', ['module' => 'SA']) }}" class="btn {{ $activeModule === 'SA' ? 'btn-primary' : 'btn-outline-primary' }}">SA</a>
+          <a href="{{ route('coe.exams.create', ['module' => 'FA2']) }}" class="btn {{ $activeModule === 'FA2' ? 'btn-primary' : 'btn-outline-primary' }}">FA-2</a>
         </div>
       </div>
 
@@ -56,6 +66,8 @@
             <div class="card-body p-4">
               <form action="{{ route('coe.exams.store') }}" method="POST" id="examForm">
                 @csrf
+                <input type="hidden" name="assessment_type" value="{{ old('assessment_type', $activeModule) }}">
+                <input type="hidden" name="module" value="{{ $activeModule }}">
 
                 <!-- Basic Information -->
                 <div class="row mb-4">
@@ -182,7 +194,7 @@
 
                 <!-- Submit Buttons -->
                 <div class="d-flex justify-content-between align-items-center mt-4 pt-3 border-top">
-                  <a href="{{ route('coe.exams.index') }}" class="btn btn-secondary">
+                  <a href="{{ route('coe.exams.index', ['module' => $activeModule]) }}" class="btn btn-secondary">
                     <i class="fa fa-arrow-left me-1"></i>Cancel
                   </a>
                   <button type="submit" class="btn btn-primary btn-lg" id="submitBtn">

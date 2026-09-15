@@ -20,6 +20,9 @@
     <!--end breadcrumb-->
 
     <div class="container-fluid py-4">
+      @php
+      $activeModule = $module ?? null;
+      @endphp
       <!-- Page Header -->
       <div class="row mb-4">
         <div class="col-12">
@@ -27,11 +30,11 @@
             <div class="card-body p-4">
               <div class="row align-items-center">
                 <div class="col-md-8">
-                  <h3 class="text-white fw-bold mb-2"><i class="fas fa-clipboard-list me-2"></i>Examination Management</h3>
+                  <h3 class="text-white fw-bold mb-2"><i class="fas fa-clipboard-list me-2"></i>{{ $activeModule === 'FA2' ? 'FA-2 Examination Management' : ($activeModule === 'SA' ? 'SA Examination Management' : 'Examination Management') }}</h3>
                   <p class="text-white-50 mb-0">Create, manage, and monitor all examination schedules and records</p>
                 </div>
                 <div class="col-md-4 text-md-end">
-                  <a href="{{ route('coe.exams.create') }}" class="btn btn-light btn-lg">
+                  <a href="{{ route('coe.exams.create', ['module' => $activeModule]) }}" class="btn btn-light btn-lg">
                     <i class="fas fa-plus me-2"></i>Create New Exam
                   </a>
                 </div>
@@ -54,6 +57,22 @@
         <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
       </div>
       @endif
+
+      <div class="row mb-3">
+        <div class="col-12 d-flex gap-2 flex-wrap">
+          <a href="{{ route('coe.exams.sa') }}" class="btn {{ $activeModule === 'SA' ? 'btn-primary' : 'btn-outline-primary' }}">
+            SA Module
+          </a>
+          <a href="{{ route('coe.exams.fa2') }}" class="btn {{ $activeModule === 'FA2' ? 'btn-primary' : 'btn-outline-primary' }}">
+            FA-2 Module
+          </a>
+          @if($activeModule)
+          <a href="{{ route('coe.exams.index') }}" class="btn btn-outline-secondary">
+            Clear Module Filter
+          </a>
+          @endif
+        </div>
+      </div>
 
       <!-- Statistics Cards -->
       <div class="row mb-4">
@@ -126,6 +145,9 @@
         </div>
         <div class="card-body">
           <form action="{{ route('coe.exams.index') }}" method="GET">
+            @if($activeModule)
+            <input type="hidden" name="module" value="{{ $activeModule }}">
+            @endif
             <div class="row g-3">
               <div class="col-lg-3">
                 <label for="filterStatus" class="form-label fw-bold">Status</label>
@@ -166,7 +188,7 @@
             </div>
             <div class="row mt-2">
               <div class="col-12">
-                <a href="{{ route('coe.exams.index') }}" class="btn btn-sm btn-outline-secondary">
+                <a href="{{ route('coe.exams.index', $activeModule ? ['module' => $activeModule] : []) }}" class="btn btn-sm btn-outline-secondary">
                   <i class="fa fa-refresh me-1"></i>Reset Filters
                 </a>
               </div>
@@ -241,10 +263,11 @@
               <tbody>
                 @foreach($exams as $exam)
                 <tr class="exam-row"
-                  data-search="{{ strtolower($exam->name . ' ' . $exam->program->name . ' ' . $exam->exam_type) }}">
+                  data-search="{{ strtolower($exam->name . ' ' . $exam->program->name . ' ' . $exam->exam_type . ' ' . ($exam->assessment_type ?? 'SA')) }}">
                   <td>{{ $loop->iteration }}</td>
                   <td>
                     <strong>{{ $exam->name }}</strong>
+                    <br><small><span class="badge bg-dark">{{ ($exam->assessment_type ?? 'SA') === 'FA2' ? 'FA-2' : 'SA' }}</span></small>
                     @if($exam->exam_date)
                     <br><small class="text-muted">{{ \Carbon\Carbon::parse($exam->exam_date)->format('d M Y') }}</small>
                     @endif
@@ -270,10 +293,10 @@
                   </td>
                   <td class="text-center no-print">
                     <div class="btn-group" role="group">
-                      <a href="{{ route('coe.exams.show', $exam->id) }}" class="btn btn-sm btn-outline-info" title="View Details">
+                      <a href="{{ route('coe.exams.show', ['id' => $exam->id, 'module' => $activeModule ?: ($exam->assessment_type ?? 'SA')]) }}" class="btn btn-sm btn-outline-info" title="View Details">
                         <i class="fa fa-eye"></i>
                       </a>
-                      <a href="{{ route('coe.exams.edit', $exam->id) }}" class="btn btn-sm btn-outline-primary" title="Edit">
+                      <a href="{{ route('coe.exams.edit', ['id' => $exam->id, 'module' => $activeModule ?: ($exam->assessment_type ?? 'SA')]) }}" class="btn btn-sm btn-outline-primary" title="Edit">
                         <i class="fa fa-edit"></i>
                       </a>
                       <button type="button" class="btn btn-sm btn-outline-danger delete-btn"
@@ -326,7 +349,7 @@
     height: 50px;
     border-radius: 10px;
     display: flex;
-    align-items-center;
+    align-items: center;
     justify-content: center;
   }
 

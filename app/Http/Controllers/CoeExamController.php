@@ -11,12 +11,35 @@ use Illuminate\Support\Facades\DB;
 
 class CoeExamController extends Controller
 {
+  private function resolveAssessmentModule(?string $module): ?string
+  {
+    if (!$module) {
+      return null;
+    }
+
+    $normalized = strtoupper(str_replace('-', '', trim($module)));
+    if ($normalized === 'FA2') {
+      return 'FA2';
+    }
+
+    if ($normalized === 'SA') {
+      return 'SA';
+    }
+
+    return null;
+  }
+
   /**
    * Display a listing of exams
    */
   public function index(Request $request)
   {
+    $module = $this->resolveAssessmentModule($request->input('module'));
     $query = Exam::with(['program', 'regulation']);
+
+    if ($module) {
+      $query->where('assessment_type', $module);
+    }
 
     // Apply filters
     if ($request->filled('status')) {
@@ -42,10 +65,15 @@ class CoeExamController extends Controller
     $exams = $query->orderBy('start_date', 'desc')->paginate(15)->withQueryString();
 
     // Calculate statistics
-    $totalExams = Exam::count();
-    $upcomingExams = Exam::where('status', 'upcoming')->count();
-    $ongoingExams = Exam::where('status', 'ongoing')->count();
-    $completedExams = Exam::where('status', 'completed')->count();
+    $statsQuery = Exam::query();
+    if ($module) {
+      $statsQuery->where('assessment_type', $module);
+    }
+
+    $totalExams = (clone $statsQuery)->count();
+    $upcomingExams = (clone $statsQuery)->where('status', 'upcoming')->count();
+    $ongoingExams = (clone $statsQuery)->where('status', 'ongoing')->count();
+    $completedExams = (clone $statsQuery)->where('status', 'completed')->count();
 
     // Load programs for filter dropdown
     $programs = Program::orderBy('name')->get();
@@ -56,7 +84,8 @@ class CoeExamController extends Controller
       'upcomingExams',
       'ongoingExams',
       'completedExams',
-      'programs'
+      'programs',
+      'module'
     ));
   }
 
@@ -65,10 +94,11 @@ class CoeExamController extends Controller
    */
   public function create()
   {
+    $module = $this->resolveAssessmentModule(request()->input('module')) ?? 'SA';
     $programs = Program::orderBy('name')->get();
     $regulations = ProgramRegulation::orderBy('regulation_name')->get();
 
-    return view('coe.exams.create', compact('programs', 'regulations'));
+    return view('coe.exams.create', compact('programs', 'regulations', 'module'));
   }
 
   /**
@@ -78,6 +108,7 @@ class CoeExamController extends Controller
   {
     $validated = $request->validate([
       'name' => 'required|string|max:255',
+      'assessment_type' => 'required|in:SA,FA2',
       'exam_type' => 'required|string|in:Regular,Backlog,Improvement,Special',
       'semester' => 'required|in:Odd,Even',
       'program_id' => 'required|exists:programs,id',
@@ -92,7 +123,7 @@ class CoeExamController extends Controller
       $exam = Exam::create($validated);
 
       return redirect()
-        ->route('coe.exams.show', $exam->id)
+        ->route('coe.exams.show', ['id' => $exam->id, 'module' => $exam->assessment_type])
         ->with('success', 'Exam created successfully!');
     } catch (\Exception $e) {
       return redirect()
@@ -107,7 +138,12 @@ class CoeExamController extends Controller
    */
   public function show($id)
   {
+    $module = $this->resolveAssessmentModule(request()->input('module'));
     $exam = Exam::with(['program', 'regulation', 'registrations'])->findOrFail($id);
+
+    if (!$module) {
+      $module = $exam->assessment_type ?? 'SA';
+    }
 
     // Calculate attendance statistics
     $attendanceStats = [
@@ -137,7 +173,7 @@ class CoeExamController extends Controller
       'moderation' => 0,
     ];
 
-    return view('coe.exams.show', compact('exam', 'attendanceStats', 'dutyStats'));
+    return view('coe.exams.show', compact('exam', 'attendanceStats', 'dutyStats', 'module'));
   }
 
   /**
@@ -145,11 +181,15 @@ class CoeExamController extends Controller
    */
   public function edit($id)
   {
+    $module = $this->resolveAssessmentModule(request()->input('module'));
     $exam = Exam::findOrFail($id);
+    if (!$module) {
+      $module = $exam->assessment_type ?? 'SA';
+    }
     $programs = Program::orderBy('name')->get();
     $regulations = ProgramRegulation::orderBy('regulation_name')->get();
 
-    return view('coe.exams.edit', compact('exam', 'programs', 'regulations'));
+    return view('coe.exams.edit', compact('exam', 'programs', 'regulations', 'module'));
   }
 
   /**
@@ -161,6 +201,7 @@ class CoeExamController extends Controller
 
     $validated = $request->validate([
       'name' => 'required|string|max:255',
+      'assessment_type' => 'required|in:SA,FA2',
       'exam_type' => 'required|string|in:Regular,Backlog,Improvement,Special',
       'semester' => 'required|in:Odd,Even',
       'program_id' => 'required|exists:programs,id',
@@ -175,7 +216,7 @@ class CoeExamController extends Controller
       $exam->update($validated);
 
       return redirect()
-        ->route('coe.exams.show', $exam->id)
+        ->route('coe.exams.show', ['id' => $exam->id, 'module' => $validated['assessment_type']])
         ->with('success', 'Exam updated successfully!');
     } catch (\Exception $e) {
       return redirect()
@@ -206,7 +247,7 @@ class CoeExamController extends Controller
       $exam->delete();
 
       return redirect()
-        ->route('coe.exams.index')
+        ->route('coe.exams.index', ['module' => $exam->assessment_type ?? 'SA'])
         ->with('success', "Exam '{$examName}' deleted successfully!");
     } catch (\Exception $e) {
       return redirect()

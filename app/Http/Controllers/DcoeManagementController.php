@@ -19,7 +19,7 @@ class DcoeManagementController extends Controller
   public static function availableMenuItems(): array
   {
     return [
-      'exam-management'       => 'Exam Management',
+      'exam-management'       => 'Exam Modules (SA & FA-2)',
       'exam-registrations'    => 'Exam Registrations',
       'seating-allocation'    => 'Seating Allocation',
       'dummy-numbers'         => 'Dummy Numbers',

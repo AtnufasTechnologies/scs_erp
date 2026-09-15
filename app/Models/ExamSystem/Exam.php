@@ -11,6 +11,7 @@ class Exam extends Model
   protected $fillable = [
     'program_id',
     'name',
+    'assessment_type',
     'exam_date',
     'exam_type',
     'semester',

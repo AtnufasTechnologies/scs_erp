@@ -907,6 +907,10 @@ class QuizOversightController extends Controller
       return 'itcell';
     }
 
+    if (in_array($rawRole, ['coe', 'dcoe'], true)) {
+      return 'coe';
+    }
+
     if (!in_array($rawRole, ['principal', 'hod', 'dept-admin-erp'], true)) {
       abort(403, 'Unauthorized access.');
     }

@@ -12,7 +12,7 @@
         <nav aria-label="breadcrumb">
           <ol class="breadcrumb mb-0 p-0">
             <li class="breadcrumb-item"><a href="{{ route('coe.dashboard') }}"><i class="bx bx-home-alt"></i></a></li>
-            <li class="breadcrumb-item"><a href="{{ route('coe.exams.index') }}">Exams</a></li>
+            <li class="breadcrumb-item"><a href="{{ route('coe.exams.index', ['module' => ($module ?? ($exam->assessment_type ?? 'SA'))]) }}">Exams</a></li>
             <li class="breadcrumb-item active" aria-current="page">Exam Details</li>
           </ol>
         </nav>
@@ -21,6 +21,9 @@
     <!--end breadcrumb-->
 
     <div class="container-fluid py-4">
+      @php
+      $activeModule = $module ?? ($exam->assessment_type ?? 'SA');
+      @endphp
       <!-- Page Header -->
       <div class="row mb-4">
         <div class="col-12">
@@ -32,6 +35,7 @@
                     <i class="fas fa-clipboard-list me-2"></i>{{ $exam->name }}
                   </h3>
                   <p class="text-white-50 mb-0">
+                    <span class="badge bg-dark me-2">{{ $activeModule === 'FA2' ? 'FA-2' : 'SA' }}</span>
                     <span class="badge bg-light text-dark me-2">{{ $exam->exam_type }}</span>
                     @if($exam->status === 'upcoming')
                     <span class="badge bg-warning">Upcoming</span>
@@ -45,10 +49,10 @@
                   </p>
                 </div>
                 <div class="col-md-4 text-md-end">
-                  <a href="{{ route('coe.exams.edit', $exam->id) }}" class="btn btn-light me-2">
+                  <a href="{{ route('coe.exams.edit', ['id' => $exam->id, 'module' => $activeModule]) }}" class="btn btn-light me-2">
                     <i class="fa fa-edit me-1"></i>Edit
                   </a>
-                  <a href="{{ route('coe.exams.index') }}" class="btn btn-outline-light">
+                  <a href="{{ route('coe.exams.index', ['module' => $activeModule]) }}" class="btn btn-outline-light">
                     <i class="fa fa-arrow-left me-1"></i>Back
                   </a>
                 </div>
