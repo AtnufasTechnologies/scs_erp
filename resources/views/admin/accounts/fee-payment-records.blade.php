@@ -445,6 +445,14 @@ request('sort_dir') && request('sort_dir') !== 'asc' ? request('sort_dir') : nul
           <div class="meta-line">{{ $item['stdprogramenrolled']->code ?? '—' }} - {{ $item['stdprogramenrolled']->name ?? '—' }} </div>
           <div class="meta-line">Major Type: {{ $item['academic_pathway_label'] ?? 'Not Set' }}</div>
           <div class="meta-line">Degree Track: {{ $item['degree_track_label'] ?? 'Not Set' }}</div>
+          @if(!empty($item['is_full_fee_exempted']))
+          <div class="meta-line text-success">
+            <strong>Full Course Fee Exemption Active</strong>
+            @if(!empty($item['full_fee_exemption_reason']))
+            <br><small>Reason: {{ $item['full_fee_exemption_reason'] }}</small>
+            @endif
+          </div>
+          @endif
         </div>
 
         <div>
@@ -484,6 +492,18 @@ request('sort_dir') && request('sort_dir') !== 'asc' ? request('sort_dir') : nul
           </div>
           @endif
           <div class="text-title text-success">Paid Amount <strong>₹{{ number_format($fee['display_paid_total_amount'] ?? 0, 2) }}</strong></div>
+          @elseif(($fee['status'] ?? '') === 'quarter-fee-exempted')
+          <div class="text-success"><strong>Quarterly Fee Exempted</strong></div>
+          @if(!empty($fee['quarter_fee_exemption_reason']))
+          <div class="text-muted">Reason: {{ $fee['quarter_fee_exemption_reason'] }}</div>
+          @endif
+          <div class="text-title text-success">Total Payable Amount <strong>₹0.00</strong></div>
+          @elseif(($fee['status'] ?? '') === 'full-fee-exempted')
+          <div class="text-success"><strong>Full Course Fee Exempted</strong></div>
+          @if(!empty($fee['full_fee_exemption_reason']))
+          <div class="text-muted">Reason: {{ $fee['full_fee_exemption_reason'] }}</div>
+          @endif
+          <div class="text-title text-success">Total Payable Amount <strong>₹0.00</strong></div>
           @else
           @if(!empty($fee['is_late_fee_exempted']) && $fee['late_days'] > 0)
           <div class="text-muted">
@@ -513,6 +533,10 @@ request('sort_dir') && request('sort_dir') !== 'asc' ? request('sort_dir') : nul
             class="badge-paid">
             PAID
           </a>
+          @elseif(($fee['status'] ?? '') === 'quarter-fee-exempted')
+          <span class="badge bg-info text-dark">QTR EXEMPTED</span>
+          @elseif(($fee['status'] ?? '') === 'full-fee-exempted')
+          <span class="badge bg-success">EXEMPTED</span>
           @else
           <div class="d-flex flex-column gap-2 align-items-end card-actions">
             <form action="{{ route('online.fee.payment') }}" method="POST" class="m-0"

@@ -396,6 +396,11 @@ Route::group(['prefix' => '/erp'], function () {
             // Late Fee Exemption Management
             Route::get('late-fee-exemptions', [FeePaymentController::class, 'lateFeeExemptionIndex'])->name('late.fee.exemptions');
             Route::post('late-fee-exemption/grant', [FeePaymentController::class, 'grantLateFeeExemption'])->name('grant.late.fee.exemption');
+            Route::get('full-fee-exemptions', [FeePaymentController::class, 'fullFeeExemptionIndex'])->name('full.fee.exemptions');
+            Route::get('full-fee-exemptions/history', [FeePaymentController::class, 'fullFeeExemptionHistory'])->name('full.fee.exemptions.history');
+            Route::get('quarter-fee-exemptions/history', [FeePaymentController::class, 'quarterFeeExemptionHistory'])->name('quarter.fee.exemptions.history');
+            Route::post('full-fee-exemption/grant', [FeePaymentController::class, 'grantFullFeeExemption'])->name('grant.full.fee.exemption');
+            Route::post('quarter-fee-exemption/grant', [FeePaymentController::class, 'grantQuarterFeeExemption'])->name('grant.quarter.fee.exemption');
 
             // Faculty Payroll Management
             Route::get('payroll', [AdminPayrollController::class, 'index'])->name('admin.payroll.index');
@@ -436,6 +441,8 @@ Route::group(['prefix' => '/erp'], function () {
             Route::post('payroll/{id}/approve', [AdminPayrollController::class, 'approve'])->name('admin.payroll.approve');
             Route::post('payroll/{id}/mark-paid', [AdminPayrollController::class, 'markAsPaid'])->name('admin.payroll.mark-paid');
             Route::post('late-fee-exemption/{id}/revoke', [FeePaymentController::class, 'revokeLateFeeExemption'])->name('revoke.late.fee.exemption');
+            Route::post('full-fee-exemption/{id}/revoke', [FeePaymentController::class, 'revokeFullFeeExemption'])->name('revoke.full.fee.exemption');
+            Route::post('quarter-fee-exemption/{id}/revoke', [FeePaymentController::class, 'revokeQuarterFeeExemption'])->name('revoke.quarter.fee.exemption');
 
             Route::get('defaulters-list', [FeePaymentController::class, 'defaultersList'])->name('defaulters-list');
             Route::get('delete-user-permission/{id}', [AdminController::class, 'deleteUserPermission'])->name('admin.user-access.delete-permission');
@@ -909,6 +916,7 @@ Route::group(['prefix' => '/erp'], function () {
     Route::group(['prefix' => '/api'], function () {
         Route::get('students/search', [FeePaymentController::class, 'searchStudents']);
         Route::get('students/{id}/fee-structures', [FeePaymentController::class, 'getStudentFeeStructures']);
+        Route::get('students/{id}/fee-exemption-breakdown', [FeePaymentController::class, 'getStudentFullFeeExemptionBreakdown']);
         Route::get('students/{rollno}/unpaid-fees', [FeePaymentController::class, 'getStudentUnpaidFees']);
     });
 

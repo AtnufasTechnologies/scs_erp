@@ -12,11 +12,13 @@ return new class extends Migration
    */
   public function up(): void
   {
-    Schema::table('role_masters', function (Blueprint $table) {
-      $table->enum('roletype', ['academic', 'non-academic', 'technical', 'student', 'alumni', 'Administrative', 'AcademicAdministrative', 'NA'])
-        ->default('NA')
-        ->after('description');
-    });
+    if (!Schema::hasColumn('role_masters', 'roletype')) {
+      Schema::table('role_masters', function (Blueprint $table) {
+        $table->enum('roletype', ['academic', 'non-academic', 'technical', 'student', 'alumni', 'Administrative', 'AcademicAdministrative', 'NA'])
+          ->default('NA')
+          ->after('description');
+      });
+    }
 
     // Start from a safe default, then classify known academic and technical roles.
     DB::table('role_masters')->update(['roletype' => 'NA']);
@@ -65,8 +67,10 @@ return new class extends Migration
    */
   public function down(): void
   {
-    Schema::table('role_masters', function (Blueprint $table) {
-      $table->dropColumn('roletype');
-    });
+    if (Schema::hasColumn('role_masters', 'roletype')) {
+      Schema::table('role_masters', function (Blueprint $table) {
+        $table->dropColumn('roletype');
+      });
+    }
   }
 };

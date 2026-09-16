@@ -47,6 +47,18 @@
         <div class="card  border-0 mb-4">
           <div class="card-body">
             <h4 class="mb-3">Pending Fees *</h4>
+            @if(!empty($data['is_full_fee_exempted']))
+            <div class="alert alert-success">
+              Full course fee exemption is active for your account.
+              @if(!empty($data['full_fee_exemption_reason']))
+              <br><small>Reason: {{ $data['full_fee_exemption_reason'] }}</small>
+              @endif
+            </div>
+            @elseif(empty($data['feesinfo']) || count($data['feesinfo']) === 0)
+            <div class="alert alert-info">
+              No payable quarterly fee is currently pending for your account.
+            </div>
+            @endif
             @foreach($data['feesinfo'] as $fee)
             @if($fee['is_payable'] == 1)
             <div class="border rounded p-3 mb-3 bg-light">
@@ -68,6 +80,7 @@
 
           </div>
         </div>
+        @if(empty($data['is_full_fee_exempted']))
         <div class="row mb-4">
           <p>Select Payment Gateway *</p>
           <div class="d-flex gap-4">
@@ -90,6 +103,7 @@
           <button type="submit" class="btn btn-main" id="payBtn" disabled>Proceed to Payment</button>
 
         </div>
+        @endif
       </form>
       <a href="{{url('erp/student/fee-payment')}}" class="text-danger">Cancel </a>
     </div>

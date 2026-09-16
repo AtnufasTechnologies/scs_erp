@@ -77,6 +77,15 @@ $isIncharge  = $roleType === 'account-office-incharge';
     </li>
     @endif
 
+    @if($isIncharge || StaticController::subMenuRights('full-fee-exemption'))
+    <li>
+      <a href="{{ url('erp/admin/accounts/full-fee-exemptions') }}">
+        <div class="parent-icon"><i class="fas fa-user-shield"></i></div>
+        <div class="menu-title">Full Fee Exemptions</div>
+      </a>
+    </li>
+    @endif
+
     @if($isIncharge || StaticController::subMenuRights('defaulters-list'))
     <li>
       <a href="{{ route('defaulters-list') }}">

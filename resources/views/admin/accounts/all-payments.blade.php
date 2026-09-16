@@ -52,14 +52,23 @@
   <tbody>
     @if (count($payments))
     @foreach($payments as $payment)
+    @php
+    $student = $payment->studentmaster;
+    $studentName = trim(($student->first_name ?? '') . ' ' . ($student->last_name ?? ''));
+    $studentName = $studentName !== '' ? $studentName : 'Unknown Student';
+    $rollNo = $student->roll_no ?? 'N/A';
+    $quarterTitle = $payment->feepaymentinfo->quarter_title ?? 'N/A';
+    $transactionDate = $payment->transaction_date ? date('Y-m-d', strtotime($payment->transaction_date)) : '';
+    $transactionDateDisplay = $payment->transaction_date ? date('d-m-Y', strtotime($payment->transaction_date)) : 'N/A';
+    @endphp
     <tr>
       <td>{{ $loop->iteration }}</td>
       <td>
         <span data-bs-toggle="modal" data-bs-target="#editModal"
           data-id="{{$payment->id}}"
-          data-name="{{ $payment->studentmaster->first_name }} {{ $payment->studentmaster->last_name }}"
-          data-transaction-date="{{ date('Y-m-d', strtotime($payment->transaction_date)) }}">
-          {{ date('d-m-Y', strtotime($payment->transaction_date)) }}
+          data-name="{{ $studentName }}"
+          data-transaction-date="{{ $transactionDate }}">
+          {{ $transactionDateDisplay }}
           <span data-bs-toggle="tooltip" data-bs-title="Edit Transaction Date">
             <i class="fa fa-edit "></i>
           </span>
@@ -67,9 +76,9 @@
 
       </td>
       <td><a href=" {{ route('transaction.info', ['id' => $payment->invoice_id]) }}"> <span class="btn-sm btn-secondary" data-bs-toggle="tooltip" data-bs-title="View Invoice"> {{ $payment->invoice_id }}</span></a></td>
-      <td>{{$payment->feepaymentinfo->quarter_title}}</td>
-      <td class="text-uppercase">{{ $payment->studentmaster->roll_no }}</td>
-      <td class="text-capitalize">{{ $payment->studentmaster->first_name }} {{ $payment->studentmaster->last_name }}</td>
+      <td>{{ $quarterTitle }}</td>
+      <td class="text-uppercase">{{ $rollNo }}</td>
+      <td class="text-capitalize">{{ $studentName }}</td>
       <td>{{ $payment->amount }}</td>
       <td>{{ $payment->captured_amount }}</td>
       <td>{{ $payment->gateway_ref_code }}</td>

@@ -8,11 +8,14 @@ use App\Models\FailedTransactionLog;
 use App\Models\FeesStructure;
 use App\Models\FeeStructureHasHead;
 use App\Models\FeeStructureHasManyProgram;
+use App\Models\DegreeTrackMaster;
 use App\Models\LateFee;
 use App\Models\PaymentGatewayType;
 use App\Models\StudentMaster;
 use App\Models\StudentPayment;
 use App\Models\StudentLateFeeExemption;
+use App\Models\StudentFullFeeExemption;
+use App\Models\StudentQuarterFeeExemption;
 use Barryvdh\DomPDF\Facade\Pdf;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
@@ -47,6 +50,31 @@ class FeePaymentController extends Controller
             ->toArray();
     }
 
+    private function getActiveFullFeeExemption(int $studentId): ?StudentFullFeeExemption
+    {
+        if ($studentId <= 0) {
+            return null;
+        }
+
+        return StudentFullFeeExemption::where('student_id', $studentId)
+            ->where('is_active', true)
+            ->latest('id')
+            ->first();
+    }
+
+    private function getActiveQuarterFeeExemptionMap(int $studentId): array
+    {
+        if ($studentId <= 0) {
+            return [];
+        }
+
+        return StudentQuarterFeeExemption::where('student_id', $studentId)
+            ->where('is_active', true)
+            ->get()
+            ->keyBy('fee_structure_id')
+            ->toArray();
+    }
+
     private function applyFeeStructureApplicabilityFilters($query, StudentMaster $student)
     {
         if (Schema::hasColumn('fees_structures', 'academic_pathway_id')) {
@@ -59,9 +87,17 @@ class FeePaymentController extends Controller
 
         if (Schema::hasColumn('fees_structures', 'degree_track_id')) {
             if (!empty($student->degree_track_id)) {
-                $query->where(function ($subQuery) use ($student) {
+                $regularDegreeTrackId = DegreeTrackMaster::query()
+                    ->whereRaw('LOWER(name) = ?', ['regular'])
+                    ->value('id');
+
+                $query->where(function ($subQuery) use ($student, $regularDegreeTrackId) {
                     $subQuery->where('degree_track_id', (int) $student->degree_track_id)
                         ->orWhereNull('degree_track_id');
+
+                    if (!empty($regularDegreeTrackId) && (int) $regularDegreeTrackId !== (int) $student->degree_track_id) {
+                        $subQuery->orWhere('degree_track_id', (int) $regularDegreeTrackId);
+                    }
                 });
             } else {
                 $query->whereNull('degree_track_id');
@@ -148,6 +184,10 @@ class FeePaymentController extends Controller
         // ---- TRANSFORM EACH RECORD USING through() ----
         $students = $data->through(function ($student) {
 
+            $fullFeeExemption = $this->getActiveFullFeeExemption((int) $student->id);
+            $isFullFeeExempted = !is_null($fullFeeExemption);
+            $quarterFeeExemptions = $this->getActiveQuarterFeeExemptionMap((int) $student->id);
+
             $exemptions = StudentLateFeeExemption::where('student_id', $student->id)
                 ->where('is_active', true)
                 ->get()
@@ -167,13 +207,16 @@ class FeePaymentController extends Controller
             $applicableFS = $this->applyFeeStructureApplicabilityFilters($applicableFS, $student)->get();
             $lateFeePerDay = LateFee::where('status', 1)->value('late_fee_amount'); // 100
 
-            $fsWithStatus = $applicableFS->map(function ($fs) use ($student, $lateFeePerDay, $exemptions, $hasBlanketExemption) {
+            $fsWithStatus = $applicableFS->map(function ($fs) use ($student, $lateFeePerDay, $exemptions, $hasBlanketExemption, $quarterFeeExemptions) {
 
                 $payment = $student->feepayment
                     ->where('fee_structure_id', $fs->id)
                     ->where('student_id', $student->id)
                     ->where('status', 'success')
                     ->first();
+
+                $quarterExemption = $quarterFeeExemptions[(int) $fs->id] ?? null;
+                $isQuarterFeeExempted = !is_null($quarterExemption);
 
                 $totalAmount = $fs->feeHeads->sum('amount');
 
@@ -249,8 +292,10 @@ class FeePaymentController extends Controller
                     'late_days' => $lateDays,
                     'late_fee' => $lateFee,
                     'is_late_fee_exempted' => $isExempted,
+                    'is_quarter_fee_exempted' => $isQuarterFeeExempted,
+                    'quarter_fee_exemption_reason' => $quarterExemption['reason'] ?? null,
                     'fixed_late_fee' => $fixedLateFee,
-                    'payable_amount' => $totalAmount + $lateFee,
+                    'payable_amount' => ($payment || !$isQuarterFeeExempted) ? ($totalAmount + $lateFee) : 0,
                     'paid' => $payment ? true : false,
                     'paid_amount' => $payment->amount ?? 0,
                     'paid_base_amount' => $paidBaseAmount,
@@ -262,10 +307,28 @@ class FeePaymentController extends Controller
                     'display_paid_total_amount' => $displayPaidTotalAmount,
                     'status' => $payment
                         ? 'success'
-                        : ($isExempted && $lateDays > 0 ? 'due-exempted' : ($lateFee > 0 ? 'late' : 'due')),
+                        : ($isQuarterFeeExempted ? 'quarter-fee-exempted' : ($isExempted && $lateDays > 0 ? 'due-exempted' : ($lateFee > 0 ? 'late' : 'due'))),
                     'bank_accounts' => $bankAccounts,
                 ];
             });
+
+            if ($isFullFeeExempted) {
+                $fsWithStatus = $fsWithStatus->map(function ($fee) use ($fullFeeExemption) {
+                    if (($fee['status'] ?? '') === 'success') {
+                        return $fee;
+                    }
+
+                    $fee['late_days'] = 0;
+                    $fee['late_fee'] = 0;
+                    $fee['payable_amount'] = 0;
+                    $fee['is_late_fee_exempted'] = true;
+                    $fee['status'] = 'full-fee-exempted';
+                    $fee['full_fee_exempted'] = true;
+                    $fee['full_fee_exemption_reason'] = $fullFeeExemption->reason;
+
+                    return $fee;
+                });
+            }
 
 
             return [
@@ -287,6 +350,8 @@ class FeePaymentController extends Controller
                     : (((int) ($student->academic_pathway_id ?? 0) === 2) ? 'Dual Major' : 'Not Set'),
                 'degree_track_label' => $student->degreetrack->name ?? 'Not Set',
                 'current_year' => $student->current_year,
+                'is_full_fee_exempted' => $isFullFeeExempted,
+                'full_fee_exemption_reason' => $isFullFeeExempted ? $fullFeeExemption->reason : null,
                 'fee_status' => $fsWithStatus
             ];
         });
@@ -343,6 +408,19 @@ class FeePaymentController extends Controller
 
 
         $student = StudentMaster::findOrFail($request->student_id);
+
+        if ($this->getActiveFullFeeExemption((int) $student->id)) {
+            return redirect()->back()->with('error', 'Full course fee exemption is active for this student. Payment entry is blocked.');
+        }
+
+        $hasQuarterExemption = StudentQuarterFeeExemption::where('student_id', (int) $student->id)
+            ->where('fee_structure_id', (int) $request->fee_structure_id)
+            ->where('is_active', true)
+            ->exists();
+
+        if ($hasQuarterExemption) {
+            return redirect()->back()->with('error', 'Quarter fee exemption is active for this student and selected fee. Payment entry is blocked.');
+        }
 
         $rec = new StudentPayment();
         $rec->invoice_id = $invoice;
@@ -571,6 +649,31 @@ class FeePaymentController extends Controller
             ->where('roll_no', $roll)
             ->firstOrFail();
 
+        $fullFeeExemption = $this->getActiveFullFeeExemption((int) $student->id);
+        if ($fullFeeExemption) {
+            $studentData = [
+                'studentinfo' => [
+                    'id'       => $student->id,
+                    'fullname' => $student->fullname,
+                    'rollno'   => $student->roll_no,
+                    'mobile'   => $student->mobile_no,
+                    'email'    => $student->mail_id,
+                ],
+                'programinfo'  => $student->programgroup->programInfo->name ?? '',
+                'batch'        => $student->batchmaster->batch_name ?? '',
+                'current_year' => $student->current_year,
+                'feesinfo'     => [],
+                'is_full_fee_exempted' => true,
+                'full_fee_exemption_reason' => $fullFeeExemption->reason,
+            ];
+
+            return view('student.gateway-selection', [
+                'data' => $studentData
+            ]);
+        }
+
+        $quarterFeeExemptions = $this->getActiveQuarterFeeExemptionMap((int) $student->id);
+
         // ---- FETCH EXEMPTIONS FOR THIS STUDENT ----
         $exemptions = StudentLateFeeExemption::where('student_id', $student->id)
             ->where('is_active', true)
@@ -593,13 +696,16 @@ class FeePaymentController extends Controller
 
         $applicableFS = $this->applyFeeStructureApplicabilityFilters($applicableFS, $student)->get();
         // ---- PREPARE FEE STATUS ----
-        $feeStatus = $applicableFS->map(function ($fs) use ($student, $lateFeePerDay, $exemptions, $hasBlanketExemption) {
+        $feeStatus = $applicableFS->map(function ($fs) use ($student, $lateFeePerDay, $exemptions, $hasBlanketExemption, $quarterFeeExemptions) {
             // Success payment
             $successPayment = $student->feepayment
                 ->where('fee_structure_id', $fs->id)
                 ->where('student_id', $student->id)
                 ->where('status', 'success')
                 ->first();
+
+            $quarterExemption = $quarterFeeExemptions[(int) $fs->id] ?? null;
+            $isQuarterFeeExempted = !is_null($quarterExemption);
 
             // Latest attempt
             $latestPayment = $student->feepayment
@@ -653,14 +759,16 @@ class FeePaymentController extends Controller
                 'late_days'          => $lateDays,
                 'late_fee'           => $lateFee,
                 'is_late_fee_exempted' => $isExempted,
-                'total_payable'      => $baseAmount + $lateFee,
+                'is_quarter_fee_exempted' => $isQuarterFeeExempted,
+                'quarter_fee_exemption_reason' => $quarterExemption['reason'] ?? null,
+                'total_payable'      => ($successPayment || !$isQuarterFeeExempted) ? ($baseAmount + $lateFee) : 0,
 
                 // CORE PAYMENT INFO
                 'paid'               => $successPayment ? true : false,
                 'paid_amount'        => $successPayment->amount ?? 0,
                 'status'             => $successPayment
                     ? 'PAID'
-                    : ($isExempted && $lateDays > 0 ? 'DUE (Late Fee Exempted)' : ($lateFee > 0 ? 'LATE' : 'DUE')),
+                    : ($isQuarterFeeExempted ? 'EXEMPTED' : ($isExempted && $lateDays > 0 ? 'DUE (Late Fee Exempted)' : ($lateFee > 0 ? 'LATE' : 'DUE'))),
 
                 // UI / Debug
                 'last_attempt_status' => $latestPayment->status ?? null,
@@ -670,7 +778,7 @@ class FeePaymentController extends Controller
 
         // ---- FILTER OUT: PAID FEES & FEES WITH ACTIVE EXEMPTIONS ----
         $feeStatus = $feeStatus
-            ->filter(fn($item) => $item['paid'] === false)
+            ->filter(fn($item) => $item['paid'] === false && $item['is_quarter_fee_exempted'] === false)
             ->values();
 
         // ---- RETURN JSON RESPONSE ----
@@ -825,6 +933,25 @@ class FeePaymentController extends Controller
 
         // ---- STUDENT ----
         $student = StudentMaster::find($studentId);
+
+        if (!$student) {
+            return back()->withErrors('Student record not found.');
+        }
+
+        if ($this->getActiveFullFeeExemption((int) $student->id)) {
+            return back()->withErrors('Full course fee exemption is active for this student. Online payment is blocked.');
+        }
+
+        $exemptedQuarterIds = StudentQuarterFeeExemption::where('student_id', (int) $student->id)
+            ->where('is_active', true)
+            ->whereIn('fee_structure_id', array_map('intval', $feeStructureIds))
+            ->pluck('fee_structure_id')
+            ->map(fn($id) => (int) $id)
+            ->toArray();
+
+        if (!empty($exemptedQuarterIds)) {
+            return back()->withErrors('Quarter fee exemption is active for one or more selected fee structures. Online payment blocked for exempted fees.');
+        }
 
         $allowedFeeIds = $this->applyFeeStructureApplicabilityFilters(
             FeesStructure::whereIn('id', $feeStructureIds),
@@ -1304,6 +1431,259 @@ class FeePaymentController extends Controller
         return view('admin.accounts.ez-payment-verification', ['data' => $data]);
     }
 
+    // ---- FULL COURSE FEE EXEMPTION MANAGEMENT ----
+
+    public function fullFeeExemptionIndex(Request $request)
+    {
+        $studentsQuery = StudentMaster::select('id', 'roll_no', 'first_name', 'last_name', 'batch', 'current_year', 'academic_pathway_id', 'degree_track_id')
+            ->with(['batchmaster:id,batch_name', 'academicpathway:id,name', 'degreetrack:id,name'])
+            ->orderBy('roll_no', 'asc');
+
+        if ($request->filled('search')) {
+            $search = trim((string) $request->search);
+            $studentsQuery->where(function ($q) use ($search) {
+                $q->where('roll_no', 'LIKE', "%{$search}%")
+                    ->orWhere('first_name', 'LIKE', "%{$search}%")
+                    ->orWhere('last_name', 'LIKE', "%{$search}%");
+            });
+        }
+
+        if ($request->filled('batch_filter')) {
+            $studentsQuery->where('batch', (int) $request->batch_filter);
+        }
+
+        $students = $studentsQuery->paginate(50)->appends($request->query());
+
+        $activeExemptions = StudentFullFeeExemption::whereIn('student_id', $students->pluck('id'))
+            ->where('is_active', true)
+            ->get()
+            ->keyBy('student_id');
+
+        $activeQuarterExemptions = StudentQuarterFeeExemption::with('feeStructure:id,quarter_title,std_current_year')
+            ->whereIn('student_id', $students->pluck('id'))
+            ->where('is_active', true)
+            ->get()
+            ->groupBy('student_id');
+
+        $exemptions = StudentFullFeeExemption::with([
+            'student:id,roll_no,first_name,last_name,academic_pathway_id,degree_track_id',
+            'student.academicpathway:id,name',
+            'student.degreetrack:id,name',
+            'approver:id,name',
+            'revoker:id,name'
+        ])
+            ->orderBy('created_at', 'desc')
+            ->paginate(50, ['*'], 'history_page')
+            ->appends($request->query());
+
+        $quarterExemptions = StudentQuarterFeeExemption::with([
+            'student:id,roll_no,first_name,last_name,academic_pathway_id,degree_track_id',
+            'student.academicpathway:id,name',
+            'student.degreetrack:id,name',
+            'feeStructure:id,quarter_title,std_current_year',
+            'approver:id,name',
+            'revoker:id,name'
+        ])
+            ->orderBy('created_at', 'desc')
+            ->paginate(50, ['*'], 'quarter_history_page')
+            ->appends($request->query());
+
+        $batches = BatchMaster::orderBy('batch_name', 'desc')->get(['id', 'batch_name']);
+
+        return view('admin.accounts.full-fee-exemptions', compact('students', 'activeExemptions', 'activeQuarterExemptions', 'exemptions', 'quarterExemptions', 'batches'));
+    }
+
+    public function grantFullFeeExemption(Request $request)
+    {
+        $request->validate([
+            'roll_no' => 'required|exists:student_masters,roll_no',
+            'reason' => 'required|string|max:500',
+        ]);
+
+        $student = StudentMaster::where('roll_no', trim((string) $request->roll_no))->firstOrFail();
+
+        StudentFullFeeExemption::updateOrCreate(
+            ['student_id' => $student->id],
+            [
+                'reason' => trim((string) $request->reason),
+                'approved_by' => Auth::id(),
+                'approved_at' => now(),
+                'is_active' => true,
+                'revoked_by' => null,
+                'revoked_at' => null,
+            ]
+        );
+
+        return redirect()->back()->with('success', 'Full course fee exemption saved successfully.');
+    }
+
+    public function revokeFullFeeExemption($id)
+    {
+        $exemption = StudentFullFeeExemption::findOrFail($id);
+        $exemption->is_active = false;
+        $exemption->revoked_by = Auth::id();
+        $exemption->revoked_at = now();
+        $exemption->save();
+
+        return redirect()->back()->with('success', 'Full course fee exemption revoked successfully.');
+    }
+
+    public function grantQuarterFeeExemption(Request $request)
+    {
+        $request->validate([
+            'roll_no' => 'required|exists:student_masters,roll_no',
+            'fee_structure_ids' => 'required|array|min:1',
+            'fee_structure_ids.*' => 'required|integer|exists:fees_structures,id',
+            'reason' => 'required|string|max:500',
+        ]);
+
+        $student = StudentMaster::where('roll_no', trim((string) $request->roll_no))->firstOrFail();
+
+        if ($this->getActiveFullFeeExemption((int) $student->id)) {
+            return redirect()->back()->with('error', 'Full course fee exemption is active for this student. Quarterly exemptions are unnecessary until full exemption is revoked.');
+        }
+
+        $createdCount = 0;
+        foreach ((array) $request->fee_structure_ids as $feeStructureId) {
+            StudentQuarterFeeExemption::updateOrCreate(
+                [
+                    'student_id' => (int) $student->id,
+                    'fee_structure_id' => (int) $feeStructureId,
+                ],
+                [
+                    'reason' => trim((string) $request->reason),
+                    'approved_by' => Auth::id(),
+                    'approved_at' => now(),
+                    'is_active' => true,
+                    'revoked_by' => null,
+                    'revoked_at' => null,
+                ]
+            );
+            $createdCount++;
+        }
+
+        return redirect()->back()->with('success', 'Quarterly fee exemption saved for ' . $createdCount . ' fee structure(s).');
+    }
+
+    public function revokeQuarterFeeExemption($id)
+    {
+        $exemption = StudentQuarterFeeExemption::findOrFail($id);
+        $exemption->is_active = false;
+        $exemption->revoked_by = Auth::id();
+        $exemption->revoked_at = now();
+        $exemption->save();
+
+        return redirect()->back()->with('success', 'Quarterly fee exemption revoked successfully.');
+    }
+
+    public function fullFeeExemptionHistory(Request $request)
+    {
+        $query = StudentFullFeeExemption::with([
+            'student:id,roll_no,first_name,last_name,batch,academic_pathway_id,degree_track_id',
+            'student.batchmaster:id,batch_name',
+            'student.academicpathway:id,name',
+            'student.degreetrack:id,name',
+            'approver:id,name',
+            'revoker:id,name',
+        ])->orderBy('created_at', 'desc');
+
+        if ($request->filled('search')) {
+            $search = trim((string) $request->search);
+            $query->whereHas('student', function ($q) use ($search) {
+                $q->where('roll_no', 'LIKE', "%{$search}%")
+                    ->orWhere('first_name', 'LIKE', "%{$search}%")
+                    ->orWhere('last_name', 'LIKE', "%{$search}%");
+            });
+        }
+
+        if ($request->filled('batch_filter')) {
+            $batchId = (int) $request->batch_filter;
+            $query->whereHas('student', function ($q) use ($batchId) {
+                $q->where('batch', $batchId);
+            });
+        }
+
+        if ($request->filled('status')) {
+            if ($request->status === 'active') {
+                $query->where('is_active', true);
+            } elseif ($request->status === 'revoked') {
+                $query->where('is_active', false);
+            }
+        }
+
+        if ($request->filled('from_date')) {
+            $query->whereDate('approved_at', '>=', $request->from_date);
+        }
+
+        if ($request->filled('to_date')) {
+            $query->whereDate('approved_at', '<=', $request->to_date);
+        }
+
+        $histories = $query->paginate(50)->appends($request->query());
+        $batches = BatchMaster::orderBy('batch_name', 'desc')->get(['id', 'batch_name']);
+
+        return view('admin.accounts.full-fee-exemption-history', compact('histories', 'batches'));
+    }
+
+    public function quarterFeeExemptionHistory(Request $request)
+    {
+        $query = StudentQuarterFeeExemption::with([
+            'student:id,roll_no,first_name,last_name,batch,academic_pathway_id,degree_track_id',
+            'student.batchmaster:id,batch_name',
+            'student.academicpathway:id,name',
+            'student.degreetrack:id,name',
+            'feeStructure:id,quarter_title,std_current_year',
+            'approver:id,name',
+            'revoker:id,name',
+        ])->orderBy('created_at', 'desc');
+
+        if ($request->filled('search')) {
+            $search = trim((string) $request->search);
+            $query->whereHas('student', function ($q) use ($search) {
+                $q->where('roll_no', 'LIKE', "%{$search}%")
+                    ->orWhere('first_name', 'LIKE', "%{$search}%")
+                    ->orWhere('last_name', 'LIKE', "%{$search}%");
+            });
+        }
+
+        if ($request->filled('batch_filter')) {
+            $batchId = (int) $request->batch_filter;
+            $query->whereHas('student', function ($q) use ($batchId) {
+                $q->where('batch', $batchId);
+            });
+        }
+
+        if ($request->filled('status')) {
+            if ($request->status === 'active') {
+                $query->where('is_active', true);
+            } elseif ($request->status === 'revoked') {
+                $query->where('is_active', false);
+            }
+        }
+
+        if ($request->filled('from_date')) {
+            $query->whereDate('approved_at', '>=', $request->from_date);
+        }
+
+        if ($request->filled('to_date')) {
+            $query->whereDate('approved_at', '<=', $request->to_date);
+        }
+
+        if ($request->filled('fee_structure_id')) {
+            $query->where('fee_structure_id', (int) $request->fee_structure_id);
+        }
+
+        $histories = $query->paginate(50)->appends($request->query());
+        $batches = BatchMaster::orderBy('batch_name', 'desc')->get(['id', 'batch_name']);
+        $feeStructures = FeesStructure::query()
+            ->select('id', 'quarter_title', 'std_current_year')
+            ->orderBy('std_current_year')
+            ->orderBy('quarter_title')
+            ->get();
+
+        return view('admin.accounts.quarter-fee-exemption-history', compact('histories', 'batches', 'feeStructures'));
+    }
+
     // ---- LATE FEE EXEMPTION MANAGEMENT ----
 
     public function lateFeeExemptionIndex(Request $request)
@@ -1399,6 +1779,115 @@ class FeePaymentController extends Controller
 
     // ---- API ENDPOINTS FOR EXEMPTION PAGE ----
 
+    public function getStudentFullFeeExemptionBreakdown($studentId)
+    {
+        $student = StudentMaster::with('feepayment')->findOrFail($studentId);
+
+        $lateFeePerDay = LateFee::where('status', 1)->value('late_fee_amount') ?? 0;
+
+        $lateExemptions = StudentLateFeeExemption::where('student_id', $student->id)
+            ->where('is_active', true)
+            ->get()
+            ->keyBy('fee_structure_id');
+
+        $hasBlanketLateExemption = $lateExemptions->contains(function ($exemption) {
+            return is_null($exemption->fee_structure_id);
+        });
+
+        $quarterFeeExemptions = $this->getActiveQuarterFeeExemptionMap((int) $student->id);
+
+        $applicableFS = FeesStructure::with('feeHeads')
+            ->where('batch_id', $student->batch)
+            ->whereHas('programspivot', function ($q) use ($student) {
+                $q->where('std_program_id', $student->new_program_id);
+            })
+            ->whereIn('std_current_year', range(1, $student->current_year))
+            ->orderBy('std_current_year');
+
+        $applicableFS = $this->applyFeeStructureApplicabilityFilters($applicableFS, $student)->get();
+
+        $rows = $applicableFS->map(function ($fs) use ($student, $lateFeePerDay, $lateExemptions, $hasBlanketLateExemption, $quarterFeeExemptions) {
+            $successPayment = $student->feepayment
+                ->where('fee_structure_id', $fs->id)
+                ->where('student_id', $student->id)
+                ->where('status', 'success')
+                ->first();
+
+            $baseAmount = $successPayment
+                ? (float) ($successPayment->amount ?? 0)
+                : (float) $fs->feeHeads->sum('amount');
+            $lateDays = 0;
+            $lateFee = 0;
+            $isPaid = !is_null($successPayment);
+
+            if ($isPaid) {
+                $lateFee = (float) ($successPayment->late_fee_amount ?? 0);
+                $lateDays = (int) ($successPayment->late_days ?? 0);
+            }
+
+            if (!$isPaid && $fs->due_date) {
+                $dueDate = Carbon::parse($fs->due_date);
+                $today = Carbon::today();
+
+                if ($today->gt($dueDate)) {
+                    $lateDays = $dueDate->diffInDays($today);
+                    $isLateExempted = $hasBlanketLateExemption || $lateExemptions->has($fs->id);
+
+                    if ($isLateExempted) {
+                        $exemption = $hasBlanketLateExemption
+                            ? $lateExemptions->first(function ($e) {
+                                return is_null($e->fee_structure_id);
+                            })
+                            : $lateExemptions->get($fs->id);
+
+                        if ($exemption && !is_null($exemption->fixed_late_fee)) {
+                            $lateFee = (float) $exemption->fixed_late_fee;
+                        }
+                    } else {
+                        $lateFee = (float) ($lateDays * $lateFeePerDay);
+                    }
+                }
+            }
+
+            $isQuarterFeeExempted = isset($quarterFeeExemptions[(int) $fs->id]);
+            $lineTotal = $baseAmount + $lateFee;
+            $exemptableAmount = (!$isPaid && !$isQuarterFeeExempted) ? $lineTotal : 0;
+
+            return [
+                'fee_structure_id' => (int) $fs->id,
+                'fee_structure_name' => (string) ($fs->quarter_title ?? 'N/A'),
+                'year' => (int) ($fs->std_current_year ?? 0),
+                'base_amount' => $baseAmount,
+                'late_days' => (int) $lateDays,
+                'late_fee' => (float) $lateFee,
+                'total_payable' => $lineTotal,
+                'is_paid' => $isPaid,
+                'is_payable' => (int) ($fs->is_payable ?? 0),
+                'is_quarter_fee_exempted' => $isQuarterFeeExempted,
+                'quarter_fee_exemption_reason' => $quarterFeeExemptions[(int) $fs->id]['reason'] ?? null,
+                'exemptable_amount' => $exemptableAmount,
+            ];
+        })
+            ->values();
+
+        return response()->json([
+            'student' => [
+                'id' => (int) $student->id,
+                'roll_no' => (string) $student->roll_no,
+                'name' => (string) trim(($student->first_name ?? '') . ' ' . ($student->last_name ?? '')),
+            ],
+            'fees' => $rows,
+            'summary' => [
+                'count' => (int) $rows->count(),
+                'total_base_amount' => (float) $rows->sum('base_amount'),
+                'total_late_fee' => (float) $rows->sum('late_fee'),
+                'total_course_amount' => (float) $rows->sum('total_payable'),
+                'total_paid_amount' => (float) $rows->where('is_paid', true)->sum('total_payable'),
+                'total_to_be_exempted' => (float) $rows->sum('exemptable_amount'),
+            ],
+        ]);
+    }
+
     public function searchStudents(Request $request)
     {
         $query = $request->get('q');
@@ -1429,20 +1918,52 @@ class FeePaymentController extends Controller
 
     public function getStudentFeeStructures($studentId)
     {
-        $student = StudentMaster::findOrFail($studentId);
+        $student = StudentMaster::with('feepayment')->findOrFail($studentId);
 
-        $feeStructures = FeesStructure::where('batch_id', $student->batch)
+        if ($this->getActiveFullFeeExemption((int) $student->id)) {
+            return response()->json([]);
+        }
+
+        $feeStructures = FeesStructure::query()->where('batch_id', $student->batch)
             ->whereHas('programspivot', function ($q) use ($student) {
                 $q->where('std_program_id', $student->new_program_id);
             })
             ->whereIn('std_current_year', range(1, $student->current_year))
-            ->select('id', 'quarter_title', 'std_current_year', 'quarter_no')
-            ->orderBy('std_current_year')
-            ->orderBy('quarter_no');
+            ->orderBy('std_current_year');
 
-        $feeStructures = $this->applyFeeStructureApplicabilityFilters($feeStructures, $student)->get();
+        $hasQuarterNo = Schema::hasColumn('fees_structures', 'quarter_no');
+        if ($hasQuarterNo) {
+            $feeStructures->orderBy('quarter_no');
+        } else {
+            $feeStructures->orderBy('id');
+        }
 
-        return response()->json($feeStructures);
+        $selectColumns = ['id', 'quarter_title', 'std_current_year', 'is_payable'];
+        if ($hasQuarterNo) {
+            $selectColumns[] = 'quarter_no';
+        }
+
+        $feeStructures = $this->applyFeeStructureApplicabilityFilters($feeStructures, $student)
+            ->get($selectColumns);
+
+        $rows = $feeStructures->map(function ($fs) use ($student) {
+            $isPaid = $student->feepayment
+                ->where('fee_structure_id', $fs->id)
+                ->where('student_id', $student->id)
+                ->where('status', 'success')
+                ->isNotEmpty();
+
+            return [
+                'id' => (int) $fs->id,
+                'quarter_title' => (string) ($fs->quarter_title ?? ''),
+                'std_current_year' => (int) ($fs->std_current_year ?? 0),
+                'quarter_no' => (int) ($fs->quarter_no ?? 0),
+                'is_payable' => (int) ($fs->is_payable ?? 0),
+                'is_paid' => $isPaid,
+            ];
+        })->values();
+
+        return response()->json($rows);
     }
 
 
@@ -1465,6 +1986,12 @@ class FeePaymentController extends Controller
         ])
             ->where('roll_no', $roll)
             ->firstOrFail();
+
+        if ($this->getActiveFullFeeExemption((int) $student->id)) {
+            return response()->json([]);
+        }
+
+        $quarterFeeExemptions = $this->getActiveQuarterFeeExemptionMap((int) $student->id);
 
         // ---- FETCH EXEMPTIONS FOR THIS STUDENT ----
         $exemptions = StudentLateFeeExemption::where('student_id', $student->id)
@@ -1498,7 +2025,7 @@ class FeePaymentController extends Controller
             ->get();
 
         // ---- PREPARE FEE STATUS ----
-        $feeStatus = $applicableFS->map(function ($fs) use ($student, $lateFeePerDay, $exemptions, $hasBlanketExemption) {
+        $feeStatus = $applicableFS->map(function ($fs) use ($student, $lateFeePerDay, $exemptions, $hasBlanketExemption, $quarterFeeExemptions) {
 
             // Success payment
             $successPayment = $student->feepayment
@@ -1515,6 +2042,7 @@ class FeePaymentController extends Controller
                 ->first();
 
             $baseAmount = $fs->feeHeads->sum('amount');
+            $isQuarterFeeExempted = isset($quarterFeeExemptions[(int) $fs->id]);
 
             // ---- LATE FEE LOGIC WITH EXEMPTION CHECK ----
             $lateDays = 0;
@@ -1547,14 +2075,15 @@ class FeePaymentController extends Controller
                 'late_days'          => $lateDays,
                 'late_fee'           => $lateFee,
                 'is_late_fee_exempted' => $isExempted,
-                'total_payable'      => $baseAmount + $lateFee,
+                'is_quarter_fee_exempted' => $isQuarterFeeExempted,
+                'total_payable'      => ($successPayment || !$isQuarterFeeExempted) ? ($baseAmount + $lateFee) : 0,
 
                 // CORE PAYMENT INFO
                 'paid'               => $successPayment ? true : false,
                 'paid_amount'        => $successPayment->amount ?? 0,
                 'status'             => $successPayment
                     ? 'PAID'
-                    : ($isExempted && $lateDays > 0 ? 'DUE (Late Fee Exempted)' : ($lateFee > 0 ? 'LATE' : 'DUE')),
+                    : ($isQuarterFeeExempted ? 'EXEMPTED' : ($isExempted && $lateDays > 0 ? 'DUE (Late Fee Exempted)' : ($lateFee > 0 ? 'LATE' : 'DUE'))),
 
                 // UI / Debug
                 'last_attempt_status' => $latestPayment->status ?? null,
@@ -1577,6 +2106,10 @@ class FeePaymentController extends Controller
 
                 // Exclude if this specific fee already has an exemption
                 if ($item['is_late_fee_exempted'] === true) {
+                    return false;
+                }
+
+                if (($item['is_quarter_fee_exempted'] ?? false) === true) {
                     return false;
                 }
 
