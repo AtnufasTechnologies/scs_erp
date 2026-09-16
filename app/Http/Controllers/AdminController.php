@@ -2902,19 +2902,7 @@ class AdminController extends Controller
             'degree_track_id' => 'required|integer|exists:degree_track_masters,id',
         ]);
         $id = $request->id;
-
         $degreeTrackId = (int) $request->degree_track_id;
-        if (in_array((int) $request->academic_pathway_id, [1, 2], true)) {
-            $regularDegreeTrackId = DegreeTrackMaster::query()
-                ->whereRaw('LOWER(name) = ?', ['regular'])
-                ->value('id');
-
-            if (empty($regularDegreeTrackId)) {
-                return redirect()->back()->with('error', 'Single/Dual Major requires a Regular degree track, but no Regular track exists.');
-            }
-
-            $degreeTrackId = (int) $regularDegreeTrackId;
-        }
 
         FeesStructure::where('id', $id)->update([
             'program_id' => $request->program,

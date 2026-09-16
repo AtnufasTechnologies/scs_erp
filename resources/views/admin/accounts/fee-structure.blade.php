@@ -938,51 +938,6 @@ $batchColorPalette = [
 <script>
   // Fee card live search (toolbar)
   document.addEventListener('DOMContentLoaded', function() {
-    function bindDualMajorRegularRule(form) {
-      const pathwaySelect = form.querySelector('select[name="academic_pathway_id"]');
-      const degreeTrackSelect = form.querySelector('select[name="degree_track_id"]');
-
-      if (!pathwaySelect || !degreeTrackSelect) {
-        return;
-      }
-
-      const findRegularOption = () => {
-        return Array.from(degreeTrackSelect.options).find(option => {
-          return String(option.value || '').trim() !== '' &&
-            String(option.textContent || '').trim().toLowerCase().indexOf('regular') !== -1;
-        }) || null;
-      };
-
-      const syncDegreeTrack = () => {
-        const selectedPathway = String(pathwaySelect.value || '');
-        const requiresRegularTrack = selectedPathway === '1' || selectedPathway === '2';
-        const regularOption = findRegularOption();
-
-        Array.from(degreeTrackSelect.options).forEach(option => {
-          if (String(option.value || '').trim() === '') {
-            option.disabled = false;
-            return;
-          }
-
-          option.disabled = requiresRegularTrack && regularOption ?
-            String(option.value) !== String(regularOption.value) :
-            false;
-        });
-
-        if (requiresRegularTrack && regularOption) {
-          degreeTrackSelect.value = String(regularOption.value);
-          degreeTrackSelect.dispatchEvent(new Event('change'));
-        }
-      };
-
-      pathwaySelect.addEventListener('change', syncDegreeTrack);
-      syncDegreeTrack();
-    }
-
-    document.querySelectorAll('form').forEach(function(form) {
-      bindDualMajorRegularRule(form);
-    });
-
     var searchInput = document.getElementById('feeSearch');
     var batchFilter = document.getElementById('filterBatch');
     var pathwayFilter = document.getElementById('filterPathway');
