@@ -2898,6 +2898,8 @@ class AdminController extends Controller
         $request->validate([
             'program' => 'required',
             'batch' => 'required',
+            'quarter_title' => 'required|string|max:255',
+            'yearly_pay_order' => 'required|integer|min:1|max:5',
             'academic_pathway_id' => 'required|in:1,2',
             'degree_track_id' => 'required|integer|exists:degree_track_masters,id',
         ]);
@@ -2911,6 +2913,8 @@ class AdminController extends Controller
             'batch_id' => $request->batch,
             'reminder_date' => $request->reminder_date,
             'due_date' => $request->due_date,
+            'quarter_title' => $request->quarter_title,
+            'yearly_pay_order' => (int) $request->yearly_pay_order,
         ]);
 
         $amount = $request->amounts;
@@ -2936,6 +2940,14 @@ class AdminController extends Controller
         }
 
 
+
+        if ($request->ajax()) {
+            return response()->json([
+                'success' => true,
+                'message' => 'Fee Structure Updated',
+                'fee_structure_id' => (int) $id,
+            ]);
+        }
 
         return redirect()->back()->with('success', 'Fee Structure Updated');
     }

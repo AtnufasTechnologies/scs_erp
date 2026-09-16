@@ -651,7 +651,7 @@ $batchColorPalette = [
               <h5 class="modal-title">Edit Fee Structure</h5>
               <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
             </div>
-            <form action="{{ url('erp/admin/accounts/update-fee-structure') }}" method="post">
+            <form action="{{ url('erp/admin/accounts/update-fee-structure') }}" method="post" class="ajax-fee-structure-update-form" data-fee-structure-id="{{ $item->id }}">
               @csrf
               <div class="modal-body">
                 <div class="row g-3">
@@ -688,14 +688,28 @@ $batchColorPalette = [
                     <label class="form-label">Course Name</label>
                     <input type="text" class="form-control bg-light" value="{{ $item->feecoursemaster->name ?? '-'}}" readonly>
                   </div>
-                  <div class="col-12">
+                  <div class="col-lg-8">
+                    <label class="form-label">Quarter Title *</label>
+                    <input type="text" name="quarter_title" class="form-control" value="{{ $item->quarter_title }}" required>
+                  </div>
+                  <div class="col-lg-4">
+                    <label class="form-label">Yearly Payment Order *</label>
+                    <select name="yearly_pay_order" class="form-select" required>
+                      <option value="1" {{ (int)($item->yearly_pay_order ?? 0) === 1 ? 'selected' : '' }}>1</option>
+                      <option value="2" {{ (int)($item->yearly_pay_order ?? 0) === 2 ? 'selected' : '' }}>2</option>
+                      <option value="3" {{ (int)($item->yearly_pay_order ?? 0) === 3 ? 'selected' : '' }}>3</option>
+                      <option value="4" {{ (int)($item->yearly_pay_order ?? 0) === 4 ? 'selected' : '' }}>4</option>
+                      <option value="5" {{ (int)($item->yearly_pay_order ?? 0) === 5 ? 'selected' : '' }}>5</option>
+                    </select>
+                  </div>
+                  <div class="col-6">
                     <label class="form-label">Major Type *</label>
                     <select name="academic_pathway_id" class="form-select pathway-select" required>
                       <option value="1" {{ (int)($item->academic_pathway_id ?? 0) === 1 ? 'selected' : '' }}>Single Major</option>
                       <option value="2" {{ (int)($item->academic_pathway_id ?? 0) === 2 ? 'selected' : '' }}>Dual Major</option>
                     </select>
                   </div>
-                  <div class="col-12">
+                  <div class="col-6">
                     <label class="form-label">Degree Track *</label>
                     <select name="degree_track_id" class="form-select degree-track-select" required>
                       <option value="">-- Select --</option>
@@ -994,6 +1008,128 @@ $batchColorPalette = [
     }
 
     applyLocalFilters();
+
+    // AJAX: Fee Structure Update (prevents full page refresh)
+    document.querySelectorAll('.ajax-fee-structure-update-form').forEach(function(form) {
+      form.addEventListener('submit', function(e) {
+        e.preventDefault();
+
+        const feeStructureId = this.dataset.feeStructureId || this.querySelector('input[name="id"]')?.value;
+        const submitBtn = this.querySelector('button[type="submit"]');
+        const originalBtnHtml = submitBtn ? submitBtn.innerHTML : '';
+        const formData = new FormData(this);
+
+        if (submitBtn) {
+          submitBtn.disabled = true;
+          submitBtn.innerHTML = '<i class="fa fa-spinner fa-spin me-1"></i>Saving...';
+        }
+
+        fetch(this.action, {
+            method: 'POST',
+            headers: {
+              'X-Requested-With': 'XMLHttpRequest',
+              'Accept': 'application/json'
+            },
+            body: formData
+          })
+          .then(async response => {
+            const data = await response.json().catch(() => ({}));
+            if (!response.ok) {
+              throw data;
+            }
+            return data;
+          })
+          .then(data => {
+            const cardToggle = document.querySelector(`.status-toggle-btn[data-fee-structure-id="${feeStructureId}"]`);
+            const cardCol = cardToggle ? cardToggle.closest('.fee-card-col') : null;
+
+            if (cardCol) {
+              const pathwaySelect = form.querySelector('select[name="academic_pathway_id"]');
+              const degreeTrackSelect = form.querySelector('select[name="degree_track_id"]');
+              const reminderDate = form.querySelector('input[name="reminder_date"]')?.value || '';
+              const dueDate = form.querySelector('input[name="due_date"]')?.value || '';
+              const quarterTitle = form.querySelector('input[name="quarter_title"]')?.value || '';
+              const yearlyOrder = form.querySelector('select[name="yearly_pay_order"]')?.value || '';
+
+              const pathwayId = pathwaySelect ? String(pathwaySelect.value || '') : '';
+              const degreeTrackId = degreeTrackSelect ? String(degreeTrackSelect.value || '') : '';
+              const degreeTrackName = degreeTrackSelect && degreeTrackSelect.selectedOptions.length ?
+                degreeTrackSelect.selectedOptions[0].textContent.trim() : 'Not Set';
+
+              cardCol.dataset.pathwayId = pathwayId;
+              cardCol.dataset.degreeTrackId = degreeTrackId;
+
+              const subtitle = cardCol.querySelector('.fc-subtitle');
+              if (subtitle) {
+                const badges = subtitle.querySelectorAll('.badge');
+                if (badges.length > 0) {
+                  badges[0].className = pathwayId === '1' ? 'badge badge-paid' : 'badge badge-unpaid';
+                  badges[0].textContent = pathwayId === '1' ? 'Single Major' : 'Dual Major';
+                }
+                if (badges.length > 1) {
+                  badges[1].textContent = degreeTrackName;
+                }
+              }
+
+              const metaChips = cardCol.querySelectorAll('.fc-meta-chip');
+              if (metaChips.length > 1) {
+                metaChips[1].innerHTML = `<i class="fa fa-align-left me-1"></i>${quarterTitle}`;
+              }
+              if (metaChips.length > 2) {
+                metaChips[2].innerHTML = `<i class="fa fa-sort-numeric-up me-1"></i>Order ${yearlyOrder}`;
+              }
+
+              const dateChips = cardCol.querySelectorAll('.fc-date-chip');
+              const formatDate = function(dateString) {
+                if (!dateString) return '';
+                const d = new Date(dateString);
+                if (Number.isNaN(d.getTime())) return dateString;
+                return d.toLocaleDateString('en-GB', {
+                  day: '2-digit',
+                  month: 'short',
+                  year: 'numeric'
+                });
+              };
+
+              if (dateChips.length > 0 && reminderDate) {
+                const label = dateChips[0].querySelector('.label');
+                dateChips[0].innerHTML = `${label ? label.outerHTML : '<span class="label">Activation</span>'} ${formatDate(reminderDate)}`;
+              }
+              if (dateChips.length > 1 && dueDate) {
+                const label = dateChips[1].querySelector('.label');
+                dateChips[1].innerHTML = `${label ? label.outerHTML : '<span class="label">Due Date</span>'} ${formatDate(dueDate)}`;
+              }
+            }
+
+            const modalEl = document.getElementById('editCard' + feeStructureId);
+            const modalInstance = modalEl ? bootstrap.Modal.getInstance(modalEl) : null;
+            if (modalInstance) {
+              modalInstance.hide();
+            }
+
+            applyLocalFilters();
+            alert((data && data.message) ? data.message : 'Fee Structure Updated');
+          })
+          .catch(error => {
+            let message = 'Failed to update fee structure. Please try again.';
+            if (error && error.message) {
+              message = error.message;
+            } else if (error && error.errors) {
+              const firstKey = Object.keys(error.errors)[0];
+              if (firstKey && Array.isArray(error.errors[firstKey]) && error.errors[firstKey][0]) {
+                message = error.errors[firstKey][0];
+              }
+            }
+            alert(message);
+          })
+          .finally(() => {
+            if (submitBtn) {
+              submitBtn.disabled = false;
+              submitBtn.innerHTML = originalBtnHtml;
+            }
+          });
+      });
+    });
 
     // AJAX: Link Program Form Submission
     document.querySelectorAll('.link-program-form').forEach(function(form) {
