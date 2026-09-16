@@ -2546,18 +2546,40 @@ class AdminController extends Controller
     function cloneFeeStructure(Request $request, $id)
     {
         $request->validate([
-            'batch_id'      => 'required|integer',
+            'batch_id'      => 'required|integer|exists:batch_masters,id',
             'reminder_date' => 'required|date',
-            'due_date'      => 'required|date',
+            'due_date'      => 'required|date|after_or_equal:reminder_date',
+            'quarter_title' => 'required|string|max:255',
+            'yearly_pay_order' => 'required|integer|min:1|max:5',
+            'academic_pathway_id' => 'required|in:1,2',
+            'degree_track_id' => 'required|integer|exists:degree_track_masters,id',
         ]);
 
         $original = FeesStructure::with(['feepvthead', 'programspivot'])->findOrFail($id);
+
+        $duplicate = FeesStructure::query()
+            ->where('batch_id', (int) $request->batch_id)
+            ->where('program_id', (int) $original->program_id)
+            ->where('course_name', (int) $original->course_name)
+            ->where('std_current_year', (int) $original->std_current_year)
+            ->where('academic_pathway_id', (int) $request->academic_pathway_id)
+            ->where('degree_track_id', (int) $request->degree_track_id)
+            ->where('yearly_pay_order', (int) $request->yearly_pay_order)
+            ->first();
+
+        if ($duplicate) {
+            return redirect()->back()->with('error', 'A matching fee structure already exists for this target batch and order.');
+        }
 
         // Clone the fee structure with new batch and dates
         $clone = $original->replicate();
         $clone->batch_id      = $request->batch_id;
         $clone->reminder_date = $request->reminder_date;
         $clone->due_date      = $request->due_date;
+        $clone->quarter_title = trim((string) $request->quarter_title);
+        $clone->yearly_pay_order = (int) $request->yearly_pay_order;
+        $clone->academic_pathway_id = (int) $request->academic_pathway_id;
+        $clone->degree_track_id = (int) $request->degree_track_id;
         $clone->is_payable    = 0;
         $clone->save();
 
@@ -2584,10 +2606,14 @@ class AdminController extends Controller
     function cloneAllFeeStructures(Request $request)
     {
         $request->validate([
-            'source_batch_id' => 'required|integer',
-            'batch_id'        => 'required|integer|different:source_batch_id',
+            'source_batch_id' => 'required|integer|exists:batch_masters,id',
+            'batch_id'        => 'required|integer|exists:batch_masters,id|different:source_batch_id',
             'reminder_date'   => 'required|date',
             'due_date'        => 'required|date|after_or_equal:reminder_date',
+            'quarter_title' => 'nullable|string|max:255',
+            'yearly_pay_order' => 'nullable|integer|min:1|max:5',
+            'academic_pathway_id' => 'nullable|in:1,2',
+            'degree_track_id' => 'nullable|integer|exists:degree_track_masters,id',
         ]);
 
         $structures = FeesStructure::with(['feepvthead', 'programspivot'])
@@ -2599,11 +2625,44 @@ class AdminController extends Controller
         }
 
         $count = 0;
+        $skipped = 0;
         foreach ($structures as $original) {
+            $targetQuarterTitle = $request->filled('quarter_title')
+                ? trim((string) $request->quarter_title)
+                : (string) $original->quarter_title;
+            $targetOrder = $request->filled('yearly_pay_order')
+                ? (int) $request->yearly_pay_order
+                : (int) $original->yearly_pay_order;
+            $targetPathwayId = $request->filled('academic_pathway_id')
+                ? (int) $request->academic_pathway_id
+                : (int) $original->academic_pathway_id;
+            $targetDegreeTrackId = $request->filled('degree_track_id')
+                ? (int) $request->degree_track_id
+                : (int) $original->degree_track_id;
+
+            $duplicate = FeesStructure::query()
+                ->where('batch_id', (int) $request->batch_id)
+                ->where('program_id', (int) $original->program_id)
+                ->where('course_name', (int) $original->course_name)
+                ->where('std_current_year', (int) $original->std_current_year)
+                ->where('academic_pathway_id', $targetPathwayId)
+                ->where('degree_track_id', $targetDegreeTrackId)
+                ->where('yearly_pay_order', $targetOrder)
+                ->first();
+
+            if ($duplicate) {
+                $skipped++;
+                continue;
+            }
+
             $clone                = $original->replicate();
             $clone->batch_id      = $request->batch_id;
             $clone->reminder_date = $request->reminder_date;
             $clone->due_date      = $request->due_date;
+            $clone->quarter_title = $targetQuarterTitle;
+            $clone->yearly_pay_order = $targetOrder;
+            $clone->academic_pathway_id = $targetPathwayId;
+            $clone->degree_track_id = $targetDegreeTrackId;
             $clone->is_payable    = 0;
             $clone->save();
 
@@ -2625,7 +2684,12 @@ class AdminController extends Controller
             $count++;
         }
 
-        return redirect()->back()->with('success', "{$count} fee structure(s) cloned successfully to the new batch.");
+        $message = "{$count} fee structure(s) cloned successfully to the new batch.";
+        if ($skipped > 0) {
+            $message .= " {$skipped} skipped due to duplicate criteria.";
+        }
+
+        return redirect()->back()->with('success', $message);
     }
 
     function unlinkStdProgram($id)

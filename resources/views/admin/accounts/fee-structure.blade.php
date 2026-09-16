@@ -135,7 +135,7 @@ $batchColorPalette = [
 
 <!-- Clone All Modal -->
 <div class="modal fade" id="cloneAllModal" tabindex="-1" aria-hidden="true">
-  <div class="modal-dialog">
+  <div class="modal-dialog modal-lg">
     <div class="modal-content">
       <div class="modal-header" style="background:linear-gradient(-45deg,#2e7d32,#66bb6a); color:#fff;">
         <h5 class="modal-title"><i class="fa fa-clone me-2"></i>Clone All Fee Structures</h5>
@@ -181,6 +181,45 @@ $batchColorPalette = [
             <div class="col-6">
               <label class="form-label fw-semibold">Due Date <span class="text-danger">*</span></label>
               <input type="date" name="due_date" class="form-control" required>
+            </div>
+          </div>
+
+          <hr>
+          <div class="small text-muted mb-2">Optional overrides for all cloned records. Keep empty to preserve each source structure value.</div>
+          <div class="row g-2">
+            <div class="col-8">
+              <label class="form-label fw-semibold">Quarter Title (Optional)</label>
+              <input type="text" name="quarter_title" class="form-control" placeholder="Keep source title if empty">
+            </div>
+            <div class="col-4">
+              <label class="form-label fw-semibold">Payment Order (Optional)</label>
+              <select name="yearly_pay_order" class="form-select">
+                <option value="">Keep Source</option>
+                <option value="1">1</option>
+                <option value="2">2</option>
+                <option value="3">3</option>
+                <option value="4">4</option>
+                <option value="5">5</option>
+              </select>
+            </div>
+          </div>
+          <div class="row g-2 mt-1">
+            <div class="col-6">
+              <label class="form-label fw-semibold">Academic Pathway (Optional)</label>
+              <select name="academic_pathway_id" class="form-select">
+                <option value="">Keep Source</option>
+                <option value="1">Single Major</option>
+                <option value="2">Dual Major</option>
+              </select>
+            </div>
+            <div class="col-6">
+              <label class="form-label fw-semibold">Degree Track (Optional)</label>
+              <select name="degree_track_id" class="form-select">
+                <option value="">Keep Source</option>
+                @foreach($degreeTracks as $track)
+                <option value="{{ $track->id }}">{{ $track->name }}</option>
+                @endforeach
+              </select>
             </div>
           </div>
         </div>
@@ -926,6 +965,40 @@ $batchColorPalette = [
                   <div class="col-6">
                     <label class="form-label fw-semibold">Due Date <span class="text-danger">*</span></label>
                     <input type="date" name="due_date" class="form-control" required>
+                  </div>
+                </div>
+                <div class="row g-2 mt-1">
+                  <div class="col-8">
+                    <label class="form-label fw-semibold">Quarter Title <span class="text-danger">*</span></label>
+                    <input type="text" name="quarter_title" class="form-control" value="{{ $item->quarter_title }}" required>
+                  </div>
+                  <div class="col-4">
+                    <label class="form-label fw-semibold">Order <span class="text-danger">*</span></label>
+                    <select name="yearly_pay_order" class="form-select" required>
+                      <option value="1" {{ (int)($item->yearly_pay_order ?? 0) === 1 ? 'selected' : '' }}>1</option>
+                      <option value="2" {{ (int)($item->yearly_pay_order ?? 0) === 2 ? 'selected' : '' }}>2</option>
+                      <option value="3" {{ (int)($item->yearly_pay_order ?? 0) === 3 ? 'selected' : '' }}>3</option>
+                      <option value="4" {{ (int)($item->yearly_pay_order ?? 0) === 4 ? 'selected' : '' }}>4</option>
+                      <option value="5" {{ (int)($item->yearly_pay_order ?? 0) === 5 ? 'selected' : '' }}>5</option>
+                    </select>
+                  </div>
+                </div>
+                <div class="row g-2 mt-1">
+                  <div class="col-6">
+                    <label class="form-label fw-semibold">Academic Pathway <span class="text-danger">*</span></label>
+                    <select name="academic_pathway_id" class="form-select pathway-select" required>
+                      <option value="1" {{ (int)($item->academic_pathway_id ?? 0) === 1 ? 'selected' : '' }}>Single Major</option>
+                      <option value="2" {{ (int)($item->academic_pathway_id ?? 0) === 2 ? 'selected' : '' }}>Dual Major</option>
+                    </select>
+                  </div>
+                  <div class="col-6">
+                    <label class="form-label fw-semibold">Degree Track <span class="text-danger">*</span></label>
+                    <select name="degree_track_id" class="form-select degree-track-select" required>
+                      <option value="">-- Select --</option>
+                      @foreach($degreeTracks as $track)
+                      <option value="{{ $track->id }}" {{ (int)($item->degree_track_id ?? 0) === (int)$track->id ? 'selected' : '' }}>{{ $track->name }}</option>
+                      @endforeach
+                    </select>
                   </div>
                 </div>
               </div>
