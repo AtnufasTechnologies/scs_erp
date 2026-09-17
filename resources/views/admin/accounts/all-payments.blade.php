@@ -3,6 +3,14 @@
 
 <h3><span class="text-uppercase">All Payments </span></h3>
 
+@if(!empty($selectedFinancialYear))
+<div class="alert alert-info py-2">
+  Showing records for financial year:
+  <strong>{{ $selectedFinancialYear->title }}</strong>
+  ({{ $selectedFinancialYear->start_date?->format('d-M-Y') }} to {{ $selectedFinancialYear->end_date?->format('d-M-Y') }})
+</div>
+@endif
+
 <div class="row">
   <div class="col-lg-1">
     <label for="">Refresh</label>
@@ -10,14 +18,25 @@
 
   </div>
 
-  <div class="col-lg-5">
+  <div class="col-lg-8">
     <form action="{{ route('all.payments') }}" method="get">
       <div class="row">
-        <div class="col-lg-6">
+        <div class="col-lg-3">
+          <label for="financial_year_id">Financial Year</label>
+          <select name="financial_year_id" id="financial_year_id" class="form-control">
+            <option value="">Active Financial Year</option>
+            @foreach(($financialYears ?? collect()) as $fy)
+            <option value="{{ $fy->id }}" {{ (string) request('financial_year_id') === (string) $fy->id ? 'selected' : '' }}>
+              {{ $fy->title }}
+            </option>
+            @endforeach
+          </select>
+        </div>
+        <div class="col-lg-3">
           <label for="">From</label>
           <input type="date" name="from_date" id="from_date" class="form-control" value="{{ request()->get('from_date') }}">
         </div>
-        <div class="col-lg-6 ">
+        <div class="col-lg-3 ">
           <label>To</label>
           <div class="input-group">
 
@@ -25,6 +44,9 @@
             <button type="submit" class="btn btn-primary"><i class="fa fa-search"></i></button>
           </div>
 
+        </div>
+        <div class="col-lg-3 d-flex align-items-end">
+          <a href="{{ route('all.payments') }}" class="btn btn-secondary w-100">Clear</a>
         </div>
       </div>
     </form>

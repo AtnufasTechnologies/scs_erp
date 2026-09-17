@@ -4,19 +4,36 @@
 <div class="container-fluid">
   <h3 class="mb-4">Payment Report by Date Range</h3>
 
+  @if(!empty($selectedFinancialYear))
+  <div class="alert alert-info py-2">
+    Showing amounts for financial year:
+    <strong>{{ $selectedFinancialYear->title }}</strong>
+    ({{ $selectedFinancialYear->start_date?->format('d-M-Y') }} to {{ $selectedFinancialYear->end_date?->format('d-M-Y') }})
+  </div>
+  @endif
+
   <div class="card mb-4">
     <div class="card-body">
       <form method="GET" action="{{ route('accounts.payment-report-by-date') }}">
         <div class="row g-3 align-items-end">
+          <div class="col-md-3">
+            <label class="form-label">Financial Year</label>
+            <select name="financial_year_id" class="form-control">
+              <option value="">Active Financial Year</option>
+              @foreach(($financialYears ?? collect()) as $fy)
+              <option value="{{ $fy->id }}" {{ (string) request('financial_year_id') === (string) $fy->id ? 'selected' : '' }}>{{ $fy->title }}</option>
+              @endforeach
+            </select>
+          </div>
           <div class="col-md-4">
             <label class="form-label">From Date</label>
             <input type="date" name="from_date" class="form-control" value="{{ request('from_date') }}">
           </div>
-          <div class="col-md-4">
+          <div class="col-md-3">
             <label class="form-label">To Date</label>
             <input type="date" name="to_date" class="form-control" value="{{ request('to_date') }}">
           </div>
-          <div class="col-md-4 d-flex gap-2">
+          <div class="col-md-2 d-flex gap-2">
             <button type="submit" class="btn btn-primary"><i class="fa fa-search me-1"></i>Filter</button>
             <a href="{{ route('accounts.payment-report-by-date') }}" class="btn btn-secondary"><i class="fa fa-times me-1"></i>Clear</a>
           </div>

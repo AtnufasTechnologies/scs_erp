@@ -2,6 +2,28 @@
 @include('admin.accounts.sidebar')
 
 <h3><span class="text-uppercase">Admission Fee Collection </span></h3>
+@if(!empty($selectedFinancialYear))
+<div class="alert alert-info py-2">
+  Showing amounts for financial year:
+  <strong>{{ $selectedFinancialYear->title }}</strong>
+  ({{ $selectedFinancialYear->start_date?->format('d-M-Y') }} to {{ $selectedFinancialYear->end_date?->format('d-M-Y') }})
+</div>
+@endif
+<form method="GET" action="{{ route('admin.accounts.admission-application-fee') }}" class="row g-2 mb-3">
+  <div class="col-lg-4">
+    <label class="form-label">Financial Year</label>
+    <select name="financial_year_id" class="form-control">
+      <option value="">Active Financial Year</option>
+      @foreach(($financialYears ?? collect()) as $fy)
+      <option value="{{ $fy->id }}" {{ (string) request('financial_year_id') === (string) $fy->id ? 'selected' : '' }}>{{ $fy->title }}</option>
+      @endforeach
+    </select>
+  </div>
+  <div class="col-lg-2 d-flex align-items-end gap-2">
+    <button type="submit" class="btn btn-primary">Apply</button>
+    <a href="{{ route('admin.accounts.admission-application-fee') }}" class="btn btn-secondary">Clear</a>
+  </div>
+</form>
 <h4>Total Fee Collected: <i class="fa fa-rupee-sign"></i> {{ $data->where('status', 'success')->sum('amount') }} /-</h4>
 <h5>Daily Collection: <i class="fa fa-rupee-sign"></i> {{ $data->filter(function($item) { return \Carbon\Carbon::parse($item->created_at)->isToday(); })->where('status', 'success')->sum('amount') }} /-</h5>
 <div class="row">

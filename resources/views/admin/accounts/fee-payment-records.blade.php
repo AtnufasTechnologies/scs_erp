@@ -27,6 +27,14 @@ $batchProgramMap = StudentMaster::query()
 @include('includes.header')
 @include('admin.accounts.sidebar')
 
+@if(!empty($activeFinancialYear))
+<div class="alert alert-info py-2">
+  Showing payment status and amounts for active financial year:
+  <strong>{{ $activeFinancialYear->title }}</strong>
+  ({{ $activeFinancialYear->start_date?->format('d-M-Y') }} to {{ $activeFinancialYear->end_date?->format('d-M-Y') }})
+</div>
+@endif
+
 @php
 $activeFilterCount = collect([
 request('roll_no'),
@@ -284,6 +292,12 @@ request('sort_dir') && request('sort_dir') !== 'asc' ? request('sort_dir') : nul
   <div>
     <h3 class="mb-1" style="font-weight:700; color:#1f2d3d;">Fee Payments</h3>
     <p class="mb-0 text-muted">Total Students: <strong>{{ $data->total() }}</strong></p>
+    @if(!empty($selectedFinancialYear))
+    <p class="mb-0 text-muted">
+      Financial Year: <strong>{{ $selectedFinancialYear->title }}</strong>
+      ({{ $selectedFinancialYear->start_date?->format('d-M-Y') }} to {{ $selectedFinancialYear->end_date?->format('d-M-Y') }})
+    </p>
+    @endif
   </div>
   <div class="d-flex align-items-center gap-2">
     <span class="badge bg-light text-dark border">Academic Pathway + Degree Track Aware</span>
@@ -383,6 +397,15 @@ request('sort_dir') && request('sort_dir') !== 'asc' ? request('sort_dir') : nul
               <div class="fee-filter-label">Payment and View Controls</div>
               <div class="row g-2">
                 <div class="col-md-4">
+                  <label class="form-label">Financial Year</label>
+                  <select name="financial_year_id" class="form-control">
+                    <option value="">Active Financial Year</option>
+                    @foreach (($financialYears ?? collect()) as $fy)
+                    <option value="{{ $fy->id }}" {{ (string) request('financial_year_id') === (string) $fy->id ? 'selected' : '' }}>{{ $fy->title }}</option>
+                    @endforeach
+                  </select>
+                </div>
+                <div class="col-md-3">
                   <label class="form-label">Payment State</label>
                   <select name="payment_state" class="form-control">
                     <option value="">All States</option>
@@ -390,13 +413,13 @@ request('sort_dir') && request('sort_dir') !== 'asc' ? request('sort_dir') : nul
                     <option value="unpaid" {{ request('payment_state') === 'unpaid' ? 'selected' : '' }}>Unpaid Students</option>
                   </select>
                 </div>
-                <div class="col-md-4">
+                <div class="col-md-2">
                   <label class="form-label">Sort By</label>
                   <select name="sort_by" class="form-control">
                     <option value="name" {{ request('sort_by', 'name') === 'name' ? 'selected' : '' }}>Name</option>
                   </select>
                 </div>
-                <div class="col-md-4">
+                <div class="col-md-3">
                   <label class="form-label">Direction</label>
                   <select name="sort_dir" class="form-control">
                     <option value="asc" {{ request('sort_dir', 'asc') === 'asc' ? 'selected' : '' }}>Asc</option>

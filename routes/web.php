@@ -381,6 +381,9 @@ Route::group(['prefix' => '/erp'], function () {
             Route::post('add-coursemaster-group', [AdminController::class, 'addCourseMasterGroup'])->name('link.coursemaster.prggroup');
             Route::get('batch-student-programs/{batchId}', [AdminController::class, 'fetchStudentProgramsByBatch'])->name('accounts.batch.student-programs');
             Route::get('latefee', [AdminController::class, 'latefee']);
+            Route::get('financial-years', [FeePaymentController::class, 'financialYearsIndex'])->name('accounts.financial-years.index');
+            Route::post('financial-years', [FeePaymentController::class, 'financialYearsStore'])->name('accounts.financial-years.store');
+            Route::post('financial-years/{id}/activate', [FeePaymentController::class, 'financialYearsActivate'])->name('accounts.financial-years.activate');
 
             Route::get('std-fee-payments', [FeePaymentController::class, 'index'])->name('student.fee.payments');
             Route::post('manual-payment-payment', [FeePaymentController::class, 'manualFeePayment'])->name('manual.fee.payment');

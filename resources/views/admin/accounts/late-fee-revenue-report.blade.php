@@ -4,10 +4,24 @@
 <div class="container-fluid">
   <h3 class="mb-4">Late Fee Revenue Report</h3>
 
+  @if(!empty($selectedFinancialYear))
+  <div class="alert alert-info py-2">
+    Showing amounts for financial year:
+    <strong>{{ $selectedFinancialYear->title }}</strong>
+    ({{ $selectedFinancialYear->start_date?->format('d-M-Y') }} to {{ $selectedFinancialYear->end_date?->format('d-M-Y') }})
+  </div>
+  @endif
+
   <div class="row mb-3">
-    <div class="col-md-4">
+    <div class="col-md-8">
       <form method="GET" action="">
         <div class="input-group">
+          <select name="financial_year_id" class="form-select">
+            <option value="">Active Financial Year</option>
+            @foreach(($financialYears ?? collect()) as $fy)
+            <option value="{{ $fy->id }}" {{ (string) request('financial_year_id') === (string) $fy->id ? 'selected' : '' }}>{{ $fy->title }}</option>
+            @endforeach
+          </select>
           <select name="batch" class="form-select">
             <option value="">All Batches</option>
             @foreach($batches as $batch)

@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\AdmissionApplicationPaymentLog;
+use App\Models\FinancialYearMaster;
 use App\Models\FailedTransaction;
 use App\Models\FailedTransactionLog;
 use App\Models\FeesStructure;
@@ -30,6 +31,61 @@ use App\Models\CollegeBankAccount;
 
 class FeePaymentController extends Controller
 {
+    private function getActiveFinancialYear(): ?FinancialYearMaster
+    {
+        return FinancialYearMaster::query()
+            ->where('is_active', true)
+            ->orderByDesc('id')
+            ->first();
+    }
+
+    private function getFinancialYearOptions()
+    {
+        return FinancialYearMaster::query()
+            ->orderByDesc('start_date')
+            ->get(['id', 'title', 'start_date', 'end_date', 'is_active']);
+    }
+
+    private function resolveFinancialYearFromRequest(Request $request, ?FinancialYearMaster $activeFinancialYear = null): ?FinancialYearMaster
+    {
+        $activeFinancialYear = $activeFinancialYear ?: $this->getActiveFinancialYear();
+        $selectedFinancialYearId = (int) $request->input('financial_year_id', 0);
+
+        if ($selectedFinancialYearId > 0) {
+            return FinancialYearMaster::query()->find($selectedFinancialYearId) ?: $activeFinancialYear;
+        }
+
+        return $activeFinancialYear;
+    }
+
+    private function applyFinancialYearFilter($query, ?FinancialYearMaster $activeFinancialYear, string $column = 'transaction_date')
+    {
+        if ($activeFinancialYear) {
+            $query->whereDate($column, '>=', $activeFinancialYear->start_date)
+                ->whereDate($column, '<=', $activeFinancialYear->end_date);
+        }
+
+        return $query;
+    }
+
+    private function inActiveFinancialYear($payment, ?FinancialYearMaster $activeFinancialYear): bool
+    {
+        if (!$activeFinancialYear) {
+            return true;
+        }
+
+        $date = $payment->transaction_date ?? $payment->created_at ?? null;
+        if (empty($date)) {
+            return false;
+        }
+
+        $paymentDate = Carbon::parse($date)->startOfDay();
+        $start = Carbon::parse($activeFinancialYear->start_date)->startOfDay();
+        $end = Carbon::parse($activeFinancialYear->end_date)->endOfDay();
+
+        return $paymentDate->between($start, $end);
+    }
+
     private function getFixedLateFeeMapForInvoice(int $studentId, $feeStructureIds): array
     {
         $ids = collect($feeStructureIds)->filter()->unique()->values();
@@ -111,6 +167,9 @@ class FeePaymentController extends Controller
     {
         $sortBy = $request->input('sort_by', 'name');
         $sortDir = strtolower($request->input('sort_dir', 'asc')) === 'desc' ? 'desc' : 'asc';
+        $activeFinancialYear = $this->getActiveFinancialYear();
+        $selectedFinancialYear = $this->resolveFinancialYearFromRequest($request, $activeFinancialYear);
+        $financialYears = $this->getFinancialYearOptions();
 
         // ---- Base Query ----
         $query = StudentMaster::with([
@@ -162,12 +221,14 @@ class FeePaymentController extends Controller
         }
 
         if ($request->payment_state === 'paid') {
-            $query->whereHas('feepayment', function ($q) {
+            $query->whereHas('feepayment', function ($q) use ($selectedFinancialYear) {
                 $q->where('status', 'success');
+                $this->applyFinancialYearFilter($q, $selectedFinancialYear, 'transaction_date');
             });
         } elseif ($request->payment_state === 'unpaid') {
-            $query->whereDoesntHave('feepayment', function ($q) {
+            $query->whereDoesntHave('feepayment', function ($q) use ($selectedFinancialYear) {
                 $q->where('status', 'success');
+                $this->applyFinancialYearFilter($q, $selectedFinancialYear, 'transaction_date');
             });
         }
 
@@ -182,7 +243,7 @@ class FeePaymentController extends Controller
 
 
         // ---- TRANSFORM EACH RECORD USING through() ----
-        $students = $data->through(function ($student) {
+        $students = $data->through(function ($student) use ($selectedFinancialYear) {
 
             $fullFeeExemption = $this->getActiveFullFeeExemption((int) $student->id);
             $isFullFeeExempted = !is_null($fullFeeExemption);
@@ -207,12 +268,13 @@ class FeePaymentController extends Controller
             $applicableFS = $this->applyFeeStructureApplicabilityFilters($applicableFS, $student)->get();
             $lateFeePerDay = LateFee::where('status', 1)->value('late_fee_amount'); // 100
 
-            $fsWithStatus = $applicableFS->map(function ($fs) use ($student, $lateFeePerDay, $exemptions, $hasBlanketExemption, $quarterFeeExemptions) {
+            $fsWithStatus = $applicableFS->map(function ($fs) use ($student, $lateFeePerDay, $exemptions, $hasBlanketExemption, $quarterFeeExemptions, $selectedFinancialYear) {
 
                 $payment = $student->feepayment
                     ->where('fee_structure_id', $fs->id)
                     ->where('student_id', $student->id)
                     ->where('status', 'success')
+                    ->filter(fn($item) => $this->inActiveFinancialYear($item, $selectedFinancialYear))
                     ->first();
 
                 $quarterExemption = $quarterFeeExemptions[(int) $fs->id] ?? null;
@@ -359,7 +421,10 @@ class FeePaymentController extends Controller
 
 
         return view('admin.accounts.fee-payment-records', [
-            'data' => $students
+            'data' => $students,
+            'activeFinancialYear' => $activeFinancialYear,
+            'selectedFinancialYear' => $selectedFinancialYear,
+            'financialYears' => $financialYears,
         ]);
     }
 
@@ -378,6 +443,7 @@ class FeePaymentController extends Controller
         ]);
 
         /** Payment Gateway Logic
+            'activeFinancialYear' => $activeFinancialYear,
          * 1 Easebuzz
          * 2 Billdesk
          * 3 Cash Offline
@@ -1399,28 +1465,34 @@ class FeePaymentController extends Controller
 
     function allPayments(Request $request)
     {
-        if ($request->has('from_date') && $request->has('to_date')) {
-            $from = Carbon::parse($request->from_date)->startOfDay();
-            $to = Carbon::parse($request->to_date)->endOfDay();
+        $activeFinancialYear = $this->getActiveFinancialYear();
+        $selectedFinancialYear = $this->resolveFinancialYearFromRequest($request, $activeFinancialYear);
+        $financialYears = $this->getFinancialYearOptions();
+        $query = StudentPayment::with([
+            'studentmaster:id,first_name,last_name,roll_no',
+            'feepaymentinfo:id,quarter_title',
+            'gatewayType:id,title'
+        ]);
 
-            $payments = StudentPayment::with([
-                'studentmaster:id,first_name,last_name,roll_no',
-                'feepaymentinfo:id,quarter_title',
-                'gatewayType:id,title'
-            ])->whereBetween('transaction_date', [$from, $to])->orderBy('transaction_date', 'desc')->get();
-        } else {
-            $payments = StudentPayment::with([
-                'studentmaster:id,first_name,last_name,roll_no',
-                'feepaymentinfo:id,quarter_title',
-                'gatewayType:id,title'
-            ])->orderBy('created_at', 'desc')->get();
+        $query = $this->applyFinancialYearFilter($query, $selectedFinancialYear, 'transaction_date');
+
+        if ($request->has('from_date') && $request->has('to_date')) {
+            $query->whereBetween('transaction_date', [
+                Carbon::parse($request->from_date)->startOfDay(),
+                Carbon::parse($request->to_date)->endOfDay(),
+            ]);
         }
+
+        $payments = $query->orderBy('transaction_date', 'desc')->get();
 
 
 
 
         return view('admin.accounts.all-payments', [
-            'payments' => $payments
+            'payments' => $payments,
+            'activeFinancialYear' => $activeFinancialYear,
+            'selectedFinancialYear' => $selectedFinancialYear,
+            'financialYears' => $financialYears,
         ]);
     }
 
@@ -2126,6 +2198,10 @@ class FeePaymentController extends Controller
      */
     public function lateFeeRevenueReport(Request $request)
     {
+        $activeFinancialYear = $this->getActiveFinancialYear();
+        $selectedFinancialYear = $this->resolveFinancialYearFromRequest($request, $activeFinancialYear);
+        $financialYears = $this->getFinancialYearOptions();
+
         // Fetch all batches and fee structures for filters
         $batches = \App\Models\BatchMaster::orderBy('batch_name')->get();
         $feeStructures = \App\Models\FeesStructure::whereIn('id', \App\Models\StudentPayment::where('late_fee_amount', '>', 0)->distinct()->pluck('fee_structure_id'))->orderBy('quarter_title')->get();
@@ -2136,6 +2212,8 @@ class FeePaymentController extends Controller
         ])
             ->where('late_fee_amount', '>', 0)
             ->where('status', 'success');
+
+        $query = $this->applyFinancialYearFilter($query, $selectedFinancialYear, 'transaction_date');
 
         // Apply filters
         if ($request->filled('batch')) {
@@ -2157,6 +2235,9 @@ class FeePaymentController extends Controller
             'totalRevenue' => $totalRevenue,
             'selectedBatch' => $request->batch,
             'selectedFeeStructure' => $request->fee_structure,
+            'activeFinancialYear' => $activeFinancialYear,
+            'selectedFinancialYear' => $selectedFinancialYear,
+            'financialYears' => $financialYears,
         ]);
     }
 
@@ -2248,16 +2329,27 @@ class FeePaymentController extends Controller
 
     function admissionApplicationFee(Request $request)
     {
+        $activeFinancialYear = $this->getActiveFinancialYear();
+        $selectedFinancialYear = $this->resolveFinancialYearFromRequest($request, $activeFinancialYear);
+        $financialYears = $this->getFinancialYearOptions();
+        $query = AdmissionApplicationPaymentLog::with('applicationmaster.registrationmaster.campusmaster');
+        $query = $this->applyFinancialYearFilter($query, $selectedFinancialYear, 'created_at');
+        $data = $query->latest()->get();
 
-        $data = AdmissionApplicationPaymentLog::with('applicationmaster.registrationmaster.campusmaster')->latest()->get();
         return view('admin.accounts.admission-fee-collection', [
-            'data' => $data
+            'data' => $data,
+            'activeFinancialYear' => $activeFinancialYear,
+            'selectedFinancialYear' => $selectedFinancialYear,
+            'financialYears' => $financialYears,
         ]);
     }
 
     public function feeHeadWiseReport(Request $request)
     {
         $batches = BatchMaster::orderBy('batch_name')->get();
+        $activeFinancialYear = $this->getActiveFinancialYear();
+        $selectedFinancialYear = $this->resolveFinancialYearFromRequest($request, $activeFinancialYear);
+        $financialYears = $this->getFinancialYearOptions();
 
         $query = DB::table('student_payments as sp')
             ->join('fee_structure_has_heads as fshh', 'sp.fee_structure_id', '=', 'fshh.fee_structure_id')
@@ -2271,6 +2363,8 @@ class FeePaymentController extends Controller
                 DB::raw('COUNT(DISTINCT sp.id) as payment_count')
             )
             ->groupBy('fh.id', 'fh.head_name');
+
+        $query = $this->applyFinancialYearFilter($query, $selectedFinancialYear, 'sp.transaction_date');
 
         if ($request->filled('from_date')) {
             $query->where('sp.transaction_date', '>=', $request->from_date);
@@ -2286,11 +2380,14 @@ class FeePaymentController extends Controller
         $report = $query->orderByDesc('total_collected')->get();
         $totalCollected = $report->sum('total_collected');
 
-        return view('admin.accounts.fee-head-wise-report', compact('report', 'totalCollected', 'batches'));
+        return view('admin.accounts.fee-head-wise-report', compact('report', 'totalCollected', 'batches', 'activeFinancialYear', 'selectedFinancialYear', 'financialYears'));
     }
 
     public function bankAccountWiseReport(Request $request)
     {
+        $activeFinancialYear = $this->getActiveFinancialYear();
+        $selectedFinancialYear = $this->resolveFinancialYearFromRequest($request, $activeFinancialYear);
+        $financialYears = $this->getFinancialYearOptions();
         $query = DB::table('student_payments as sp')
             ->join('fee_structure_has_heads as fshh', 'sp.fee_structure_id', '=', 'fshh.fee_structure_id')
             ->join('fee_heads as fh', 'fshh.fee_head_id', '=', 'fh.id')
@@ -2310,6 +2407,8 @@ class FeePaymentController extends Controller
             )
             ->groupBy('cba.id', 'cba.acc_label', 'cba.acc_name', 'cba.acc_no', 'cba.bank_name', 'cba.branch');
 
+        $query = $this->applyFinancialYearFilter($query, $selectedFinancialYear, 'sp.transaction_date');
+
         if ($request->filled('from_date')) {
             $query->where('sp.transaction_date', '>=', $request->from_date);
         }
@@ -2320,13 +2419,18 @@ class FeePaymentController extends Controller
         $report = $query->orderByDesc('total_collected')->get();
         $totalCollected = $report->sum('total_collected');
 
-        return view('admin.accounts.bank-account-wise-report', compact('report', 'totalCollected'));
+        return view('admin.accounts.bank-account-wise-report', compact('report', 'totalCollected', 'activeFinancialYear', 'selectedFinancialYear', 'financialYears'));
     }
 
     public function paymentReportByDate(Request $request)
     {
+        $activeFinancialYear = $this->getActiveFinancialYear();
+        $selectedFinancialYear = $this->resolveFinancialYearFromRequest($request, $activeFinancialYear);
+        $financialYears = $this->getFinancialYearOptions();
         $query = StudentPayment::with(['studentmaster', 'feepaymentinfo', 'gatewaytype'])
             ->where('status', 'success');
+
+        $query = $this->applyFinancialYearFilter($query, $selectedFinancialYear, 'transaction_date');
 
         if ($request->filled('from_date')) {
             $query->where('transaction_date', '>=', $request->from_date);
@@ -2338,13 +2442,18 @@ class FeePaymentController extends Controller
         $payments = $query->orderByDesc('transaction_date')->get();
         $totalAmount = $payments->sum('amount');
 
-        return view('admin.accounts.payment-report-by-date', compact('payments', 'totalAmount'));
+        return view('admin.accounts.payment-report-by-date', compact('payments', 'totalAmount', 'activeFinancialYear', 'selectedFinancialYear', 'financialYears'));
     }
 
     public function paymentTypeReport(Request $request)
     {
+        $activeFinancialYear = $this->getActiveFinancialYear();
+        $selectedFinancialYear = $this->resolveFinancialYearFromRequest($request, $activeFinancialYear);
+        $financialYears = $this->getFinancialYearOptions();
         $query = StudentPayment::with(['studentmaster', 'feepaymentinfo', 'gatewaytype'])
             ->where('status', 'success');
+
+        $query = $this->applyFinancialYearFilter($query, $selectedFinancialYear, 'transaction_date');
 
         if ($request->filled('from_date')) {
             $query->where('transaction_date', '>=', $request->from_date);
@@ -2365,7 +2474,63 @@ class FeePaymentController extends Controller
         $onlineTotal  = $payments->whereIn('gateway_type_id', [1, 2])->sum('amount');
         $grandTotal   = $payments->sum('amount');
 
-        return view('admin.accounts.payment-type-report', compact('payments', 'cashTotal', 'onlineTotal', 'grandTotal'));
+        return view('admin.accounts.payment-type-report', compact('payments', 'cashTotal', 'onlineTotal', 'grandTotal', 'activeFinancialYear', 'selectedFinancialYear', 'financialYears'));
+    }
+
+    public function financialYearsIndex()
+    {
+        $financialYears = FinancialYearMaster::query()
+            ->orderByDesc('start_date')
+            ->get();
+
+        return view('admin.accounts.financial-years', [
+            'financialYears' => $financialYears,
+            'activeFinancialYear' => $this->getActiveFinancialYear(),
+        ]);
+    }
+
+    public function financialYearsStore(Request $request)
+    {
+        $validated = $request->validate([
+            'title' => 'required|string|max:100|unique:financial_year_masters,title',
+            'start_date' => 'required|date',
+            'end_date' => 'required|date|after_or_equal:start_date',
+            'is_active' => 'nullable|in:1',
+        ]);
+
+        DB::transaction(function () use ($validated) {
+            $isActive = !empty($validated['is_active']);
+            if ($isActive) {
+                FinancialYearMaster::query()->update(['is_active' => false]);
+            }
+
+            FinancialYearMaster::create([
+                'title' => trim((string) $validated['title']),
+                'start_date' => $validated['start_date'],
+                'end_date' => $validated['end_date'],
+                'is_active' => $isActive,
+                'created_by' => Auth::id(),
+                'updated_by' => Auth::id(),
+            ]);
+        });
+
+        return redirect()->back()->with('success', 'Financial year created successfully.');
+    }
+
+    public function financialYearsActivate($id)
+    {
+        DB::transaction(function () use ($id) {
+            FinancialYearMaster::query()->update(['is_active' => false]);
+
+            FinancialYearMaster::query()
+                ->where('id', (int) $id)
+                ->update([
+                    'is_active' => true,
+                    'updated_by' => Auth::id(),
+                ]);
+        });
+
+        return redirect()->back()->with('success', 'Active financial year updated successfully.');
     }
 
 

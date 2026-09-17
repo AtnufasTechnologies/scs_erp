@@ -165,6 +165,15 @@ $isIncharge  = $roleType === 'account-office-incharge';
     </li>
     @endif
 
+    @if($isIncharge)
+    <li>
+      <a href="{{ route('accounts.financial-years.index') }}">
+        <div class="parent-icon"><i class="fas fa-calendar-alt"></i></div>
+        <div class="menu-title">Financial Years</div>
+      </a>
+    </li>
+    @endif
+
     @if($isIncharge || StaticController::subMenuRights('faculty-pay-roll'))
     <li>
       <a class="has-arrow" href="javascript:;">
