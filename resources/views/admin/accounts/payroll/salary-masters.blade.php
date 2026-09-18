@@ -1,180 +1,252 @@
 @include('includes.header')
 @include('admin.accounts.sidebar')
 
+<style>
+  :root {
+    --salary-bg: #fff;
+    --salary-surface: #ffffff;
+    --salary-border: #e5e7eb;
+    --salary-text: #0f172a;
+    --salary-muted: #6b7280;
+    --salary-accent: #0f766e;
+    --salary-accent-soft: #ccfbf1;
+  }
+
+
+
+  .metric-card {
+    border: 1px solid var(--salary-border);
+    border-radius: 14px;
+    box-shadow: 0 10px 24px rgba(15, 23, 42, 0.06);
+  }
+
+  .metric-label {
+    font-size: 0.73rem;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--salary-muted);
+  }
+
+  .metric-value {
+    margin-top: 2px;
+    color: var(--salary-text);
+    font-size: 1.7rem;
+    font-weight: 800;
+    line-height: 1.1;
+  }
+
+  .toolbar-shell {
+    border: 1px solid var(--salary-border);
+    border-radius: 14px;
+    box-shadow: 0 8px 18px rgba(15, 23, 42, 0.05);
+  }
+
+  .toolbar-shell .form-control {
+    border-radius: 10px;
+    border: 1px solid #d1d5db;
+  }
+
+  .toolbar-shell .btn {
+    border-radius: 10px;
+    font-weight: 600;
+  }
+
+  .salary-card {
+    background: var(--salary-surface);
+    border: 1px solid var(--salary-border);
+    border-radius: 16px;
+    box-shadow: 0 10px 22px rgba(15, 23, 42, 0.06);
+    transition: transform 0.2s ease, box-shadow 0.2s ease;
+  }
+
+  .salary-card:hover {
+    transform: translateY(-3px);
+    box-shadow: 0 14px 28px rgba(15, 23, 42, 0.12);
+  }
+
+  .staff-avatar {
+    width: 44px;
+    height: 44px;
+    border-radius: 12px;
+    background: linear-gradient(135deg, #0f766e, #0ea5a5);
+    color: #fff;
+    font-size: 0.92rem;
+    font-weight: 700;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .staff-title {
+    color: var(--salary-text);
+    font-weight: 700;
+  }
+
+  .staff-meta {
+    color: var(--salary-muted);
+    font-size: 0.82rem;
+  }
+
+  .matrix-chip {
+    display: inline-block;
+    border-radius: 999px;
+    background: var(--salary-accent-soft);
+    color: var(--salary-accent);
+    font-size: 0.73rem;
+    font-weight: 700;
+    padding: 4px 10px;
+  }
+
+  .salary-label {
+    color: var(--salary-muted);
+    font-size: 0.72rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+  }
+
+  .salary-value {
+    color: #0b1324;
+    font-size: 1.35rem;
+    font-weight: 800;
+    line-height: 1.1;
+  }
+</style>
+
 <div class="page-wrapper">
   <div class="page-content">
-    <div class="page-breadcrumb d-none d-sm-flex align-items-center mb-3">
-      <div class="breadcrumb-title pe-3">Faculty Salary Masters</div>
-      <div class="ps-3">
-        <nav aria-label="breadcrumb">
-          <ol class="breadcrumb mb-0 p-0">
-            <li class="breadcrumb-item"><a href="{{ route('admin.dashboard') }}"><i class="bx bx-home-alt"></i></a></li>
-            <li class="breadcrumb-item active">Salary Masters</li>
-          </ol>
-        </nav>
+    <div class="salary-layout">
+      <div class="page-breadcrumb d-none d-sm-flex align-items-center mb-3">
+        <div class="breadcrumb-title pe-3">Staff Salary List</div>
+        <div class="ps-3">
+          <nav aria-label="breadcrumb">
+            <ol class="breadcrumb mb-0 p-0">
+              <li class="breadcrumb-item"><a href="{{ route('admin.dashboard') }}"><i class="bx bx-home-alt"></i></a></li>
+              <li class="breadcrumb-item active">Salary Masters</li>
+            </ol>
+          </nav>
+        </div>
       </div>
-      <div class="ms-auto">
-        <a href="{{ route('admin.payroll.salary-masters.create') }}" class="btn btn-primary">
-          <i class="fas fa-plus"></i> Add Salary Master
-        </a>
+
+      <div class="row mb-3">
+        <div class="col-md-4">
+          <div class="stat-card">
+            <div class="card-body">
+              <small class="metric-label">Total Active Employees</small>
+              <h3 class="metric-value">{{ $analytics['total_active_employees'] ?? 0 }}</h3>
+            </div>
+          </div>
+        </div>
+        <div class="col-md-4">
+          <div class="stat-card">
+            <div class="card-body">
+              <small class="metric-label">Pay Matrix Added</small>
+              <h3 class="metric-value">{{ $analytics['pay_matrix_added'] ?? 0 }}</h3>
+            </div>
+          </div>
+        </div>
+        <div class="col-md-4">
+          <div class="stat-card">
+            <div class="card-body">
+              <small class="metric-label">Pay Matrix Not Added (HR Responsible)</small>
+              <h3 class="metric-value">{{ $analytics['pay_matrix_not_added'] ?? 0 }}</h3>
+            </div>
+          </div>
+        </div>
       </div>
-    </div>
 
-    @if(session('success'))
-    <div class="alert alert-success alert-dismissible fade show">
-      {{ session('success') }}
-      <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
-    </div>
-    @endif
+      <div class="card mb-3 toolbar-shell">
+        <div class="card-body">
+          <div class="row g-2 align-items-center">
+            <div class="col-md-7">
+              <input type="text" id="salaryCardSearch" class="form-control" placeholder="Search by code, name, designation, matrix...">
+            </div>
+            <div class="col-md-5 text-md-end">
+              <a href="{{ route('admin.payroll.employees-list') }}" class="btn btn-outline-primary">
+                <i class="fas fa-list"></i> View All Employees Details
+              </a>
+            </div>
+          </div>
+        </div>
+      </div>
 
-    @if(session('error'))
-    <div class="alert alert-danger alert-dismissible fade show">
-      {{ session('error') }}
-      <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
-    </div>
-    @endif
-
-    <!-- Statistics Cards -->
-    <div class="row mb-3">
-      <div class="col-md-6">
-        <div class="card bg-dark text-light">
-          <div class="card-body">
-            <div class="d-flex justify-content-between align-items-center">
-              <div>
-                <h6 class="mb-0">Active Salary Masters</h6>
-                <h3 class="mb-0 text-light">{{ $stats['total'] }}</h3>
+      <div class="row" id="salaryCardContainer">
+        @forelse($salaryMasters as $master)
+        <div class="col-md-6 col-xl-4 mb-3 salary-card-item" data-search="{{ strtolower(trim(($master->faculty->USER_CODE ?? '') . ' ' . ($master->faculty->FIRST_NAME ?? '') . ' ' . ($master->faculty->LAST_NAME ?? '') . ' ' . ($master->faculty->designation ?? '') . ' ' . ($master->faculty->employee_type ?? '') . ' ' . ($master->payMatrix->matrix_code ?? '') . ' ' . ($master->payMatrix->full_designation ?? ''))) }}">
+          <div class="card h-100 salary-card">
+            <div class="card-body d-flex flex-column">
+              <div class="d-flex align-items-start gap-3 mb-3">
+                <div class="staff-avatar">
+                  {{ strtoupper(substr($master->faculty->FIRST_NAME ?? 'S', 0, 1)) }}{{ strtoupper(substr($master->faculty->LAST_NAME ?? 'T', 0, 1)) }}
+                </div>
+                <div>
+                  <h6 class="mb-1 staff-title">{{ $master->faculty->FIRST_NAME ?? '' }} {{ $master->faculty->LAST_NAME ?? '' }}</h6>
+                  <small class="staff-meta d-block">{{ $master->faculty->USER_CODE ?? '-' }}</small>
+                  <small class="staff-meta d-block">{{ $master->faculty->designation ?? 'Designation N/A' }}</small>
+                </div>
               </div>
-              <i class="fas fa-users fa-3x opacity-50"></i>
-            </div>
-          </div>
-        </div>
-      </div>
-      <div class="col-md-6">
-        <div class="card bg-success text-light">
-          <div class="card-body">
-            <div class="d-flex justify-content-between align-items-center">
-              <div>
-                <h6 class="mb-0 text-dark">Total Monthly CTC</h6>
-                <h3 class="mb-0 text-light">₹{{ number_format($stats['total_monthly_cost'], 2) }}</h3>
+
+              <div class="mb-2">
+                <small class="salary-label d-block mb-1">Applicable Pay Matrix</small>
+                @if($master->payMatrix)
+                <span class="matrix-chip">{{ $master->payMatrix->matrix_code }}</span>
+                <small class="staff-meta d-block mt-1">{{ $master->payMatrix->full_designation }}</small>
+                @else
+                <small class="staff-meta">N/A</small>
+                @endif
               </div>
-              <i class="fas fa-rupee-sign fa-3xopacity-50"></i>
+
+              <div class="mt-auto d-flex justify-content-between align-items-end pt-3 border-top">
+                <div>
+                  <small class="salary-label d-block">Salary</small>
+                  <strong class="salary-value">₹{{ number_format($master->net_salary, 2) }}</strong>
+                </div>
+                <small class="staff-meta">{{ $master->faculty->employee_type ?? 'Type N/A' }}</small>
+
+              </div>
             </div>
           </div>
         </div>
-      </div>
-    </div>
 
-    <!-- Filters -->
-    <div class="card mb-3">
-      <div class="card-body">
-        <form method="GET" action="{{ route('admin.payroll.salary-masters') }}">
-          <div class="row g-3">
-            <div class="col-md-4">
-              <select name="faculty_id" class="form-select dselect-example">
-                <option value="">All Faculty</option>
-                @foreach($faculties as $faculty)
-                <option value="{{ $faculty->id }}" {{ request('faculty_id') == $faculty->id ? 'selected' : '' }}>
-                  {{ $faculty->USER_CODE }} - {{ $faculty->FIRST_NAME }} {{ $faculty->LAST_NAME }}
-                </option>
-                @endforeach
-              </select>
-            </div>
-            <div class="col-md-3">
-              <select name="status" class="form-select">
-                <option value="">All Status</option>
-                <option value="active" {{ request('status') == 'active' ? 'selected' : '' }}>Active</option>
-                <option value="inactive" {{ request('status') == 'inactive' ? 'selected' : '' }}>Inactive</option>
-              </select>
-            </div>
-            <div class="col-md-3">
-              <button type="submit" class="btn btn-secondary w-100"><i class="fas fa-filter"></i> Filter</button>
-            </div>
-            <div class="col-md-2">
-              <a href="{{ route('admin.payroll.salary-masters') }}" class="btn btn-outline-secondary w-100">Clear</a>
-            </div>
-          </div>
-        </form>
-      </div>
-    </div>
 
-    <!-- Salary Masters Table -->
-    <div class="card">
-      <div class="card-body">
-        <div class="table-responsive">
-          <table class="table table-hover">
-            <thead class="table-light">
-              <tr>
-                <th>Faculty</th>
-                <th>Basic Salary</th>
-                <th>Total Earnings</th>
-                <th>Total Deductions</th>
-                <th>Net Salary</th>
-                <th>Status</th>
-                <th>Effective From</th>
-                <th width="150">Actions</th>
-              </tr>
-            </thead>
-            <tbody>
-              @forelse($salaryMasters as $master)
-              <tr>
-                <td>
-                  <strong>{{ $master->faculty->USER_CODE ?? '' }}</strong><br>
-                  <small>{{ $master->faculty->FIRST_NAME ?? '' }} {{ $master->faculty->LAST_NAME ?? '' }}</small>
-                </td>
-                <td>₹{{ number_format($master->basic_salary, 2) }}</td>
-                <td>₹{{ number_format($master->total_earnings, 2) }}</td>
-                <td>₹{{ number_format($master->total_deductions, 2) }}</td>
-                <td><strong>₹{{ number_format($master->net_salary, 2) }}</strong></td>
-                <td>
-                  <span class="badge bg-{{ $master->status_badge }}">{{ ucfirst($master->status) }}</span>
-                </td>
-                <td>{{ $master->effective_from ? $master->effective_from->format('d M Y') : '-' }}</td>
-                <td>
-                  <div class="btn-group">
-                    <a href="{{ route('admin.payroll.salary-masters.edit', $master->id) }}"
-                      class="btn btn-sm btn-warning" title="Edit">
-                      <i class="fas fa-edit"></i>
-                    </a>
-                    <form action="{{ route('admin.payroll.salary-masters.toggle-status', $master->id) }}"
-                      method="POST" class="d-inline">
-                      @csrf
-                      <button type="submit" class="btn btn-sm btn-info"
-                        title="{{ $master->status === 'active' ? 'Deactivate' : 'Activate' }}">
-                        <i class="fas fa-{{ $master->status === 'active' ? 'ban' : 'check' }}"></i>
-                      </button>
-                    </form>
-                    <form action="{{ route('admin.payroll.salary-masters.destroy', $master->id) }}"
-                      method="POST" class="d-inline"
-                      onsubmit="return confirm('Are you sure you want to delete this salary master?')">
-                      @csrf
-                      @method('DELETE')
-                      <button type="submit" class="btn btn-sm btn-danger" title="Delete">
-                        <i class="fas fa-trash"></i>
-                      </button>
-                    </form>
-                  </div>
-                </td>
-              </tr>
-              @empty
-              <tr>
-                <td colspan="8" class="text-center py-4">
-                  <i class="fas fa-inbox fa-3x text-muted mb-3"></i>
-                  <p class="text-muted">No salary masters found. <a href="{{ route('admin.payroll.salary-masters.create') }}">Create one</a></p>
-                </td>
-              </tr>
-              @endforelse
-            </tbody>
-          </table>
+        @empty
+        <div class="col-12 text-center py-4">
+          <i class="fas fa-inbox fa-3x text-muted mb-3"></i>
+          <p class="text-muted">No HR pay-matrix salary masters found.</p>
         </div>
-
-        @if($salaryMasters->hasPages())
-        <div class="mt-3">
-          {{ $salaryMasters->links() }}
-        </div>
-        @endif
+        @endforelse
       </div>
+
+      @if($salaryMasters->hasPages())
+      <div class="card toolbar-shell">
+        <div class="card-body">
+          {{ $salaryMasters->links('vendor.pagination.bootstrap-5') }}
+        </div>
+      </div>
+      @endif
     </div>
   </div>
 </div>
+
+<script>
+  document.addEventListener('DOMContentLoaded', function() {
+    const searchInput = document.getElementById('salaryCardSearch');
+    const cards = document.querySelectorAll('.salary-card-item');
+
+    if (!searchInput) {
+      return;
+    }
+
+    searchInput.addEventListener('input', function() {
+      const term = this.value.toLowerCase().trim();
+
+      cards.forEach(function(card) {
+        const searchable = (card.getAttribute('data-search') || '').toLowerCase();
+        card.style.display = searchable.includes(term) ? '' : 'none';
+      });
+    });
+  });
+</script>
 
 @include('includes.footer')

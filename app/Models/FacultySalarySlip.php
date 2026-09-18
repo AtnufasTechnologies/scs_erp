@@ -13,6 +13,7 @@ class FacultySalarySlip extends Model
   protected $fillable = [
     'faculty_id',
     'annual_session_id',
+    'financial_year_id',
     'month',
     'year',
     'salary_slip_number',
@@ -28,6 +29,10 @@ class FacultySalarySlip extends Model
     'professional_tax',
     'tds',
     'loan_deduction',
+    'late_attendance_deduction',
+    'leave_deduction_amount',
+    'manual_other_deduction',
+    'emi_deduction_count',
     'other_deductions',
     'gross_salary',
     'total_deductions',
@@ -59,6 +64,9 @@ class FacultySalarySlip extends Model
     'professional_tax' => 'decimal:2',
     'tds' => 'decimal:2',
     'loan_deduction' => 'decimal:2',
+    'late_attendance_deduction' => 'decimal:2',
+    'leave_deduction_amount' => 'decimal:2',
+    'manual_other_deduction' => 'decimal:2',
     'other_deductions' => 'decimal:2',
     'gross_salary' => 'decimal:2',
     'total_deductions' => 'decimal:2',
@@ -79,6 +87,14 @@ class FacultySalarySlip extends Model
   public function annualSession()
   {
     return $this->belongsTo(AnnualSession::class, 'annual_session_id');
+  }
+
+  /**
+   * Get the financial year
+   */
+  public function financialYear()
+  {
+    return $this->belongsTo(FinancialYearMaster::class, 'financial_year_id');
   }
 
   /**
@@ -176,7 +192,9 @@ class FacultySalarySlip extends Model
       + $this->professional_tax
       + $this->tds
       + $this->loan_deduction
-      + $this->other_deductions;
+      + $this->other_deductions
+      + (float) ($this->late_attendance_deduction ?? 0)
+      + (float) ($this->leave_deduction_amount ?? 0);
 
     $this->net_salary = $this->gross_salary - $this->total_deductions;
 

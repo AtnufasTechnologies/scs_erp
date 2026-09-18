@@ -14,6 +14,7 @@ class FacultyLoan extends Model
     'faculty_id',
     'loan_number',
     'loan_type',
+    'advance_months',
     'loan_amount',
     'emi_amount',
     'total_installments',
@@ -29,6 +30,7 @@ class FacultyLoan extends Model
   ];
 
   protected $casts = [
+    'advance_months' => 'integer',
     'loan_amount' => 'decimal:2',
     'emi_amount' => 'decimal:2',
     'total_paid' => 'decimal:2',

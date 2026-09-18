@@ -102,6 +102,7 @@
                 <th>Loan Number</th>
                 <th>Faculty</th>
                 <th>Type</th>
+                <th>Months</th>
                 <th>Amount</th>
                 <th>EMI</th>
                 <th>Progress</th>
@@ -116,11 +117,12 @@
                 <td><small class="text-primary">{{ $loan->loan_number }}</small></td>
                 <td>{{ $loan->faculty->FIRST_NAME ?? '' }} {{ $loan->faculty->LAST_NAME ?? '' }}</td>
                 <td>{{ ucfirst($loan->loan_type) }}</td>
+                <td>{{ (int) ($loan->advance_months ?? 1) }}</td>
                 <td>₹{{ number_format($loan->loan_amount, 0) }}</td>
                 <td>₹{{ number_format($loan->emi_amount, 0) }}</td>
                 <td>
                   <div class="progress" style="height: 20px;">
-                    <div class="progress-bar" style="width: {{ $loan->progress_percentage }}%">{{ $loan->progress_percentage }}%</div>
+                    <div class="progress-bar bg-success js-loan-progress" data-progress="{{ $loan->progress_percentage }}"></div>
                   </div>
                   <small>{{ $loan->paid_installments }}/{{ $loan->total_installments }}</small>
                 </td>
@@ -159,7 +161,7 @@
               </div>
               @empty
               <tr>
-                <td colspan="9" class="text-center text-muted">No loans found</td>
+                <td colspan="10" class="text-center text-muted">No loans found</td>
               </tr>
               @endforelse
             </tbody>
@@ -184,38 +186,40 @@
         <div class="modal-body">
           <div class="mb-3">
             <label class="form-label">Faculty*</label>
-            <select name="faculty_id" class="form-select dselect-example" required>
+            <select name="faculty_id" class="form-select dselect-example" id="loanFacultySelect" required>
               <option value="">Select Faculty</option>
               @foreach($faculties as $faculty)
-              <option value="{{ $faculty->id }}">{{ $faculty->USER_CODE }} - {{ $faculty->FIRST_NAME }} {{ $faculty->LAST_NAME }}</option>
+              <option value="{{ $faculty->id }}" data-full-salary="{{ number_format((float) ($fullSalaryMap[$faculty->id] ?? 0), 2, '.', '') }}">{{ $faculty->USER_CODE }} - {{ $faculty->FIRST_NAME }} {{ $faculty->LAST_NAME }}</option>
               @endforeach
             </select>
           </div>
           <div class="mb-3">
             <label class="form-label">Loan Type*</label>
             <select name="loan_type" class="form-select" required>
-              <option value="personal">Personal</option>
-              <option value="vehicle">Vehicle</option>
-              <option value="home">Home</option>
-              <option value="advance">Advance</option>
-              <option value="emergency">Emergency</option>
-              <option value="other">Other</option>
+              <option value="advance" selected>Advance</option>
             </select>
           </div>
           <div class="row">
             <div class="col-md-6 mb-3">
-              <label class="form-label">Loan Amount*</label>
-              <input type="number" name="loan_amount" class="form-control" step="0.01" required>
+              <label class="form-label">Advance Months*</label>
+              <input type="number" name="advance_months" id="advanceMonthsInput" class="form-control" value="1" min="1" max="24" required>
+              <small class="text-muted">Loan amount = Full salary × advance months.</small>
             </div>
             <div class="col-md-6 mb-3">
-              <label class="form-label">EMI Amount*</label>
-              <input type="number" name="emi_amount" class="form-control" step="0.01" required>
+              <label class="form-label">Loan Amount*</label>
+              <input type="number" name="loan_amount" id="loanAmountInput" class="form-control" step="0.01" readonly required>
+              <small class="text-muted">Auto-calculated from selected faculty full salary.</small>
             </div>
           </div>
           <div class="row">
             <div class="col-md-6 mb-3">
-              <label class="form-label">Total Installments*</label>
-              <input type="number" name="total_installments" class="form-control" required>
+              <label class="form-label">No. of EMI*</label>
+              <input type="number" name="total_installments" id="totalInstallmentsInput" class="form-control" value="1" min="1" required>
+            </div>
+            <div class="col-md-6 mb-3">
+              <label class="form-label">EMI Amount*</label>
+              <input type="number" name="emi_amount" id="emiAmountInput" class="form-control" step="0.01" readonly required>
+              <small class="text-muted">Auto-calculated as Loan amount / No. of EMI.</small>
             </div>
             <div class="col-md-6 mb-3">
               <label class="form-label">Start Date*</label>
@@ -235,5 +239,51 @@
     </div>
   </div>
 </div>
+
+<script>
+  document.addEventListener('DOMContentLoaded', function() {
+    document.querySelectorAll('.js-loan-progress').forEach((bar) => {
+      const raw = parseFloat(bar.getAttribute('data-progress') || '0');
+      const progress = Number.isFinite(raw) ? Math.max(0, Math.min(raw, 100)) : 0;
+      bar.style.width = progress + '%';
+    });
+
+    const facultySelect = document.getElementById('loanFacultySelect');
+    const loanAmountInput = document.getElementById('loanAmountInput');
+    const advanceMonthsInput = document.getElementById('advanceMonthsInput');
+    const totalInstallmentsInput = document.getElementById('totalInstallmentsInput');
+    const emiAmountInput = document.getElementById('emiAmountInput');
+
+    if (!facultySelect || !loanAmountInput || !advanceMonthsInput || !totalInstallmentsInput || !emiAmountInput) {
+      return;
+    }
+
+    const recalculateLoanAndEmi = () => {
+      const selectedOption = facultySelect.options[facultySelect.selectedIndex];
+      const fullSalary = selectedOption ? parseFloat(selectedOption.getAttribute('data-full-salary') || '0') : 0;
+      const monthsRaw = parseInt(advanceMonthsInput.value || '1', 10);
+      const months = Number.isFinite(monthsRaw) ? Math.max(1, Math.min(monthsRaw, 24)) : 1;
+      if (String(months) !== advanceMonthsInput.value) {
+        advanceMonthsInput.value = String(months);
+      }
+
+      const installmentsRaw = parseInt(totalInstallmentsInput.value || '1', 10);
+      const installments = Number.isFinite(installmentsRaw) ? Math.max(1, installmentsRaw) : 1;
+      if (String(installments) !== totalInstallmentsInput.value) {
+        totalInstallmentsInput.value = String(installments);
+      }
+
+      const totalAmount = fullSalary * months;
+      loanAmountInput.value = Number.isFinite(totalAmount) ? totalAmount.toFixed(2) : '0.00';
+      const emiAmount = installments > 0 ? (totalAmount / installments) : 0;
+      emiAmountInput.value = Number.isFinite(emiAmount) ? emiAmount.toFixed(2) : '0.00';
+    };
+
+    facultySelect.addEventListener('change', recalculateLoanAndEmi);
+    advanceMonthsInput.addEventListener('input', recalculateLoanAndEmi);
+    totalInstallmentsInput.addEventListener('input', recalculateLoanAndEmi);
+    recalculateLoanAndEmi();
+  });
+</script>
 
 @include('includes.footer')

@@ -205,14 +205,6 @@ $isIncharge  = $roleType === 'account-office-incharge';
             <div class="menu-title">Faculty Loans</div>
           </a>
         </li>
-        <li>
-          <a href="{{route('admin.payroll.deductions')}}">
-            <div class="parent-icon">
-              <i class="fas fa-minus-circle"></i>
-            </div>
-            <div class="menu-title">Deduction Masters</div>
-          </a>
-        </li>
 
       </ul>
     </li>

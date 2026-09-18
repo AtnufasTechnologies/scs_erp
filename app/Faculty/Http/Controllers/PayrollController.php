@@ -29,6 +29,7 @@ class PayrollController extends Controller
 
     // Build query
     $query = FacultySalarySlip::where('faculty_id', $facultyId)
+      ->whereIn('status', ['approved', 'paid'])
       ->orderBy('year', 'desc')
       ->orderBy('month', 'desc');
 
@@ -48,6 +49,7 @@ class PayrollController extends Controller
 
     // Get available years for filter
     $availableYears = FacultySalarySlip::where('faculty_id', $facultyId)
+      ->whereIn('status', ['approved', 'paid'])
       ->distinct()
       ->pluck('year')
       ->sort()
@@ -61,10 +63,11 @@ class PayrollController extends Controller
         ->sum('net_salary'),
       'slips_count' => FacultySalarySlip::where('faculty_id', $facultyId)
         ->where('year', Carbon::now()->year)
+        ->whereIn('status', ['approved', 'paid'])
         ->count(),
       'pending_count' => FacultySalarySlip::where('faculty_id', $facultyId)
         ->where('year', Carbon::now()->year)
-        ->draft()
+        ->where('status', 'approved')
         ->count(),
     ];
 
@@ -90,6 +93,7 @@ class PayrollController extends Controller
     $facultyId = $this->getFacultyId();
 
     $salarySlip = FacultySalarySlip::where('faculty_id', $facultyId)
+      ->whereIn('status', ['approved', 'paid'])
       ->with(['faculty', 'approver'])
       ->findOrFail($id);
 
@@ -104,6 +108,7 @@ class PayrollController extends Controller
     $facultyId = $this->getFacultyId();
 
     $salarySlip = FacultySalarySlip::where('faculty_id', $facultyId)
+      ->whereIn('status', ['approved', 'paid'])
       ->with(['faculty', 'approver'])
       ->findOrFail($id);
 
@@ -125,6 +130,7 @@ class PayrollController extends Controller
 
     $salarySlips = FacultySalarySlip::where('faculty_id', $facultyId)
       ->where('year', $year)
+      ->whereIn('status', ['approved', 'paid'])
       ->with(['faculty', 'approver'])
       ->orderBy('month')
       ->get();

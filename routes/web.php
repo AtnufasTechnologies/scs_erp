@@ -14,7 +14,6 @@ use App\Http\Controllers\AccessController;
 use App\Http\Controllers\AccountOfficeController;
 use App\Http\Controllers\AdminController;
 use App\Http\Controllers\AdminPayrollController;
-use App\Http\Controllers\AdminDeductionMasterController;
 use App\Http\Controllers\AdmissionController;
 use App\Http\Controllers\AdmitCardController;
 use App\Http\Controllers\BacklogsController;
@@ -418,20 +417,8 @@ Route::group(['prefix' => '/erp'], function () {
 
             // Salary Masters Management (must come before {id} routes)
             Route::get('payroll/salary-masters', [AdminPayrollController::class, 'salaryMasters'])->name('admin.payroll.salary-masters');
-            Route::get('payroll/salary-masters/create', [AdminPayrollController::class, 'createSalaryMaster'])->name('admin.payroll.salary-masters.create');
-            Route::post('payroll/salary-masters', [AdminPayrollController::class, 'storeSalaryMaster'])->name('admin.payroll.salary-masters.store');
-            Route::get('payroll/salary-masters/{id}/edit', [AdminPayrollController::class, 'editSalaryMaster'])->name('admin.payroll.salary-masters.edit');
-            Route::put('payroll/salary-masters/{id}', [AdminPayrollController::class, 'updateSalaryMaster'])->name('admin.payroll.salary-masters.update');
-            Route::delete('payroll/salary-masters/{id}', [AdminPayrollController::class, 'destroySalaryMaster'])->name('admin.payroll.salary-masters.destroy');
-            Route::post('payroll/salary-masters/{id}/toggle-status', [AdminPayrollController::class, 'toggleSalaryMasterStatus'])->name('admin.payroll.salary-masters.toggle-status');
-
-            // Deduction Masters & Faculty Assignment (must come before {id} routes)
-            Route::get('payroll/deductions', [AdminDeductionMasterController::class, 'index'])->name('admin.payroll.deductions');
-            Route::post('payroll/deductions/masters', [AdminDeductionMasterController::class, 'storeMaster'])->name('admin.payroll.deductions.masters.store');
-            Route::put('payroll/deductions/masters/{id}', [AdminDeductionMasterController::class, 'updateMaster'])->name('admin.payroll.deductions.masters.update');
-            Route::post('payroll/deductions/masters/{id}/toggle', [AdminDeductionMasterController::class, 'toggleMasterStatus'])->name('admin.payroll.deductions.masters.toggle');
-            Route::post('payroll/deductions/assignments', [AdminDeductionMasterController::class, 'assignToFaculties'])->name('admin.payroll.deductions.assignments.store');
-            Route::post('payroll/deductions/assignments/{id}/toggle', [AdminDeductionMasterController::class, 'toggleAssignmentStatus'])->name('admin.payroll.deductions.assignments.toggle');
+            Route::get('payroll/employees-list', [AdminPayrollController::class, 'employeesList'])->name('admin.payroll.employees-list');
+            Route::get('payroll/period/list', [AdminPayrollController::class, 'periodPayrolls'])->name('admin.payroll.period-payrolls');
 
             // Get faculty info API (must come before {id} routes)
             Route::get('payroll/faculty-info/{facultyId}', [AdminPayrollController::class, 'getFacultyInfo'])->name('admin.payroll.faculty-info');

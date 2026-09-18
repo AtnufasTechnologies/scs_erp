@@ -14,10 +14,7 @@
         </nav>
       </div>
       <div class="ms-auto">
-        <a href="{{ route('admin.payroll.create') }}" class="btn btn-primary"><i class="fas fa-plus me-1"></i>Create Salary Slip</a>
-        <button class="btn btn-success" data-bs-toggle="modal" data-bs-target="#bulkGenerateModal">
-          <i class="fas fa-magic me-1"></i>Bulk Generate
-        </button>
+        <a href="{{ route('admin.payroll.create') }}" class="btn btn-primary"><i class="fas fa-plus me-1"></i>Create Monthly Payroll</a>
       </div>
     </div>
 
@@ -35,210 +32,77 @@
     </div>
     @endif
 
-    <!-- Statistics Cards -->
-    <div class="row mb-3">
-      <div class="col-md-3">
-        <div class="card">
-          <div class="card-body">
-            <div class="d-flex align-items-center">
-              <div class="flex-grow-1">
-                <p class="mb-0 text-muted">Total Slips ({{ $year }})</p>
-                <h4 class="mb-0">{{ $stats['total_slips'] }}</h4>
-              </div>
-              <div class="text-primary"><i class="fas fa-file-invoice fa-2x"></i></div>
-            </div>
-          </div>
-        </div>
-      </div>
-      <div class="col-md-3">
-        <div class="card">
-          <div class="card-body">
-            <div class="d-flex align-items-center">
-              <div class="flex-grow-1">
-                <p class="mb-0 text-muted">Paid</p>
-                <h4 class="mb-0 text-success">{{ $stats['paid'] }}</h4>
-              </div>
-              <div class="text-success"><i class="fas fa-check-circle fa-2x"></i></div>
-            </div>
-          </div>
-        </div>
-      </div>
-      <div class="col-md-3">
-        <div class="card">
-          <div class="card-body">
-            <div class="d-flex align-items-center">
-              <div class="flex-grow-1">
-                <p class="mb-0 text-muted">Draft</p>
-                <h4 class="mb-0 text-warning">{{ $stats['draft'] }}</h4>
-              </div>
-              <div class="text-warning"><i class="fas fa-clock fa-2x"></i></div>
-            </div>
-          </div>
-        </div>
-      </div>
-      <div class="col-md-3">
-        <div class="card">
-          <div class="card-body">
-            <div class="d-flex align-items-center">
-              <div class="flex-grow-1">
-                <p class="mb-0 text-muted">Total Amount</p>
-                <h4 class="mb-0">₹{{ number_format($stats['total_amount'], 0) }}</h4>
-              </div>
-              <div class="text-info"><i class="fas fa-rupee-sign fa-2x"></i></div>
-            </div>
-          </div>
-        </div>
-      </div>
+    @if($financialYearMissing)
+    <div class="alert alert-warning">
+      No active financial year is configured. Configure an active financial year to view payroll periods.
     </div>
+    @endif
 
-    <!-- Filters -->
+    @if($financialYearSessionMismatch)
+    <div class="alert alert-warning">
+      Active financial year is {{ $activeFinancialYear->title ?? 'N/A' }}, but no matching Annual Session exists.
+      Showing payroll periods using active financial year date range fallback. Create an Annual Session with the same title for strict mapping.
+    </div>
+    @endif
+
     <div class="card mb-3">
       <div class="card-body">
-        <form method="GET" class="row g-3">
-          <div class="col-md-2">
-            <select name="year" class="form-select form-select-sm">
-              <option value="">All Years</option>
-              @foreach($availableYears as $availableYear)
-              <option value="{{ $availableYear }}" {{ $year == $availableYear ? 'selected' : '' }}>{{ $availableYear }}</option>
-              @endforeach
-            </select>
-          </div>
-          <div class="col-md-2">
-            <select name="month" class="form-select form-select-sm">
+        <div class="d-flex justify-content-between align-items-center mb-2">
+          <h6 class="mb-0">Payroll by Month and Financial Year</h6>
+          <small class="text-muted">Click a month to view generated payrolls and update individual slips.</small>
+        </div>
+
+        <form method="GET" class="row g-2 mb-3">
+          <div class="col-md-4">
+            <label class="form-label mb-1">Month</label>
+            <select name="month" class="form-select">
               <option value="">All Months</option>
               @for($m = 1; $m <= 12; $m++)
-                <option value="{{ str_pad($m, 2, '0', STR_PAD_LEFT) }}" {{ $month == str_pad($m, 2, '0', STR_PAD_LEFT) ? 'selected' : '' }}>
+                @php $monthValue=str_pad($m, 2, '0' , STR_PAD_LEFT); @endphp
+                <option value="{{ $monthValue }}" {{ (string) $month === (string) $monthValue ? 'selected' : '' }}>
                 {{ \Carbon\Carbon::create()->month($m)->format('F') }}
                 </option>
                 @endfor
             </select>
           </div>
-          <div class="col-md-2">
-            <select name="status" class="form-select form-select-sm">
-              <option value="">All Status</option>
-              <option value="draft" {{ $status == 'draft' ? 'selected' : '' }}>Draft</option>
-              <option value="approved" {{ $status == 'approved' ? 'selected' : '' }}>Approved</option>
-              <option value="paid" {{ $status == 'paid' ? 'selected' : '' }}>Paid</option>
-            </select>
+          <div class="col-md-4">
+            <label class="form-label mb-1">Financial Year</label>
+            <input type="text" class="form-control" value="{{ $activeFinancialYear->title ?? 'Not Configured' }}" readonly>
+            <small class="text-muted">Payroll periods are locked to the active financial year.</small>
           </div>
-          <div class="col-md-3">
-            <select name="faculty_id" class="form-select form-select-sm">
-              <option value="">All Faculty</option>
-              @foreach($faculties as $faculty)
-              <option value="{{ $faculty->id }}" {{ $facultyId == $faculty->id ? 'selected' : '' }}>
-                {{ $faculty->FIRST_NAME }} {{ $faculty->LAST_NAME }}
-              </option>
-              @endforeach
-            </select>
-          </div>
-          <div class="col-md-3">
-            <button type="submit" class="btn btn-sm btn-primary"><i class="fas fa-filter"></i> Filter</button>
-            <a href="{{ route('admin.payroll.index') }}" class="btn btn-sm btn-secondary">Reset</a>
+          <div class="col-md-4 d-flex align-items-end gap-2">
+            <button type="submit" class="btn btn-primary"><i class="fas fa-search me-1"></i>Search</button>
+            <a href="{{ route('admin.payroll.index') }}" class="btn btn-outline-secondary">Reset</a>
           </div>
         </form>
+
+        <div class="row g-2">
+          @forelse($payrollPeriods as $period)
+          <div class="col-xl-3 col-lg-4 col-md-6">
+            <a href="{{ route('admin.payroll.period-payrolls', ['month' => $period->month, 'year' => $period->year, 'annual_session_id' => $period->annual_session_id]) }}"
+              class="text-decoration-none">
+              <div class="border rounded p-3 border-light-subtle">
+                <div class="d-flex justify-content-between align-items-start">
+                  <div>
+                    <div class="fw-semibold text-dark">{{ \Carbon\Carbon::create()->month((int) $period->month)->format('F') }} {{ $period->year }}</div>
+                    <small class="text-muted">FY: {{ $period->financial_year_title ?? 'N/A' }}</small>
+                  </div>
+                  <span class="badge bg-primary">{{ $period->slips_count }}</span>
+                </div>
+                <div class="mt-2 small text-muted">Total Net: ₹{{ number_format((float) $period->total_net_salary, 0) }}</div>
+              </div>
+            </a>
+          </div>
+          @empty
+          <div class="col-12">
+            <div class="text-muted">No payroll periods found.</div>
+          </div>
+          @endforelse
+        </div>
       </div>
     </div>
 
-    <!-- Salary Slips Table -->
-    <div class="card">
-      <div class="card-body">
-        <div class="table-responsive">
-          <table class="table table-hover">
-            <thead>
-              <tr>
-                <th>Slip Number</th>
-                <th>Faculty</th>
-                <th>Month/Year</th>
-                <th>Gross</th>
-                <th>Deductions</th>
-                <th>Net Pay</th>
-                <th>Status</th>
-                <th>Actions</th>
-              </tr>
-            </thead>
-            <tbody>
-              @forelse($salarySlips as $slip)
-              <tr>
-                <td><small class="text-primary fw-bold">{{ $slip->salary_slip_number }}</small></td>
-                <td>{{ $slip->faculty->FIRST_NAME ?? '' }} {{ $slip->faculty->LAST_NAME ?? '' }}</td>
-                <td>{{ $slip->month_year }}</td>
-                <td>₹{{ number_format($slip->gross_salary, 0) }}</td>
-                <td>₹{{ number_format($slip->total_deductions, 0) }}</td>
-                <td><strong>₹{{ number_format($slip->net_salary, 0) }}</strong></td>
-                <td><span class="badge bg-{{ $slip->status_badge }}">{{ ucfirst($slip->status) }}</span></td>
-                <td>
-                  <a href="{{ route('admin.payroll.show', $slip->id) }}" class="btn btn-sm btn-info"><i class="fas fa-eye"></i></a>
-                  @if($slip->status !== 'paid')
-                  <a href="{{ route('admin.payroll.edit', $slip->id) }}" class="btn btn-sm btn-warning"><i class="fas fa-edit"></i></a>
-                  <form action="{{ route('admin.payroll.destroy', $slip->id) }}" method="POST" class="d-inline" onsubmit="return confirm('Delete this salary slip?')">
-                    @csrf
-                    @method('DELETE')
-                    <button type="submit" class="btn btn-sm btn-danger"><i class="fas fa-trash"></i></button>
-                  </form>
-                  @endif
-                </td>
-              </tr>
-              @empty
-              <tr>
-                <td colspan="8" class="text-center text-muted">No salary slips found</td>
-              </tr>
-              @endforelse
-            </tbody>
-          </table>
-        </div>
-        {{ $salarySlips->appends(request()->query())->links() }}
-      </div>
-    </div>
-  </div>
-</div>
 
-<!-- Bulk Generate Modal -->
-<div class="modal fade" id="bulkGenerateModal" tabindex="-1">
-  <div class="modal-dialog">
-    <div class="modal-content">
-      <form method="POST" action="{{ route('admin.payroll.bulk-generate') }}">
-        @csrf
-        <div class="modal-header">
-          <h5 class="modal-title">Bulk Generate Salary Slips</h5>
-          <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
-        </div>
-        <div class="modal-body">
-          <div class="mb-3">
-            <label class="form-label">Month*</label>
-            <select name="month" class="form-select" required>
-              @for($m = 1; $m <= 12; $m++)
-                <option value="{{ str_pad($m, 2, '0', STR_PAD_LEFT) }}" {{ $m == date('n') ? 'selected' : '' }}>
-                {{ \Carbon\Carbon::create()->month($m)->format('F') }}
-                </option>
-                @endfor
-            </select>
-          </div>
-          <div class="mb-3">
-            <label class="form-label">Year*</label>
-            <input type="number" name="year" class="form-control" value="{{ date('Y') }}" required>
-          </div>
-          <div class="mb-3">
-            <div class="form-check">
-              <input class="form-check-input" type="checkbox" name="auto_approve" value="1" id="autoApproveCheck">
-              <label class="form-check-label" for="autoApproveCheck">
-                <strong>Auto-approve all generated slips</strong>
-              </label>
-              <div><small class="text-muted">Check this to automatically approve all salary slips after generation</small></div>
-            </div>
-          </div>
-          <div class="alert alert-info">
-            <i class="fas fa-info-circle"></i> <strong>Fast Generation:</strong> This will generate salary slips using faculty salary masters. All active loans will be automatically included. Perfect for 250+ faculty!
-          </div>
-          <div class="alert alert-warning">
-            <i class="fas fa-exclamation-triangle"></i> Only faculty with active salary masters will be processed. Set up salary masters first.
-          </div>
-        </div>
-        <div class="modal-footer">
-          <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
-          <button type="submit" class="btn btn-success">Generate</button>
-        </div>
-      </form>
-    </div>
   </div>
 </div>
 
