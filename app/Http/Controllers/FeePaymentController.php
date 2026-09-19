@@ -1592,6 +1592,11 @@ class FeePaymentController extends Controller
     public function revokeFullFeeExemption($id)
     {
         $exemption = StudentFullFeeExemption::findOrFail($id);
+
+        if (!$exemption->is_active) {
+            return redirect()->back()->with('error', 'Full course fee exemption is already revoked.');
+        }
+
         $exemption->is_active = false;
         $exemption->revoked_by = Auth::id();
         $exemption->revoked_at = now();
@@ -1640,6 +1645,11 @@ class FeePaymentController extends Controller
     public function revokeQuarterFeeExemption($id)
     {
         $exemption = StudentQuarterFeeExemption::findOrFail($id);
+
+        if (!$exemption->is_active) {
+            return redirect()->back()->with('error', 'Quarterly fee exemption is already revoked.');
+        }
+
         $exemption->is_active = false;
         $exemption->revoked_by = Auth::id();
         $exemption->revoked_at = now();

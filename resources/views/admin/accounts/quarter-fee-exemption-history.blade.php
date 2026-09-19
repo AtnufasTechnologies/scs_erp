@@ -78,6 +78,7 @@
             <th>Status</th>
             <th>Revoked By</th>
             <th>Revoked At</th>
+            <th>Action</th>
           </tr>
         </thead>
         <tbody>
@@ -102,10 +103,22 @@
             </td>
             <td>{{ $row->revoker->name ?? 'N/A' }}</td>
             <td>{{ $row->revoked_at ? $row->revoked_at->format('d-M-Y H:i') : 'N/A' }}</td>
+            <td>
+              @if($row->is_active)
+              <form action="{{ route('revoke.quarter.fee.exemption', $row->id) }}" method="POST" onsubmit="return confirm('Are you sure you want to revoke this quarterly fee exemption?');">
+                @csrf
+                <button type="submit" class="btn btn-sm btn-outline-danger">
+                  <i class="fa fa-ban me-1"></i>Revoke
+                </button>
+              </form>
+              @else
+              <span class="text-muted">-</span>
+              @endif
+            </td>
           </tr>
           @empty
           <tr>
-            <td colspan="13" class="text-center">No quarterly-fee exemption history found.</td>
+            <td colspan="14" class="text-center">No quarterly-fee exemption history found.</td>
           </tr>
           @endforelse
         </tbody>
