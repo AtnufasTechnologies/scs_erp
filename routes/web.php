@@ -412,13 +412,19 @@ Route::group(['prefix' => '/erp'], function () {
 
             // Faculty Loans Management (must come before {id} routes)
             Route::get('payroll/loans', [AdminPayrollController::class, 'loans'])->name('admin.payroll.loans');
+            Route::get('payroll/loans/cleared', [AdminPayrollController::class, 'clearedLoans'])->name('admin.payroll.loans.cleared');
             Route::post('payroll/loans', [AdminPayrollController::class, 'storeLoan'])->name('admin.payroll.loans.store');
             Route::post('payroll/loans/{id}/update-status', [AdminPayrollController::class, 'updateLoanStatus'])->name('admin.payroll.loans.update-status');
+            Route::post('payroll/loans/{id}/repay-emi', [AdminPayrollController::class, 'repayLoanEmi'])->name('admin.payroll.loans.repay-emi');
+            Route::post('payroll/loans/{id}/manual-clear', [AdminPayrollController::class, 'clearLoanManually'])->name('admin.payroll.loans.manual-clear');
+            Route::post('payroll/loans/{id}/delete', [AdminPayrollController::class, 'deleteLoan'])->name('admin.payroll.loans.delete');
 
             // Salary Masters Management (must come before {id} routes)
             Route::get('payroll/salary-masters', [AdminPayrollController::class, 'salaryMasters'])->name('admin.payroll.salary-masters');
             Route::get('payroll/employees-list', [AdminPayrollController::class, 'employeesList'])->name('admin.payroll.employees-list');
             Route::get('payroll/period/list', [AdminPayrollController::class, 'periodPayrolls'])->name('admin.payroll.period-payrolls');
+            Route::get('payroll/period/acceptance-sheet', [AdminPayrollController::class, 'exportPeriodAcceptanceSheet'])->name('admin.payroll.period.acceptance-sheet');
+            Route::post('payroll/period/bulk-approve-paid', [AdminPayrollController::class, 'bulkApproveAndMarkPaid'])->name('admin.payroll.period.bulk-approve-paid');
 
             // Get faculty info API (must come before {id} routes)
             Route::get('payroll/faculty-info/{facultyId}', [AdminPayrollController::class, 'getFacultyInfo'])->name('admin.payroll.faculty-info');

@@ -205,6 +205,14 @@ $isIncharge  = $roleType === 'account-office-incharge';
             <div class="menu-title">Faculty Loans</div>
           </a>
         </li>
+        <li>
+          <a href="{{route('admin.payroll.loans.cleared')}}">
+            <div class="parent-icon">
+              <i class="fas fa-archive"></i>
+            </div>
+            <div class="menu-title">Cleared Loans</div>
+          </a>
+        </li>
 
       </ul>
     </li>

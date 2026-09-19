@@ -122,7 +122,7 @@
           <div class="row mb-4 align-items-end">
             <div class="col-md-4">
               <label class="form-label">Month*</label>
-              <select name="month" class="form-select" required>
+              <select name="month" id="payrollMonthSelect" class="form-select" required>
                 @for($m = 1; $m <= 12; $m++)
                   <option value="{{ str_pad($m, 2, '0', STR_PAD_LEFT) }}" {{ $m == date('n') ? 'selected' : '' }}>
                   {{ \Carbon\Carbon::create()->month($m)->format('F') }}
@@ -130,7 +130,19 @@
                   @endfor
               </select>
             </div>
-            <div class="col-md-8">
+            <div class="col-md-4">
+              <label class="form-label">Working Days In Month*</label>
+              <input
+                type="number"
+                min="1"
+                max="31"
+                name="monthly_working_days"
+                id="monthlyWorkingDaysInput"
+                class="form-control"
+                value="{{ (int) old('monthly_working_days', now()->daysInMonth) }}"
+                required>
+            </div>
+            <div class="col-md-4">
               <label class="form-label">Current Active Financial Year</label>
               <input type="text" class="form-control" value="{{ $activeFinancialYear->title ?? 'No active financial year configured' }}" readonly>
             </div>
@@ -200,7 +212,6 @@
                   <th>Staff</th>
                   <th>Pay Matrix</th>
                   <th class="text-end">Gross (HR)</th>
-                  <th style="min-width: 140px;">Present Days</th>
                   <th style="min-width: 130px;">Absent Days</th>
                   <th style="min-width: 120px;">EPFO </th>
                   <th style="min-width: 120px;">P.TAX </th>
@@ -262,17 +273,8 @@
                       type="number"
                       min="0"
                       step="1"
-                      name="present_days[{{ $faculty->id }}]"
-                      class="form-control form-control-sm"
-                      value="{{ (int) old('present_days.' . $faculty->id, 0) }}">
-                  </td>
-                  <td>
-                    <input
-                      type="number"
-                      min="0"
-                      step="1"
                       name="absent_days[{{ $faculty->id }}]"
-                      class="form-control form-control-sm"
+                      class="form-control form-control-sm js-deduction-input js-absent-days"
                       value="{{ (int) old('absent_days.' . $faculty->id, 0) }}">
                   </td>
                   <td>
@@ -444,6 +446,7 @@
     const filterActiveLoan = document.getElementById('filterActiveLoan');
     const filterNegativeNet = document.getElementById('filterNegativeNet');
     const clearPayrollFilters = document.getElementById('clearPayrollFilters');
+    const monthlyWorkingDaysInput = document.getElementById('monthlyWorkingDaysInput');
 
     const updateVisibleCount = () => {
       if (!payrollVisibleCount) {
@@ -464,6 +467,29 @@
         row.style.display = (matchesSearch && matchesActiveLoan && matchesNegativeNet) ? '' : 'none';
       });
       updateVisibleCount();
+    };
+
+    const getMonthlyWorkingDays = () => {
+      const raw = parseInt(monthlyWorkingDaysInput?.value || '0', 10);
+      if (!Number.isFinite(raw)) {
+        return 0;
+      }
+      return Math.max(1, Math.min(raw, 31));
+    };
+
+    const normalizeAbsentDays = (row) => {
+      const monthlyWorkingDays = getMonthlyWorkingDays();
+      const absentInput = row.querySelector('.js-absent-days');
+      if (!absentInput) {
+        return;
+      }
+
+      let absentDays = parseInt(absentInput.value || '0', 10);
+      if (!Number.isFinite(absentDays)) {
+        absentDays = 0;
+      }
+      absentDays = Math.max(0, Math.min(absentDays, monthlyWorkingDays));
+      absentInput.value = String(absentDays);
     };
 
     if (payrollTotalCount) {
@@ -507,6 +533,7 @@
     rows.forEach((row) => {
       row.querySelectorAll('.js-deduction-input').forEach((input) => {
         input.addEventListener('input', () => {
+          normalizeAbsentDays(row);
           calculateRowNet(row);
           applySearchFilter();
         });
@@ -537,7 +564,18 @@
       }
 
       calculateRowNet(row);
+      normalizeAbsentDays(row);
     });
+
+    if (monthlyWorkingDaysInput) {
+      monthlyWorkingDaysInput.addEventListener('input', () => {
+        const monthlyWorkingDays = getMonthlyWorkingDays();
+        monthlyWorkingDaysInput.value = String(monthlyWorkingDays);
+        rows.forEach((row) => {
+          normalizeAbsentDays(row);
+        });
+      });
+    }
 
     updateVisibleCount();
   });

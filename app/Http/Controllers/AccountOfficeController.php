@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\AccountOfficePermission;
 use App\Models\AdmissionApplicationPaymentLog;
 use App\Models\Faculty;
+use App\Models\FinancialYearMaster;
 use App\Models\MenuMaster;
 use App\Models\StudentPayment;
 use App\Models\User;
@@ -20,8 +21,41 @@ class AccountOfficeController extends Controller
   /**
    * Account Office Incharge Dashboard
    */
-  function dashboard()
+  function dashboard(Request $request)
   {
+    $activeFinancialYear = FinancialYearMaster::query()
+      ->where('is_active', true)
+      ->orderByDesc('id')
+      ->first();
+
+    $financialYears = FinancialYearMaster::query()
+      ->orderByDesc('start_date')
+      ->orderByDesc('id')
+      ->get(['id', 'title', 'start_date', 'end_date', 'is_active']);
+
+    $selectedFinancialYearId = (int) $request->query('financial_year_id', 0);
+    $selectedFinancialYear = null;
+
+    if ($selectedFinancialYearId > 0) {
+      $selectedFinancialYear = $financialYears->firstWhere('id', $selectedFinancialYearId);
+    }
+
+    if (!$selectedFinancialYear) {
+      $selectedFinancialYear = $activeFinancialYear;
+      $selectedFinancialYearId = (int) ($activeFinancialYear->id ?? 0);
+    }
+
+    $activeFinancialYearLabel = $selectedFinancialYear->title ?? 'Current active financial year';
+
+    $applyActiveFinancialYearFilter = function ($query, string $dateColumn) use ($selectedFinancialYear) {
+      if (!$selectedFinancialYear) {
+        return $query;
+      }
+
+      return $query
+        ->whereDate($dateColumn, '>=', $selectedFinancialYear->start_date)
+        ->whereDate($dateColumn, '<=', $selectedFinancialYear->end_date);
+    };
 
     // Assistants summary
     $assistants = User::whereHas('userroletype', function ($q) {
@@ -35,46 +69,56 @@ class AccountOfficeController extends Controller
     // Account modules
     $accountModules = MenuMaster::where('module_type', 'accounts')->where('status', 'active')->get();
     // Fee payment analytics
-    $totalStudentFeeCollected = StudentPayment::where('status', 'success')->sum('amount');
-    $todayCollection          = StudentPayment::where('status', 'success')
-      ->whereDate('transaction_date', today())
-      ->sum('amount');
+    $studentFeeBaseQuery = StudentPayment::query()->where('status', 'success');
+    $applyActiveFinancialYearFilter($studentFeeBaseQuery, 'transaction_date');
+    $totalStudentFeeCollected = (clone $studentFeeBaseQuery)->sum('amount');
+    $totalLateFineCollected = (clone $studentFeeBaseQuery)->sum('late_fee_amount');
+
+    $todayCollectionQuery = StudentPayment::query()->where('status', 'success')
+      ->whereDate('transaction_date', today());
+    $applyActiveFinancialYearFilter($todayCollectionQuery, 'transaction_date');
+    $todayCollection = $todayCollectionQuery->sum('amount');
 
     // Student fee trend — last 30 days grouped by date
-    $feePaymentTrend = StudentPayment::where('status', 'success')
+    $feePaymentTrendQuery = StudentPayment::query()->where('status', 'success')
       ->where('transaction_date', '>=', now()->subDays(29)->toDateString())
       ->selectRaw('transaction_date as date, SUM(amount) as total, COUNT(*) as count')
       ->groupBy('transaction_date')
-      ->orderBy('transaction_date')
-      ->get();
+      ->orderBy('transaction_date');
+    $applyActiveFinancialYearFilter($feePaymentTrendQuery, 'transaction_date');
+    $feePaymentTrend = $feePaymentTrendQuery->get();
 
     // Admission application payment analytics
-    $totalAdmissionFeeCollected = AdmissionApplicationPaymentLog::where('status', 'success')
-      ->sum('amount');
+    $admissionFeeBaseQuery = AdmissionApplicationPaymentLog::query()->where('status', 'success');
+    $applyActiveFinancialYearFilter($admissionFeeBaseQuery, 'created_at');
+    $totalAdmissionFeeCollected = (clone $admissionFeeBaseQuery)->sum('amount');
 
-    $admissionPaymentTrend = AdmissionApplicationPaymentLog::where('status', 'success')
+    $admissionPaymentTrendQuery = AdmissionApplicationPaymentLog::query()->where('status', 'success')
       ->where('created_at', '>=', now()->subDays(29))
       ->selectRaw('DATE(created_at) as date, SUM(amount) as total, COUNT(*) as count')
       ->groupBy('date')
-      ->orderBy('date')
-      ->get();
+      ->orderBy('date');
+    $applyActiveFinancialYearFilter($admissionPaymentTrendQuery, 'created_at');
+    $admissionPaymentTrend = $admissionPaymentTrendQuery->get();
 
     // Faculty count
     $totalFaculty = Faculty::where('IS_LEFT', 0)->count();
 
     // Recent 10 successful student fee transactions
-    $recentTransactions = StudentPayment::with('studentmaster')
+    $recentTransactionsQuery = StudentPayment::with('studentmaster')
       ->where('status', 'success')
       ->orderBy('transaction_date', 'desc')
-      ->limit(10)
-      ->get();
+      ->limit(10);
+    $applyActiveFinancialYearFilter($recentTransactionsQuery, 'transaction_date');
+    $recentTransactions = $recentTransactionsQuery->get();
 
     // Recent 5 admission payments
-    $recentAdmissionPayments = AdmissionApplicationPaymentLog::with('applicationmaster.registrationmaster')
+    $recentAdmissionPaymentsQuery = AdmissionApplicationPaymentLog::with('applicationmaster.registrationmaster')
       ->where('status', 'success')
       ->latest()
-      ->limit(10)
-      ->get();
+      ->limit(10);
+    $applyActiveFinancialYearFilter($recentAdmissionPaymentsQuery, 'created_at');
+    $recentAdmissionPayments = $recentAdmissionPaymentsQuery->get();
 
     return view('admin.accounts.incharge-dashboard', [
       'assistants'                 => $assistants,
@@ -82,10 +126,14 @@ class AccountOfficeController extends Controller
       'activeAssistants'           => $activeAssistants,
       'inactiveAssistants'         => $inactiveAssistants,
       'totalStudentFeeCollected'   => $totalStudentFeeCollected,
+      'totalLateFineCollected'     => $totalLateFineCollected,
       'todayCollection'            => $todayCollection,
       'feePaymentTrend'            => $feePaymentTrend,
       'totalAdmissionFeeCollected' => $totalAdmissionFeeCollected,
       'admissionPaymentTrend'      => $admissionPaymentTrend,
+      'activeFinancialYearLabel'   => $activeFinancialYearLabel,
+      'selectedFinancialYearId'    => $selectedFinancialYearId,
+      'financialYears'             => $financialYears,
       'totalFaculty'               => $totalFaculty,
       'recentTransactions'         => $recentTransactions,
       'recentAdmissionPayments'    => $recentAdmissionPayments,

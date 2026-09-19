@@ -136,8 +136,8 @@
       ->get();
 
       $loanSnapshot = $loanRecords->first();
-      $loanTotalInstallments = (int) $loanRecords->sum('total_installments');
-      $loanPaidInstallments = (int) $loanRecords->sum('paid_installments');
+      $loanTotalInstallments = (int) ($loanSnapshot->total_installments ?? 0);
+      $loanPaidInstallments = (int) ($loanSnapshot->paid_installments ?? 0);
       $loanProgressPercent = $loanTotalInstallments > 0
       ? round(($loanPaidInstallments / $loanTotalInstallments) * 100, 2)
       : 0;

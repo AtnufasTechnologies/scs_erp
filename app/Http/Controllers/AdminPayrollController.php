@@ -9,10 +9,12 @@ use App\Models\FacultySalaryMaster;
 use App\Models\FacultySalarySlip;
 use App\Models\FinancialYearMaster;
 use App\Models\User;
+use Barryvdh\DomPDF\Facade\Pdf;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Validation\Rule;
 
 class AdminPayrollController extends Controller
 {
@@ -166,6 +168,74 @@ class AdminPayrollController extends Controller
   }
 
   /**
+   * Export printable faculty payroll acceptance sheet for signatures.
+   */
+  public function exportPeriodAcceptanceSheet(Request $request)
+  {
+    $request->validate([
+      'month' => 'required|digits:2',
+      'year' => 'required|digits:4',
+      'annual_session_id' => 'nullable|exists:annual_sessions,id',
+    ]);
+
+    $month = $request->get('month');
+    $year = $request->get('year');
+
+    $activeFinancialYear = FinancialYearMaster::where('is_active', true)->orderBy('id', 'desc')->first();
+    if (!$activeFinancialYear) {
+      return redirect()->route('admin.payroll.index')
+        ->with('error', 'No active financial year is configured. Please set an active financial year first.');
+    }
+
+    $annualSessionId = AnnualSession::where('title', $activeFinancialYear->title)->orderBy('id', 'desc')->value('id');
+    $activeFinancialYearId = $activeFinancialYear->id;
+
+    $salarySlipsQuery = FacultySalarySlip::with(['faculty', 'annualSession', 'financialYear'])
+      ->where('month', $month)
+      ->where('year', $year)
+      ->orderBy('faculty_id');
+
+    $salarySlipsQuery->where(function ($query) use ($activeFinancialYearId, $annualSessionId, $activeFinancialYear) {
+      $query->where('financial_year_id', $activeFinancialYearId)
+        ->orWhere(function ($legacyQuery) use ($annualSessionId, $activeFinancialYear) {
+          $legacyQuery->whereNull('financial_year_id');
+
+          if ($annualSessionId) {
+            $legacyQuery->where('annual_session_id', $annualSessionId);
+          } else {
+            $legacyQuery->whereRaw(
+              "STR_TO_DATE(CONCAT(year, '-', month, '-01'), '%Y-%m-%d') BETWEEN ? AND ?",
+              [
+                $activeFinancialYear->start_date->format('Y-m-d'),
+                $activeFinancialYear->end_date->format('Y-m-d')
+              ]
+            );
+          }
+        });
+    });
+
+    $salarySlips = $salarySlipsQuery->get();
+
+    if ($salarySlips->isEmpty()) {
+      return back()->with('error', 'No payroll slips found for this period to export.');
+    }
+
+    $monthLabel = Carbon::createFromFormat('m', $month)->format('F');
+    $title = 'Salary Sheet ' . strtoupper($monthLabel) . ' ' . $year;
+
+    $pdf = Pdf::loadView('admin.accounts.payroll.exports.acceptance-sheet', [
+      'salarySlips' => $salarySlips,
+      'month' => $month,
+      'year' => $year,
+      'monthLabel' => $monthLabel,
+      'activeFinancialYear' => $activeFinancialYear,
+      'title' => $title,
+    ])->setPaper('a4', 'landscape');
+
+    return $pdf->download('faculty-payroll-acceptance-sheet-' . strtolower($monthLabel) . '-' . $year . '.pdf');
+  }
+
+  /**
    * Show form to create salary slips
    */
   public function create()
@@ -228,6 +298,7 @@ class AdminPayrollController extends Controller
       'month' => 'required|digits:2',
       'year' => 'required|digits:4',
       'annual_session_id' => 'nullable|exists:annual_sessions,id',
+      'monthly_working_days' => 'required|integer|min:1|max:31',
       'faculty_ids' => 'required|array|min:1',
       'faculty_ids.*' => 'required|integer|exists:faculties,id',
       'individual_faculty_id' => 'nullable|integer|exists:faculties,id',
@@ -256,6 +327,7 @@ class AdminPayrollController extends Controller
 
     $month = $request->month;
     $year = $request->year;
+    $monthlyWorkingDays = (int) $request->input('monthly_working_days');
     $activeFinancialYear = FinancialYearMaster::where('is_active', true)->orderBy('id', 'desc')->first();
     if (!$activeFinancialYear) {
       return back()->with('error', 'No active financial year is configured. Please set an active financial year first.');
@@ -309,6 +381,7 @@ class AdminPayrollController extends Controller
       $presentDaysByFaculty,
       $absentDaysByFaculty,
       $remarksByFaculty,
+      $monthlyWorkingDays,
       $request,
       $month,
       $year,
@@ -440,10 +513,11 @@ class AdminPayrollController extends Controller
         $salarySlip->other_deductions = (float) ($salaryMaster->other_deductions ?? 0)
           + $otherManualDeduction;
 
-        $presentDays = max((int) ($presentDaysByFaculty[$facultyId] ?? 0), 0);
         $absentDays = max((int) ($absentDaysByFaculty[$facultyId] ?? 0), 0);
+        $absentDays = min($absentDays, $monthlyWorkingDays);
+        $presentDays = max($monthlyWorkingDays - $absentDays, 0);
 
-        $salarySlip->working_days = $presentDays + $absentDays;
+        $salarySlip->working_days = $monthlyWorkingDays;
         $salarySlip->present_days = $presentDays;
         $salarySlip->leave_days = $absentDays;
         $salarySlip->remarks = $remarksByFaculty[$facultyId] ?? null;
@@ -564,23 +638,25 @@ class AdminPayrollController extends Controller
     $leaveDeduction = (float) ($request->leave_deduction ?? 0);
     $manualOtherDeduction = (float) ($request->manual_other_deduction ?? 0);
 
-    $activeLoans = FacultyLoan::where('faculty_id', $salarySlip->faculty_id)
-      ->active()
+    $loanPool = FacultyLoan::where('faculty_id', $salarySlip->faculty_id)
+      ->whereIn('status', ['active', 'completed'])
+      ->orderBy('id')
       ->get();
+    $activeLoans = $loanPool->where('status', 'active')->values();
     $loanDeductionPerCycle = (float) $activeLoans->sum('emi_amount');
-    $pendingEmiCount = (int) $activeLoans->sum(function ($loan) {
+    $pendingEmiCount = (int) $loanPool->sum(function ($loan) {
       return max(((int) $loan->total_installments - (int) $loan->paid_installments), 0);
     });
+    $existingEmiCount = max((int) ($salarySlip->emi_deduction_count ?? 0), 0);
+    $editableEmiCapacity = $pendingEmiCount + $existingEmiCount;
     $requestedEmiCount = (int) ($request->emi_deduction_count ?? 0);
     if ($request->input('skip_loan_emi') === '1') {
       $requestedEmiCount = 0;
     }
-    $requestedEmiCount = max(0, min($requestedEmiCount, $pendingEmiCount));
+    $requestedEmiCount = max(0, min($requestedEmiCount, $editableEmiCapacity));
 
-    $computedLoanDeduction = 0.0;
-    if ($requestedEmiCount > 0 && $loanDeductionPerCycle > 0) {
-      $computedLoanDeduction = $loanDeductionPerCycle * $requestedEmiCount;
-    }
+    $computedLoanDeduction = max((float) ($salarySlip->loan_deduction ?? 0), 0);
+    $emiCountDelta = $requestedEmiCount - $existingEmiCount;
 
     $presentDays = max((int) ($request->present_days ?? 0), 0);
     $absentDays = max((int) ($request->absent_days ?? 0), 0);
@@ -609,9 +685,57 @@ class AdminPayrollController extends Controller
     $salarySlip->leave_days = $absentDays;
     $salarySlip->remarks = $request->remarks;
 
-    // Calculate totals
-    $salarySlip->calculateTotals();
-    $salarySlip->save();
+    DB::transaction(function () use ($loanPool, $emiCountDelta, &$computedLoanDeduction, $salarySlip) {
+      if ($emiCountDelta > 0) {
+        // Apply extra deduction cycles when EMI count is increased during edit.
+        for ($cycle = 0; $cycle < $emiCountDelta; $cycle++) {
+          foreach ($loanPool as $loan) {
+            if ($loan->status !== 'active') {
+              continue;
+            }
+            if ($loan->deductEMI()) {
+              $computedLoanDeduction += (float) $loan->emi_amount;
+            }
+          }
+        }
+      } elseif ($emiCountDelta < 0) {
+        // Roll back deduction cycles when EMI count is reduced during edit.
+        $cyclesToReverse = abs($emiCountDelta);
+        for ($cycle = 0; $cycle < $cyclesToReverse; $cycle++) {
+          $reversedThisCycle = false;
+
+          foreach ($loanPool as $loan) {
+            if ($loan->status !== 'active' || (int) $loan->paid_installments <= 0) {
+              continue;
+            }
+            if ($loan->reverseEMI()) {
+              $computedLoanDeduction -= (float) $loan->emi_amount;
+              $reversedThisCycle = true;
+            }
+          }
+
+          if (!$reversedThisCycle) {
+            foreach ($loanPool as $loan) {
+              if ($loan->status !== 'completed' || (int) $loan->paid_installments <= 0) {
+                continue;
+              }
+              if ($loan->reverseEMI()) {
+                $computedLoanDeduction -= (float) $loan->emi_amount;
+                $reversedThisCycle = true;
+              }
+            }
+          }
+
+          if (!$reversedThisCycle) {
+            break;
+          }
+        }
+      }
+
+      $salarySlip->loan_deduction = max($computedLoanDeduction, 0);
+      $salarySlip->calculateTotals();
+      $salarySlip->save();
+    });
 
     return redirect()->route('admin.payroll.show', $id)
       ->with('success', 'Salary slip updated successfully.');
@@ -683,6 +807,73 @@ class AdminPayrollController extends Controller
     $salarySlip->save();
 
     return back()->with('success', 'Salary slip marked as paid successfully.');
+  }
+
+  /**
+   * Bulk mark selected salary slips as approved and paid.
+   */
+  public function bulkApproveAndMarkPaid(Request $request)
+  {
+    $request->validate([
+      'slip_ids' => 'required|array|min:1',
+      'slip_ids.*' => 'integer|exists:faculty_salary_slips,id',
+      'payment_date' => 'required|date',
+      'payment_mode' => 'required|in:bank_transfer,cash,cheque',
+      'payment_reference' => 'nullable|string|max:255',
+      'month' => 'required|digits:2',
+      'year' => 'required|digits:4',
+    ]);
+
+    $selectedIds = collect($request->input('slip_ids', []))->map(fn($id) => (int) $id)->unique()->values();
+    if ($selectedIds->isEmpty()) {
+      return back()->with('error', 'Please select at least one salary slip.');
+    }
+
+    $paymentDate = $request->input('payment_date');
+    $paymentMode = $request->input('payment_mode');
+    $paymentReference = $request->input('payment_reference');
+    $month = $request->input('month');
+    $year = $request->input('year');
+
+    $slips = FacultySalarySlip::whereIn('id', $selectedIds)
+      ->where('month', $month)
+      ->where('year', $year)
+      ->get();
+
+    $updated = 0;
+    $alreadyPaid = 0;
+
+    DB::transaction(function () use ($slips, $paymentDate, $paymentMode, $paymentReference, &$updated, &$alreadyPaid) {
+      foreach ($slips as $slip) {
+        if ($slip->status === 'paid') {
+          $alreadyPaid++;
+          continue;
+        }
+
+        if (!$slip->approved_at) {
+          $slip->approved_by = Auth::id();
+          $slip->approved_at = now();
+        }
+
+        $slip->status = 'paid';
+        $slip->payment_date = $paymentDate;
+        $slip->payment_mode = $paymentMode;
+        $slip->payment_reference = $paymentReference;
+        $slip->save();
+        $updated++;
+      }
+    });
+
+    if ($updated === 0 && $alreadyPaid > 0) {
+      return back()->with('error', 'All selected salary slips are already marked as paid.');
+    }
+
+    $message = 'Selected salary slips marked as approved and paid: ' . $updated . '.';
+    if ($alreadyPaid > 0) {
+      $message .= ' Already paid skipped: ' . $alreadyPaid . '.';
+    }
+
+    return back()->with('success', $message);
   }
 
   /**
@@ -803,16 +994,31 @@ class AdminPayrollController extends Controller
   public function loans(Request $request)
   {
     $facultyId = $request->get('faculty_id');
-    $status = $request->get('status');
+    $loanType = $request->get('loan_type');
+    $loanNumber = trim((string) $request->get('loan_number', ''));
+    $loanTypeOptions = $this->loanTypeOptions();
+    $paymentModeOptions = $this->paymentModeOptions();
 
-    $query = FacultyLoan::with('faculty')->orderBy('created_at', 'desc');
+    $query = FacultyLoan::with([
+      'faculty',
+      'transactions' => function ($transactionQuery) {
+        $transactionQuery->orderByDesc('payment_date')->orderByDesc('id');
+      }
+    ])->orderBy('created_at', 'desc');
 
     if ($facultyId) {
       $query->where('faculty_id', $facultyId);
     }
 
-    if ($status) {
-      $query->where('status', $status);
+    // Keep this page focused on active/ongoing loans only.
+    $query->where('status', 'active');
+
+    if ($loanType) {
+      $query->where('loan_type', $loanType);
+    }
+
+    if ($loanNumber !== '') {
+      $query->where('loan_number', 'like', '%' . $loanNumber . '%');
     }
 
     $loans = $query->paginate(20);
@@ -839,7 +1045,50 @@ class AdminPayrollController extends Controller
       'pending_recovery' => FacultyLoan::active()->sum('remaining_amount'),
     ];
 
-    return view('admin.accounts.payroll.loans', compact('loans', 'faculties', 'stats', 'facultyId', 'status', 'fullSalaryMap'));
+    $activeFinancialYear = FinancialYearMaster::where('is_active', true)->orderBy('id', 'desc')->first();
+
+    return view('admin.accounts.payroll.loans', compact('loans', 'faculties', 'stats', 'facultyId', 'loanType', 'loanNumber', 'loanTypeOptions', 'paymentModeOptions', 'fullSalaryMap', 'activeFinancialYear'));
+  }
+
+  /**
+   * Cleared/completed loans listing page.
+   */
+  public function clearedLoans(Request $request)
+  {
+    $facultyId = $request->get('faculty_id');
+    $loanType = $request->get('loan_type');
+    $loanNumber = trim((string) $request->get('loan_number', ''));
+    $loanTypeOptions = $this->loanTypeOptions();
+
+    $query = FacultyLoan::with([
+      'faculty',
+      'transactions' => function ($transactionQuery) {
+        $transactionQuery->orderByDesc('payment_date')->orderByDesc('id');
+      }
+    ])->where('status', 'completed')->orderByDesc('end_date')->orderByDesc('id');
+
+    if ($facultyId) {
+      $query->where('faculty_id', $facultyId);
+    }
+
+    if ($loanType) {
+      $query->where('loan_type', $loanType);
+    }
+
+    if ($loanNumber !== '') {
+      $query->where('loan_number', 'like', '%' . $loanNumber . '%');
+    }
+
+    $loans = $query->paginate(20);
+    $faculties = Faculty::where('IS_LEFT', 0)->orderBy('FIRST_NAME')->get();
+
+    $stats = [
+      'cleared_count' => FacultyLoan::where('status', 'completed')->count(),
+      'total_disbursed' => FacultyLoan::where('status', 'completed')->sum('loan_amount'),
+      'total_recovered' => FacultyLoan::where('status', 'completed')->sum('total_paid'),
+    ];
+
+    return view('admin.accounts.payroll.cleared-loans', compact('loans', 'faculties', 'stats', 'facultyId', 'loanType', 'loanNumber', 'loanTypeOptions'));
   }
 
   /**
@@ -847,49 +1096,52 @@ class AdminPayrollController extends Controller
    */
   public function storeLoan(Request $request)
   {
+    $loanTypeOptions = $this->loanTypeOptions();
+
     $request->validate([
       'faculty_id' => 'required|exists:faculties,id',
-      'loan_type' => 'required|in:advance',
-      'advance_months' => 'required|integer|min:1|max:24',
-      'loan_amount' => 'nullable|numeric|min:0',
-      'total_installments' => 'required|integer|min:1',
+      'loan_type' => ['required', Rule::in(array_keys($loanTypeOptions))],
+      'loan_amount' => 'required|numeric|min:1',
+      'emi_amount' => 'required|numeric|min:1|lte:loan_amount',
+      'total_installments' => 'nullable|integer|min:1',
       'start_date' => 'required|date',
     ]);
 
-    $salaryMaster = FacultySalaryMaster::where('faculty_id', $request->faculty_id)
-      ->active()
-      ->first();
-
-    if (!$salaryMaster) {
-      return back()->withErrors([
-        'faculty_id' => 'No active salary master found for selected faculty. Please map salary first.'
-      ])->withInput();
+    $activeFinancialYear = FinancialYearMaster::where('is_active', true)->orderBy('id', 'desc')->first();
+    if (!$activeFinancialYear) {
+      return back()->with('error', 'No active financial year is configured. Please set an active financial year first.')->withInput();
     }
 
-    $fullSalaryAmount = (float) $salaryMaster->basic_salary
-      + (float) $salaryMaster->da
-      + (float) $salaryMaster->hra
-      + (float) $salaryMaster->ta
-      + (float) $salaryMaster->medical_allowance
-      + (float) $salaryMaster->special_allowance
-      + (float) $salaryMaster->other_allowances;
-    $advanceMonths = (int) $request->advance_months;
-    $loanAmount = $fullSalaryAmount * $advanceMonths;
-    $totalInstallments = (int) $request->total_installments;
-    $emiAmount = round($loanAmount / max($totalInstallments, 1), 2);
+    $loanAmount = round((float) $request->loan_amount, 2);
+    $emiAmount = round((float) $request->emi_amount, 2);
+    $totalInstallments = (int) ceil($loanAmount / max($emiAmount, 1));
+    $startDate = Carbon::parse($request->start_date)->startOfDay();
+    $fyStart = $activeFinancialYear->start_date->copy()->startOfDay();
+    $fyEnd = $activeFinancialYear->end_date->copy()->endOfDay();
+
+    if ($startDate->lt($fyStart) || $startDate->gt($fyEnd)) {
+      return back()->with('error', 'Loan start date must be within the active financial year (' . $activeFinancialYear->title . ').')->withInput();
+    }
+
+    // Installments are deducted monthly; installment count includes the starting month.
+    $projectedEndDate = $startDate->copy()->addMonths(max($totalInstallments - 1, 0));
+    if ($projectedEndDate->gt($fyEnd)) {
+      return back()->with('error', 'This loan cannot be fully repaid within the active financial year (' . $activeFinancialYear->title . '). Please increase EMI amount or reduce loan amount.')->withInput();
+    }
 
     $loanNumber = 'LOAN-' . date('Ymd') . '-' . str_pad($request->faculty_id, 4, '0', STR_PAD_LEFT) . '-' . rand(100, 999);
 
     $loan = new FacultyLoan();
     $loan->faculty_id = $request->faculty_id;
     $loan->loan_number = $loanNumber;
-    $loan->loan_type = 'advance';
-    $loan->advance_months = $advanceMonths;
+    $loan->loan_type = (string) $request->loan_type;
+    $loan->advance_months = 1;
     $loan->loan_amount = $loanAmount;
     $loan->emi_amount = $emiAmount;
     $loan->total_installments = $totalInstallments;
     $loan->remaining_amount = $loanAmount;
-    $loan->start_date = $request->start_date;
+    $loan->start_date = $startDate->toDateString();
+    $loan->end_date = $projectedEndDate->toDateString();
     $loan->status = 'active';
     $loan->remarks = $request->remarks;
     $loan->approved_by = Auth::id();
@@ -897,6 +1149,37 @@ class AdminPayrollController extends Controller
     $loan->save();
 
     return back()->with('success', 'Loan created successfully.');
+  }
+
+  /**
+   * Supported loan types for payroll loans.
+   */
+  private function loanTypeOptions(): array
+  {
+    return [
+      'advance' => 'Salary Advance',
+      'personal' => 'Personal Loan',
+      'medical' => 'Medical Loan',
+      'vehicle' => 'Vehicle Loan',
+      'housing' => 'Housing Loan',
+      'education' => 'Education Loan',
+      'emergency' => 'Emergency Loan',
+    ];
+  }
+
+  /**
+   * Supported payment modes for manual loan transactions.
+   */
+  private function paymentModeOptions(): array
+  {
+    return [
+      'cash' => 'Cash',
+      'bank_transfer' => 'Bank Transfer',
+      'cheque' => 'Cheque',
+      'upi' => 'UPI',
+      'online' => 'Online',
+      'other' => 'Other',
+    ];
   }
 
   /**
@@ -919,6 +1202,160 @@ class AdminPayrollController extends Controller
     $loan->save();
 
     return back()->with('success', 'Loan status updated successfully.');
+  }
+
+  /**
+   * Manually clear a loan mid-term with one-time settlement.
+   */
+  public function clearLoanManually(Request $request, $id)
+  {
+    $loan = FacultyLoan::findOrFail($id);
+    $paymentModeOptions = $this->paymentModeOptions();
+
+    $request->validate([
+      'payment_date' => 'required|date',
+      'payment_mode' => ['required', Rule::in(array_keys($paymentModeOptions))],
+      'clear_remarks' => 'nullable|string|max:500',
+    ]);
+
+    if ($loan->status === 'completed' || (float) $loan->remaining_amount <= 0) {
+      return back()->with('error', 'Loan is already completed.');
+    }
+
+    $paymentDate = Carbon::parse($request->input('payment_date'))->startOfDay();
+    $paymentMode = (string) $request->input('payment_mode');
+    $receiptNumber = $this->generateLoanTransactionReceiptNumber();
+    $settlementAmount = max((float) $loan->remaining_amount, 0);
+
+    DB::transaction(function () use ($loan, $request, $paymentDate, $paymentMode, $receiptNumber, $settlementAmount) {
+      $loan->total_paid = (float) $loan->total_paid + $settlementAmount;
+      $loan->remaining_amount = 0;
+      $loan->paid_installments = (int) $loan->total_installments;
+      $loan->status = 'completed';
+      $loan->end_date = now();
+
+      $remark = trim((string) $request->input('clear_remarks', ''));
+      $auditNote = ' [Manual closure on ' . now()->format('d-M-Y H:i') . ', payment date: ' . $paymentDate->format('d-M-Y') . ', mode: ' . str_replace('_', ' ', $paymentMode) . ($receiptNumber !== '' ? ', receipt: ' . $receiptNumber : '') . ', settlement: ₹' . number_format($settlementAmount, 2) . ']';
+      $loan->remarks = trim(((string) $loan->remarks) . ($remark !== '' ? ' ' . $remark : '') . $auditNote);
+      $loan->save();
+
+      DB::table('faculty_loan_transactions')->insert([
+        'faculty_loan_id' => $loan->id,
+        'faculty_id' => $loan->faculty_id,
+        'transaction_type' => 'manual_clear',
+        'payment_date' => $paymentDate->toDateString(),
+        'payment_mode' => $paymentMode,
+        'receipt_number' => $receiptNumber !== '' ? $receiptNumber : null,
+        'emi_count' => null,
+        'amount' => $settlementAmount,
+        'remarks' => $remark,
+        'processed_by' => Auth::id(),
+        'created_at' => now(),
+        'updated_at' => now(),
+      ]);
+    });
+
+    return back()->with('success', 'Loan manually cleared successfully. Receipt No: ' . $receiptNumber . '.');
+  }
+
+  /**
+   * Manually repay one or more EMI cycles for an active loan.
+   */
+  public function repayLoanEmi(Request $request, $id)
+  {
+    $loan = FacultyLoan::findOrFail($id);
+    $paymentModeOptions = $this->paymentModeOptions();
+
+    $pendingEmis = max(((int) $loan->total_installments - (int) $loan->paid_installments), 0);
+
+    $request->validate([
+      'emi_count' => 'required|integer|min:1|max:' . max($pendingEmis, 1),
+      'payment_date' => 'required|date',
+      'payment_mode' => ['required', Rule::in(array_keys($paymentModeOptions))],
+      'repay_remarks' => 'nullable|string|max:500',
+    ]);
+
+    if ($loan->status !== 'active' || (float) $loan->remaining_amount <= 0 || $pendingEmis <= 0) {
+      return back()->with('error', 'EMI repayment is allowed only for active loans with pending installments.');
+    }
+
+    $emiCount = (int) $request->input('emi_count', 1);
+    $emiCount = max(1, min($emiCount, $pendingEmis));
+    $paymentDate = Carbon::parse($request->input('payment_date'))->startOfDay();
+    $paymentMode = (string) $request->input('payment_mode');
+    $receiptNumber = $this->generateLoanTransactionReceiptNumber();
+    $initialTotalPaid = (float) $loan->total_paid;
+
+    $applied = 0;
+    for ($i = 0; $i < $emiCount; $i++) {
+      if (!$loan->deductEMI()) {
+        break;
+      }
+      $applied++;
+      $loan->refresh();
+      if ($loan->status !== 'active') {
+        break;
+      }
+    }
+
+    if ($applied <= 0) {
+      return back()->with('error', 'Unable to apply EMI repayment for this loan.');
+    }
+
+    $appliedAmount = max(0, round((float) $loan->total_paid - $initialTotalPaid, 2));
+    $remarks = trim((string) $request->input('repay_remarks', ''));
+    $auditNote = ' [Manual EMI repayment on ' . now()->format('d-M-Y H:i') . ': ' . $applied . ' EMI(s), payment date: ' . $paymentDate->format('d-M-Y') . ', mode: ' . str_replace('_', ' ', $paymentMode) . ($receiptNumber !== '' ? ', receipt: ' . $receiptNumber : '') . ', amount: ₹' . number_format($appliedAmount, 2) . ']';
+    $loan->remarks = trim(((string) $loan->remarks) . ($remarks !== '' ? ' ' . $remarks : '') . $auditNote);
+    $loan->save();
+
+    DB::table('faculty_loan_transactions')->insert([
+      'faculty_loan_id' => $loan->id,
+      'faculty_id' => $loan->faculty_id,
+      'transaction_type' => 'emi_repayment',
+      'payment_date' => $paymentDate->toDateString(),
+      'payment_mode' => $paymentMode,
+      'receipt_number' => $receiptNumber !== '' ? $receiptNumber : null,
+      'emi_count' => $applied,
+      'amount' => $appliedAmount,
+      'remarks' => $remarks,
+      'processed_by' => Auth::id(),
+      'created_at' => now(),
+      'updated_at' => now(),
+    ]);
+
+    return back()->with('success', 'EMI repayment posted successfully (' . $applied . ' EMI). Receipt No: ' . $receiptNumber . '.');
+  }
+
+  /**
+   * Generate unique receipt number for manual loan transactions.
+   */
+  private function generateLoanTransactionReceiptNumber(): string
+  {
+    do {
+      $candidate = 'LRC-' . now()->format('Ymd') . '-' . strtoupper(substr(bin2hex(random_bytes(3)), 0, 6));
+    } while (DB::table('faculty_loan_transactions')->where('receipt_number', $candidate)->exists());
+
+    return $candidate;
+  }
+
+  /**
+   * Delete loan record (soft delete) when no recovery has started.
+   */
+  public function deleteLoan($id)
+  {
+    $loan = FacultyLoan::findOrFail($id);
+
+    if ((int) $loan->paid_installments > 0 || (float) $loan->total_paid > 0) {
+      return back()->with('error', 'This loan already has recovered EMI entries and cannot be deleted. Please suspend or complete it instead.');
+    }
+
+    if ((float) $loan->remaining_amount < (float) $loan->loan_amount) {
+      return back()->with('error', 'This loan already has repayment adjustments and cannot be deleted.');
+    }
+
+    $loan->delete();
+
+    return back()->with('success', 'Loan deleted successfully.');
   }
 
   /**

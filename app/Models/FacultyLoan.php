@@ -57,6 +57,14 @@ class FacultyLoan extends Model
   }
 
   /**
+   * Get transaction ledger entries for this loan.
+   */
+  public function transactions()
+  {
+    return $this->hasMany('App\\Models\\FacultyLoanTransaction', 'faculty_loan_id');
+  }
+
+  /**
    * Scope a query to only include active loans
    */
   public function scopeActive($query)
@@ -112,6 +120,28 @@ class FacultyLoan extends Model
     if ($this->paid_installments >= $this->total_installments || $this->remaining_amount <= 0) {
       $this->status = 'completed';
       $this->end_date = now();
+    }
+
+    $this->save();
+    return true;
+  }
+
+  /**
+   * Reverse one EMI deduction (used when payroll EMI count is reduced on edit).
+   */
+  public function reverseEMI()
+  {
+    if ((int) $this->paid_installments <= 0) {
+      return false;
+    }
+
+    $this->paid_installments = max(0, (int) $this->paid_installments - 1);
+    $this->total_paid = max(0, (float) $this->total_paid - (float) $this->emi_amount);
+    $this->remaining_amount = min((float) $this->loan_amount, (float) $this->remaining_amount + (float) $this->emi_amount);
+
+    if ($this->status === 'completed' && ((int) $this->paid_installments < (int) $this->total_installments || (float) $this->remaining_amount > 0)) {
+      $this->status = 'active';
+      $this->end_date = null;
     }
 
     $this->save();
