@@ -49,7 +49,14 @@ use App\Http\Controllers\StaticController;
         <div class="menu-title">Attendance Eligibility </div>
       </a>
     </li>
-
+    <li>
+      <a href="{{ route('coe.exam-rooms.index') }}">
+        <div class="parent-icon">
+          <i class="fal fa-person-booth"></i>
+        </div>
+        <div class="menu-title"> Rooms Management </div>
+      </a>
+    </li>
 
 
     <li>
@@ -149,6 +156,14 @@ use App\Http\Controllers\StaticController;
             <i class="bx bx-radio-circle"></i>Exam Calendar
           </a>
         </li>
+        @endif
+
+        @if(
+        StaticController::coeMenuAccess('exam-management') ||
+        StaticController::coeMenuAccess('seating-allocation') ||
+        StaticController::coeMenuAccess('attendance')
+        )
+
         @endif
 
         @if(StaticController::coeMenuAccess('exam-registrations'))

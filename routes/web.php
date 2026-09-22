@@ -22,6 +22,7 @@ use App\Http\Controllers\CoeDashboardController;
 use App\Http\Controllers\CoeInternalMarksReviewController;
 use App\Http\Controllers\CoeAttendanceController;
 use App\Http\Controllers\CoeExamController;
+use App\Http\Controllers\CoeExamRoomController;
 use App\Http\Controllers\DcoeManagementController;
 use App\Http\Controllers\CoeRegulationController;
 use App\Http\Controllers\CoeFa1ExaminationController;
@@ -1250,6 +1251,12 @@ Route::group(['prefix' => '/erp'], function () {
         Route::put('exams/{id}', [CoeExamController::class, 'update'])->name('coe.exams.update');
         Route::post('exams/{id}/toggle-publish', [CoeExamController::class, 'togglePublish'])->name('coe.exams.toggle-publish');
         Route::delete('exams/{id}', [CoeExamController::class, 'destroy'])->name('coe.exams.destroy');
+
+        // COE Exam Room Management Routes
+        Route::get('exam-rooms', [CoeExamRoomController::class, 'index'])->name('coe.exam-rooms.index');
+        Route::post('exam-rooms', [CoeExamRoomController::class, 'store'])->name('coe.exam-rooms.store');
+        Route::put('exam-rooms/{id}', [CoeExamRoomController::class, 'update'])->name('coe.exam-rooms.update');
+        Route::delete('exam-rooms/{id}', [CoeExamRoomController::class, 'destroy'])->name('coe.exam-rooms.destroy');
 
         // COE Dummy Numbers Routes
         Route::get('dummy-numbers', [DummyNumberController::class, 'index'])->name('coe.dummy-numbers.index');

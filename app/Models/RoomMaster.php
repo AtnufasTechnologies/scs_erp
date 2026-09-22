@@ -12,6 +12,11 @@ class RoomMaster extends Model
     protected $table = 'room_masters';
 
     protected $fillable = [
+        'title',
+        'room_number',
+        'rows',
+        'columns',
+        'priority',
         'room_name',
         'room_code',
         'block_id',
@@ -24,6 +29,18 @@ class RoomMaster extends Model
     public function block()
     {
         return $this->belongsTo(AcademicBlock::class, 'block_id');
+    }
+
+    public function getRoomNameAttribute(): string
+    {
+        $baseName = trim((string) ($this->room_number ?: $this->title ?: ('Room ' . $this->id)));
+        $blockTitle = trim((string) ($this->block?->title ?? ''));
+
+        if ($blockTitle === '') {
+            return $baseName;
+        }
+
+        return $blockTitle . ' - ' . $baseName;
     }
 
     public function seatingAllocations()

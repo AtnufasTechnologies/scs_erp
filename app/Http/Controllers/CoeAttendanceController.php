@@ -544,7 +544,9 @@ class CoeAttendanceController extends Controller
           $q->where('exam_id', $examId);
         });
       })
-      ->orderBy('room_name')
+      ->orderBy('priority')
+      ->orderBy('room_number')
+      ->orderBy('title')
       ->get();
 
     // Transform data for easier view access

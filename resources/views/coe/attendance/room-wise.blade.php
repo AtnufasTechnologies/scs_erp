@@ -164,7 +164,7 @@
                 <div>
                   <h6 class="mb-1 fw-bold">{{ $room->room_name }}</h6>
                   <small class="text-muted">
-                    <i class="fas fa-building me-1"></i>{{ $room->block->block_name ?? 'N/A' }} |
+                    <i class="fas fa-building me-1"></i>{{ $room->block->title ?? 'N/A' }} |
                     Capacity: {{ $room->capacity ?? 'N/A' }}
                   </small>
                 </div>

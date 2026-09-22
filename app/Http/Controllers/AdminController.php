@@ -74,6 +74,7 @@ use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Str;
 use Illuminate\Testing\Fluent\Concerns\Has;
+use Illuminate\Validation\Rule;
 
 class AdminController extends Controller
 {
@@ -1901,33 +1902,103 @@ class AdminController extends Controller
 
     function roomTypeMaster()
     {
-        $data = RoomMaster::latest()->get();
+        $data = RoomMaster::with('block:id,title')
+            ->orderBy('priority')
+            ->orderBy('block_id')
+            ->orderBy('room_number')
+            ->orderBy('id', 'desc')
+            ->get();
+
         return view('admin.master.rooms', ['data' => $data]);
     }
 
     function addRoomTypeMaster(Request $request)
     {
         $request->validate([
-            'title' => 'required|string|max:255',
+            'block_id' => 'required|exists:academic_blocks,id',
+            'room_number' => [
+                'required',
+                'string',
+                'max:100',
+                Rule::unique('room_masters', 'room_number')->where(function ($query) use ($request) {
+                    return $query->where('block_id', $request->block_id);
+                }),
+            ],
+            'rows' => 'required|integer|min:1|max:200',
+            'columns' => 'required|integer|min:1|max:200',
+            'capacity' => 'nullable|integer|min:1|max:5000',
+            'priority' => 'required|integer|min:1|max:9999',
+            'room_type' => 'nullable|string|max:100',
+            'room_code' => 'nullable|string|max:100',
+            'floor' => 'nullable|string|max:50',
+            'status' => 'nullable|in:active,inactive',
         ]);
 
+        $calculatedCapacity = (int) $request->rows * (int) $request->columns;
+        $capacity = $request->filled('capacity') ? (int) $request->capacity : $calculatedCapacity;
+
         $rec = new RoomMaster();
-        $rec->title = ucfirst($request->title);
+        $rec->title = strtoupper(trim((string) $request->room_number));
+        $rec->block_id = (int) $request->block_id;
+        $rec->room_number = strtoupper(trim((string) $request->room_number));
+        $rec->rows = (int) $request->rows;
+        $rec->columns = (int) $request->columns;
+        $rec->capacity = $capacity;
+        $rec->priority = (int) $request->priority;
+        $rec->room_type = $request->filled('room_type') ? ucfirst(trim((string) $request->room_type)) : null;
+        $rec->room_code = $request->filled('room_code') ? strtoupper(trim((string) $request->room_code)) : null;
+        $rec->floor = $request->filled('floor') ? trim((string) $request->floor) : null;
+        $rec->status = $request->filled('status') ? $request->status : 'active';
         $rec->save();
-        return redirect()->back()->with('success', 'Done');
+
+        return redirect()->back()->with('success', 'Room added successfully');
     }
 
     function updateRoomTypeMaster(Request $request)
     {
+        $roomId = (int) $request->id;
+
         $request->validate([
-            'title' => 'required|string|max:255',
+            'id' => 'required|exists:room_masters,id',
+            'block_id' => 'required|exists:academic_blocks,id',
+            'room_number' => [
+                'required',
+                'string',
+                'max:100',
+                Rule::unique('room_masters', 'room_number')
+                    ->ignore($roomId)
+                    ->where(function ($query) use ($request) {
+                        return $query->where('block_id', $request->block_id);
+                    }),
+            ],
+            'rows' => 'required|integer|min:1|max:200',
+            'columns' => 'required|integer|min:1|max:200',
+            'capacity' => 'nullable|integer|min:1|max:5000',
+            'priority' => 'required|integer|min:1|max:9999',
+            'room_type' => 'nullable|string|max:100',
+            'room_code' => 'nullable|string|max:100',
+            'floor' => 'nullable|string|max:50',
+            'status' => 'nullable|in:active,inactive',
         ]);
+
+        $calculatedCapacity = (int) $request->rows * (int) $request->columns;
+        $capacity = $request->filled('capacity') ? (int) $request->capacity : $calculatedCapacity;
 
         RoomMaster::where('id', $request->id)->update([
-            'title' => ucfirst($request->title)
+            'title' => strtoupper(trim((string) $request->room_number)),
+            'block_id' => (int) $request->block_id,
+            'room_number' => strtoupper(trim((string) $request->room_number)),
+            'rows' => (int) $request->rows,
+            'columns' => (int) $request->columns,
+            'capacity' => $capacity,
+            'priority' => (int) $request->priority,
+            'room_type' => $request->filled('room_type') ? ucfirst(trim((string) $request->room_type)) : null,
+            'room_code' => $request->filled('room_code') ? strtoupper(trim((string) $request->room_code)) : null,
+            'floor' => $request->filled('floor') ? trim((string) $request->floor) : null,
+            'status' => $request->filled('status') ? $request->status : 'active',
         ]);
 
-        return redirect()->back()->with('success', 'Update Done');
+        return redirect()->back()->with('success', 'Room updated successfully');
     }
 
     function streamMaster()
