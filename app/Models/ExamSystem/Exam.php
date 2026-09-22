@@ -18,7 +18,8 @@ class Exam extends Model
     'start_date',
     'end_date',
     'regulation_id',
-    'status'
+    'status',
+    'registration_mode'
   ];
 
   public function registrations(): HasMany

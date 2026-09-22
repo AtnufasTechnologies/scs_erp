@@ -20,15 +20,15 @@
     </div>
     <!--end breadcrumb-->
 
-    <div class="container-fluid py-4">
+    <div class="container-fluid py-3 exam-details-page">
       @php
       $activeModule = $module ?? ($exam->assessment_type ?? 'SA');
       @endphp
       <!-- Page Header -->
-      <div class="row mb-4">
+      <div class="row mb-3">
         <div class="col-12">
-          <div class="card gradient-coe shadow-lg border-0">
-            <div class="card-body p-4">
+          <div class="card gradient-coe shadow-sm border-0">
+            <div class="card-body p-3">
               <div class="row align-items-center">
                 <div class="col-md-8">
                   <h3 class="text-white fw-bold mb-2">
@@ -37,6 +37,11 @@
                   <p class="text-white-50 mb-0">
                     <span class="badge bg-dark me-2">{{ $activeModule === 'FA2' ? 'FA-2' : 'SA' }}</span>
                     <span class="badge bg-light text-dark me-2">{{ $exam->exam_type }}</span>
+                    @if((bool) ($exam->is_published ?? false))
+                    <span class="badge bg-success me-2">Published</span>
+                    @else
+                    <span class="badge bg-secondary me-2">Unpublished</span>
+                    @endif
                     @if($exam->status === 'upcoming')
                     <span class="badge bg-warning">Upcoming</span>
                     @elseif($exam->status === 'ongoing')
@@ -52,7 +57,7 @@
                   <a href="{{ route('coe.exams.edit', ['id' => $exam->id, 'module' => $activeModule]) }}" class="btn btn-light me-2">
                     <i class="fa fa-edit me-1"></i>Edit
                   </a>
-                  <a href="{{ route('coe.exams.index', ['module' => $activeModule]) }}" class="btn btn-outline-light">
+                  <a href="{{ route('coe.exams.index', ['module' => $activeModule]) }}" class="btn btn-light">
                     <i class="fa fa-arrow-left me-1"></i>Back
                   </a>
                 </div>
@@ -69,59 +74,69 @@
       </div>
       @endif
 
-      <div class="row">
+      <div class="row g-3">
         <!-- Exam Details -->
         <div class="col-lg-8">
-          <div class="card shadow-sm mb-4">
-            <div class="card-header bg-transparent border-bottom py-3">
+          <div class="card shadow-sm mb-3">
+            <div class="card-header bg-transparent border-bottom py-2">
               <h6 class="mb-0 fw-bold"><i class="fas fa-info-circle me-2 text-primary"></i>Exam Details</h6>
             </div>
             <div class="card-body">
               <div class="row">
-                <div class="col-md-6 mb-3">
+                <div class="col-md-6 mb-2">
                   <label class="text-muted small">Exam Name</label>
                   <p class="fw-bold mb-0">{{ $exam->name }}</p>
                 </div>
-                <div class="col-md-6 mb-3">
+                <div class="col-md-6 mb-2">
                   <label class="text-muted small">Exam Type</label>
                   <p class="mb-0"><span class="badge bg-info">{{ $exam->exam_type }}</span></p>
                 </div>
-                <div class="col-md-6 mb-3">
+                <div class="col-md-6 mb-2">
                   <label class="text-muted small">Semester</label>
                   <p class="mb-0"><span class="badge bg-secondary">{{ $exam->semester ?? 'N/A' }}</span></p>
                 </div>
-                <div class="col-md-6 mb-3">
+                <div class="col-md-6 mb-2">
                   <label class="text-muted small">Program</label>
                   <p class="fw-bold mb-0">{{ $exam->program->name }} ({{ $exam->program->code }})</p>
                   <small class="text-muted">{{ $exam->program->type }}</small>
                 </div>
-                <div class="col-md-6 mb-3">
+                <div class="col-md-6 mb-2">
                   <label class="text-muted small">Regulation</label>
                   <p class="fw-bold mb-0">{{ $exam->regulation->regulation_name ?? 'N/A' }}</p>
                   @if($exam->regulation)
                   <small class="text-muted">{{ $exam->regulation->start_year }}-{{ $exam->regulation->end_year }}</small>
                   @endif
                 </div>
+                <div class="col-md-6 mb-2">
+                  <label class="text-muted small">Registration Mode</label>
+                  <p class="mb-0">
+                    @if(($exam->registration_mode ?? 'registration_required') === 'auto_registered')
+                    <span class="badge bg-warning text-dark">Auto Registered</span>
+                    @else
+                    <span class="badge bg-primary">Student Registration Required</span>
+                    @endif
+                  </p>
+                </div>
               </div>
 
               <hr>
 
               <div class="row">
-                <div class="col-md-4 mb-3">
+                <div class="col-md-4 mb-2">
                   <label class="text-muted small">Start Date</label>
                   <p class="fw-bold mb-0">
                     <i class="fa fa-calendar text-primary me-2"></i>
                     {{ \Carbon\Carbon::parse($exam->start_date)->format('d M Y') }}
                   </p>
                 </div>
-                <div class="col-md-4 mb-3">
+                <div class="col-md-4 mb-2">
                   <label class="text-muted small">End Date</label>
                   <p class="fw-bold mb-0">
                     <i class="fa fa-calendar text-primary me-2"></i>
                     {{ \Carbon\Carbon::parse($exam->end_date)->format('d M Y') }}
                   </p>
                 </div>
-                <div class="col-md-4 mb-3">
+                <div class="col-md-4 mb-2">
                   <label class="text-muted small">Duration</label>
                   <p class="fw-bold mb-0">
                     <i class="fa fa-hourglass-half text-info me-2"></i>
@@ -133,11 +148,11 @@
               <hr>
 
               <div class="row">
-                <div class="col-md-6 mb-3">
+                <div class="col-md-6 mb-2">
                   <label class="text-muted small">Created At</label>
                   <p class="mb-0">{{ $exam->created_at->format('d M Y, h:i A') }}</p>
                 </div>
-                <div class="col-md-6 mb-3">
+                <div class="col-md-6 mb-2">
                   <label class="text-muted small">Last Updated</label>
                   <p class="mb-0">{{ $exam->updated_at->format('d M Y, h:i A') }}</p>
                 </div>
@@ -147,7 +162,7 @@
 
           <!-- Related Data Tabs -->
           <div class="card shadow-sm">
-            <div class="card-header bg-transparent border-bottom py-3">
+            <div class="card-header bg-transparent border-bottom py-2">
               <h6 class="mb-0 fw-bold"><i class="fas fa-layer-group me-2 text-primary"></i>Related Information</h6>
             </div>
             <div class="card-body">
@@ -171,11 +186,11 @@
                   </button>
                 </li>
               </ul>
-              <div class="tab-content mt-3" id="examTabsContent">
+              <div class="tab-content mt-2" id="examTabsContent">
                 <!-- Attendance Tab -->
                 <div class="tab-pane fade show active" id="attendance" role="tabpanel">
                   <div class="row">
-                    <div class="col-md-4 mb-3">
+                    <div class="col-md-4 mb-2">
                       <div class="d-flex align-items-center">
                         <div class="icon-wrapper me-3 bg-success-subtle">
                           <i class="fa fa-check text-success"></i>
@@ -186,7 +201,7 @@
                         </div>
                       </div>
                     </div>
-                    <div class="col-md-4 mb-3">
+                    <div class="col-md-4 mb-2">
                       <div class="d-flex align-items-center">
                         <div class="icon-wrapper me-3 bg-danger-subtle">
                           <i class="fa fa-times text-danger"></i>
@@ -197,7 +212,7 @@
                         </div>
                       </div>
                     </div>
-                    <div class="col-md-4 mb-3">
+                    <div class="col-md-4 mb-2">
                       <div class="d-flex align-items-center">
                         <div class="icon-wrapper me-3 bg-info-subtle">
                           <i class="fa fa-percentage text-info"></i>
@@ -217,9 +232,9 @@
                 <!-- Registrations Tab -->
                 <div class="tab-pane fade" id="registrations" role="tabpanel">
                   <p class="text-muted">
-                    <strong>Total Registrations:</strong> {{ $exam->registrations->count() }}
+                    <strong>Total Registrations:</strong> {{ (int) ($registrationCount ?? 0) }}
                   </p>
-                  @if($exam->registrations->count() > 0)
+                  @if((int) ($registrationCount ?? 0) > 0)
                   <div class="table-responsive">
                     <table class="table table-sm table-hover">
                       <thead class="table-light">
@@ -230,7 +245,7 @@
                         </tr>
                       </thead>
                       <tbody>
-                        @foreach($exam->registrations->take(10) as $registration)
+                        @foreach(($registrationPreview ?? collect()) as $registration)
                         <tr>
                           <td>{{ $loop->iteration }}</td>
                           <td>{{ $registration->student->first_name ?? 'N/A' }}</td>
@@ -240,8 +255,8 @@
                       </tbody>
                     </table>
                   </div>
-                  @if($exam->registrations->count() > 10)
-                  <small class="text-muted">Showing first 10 of {{ $exam->registrations->count() }} registrations</small>
+                  @if((int) ($registrationCount ?? 0) > 10)
+                  <small class="text-muted">Showing first 10 of {{ (int) ($registrationCount ?? 0) }} registrations</small>
                   @endif
                   @else
                   <p class="text-muted">No registrations yet for this exam.</p>
@@ -272,18 +287,39 @@
 
         <!-- Quick Actions -->
         <div class="col-lg-4">
-          <div class="card shadow-sm mb-4">
-            <div class="card-header bg-transparent border-bottom py-3">
+          <div class="card shadow-sm mb-3">
+            <div class="card-header bg-transparent border-bottom py-2">
               <h6 class="mb-0 fw-bold"><i class="fas fa-bolt me-2 text-warning"></i>Quick Actions</h6>
             </div>
             <div class="card-body">
+
               <div class="d-grid gap-2">
+                <a href="{{ route('coe.exams.calendar', ['module' => $activeModule, 'exam_id' => $exam->id]) }}" class="btn btn-outline-info">
+                  <i class="fa fa-calendar-alt me-2"></i>Schedule Timetable
+                </a>
+                @if(($exam->registration_mode ?? 'registration_required') !== 'auto_registered')
+                <a href="{{ route('admin.exam-registrations.index', ['exam_id' => $exam->id]) }}" class="btn btn-outline-dark">
+                  <i class="fa fa-user-plus me-2"></i>Open Registrations
+                </a>
+                @endif
                 <a href="{{ route('coe.attendance.index') }}" class="btn btn-outline-primary">
                   <i class="fa fa-user-check me-2"></i>Mark Attendance
                 </a>
                 <a href="{{ route('coe.exams.edit', $exam->id) }}" class="btn btn-outline-secondary">
                   <i class="fa fa-edit me-2"></i>Edit Exam
                 </a>
+                <form action="{{ route('coe.exams.toggle-publish', $exam->id) }}" method="POST" class="d-grid">
+                  @csrf
+                  @if((bool) ($exam->is_published ?? false))
+                  <button type="submit" class="btn btn-outline-warning" onclick="return confirmPublishToggle(event, this, 'Unpublish this exam? It will be hidden from students.')">
+                    <i class="fa fa-eye-slash me-2"></i>Unpublish for Students
+                  </button>
+                  @else
+                  <button type="submit" class="btn btn-outline-success" onclick="return confirmPublishToggle(event, this, 'Publish this exam? It will be visible to students.')">
+                    <i class="fa fa-upload me-2"></i>Publish for Students
+                  </button>
+                  @endif
+                </form>
                 <button type="button" class="btn btn-outline-danger" onclick="confirmDelete()">
                   <i class="fa fa-trash me-2"></i>Delete Exam
                 </button>
@@ -293,29 +329,55 @@
 
           <!-- Status Card -->
           <div class="card shadow-sm">
-            <div class="card-header bg-transparent border-bottom py-3">
+            <div class="card-header bg-transparent border-bottom py-2">
               <h6 class="mb-0 fw-bold"><i class="fas fa-chart-pie me-2 text-success"></i>Exam Statistics</h6>
             </div>
             <div class="card-body">
-              <div class="mb-3 pb-3 border-bottom">
+              <div class="mb-2 pb-2 border-bottom">
                 <div class="d-flex justify-content-between align-items-center">
                   <span class="text-muted">Status:</span>
                   <span class="fw-bold text-capitalize">{{ $exam->status }}</span>
                 </div>
               </div>
-              <div class="mb-3 pb-3 border-bottom">
+              <div class="mb-2 pb-2 border-bottom">
+                <div class="d-flex justify-content-between align-items-center">
+                  <span class="text-muted">Student Visibility:</span>
+                  @if((bool) ($exam->is_published ?? false))
+                  <span class="fw-bold text-success">Published</span>
+                  @else
+                  <span class="fw-bold text-secondary">Hidden</span>
+                  @endif
+                </div>
+              </div>
+              <div class="mb-2 pb-2 border-bottom">
+                <div class="d-flex justify-content-between align-items-center">
+                  <span class="text-muted">Registration Mode:</span>
+                  @if(($exam->registration_mode ?? 'registration_required') === 'auto_registered')
+                  <span class="fw-bold text-warning">Auto Registered</span>
+                  @else
+                  <span class="fw-bold text-primary">Registration Required</span>
+                  @endif
+                </div>
+              </div>
+              <div class="mb-2 pb-2 border-bottom">
                 <div class="d-flex justify-content-between align-items-center">
                   <span class="text-muted">Duration:</span>
                   <span class="fw-bold">{{ \Carbon\Carbon::parse($exam->start_date)->diffInDays($exam->end_date) + 1 }} days</span>
                 </div>
               </div>
-              <div class="mb-3 pb-3 border-bottom">
+              <div class="mb-2 pb-2 border-bottom">
                 <div class="d-flex justify-content-between align-items-center">
                   <span class="text-muted">Registrations:</span>
-                  <span class="fw-bold">{{ $exam->registrations->count() }}</span>
+                  <span class="fw-bold">{{ (int) ($registrationCount ?? 0) }}</span>
                 </div>
               </div>
-              <div class="mb-3 pb-3 border-bottom">
+              <div class="mb-2 pb-2 border-bottom">
+                <div class="d-flex justify-content-between align-items-center">
+                  <span class="text-muted">Eligible Students:</span>
+                  <span class="fw-bold text-success">{{ (int) ($eligibleStudentCount ?? 0) }}</span>
+                </div>
+              </div>
+              <div class="mb-2 pb-2 border-bottom">
                 <div class="d-flex justify-content-between align-items-center">
                   <span class="text-muted">Attendance Marked:</span>
                   <span class="fw-bold">{{ $attendanceStats['total'] ?? 0 }}</span>
@@ -348,7 +410,7 @@
 
 <style>
   .gradient-coe {
-    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    background: linear-gradient(135deg, #3654d7 0%, #7c14e3 100%);
   }
 
   .icon-wrapper {
@@ -375,9 +437,69 @@
   .nav-tabs .nav-link:hover {
     border-bottom: 2px solid #667eea;
   }
+
+  .exam-details-page .card-body {
+    padding: 0.95rem 1rem;
+  }
+
+  .exam-details-page .card-header {
+    padding-left: 1rem;
+    padding-right: 1rem;
+  }
+
+  .exam-details-page .btn {
+    padding-top: 0.42rem;
+    padding-bottom: 0.42rem;
+  }
+
+  .exam-details-page hr {
+    margin: 0.85rem 0;
+  }
+
+  @media (max-width: 991.98px) {
+    .exam-details-page {
+      padding-top: 0.75rem;
+      padding-bottom: 0.75rem;
+    }
+
+    .exam-details-page .card-body {
+      padding: 0.85rem;
+    }
+  }
 </style>
 
 <script>
+  function confirmPublishToggle(event, button, message) {
+    event.preventDefault();
+
+    const form = button.closest('form');
+    if (!form) {
+      return false;
+    }
+
+    if (typeof Swal !== 'undefined' && Swal && typeof Swal.fire === 'function') {
+      Swal.fire({
+        title: 'Are you sure?',
+        text: message,
+        icon: 'question',
+        showCancelButton: true,
+        confirmButtonText: 'Yes, continue',
+        cancelButtonText: 'Cancel',
+        reverseButtons: true
+      }).then((result) => {
+        if (result.isConfirmed) {
+          form.submit();
+        }
+      });
+      return false;
+    }
+
+    if (confirm(message)) {
+      form.submit();
+    }
+    return false;
+  }
+
   function confirmDelete() {
     if (confirm('Are you sure you want to delete this exam: "{{ $exam->name }}"? This action cannot be undone.')) {
       const form = document.createElement('form');

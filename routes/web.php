@@ -1218,6 +1218,8 @@ Route::group(['prefix' => '/erp'], function () {
 
         // COE Attendance Routes
         Route::get('attendance', [CoeAttendanceController::class, 'index'])->name('coe.attendance.index');
+        Route::get('attendance/eligibility', [CoeAttendanceController::class, 'eligibility'])->name('coe.attendance.eligibility');
+        Route::get('attendance/eligibility/export', [CoeAttendanceController::class, 'eligibilityExport'])->name('coe.attendance.eligibility.export');
         Route::get('attendance/take', [CoeAttendanceController::class, 'take'])->name('coe.attendance.take');
         Route::post('attendance/store', [CoeAttendanceController::class, 'store'])->name('coe.attendance.store');
         Route::get('attendance/view', [CoeAttendanceController::class, 'view'])->name('coe.attendance.view');
@@ -1232,12 +1234,21 @@ Route::group(['prefix' => '/erp'], function () {
         Route::get('exams/fa2', function () {
             return redirect()->route('coe.exams.index', ['module' => 'FA2']);
         })->name('coe.exams.fa2');
+        Route::get('exams/ongoing-courses', [CoeExamController::class, 'ongoingCourses'])->name('coe.exams.ongoing-courses');
+        Route::get('exams/calendar', [CoeExamController::class, 'calendar'])->name('coe.exams.calendar');
+        Route::get('exams/calendar/events', [CoeExamController::class, 'calendarEvents'])->name('coe.exams.calendar.events');
+        Route::post('exams/calendar/events', [CoeExamController::class, 'calendarStore'])->name('coe.exams.calendar.store');
+        Route::put('exams/calendar/events/{id}', [CoeExamController::class, 'calendarUpdate'])->name('coe.exams.calendar.update');
+        Route::delete('exams/calendar/events/{id}', [CoeExamController::class, 'calendarDestroy'])->name('coe.exams.calendar.destroy');
+        Route::get('exams/calendar/template', [CoeExamController::class, 'calendarTemplateDownload'])->name('coe.exams.calendar.template');
+        Route::post('exams/calendar/import', [CoeExamController::class, 'calendarImport'])->name('coe.exams.calendar.import');
         Route::get('exams', [CoeExamController::class, 'index'])->name('coe.exams.index');
         Route::get('exams/create', [CoeExamController::class, 'create'])->name('coe.exams.create');
         Route::post('exams', [CoeExamController::class, 'store'])->name('coe.exams.store');
         Route::get('exams/{id}', [CoeExamController::class, 'show'])->name('coe.exams.show');
         Route::get('exams/{id}/edit', [CoeExamController::class, 'edit'])->name('coe.exams.edit');
         Route::put('exams/{id}', [CoeExamController::class, 'update'])->name('coe.exams.update');
+        Route::post('exams/{id}/toggle-publish', [CoeExamController::class, 'togglePublish'])->name('coe.exams.toggle-publish');
         Route::delete('exams/{id}', [CoeExamController::class, 'destroy'])->name('coe.exams.destroy');
 
         // COE Dummy Numbers Routes

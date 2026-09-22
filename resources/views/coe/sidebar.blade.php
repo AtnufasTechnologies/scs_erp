@@ -33,6 +33,26 @@ use App\Http\Controllers\StaticController;
     </li>
 
     <li>
+      <a href="{{ route('coe.exams.ongoing-courses') }}">
+        <div class="parent-icon">
+          <i class="fas fa-bookmark"></i>
+        </div>
+        <div class="menu-title">Ongoing Courses </div>
+      </a>
+    </li>
+
+    <li>
+      <a href="{{ route('coe.attendance.eligibility') }}">
+        <div class="parent-icon">
+          <i class="fas fa-calendar"></i>
+        </div>
+        <div class="menu-title">Attendance Eligibility </div>
+      </a>
+    </li>
+
+
+
+    <li>
       <a href="javascript:;" class="has-arrow">
         <div class="parent-icon">
           <i class="fas fa-question-circle"></i>
@@ -52,6 +72,36 @@ use App\Http\Controllers\StaticController;
         </li>
       </ul>
     </li>
+
+    @if(StaticController::coeMenuAccess('exam-management'))
+    <li>
+      <a href="javascript:;" class="has-arrow">
+        <div class="parent-icon">
+          <i class="fas fa-layer-group"></i>
+        </div>
+        <div class="menu-title">FA2 Examinations</div>
+      </a>
+      <ul>
+        <li>
+          <a href="{{ route('coe.exams.fa2') }}">
+            <i class="bx bx-radio-circle"></i>View Exams
+          </a>
+        </li>
+        <li>
+          <a href="{{ route('coe.exams.create', ['module' => 'FA2']) }}">
+            <i class="bx bx-radio-circle"></i>Create Exams
+          </a>
+        </li>
+        <li>
+          <a href="{{ route('coe.exams.calendar', ['module' => 'FA2']) }}">
+            <i class="bx bx-radio-circle"></i>Exam Calendar
+          </a>
+        </li>
+
+
+      </ul>
+    </li>
+    @endif
 
     @if(
     StaticController::coeMenuAccess('exam-management') ||
@@ -85,21 +135,19 @@ use App\Http\Controllers\StaticController;
       <ul>
         @if(StaticController::coeMenuAccess('exam-management'))
         <li>
-          <a href="javascript:;" class="has-arrow">
-            <i class="bx bx-radio-circle"></i>Exam Management
+          <a href="{{ route('coe.exams.index') }}">
+            <i class="bx bx-radio-circle"></i>View Exams
           </a>
-          <ul>
-            <li>
-              <a href="{{ route('coe.exams.index') }}">
-                <i class="bx bx-radio-circle"></i>All Exams
-              </a>
-            </li>
-            <li>
-              <a href="{{ route('coe.exams.create') }}">
-                <i class="bx bx-radio-circle"></i>Create New Exam
-              </a>
-            </li>
-          </ul>
+        </li>
+        <li>
+          <a href="{{ route('coe.exams.create', ['module' => 'SA']) }}">
+            <i class="bx bx-radio-circle"></i>Create SA Exam
+          </a>
+        </li>
+        <li>
+          <a href="{{ route('coe.exams.calendar', ['module' => 'SA']) }}">
+            <i class="bx bx-radio-circle"></i>Exam Calendar
+          </a>
         </li>
         @endif
 
@@ -227,6 +275,11 @@ use App\Http\Controllers\StaticController;
             <li>
               <a href="{{ route('coe.attendance.view') }}">
                 <i class="bx bx-radio-circle"></i>View Records
+              </a>
+            </li>
+            <li>
+              <a href="{{ route('coe.attendance.eligibility') }}">
+                <i class="bx bx-radio-circle"></i>Eligibility (75%)
               </a>
             </li>
           </ul>

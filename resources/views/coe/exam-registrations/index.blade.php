@@ -10,6 +10,21 @@
   </div>
 
   <div class="container-fluid">
+    @if(!empty($registrationModeInfo))
+    <div class="alert {{ ($registrationModeInfo['type'] ?? '') === 'auto_registered' ? 'alert-info' : 'alert-primary' }} shadow-sm" role="alert">
+      <strong>{{ $registrationModeInfo['title'] ?? 'Registration Mode' }}:</strong>
+      {{ $registrationModeInfo['message'] ?? '' }}
+      @if(!empty($selectedExam))
+      <div class="small mt-1 text-muted">Exam: {{ $selectedExam->name }}</div>
+      @endif
+    </div>
+    @else
+    <div class="alert alert-secondary shadow-sm" role="alert">
+      <strong>Registration Mode:</strong>
+      Select an exam to view whether it uses auto-registration or student registration.
+    </div>
+    @endif
+
     <!-- Filter Section -->
     <div class="card shadow-sm mb-4">
       <div class="card-header bg-light">
@@ -18,6 +33,20 @@
       <div class="card-body">
         <form action="{{ route('admin.exam-registrations.index') }}" method="GET">
           <div class="row g-3">
+            @if(!empty($hasExamIdColumn))
+            <div class="col-md-3">
+              <label for="exam_id" class="form-label">Exam</label>
+              <select name="exam_id" id="exam_id" class="form-select">
+                <option value="">All Exams</option>
+                @foreach(($exams ?? collect()) as $exam)
+                <option value="{{ $exam->id }}" {{ (string) request('exam_id') === (string) $exam->id ? 'selected' : '' }}>
+                  {{ $exam->name }}{{ !empty($exam->assessment_type) ? ' (' . $exam->assessment_type . ')' : '' }}
+                </option>
+                @endforeach
+              </select>
+            </div>
+            @endif
+
             <div class="col-md-3">
               <label for="exam_session_id" class="form-label">Exam Session</label>
               <select name="exam_session_id" id="exam_session_id" class="form-select">
@@ -117,9 +146,13 @@
     <!-- Action Buttons -->
     <div class="d-flex justify-content-between align-items-center mb-3">
       <div>
-        <a href="{{ route('admin.exam-registrations.create') }}" class="btn btn-success">
-          <i class="fa fa-plus"></i> New Registration
-        </a>
+        @if(!empty($registrationModeInfo) && ($registrationModeInfo['type'] ?? '') === 'auto_registered')
+        <span class="badge bg-warning text-dark p-2">Manual registration disabled for selected auto-registered exam</span>
+        @elseif(!empty($registrationModeInfo) && ($registrationModeInfo['type'] ?? '') === 'registration_required')
+        <span class="badge bg-primary p-2">Selected exam requires student registration</span>
+        @else
+        <span class="badge bg-secondary p-2">Select an exam to see registration mode rules</span>
+        @endif
       </div>
       <div>
         <button type="button" class="btn btn-warning" id="checkClearancesBtn" disabled>

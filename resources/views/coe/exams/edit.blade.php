@@ -136,6 +136,16 @@
                       @endforeach
                     </select>
                   </div>
+
+                  <div class="col-md-6 mb-3">
+                    <label for="registrationMode" class="form-label fw-bold">
+                      Registration Mode <span class="text-danger">*</span>
+                    </label>
+                    <select class="form-select" id="registrationMode" name="registration_mode" required>
+                      <option value="registration_required" {{ old('registration_mode', $exam->registration_mode ?? 'registration_required') == 'registration_required' ? 'selected' : '' }}>Student Registration Required</option>
+                      <option value="auto_registered" {{ old('registration_mode', $exam->registration_mode ?? 'registration_required') == 'auto_registered' ? 'selected' : '' }}>Auto Registered</option>
+                    </select>
+                  </div>
                 </div>
 
                 <hr>
@@ -219,7 +229,7 @@
 
 <style>
   .gradient-coe {
-    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    background: linear-gradient(135deg, #203cbb 0%, #7b14e9 100%);
   }
 
   .form-label {

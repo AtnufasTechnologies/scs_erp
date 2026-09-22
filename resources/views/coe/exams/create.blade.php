@@ -24,25 +24,7 @@
       @php
       $activeModule = $module ?? 'SA';
       @endphp
-      <!-- Page Header -->
-      <div class="row mb-4">
-        <div class="col-12">
-          <div class="card gradient-coe shadow-lg border-0">
-            <div class="card-body p-4">
-              <h3 class="text-white fw-bold mb-0">
-                <i class="fas fa-plus-circle me-2"></i>Create New {{ $activeModule === 'FA2' ? 'FA-2' : 'SA' }} Exam
-              </h3>
-            </div>
-          </div>
-        </div>
-      </div>
 
-      <div class="row mb-3">
-        <div class="col-12 d-flex gap-2 flex-wrap">
-          <a href="{{ route('coe.exams.create', ['module' => 'SA']) }}" class="btn {{ $activeModule === 'SA' ? 'btn-primary' : 'btn-outline-primary' }}">SA</a>
-          <a href="{{ route('coe.exams.create', ['module' => 'FA2']) }}" class="btn {{ $activeModule === 'FA2' ? 'btn-primary' : 'btn-outline-primary' }}">FA-2</a>
-        </div>
-      </div>
 
       @if($errors->any())
       <div class="alert alert-danger alert-dismissible fade show" role="alert">
@@ -109,32 +91,29 @@
                   </div>
 
                   <div class="col-md-6 mb-3">
-                    <label for="programId" class="form-label fw-bold">
-                      Program <span class="text-danger">*</span>
+                    <label for="programType" class="form-label fw-bold">
+                      Program Type <span class="text-danger">*</span>
                     </label>
-                    <select class="form-select" id="programId" name="program_id" required>
-                      <option value="" selected disabled>Select program...</option>
-                      @foreach($programs as $program)
-                      <option value="{{ $program->id }}" {{ old('program_id') == $program->id ? 'selected' : '' }}>
-                        {{ $program->name }} ({{ $program->code }})
-                      </option>
-                      @endforeach
+                    <select class="form-select" id="programType" name="program_type" required>
+                      <option value="" selected disabled>Select program type...</option>
+                      <option value="UG" {{ old('program_type') == 'UG' ? 'selected' : '' }}>UG</option>
+                      <option value="PG" {{ old('program_type') == 'PG' ? 'selected' : '' }}>PG</option>
                     </select>
                   </div>
 
                   <div class="col-md-6 mb-3">
-                    <label for="regulationId" class="form-label fw-bold">
-                      Regulation <span class="text-danger">*</span>
+                    <label for="registrationMode" class="form-label fw-bold">
+                      Registration Mode <span class="text-danger">*</span>
                     </label>
-                    <select class="form-select" id="regulationId" name="regulation_id" required>
-                      <option value="" selected disabled>Select regulation...</option>
-                      @foreach($regulations as $regulation)
-                      <option value="{{ $regulation->id }}" {{ old('regulation_id') == $regulation->id ? 'selected' : '' }}>
-                        {{ $regulation->regulation_name }} ({{ $regulation->start_year }}-{{ $regulation->end_year }})
-                      </option>
-                      @endforeach
+                    <select class="form-select" id="registrationMode" name="registration_mode" required>
+                      <option value="registration_required" {{ old('registration_mode', 'registration_required') == 'registration_required' ? 'selected' : '' }}>Student Registration Required</option>
+                      <option value="auto_registered" {{ old('registration_mode') == 'auto_registered' ? 'selected' : '' }}>Auto Registered</option>
                     </select>
+                    <small class="text-muted">Choose whether students must register manually or are auto-registered from ERP.</small>
                   </div>
+
+
+
                 </div>
 
                 <hr>
@@ -162,24 +141,6 @@
                   </div>
 
                   <div class="col-md-4 mb-3">
-                    <label for="examDate" class="form-label fw-bold">
-                      Primary Exam Date
-                    </label>
-                    <input type="date" class="form-control" id="examDate" name="exam_date"
-                      value="{{ old('exam_date') }}">
-                    <small class="text-muted">Main exam date (optional)</small>
-                  </div>
-                </div>
-
-                <hr>
-
-                <!-- Status -->
-                <div class="row mb-4">
-                  <div class="col-12">
-                    <h6 class="text-primary fw-bold mb-3">Status</h6>
-                  </div>
-
-                  <div class="col-md-6 mb-3">
                     <label for="status" class="form-label fw-bold">
                       Exam Status <span class="text-danger">*</span>
                     </label>
@@ -192,12 +153,15 @@
                   </div>
                 </div>
 
+
+
+
                 <!-- Submit Buttons -->
                 <div class="d-flex justify-content-between align-items-center mt-4 pt-3 border-top">
                   <a href="{{ route('coe.exams.index', ['module' => $activeModule]) }}" class="btn btn-secondary">
                     <i class="fa fa-arrow-left me-1"></i>Cancel
                   </a>
-                  <button type="submit" class="btn btn-primary btn-lg" id="submitBtn">
+                  <button type="submit" class="btn btn-success" id="submitBtn">
                     <span id="submitBtnText"><i class="fa fa-save me-2"></i>Create Exam</span>
                     <span id="loader" class="spinner-border spinner-border-sm d-none" role="status" aria-hidden="true"></span>
                   </button>
@@ -213,12 +177,16 @@
 
 <style>
   .gradient-coe {
-    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    background: linear-gradient(135deg, #95a9ff 0%, #782df9 100%);
   }
 
   .form-label {
     margin-bottom: 0.5rem;
     color: #495057;
+  }
+
+  .text-white-80 {
+    color: rgba(255, 255, 255, 0.88);
   }
 
   .form-control:focus,
@@ -235,9 +203,31 @@
 <script>
   document.addEventListener('DOMContentLoaded', function() {
     const form = document.getElementById('examForm');
+    const examName = document.getElementById('examName');
     const startDate = document.getElementById('startDate');
     const endDate = document.getElementById('endDate');
-    const examDate = document.getElementById('examDate');
+    const moduleInput = document.querySelector('input[name="module"]');
+    const moduleValue = moduleInput ? moduleInput.value : 'SA';
+
+    const stripMonthYearSuffix = function(value) {
+      return value.replace(/\s*-\s*[A-Za-z]+\s+\d{4}$/, '').trim();
+    };
+
+    const updateExamNameFromStartDate = function() {
+      if (!startDate.value) {
+        return;
+      }
+
+      const dateObj = new Date(startDate.value + 'T00:00:00');
+      const monthYear = dateObj.toLocaleString('en-US', {
+        month: 'long',
+        year: 'numeric'
+      });
+
+      const fallbackBase = moduleValue === 'FA2' ? 'FA-2 Examination' : 'SA Examination';
+      const currentBase = stripMonthYearSuffix(examName.value || '') || fallbackBase;
+      examName.value = currentBase + ' - ' + monthYear;
+    };
 
     // Date validation
     startDate.addEventListener('change', function() {
@@ -245,6 +235,8 @@
       if (endDate.value && endDate.value < this.value) {
         endDate.value = this.value;
       }
+
+      updateExamNameFromStartDate();
     });
 
     endDate.addEventListener('change', function() {
@@ -267,12 +259,9 @@
       submitBtn.disabled = true;
     });
 
-    // Auto-fill exam date with start date if not set
-    startDate.addEventListener('change', function() {
-      if (!examDate.value) {
-        examDate.value = this.value;
-      }
-    });
+    if (startDate.value) {
+      updateExamNameFromStartDate();
+    }
   });
 </script>
 

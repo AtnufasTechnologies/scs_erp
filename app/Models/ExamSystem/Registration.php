@@ -39,6 +39,11 @@ class Registration extends Model
     return $this->belongsTo(ExamSession::class, 'exam_session_id');
   }
 
+  public function exam(): BelongsTo
+  {
+    return $this->belongsTo(Exam::class, 'exam_id');
+  }
+
   public function seatingAllocation()
   {
     return $this->hasOne(ExamSeatingArrangement::class, 'erp_student_id', 'erp_student_id')

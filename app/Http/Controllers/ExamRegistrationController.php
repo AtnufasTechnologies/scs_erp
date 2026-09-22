@@ -11,15 +11,24 @@ use App\Models\Campus;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Facades\Validator;
 
 class ExamRegistrationController extends Controller
 {
+  private function fa2AutoRegistrationMessage(): string
+  {
+    return 'Selected exams can use auto-registration. Eligible students and their registered courses are synced from ERP, so no separate student registration is required for those exams.';
+  }
+
   /**
    * Display a listing of exam registrations
    */
   public function index(Request $request)
   {
+    $hasExamIdColumn = Schema::hasColumn('exam_registrations', 'exam_id');
+    $selectedExam = null;
+
     $query = Registration::with([
       'student:id,first_name,last_name,register_no,roll_no,campus_id,new_program_id',
       'student.campusmaster:id,name',
@@ -28,7 +37,16 @@ class ExamRegistrationController extends Controller
       'registrationSubjects.examSubject.master',
     ]);
 
+    if ($hasExamIdColumn) {
+      $query->with('exam:id,name,assessment_type,registration_mode');
+    }
+
     // Apply filters
+    if ($hasExamIdColumn && $request->has('exam_id') && $request->exam_id != '') {
+      $query->where('exam_id', (int) $request->exam_id);
+      $selectedExam = Exam::select('id', 'name', 'assessment_type', 'registration_mode')->find((int) $request->exam_id);
+    }
+
     if ($request->has('exam_session_id') && $request->exam_session_id != '') {
       $query->where('exam_session_id', $request->exam_session_id);
     }
@@ -75,9 +93,38 @@ class ExamRegistrationController extends Controller
     // Fetch filter data
     $examSessions = ExamSession::select('id', 'name', 'academic_year', 'semester', 'program_type')
       ->orderBy('start_date', 'desc')->get();
+
+    $exams = collect();
+    if ($hasExamIdColumn) {
+      $exams = Exam::select('id', 'name', 'assessment_type', 'registration_mode')
+        ->orderByDesc('start_date')
+        ->limit(500)
+        ->get();
+    }
+
     $campuses = Campus::all();
 
-    return view('coe.exam-registrations.index', compact('registrations', 'examSessions', 'campuses'));
+    $registrationModeInfo = null;
+    if ($selectedExam) {
+      $isAuto = ($selectedExam->registration_mode ?? 'registration_required') === 'auto_registered';
+      $registrationModeInfo = [
+        'type' => $isAuto ? 'auto_registered' : 'registration_required',
+        'title' => $isAuto ? 'Auto Registration Enabled' : 'Student Registration Required',
+        'message' => $isAuto
+          ? 'This exam is configured for auto-registration. Eligible students and their registered courses are synced from ERP.'
+          : 'This exam requires students to complete registration manually.',
+      ];
+    }
+
+    return view('coe.exam-registrations.index', compact(
+      'registrations',
+      'examSessions',
+      'campuses',
+      'exams',
+      'selectedExam',
+      'registrationModeInfo',
+      'hasExamIdColumn'
+    ));
   }
 
   /**
@@ -85,14 +132,9 @@ class ExamRegistrationController extends Controller
    */
   public function create()
   {
-    $exams = Exam::where('status', 'active')->orderBy('exam_date', 'desc')->get();
-    $students = StudentMaster::where('is_deleted', 0)
-      ->where('is_left', 0)
-      ->orderBy('first_name')
-      ->get();
-    $semesters = Semester::all();
-
-    return view('coe.exam-registrations.create', compact('exams', 'students', 'semesters'));
+    return redirect()
+      ->route('admin.exam-registrations.index')
+      ->with('info', $this->fa2AutoRegistrationMessage());
   }
 
   /**
@@ -100,6 +142,10 @@ class ExamRegistrationController extends Controller
    */
   public function store(Request $request)
   {
+    return redirect()
+      ->route('admin.exam-registrations.index')
+      ->with('info', $this->fa2AutoRegistrationMessage());
+
     $validator = Validator::make($request->all(), [
       'exam_id' => 'required|exists:exams,id',
       'exam_student_id' => 'required|exists:student_masters,id',
@@ -338,6 +384,28 @@ class ExamRegistrationController extends Controller
         'message' => 'Validation failed',
         'errors' => $validator->errors()
       ], 422);
+    }
+
+    $exam = Exam::find($request->exam_id);
+    if (!$exam) {
+      return response()->json([
+        'success' => false,
+        'message' => 'Exam not found'
+      ], 404);
+    }
+
+    if (Schema::hasColumn('exams', 'is_published') && !((bool) ($exam->is_published ?? false))) {
+      return response()->json([
+        'success' => false,
+        'message' => 'This exam is not yet published for students.'
+      ], 403);
+    }
+
+    if (Schema::hasColumn('exams', 'registration_mode') && (string) ($exam->registration_mode ?? 'registration_required') === 'auto_registered') {
+      return response()->json([
+        'success' => false,
+        'message' => 'This exam uses auto-registration. Separate student registration is not required.'
+      ], 403);
     }
 
     // Check if already registered

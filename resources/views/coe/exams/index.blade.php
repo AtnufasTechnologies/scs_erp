@@ -34,7 +34,7 @@
                   <p class="text-white-50 mb-0">Create, manage, and monitor all examination schedules and records</p>
                 </div>
                 <div class="col-md-4 text-md-end">
-                  <a href="{{ route('coe.exams.create', ['module' => $activeModule]) }}" class="btn btn-light btn-lg">
+                  <a href="{{ route('coe.exams.create', ['module' => $activeModule]) }}" class="btn btn-success ">
                     <i class="fas fa-plus me-2"></i>Create New Exam
                   </a>
                 </div>
@@ -58,21 +58,7 @@
       </div>
       @endif
 
-      <div class="row mb-3">
-        <div class="col-12 d-flex gap-2 flex-wrap">
-          <a href="{{ route('coe.exams.sa') }}" class="btn {{ $activeModule === 'SA' ? 'btn-primary' : 'btn-outline-primary' }}">
-            SA Module
-          </a>
-          <a href="{{ route('coe.exams.fa2') }}" class="btn {{ $activeModule === 'FA2' ? 'btn-primary' : 'btn-outline-primary' }}">
-            FA-2 Module
-          </a>
-          @if($activeModule)
-          <a href="{{ route('coe.exams.index') }}" class="btn btn-outline-secondary">
-            Clear Module Filter
-          </a>
-          @endif
-        </div>
-      </div>
+
 
       <!-- Statistics Cards -->
       <div class="row mb-4">
@@ -180,19 +166,18 @@
                   @endforeach
                 </select>
               </div>
-              <div class="col-lg-3 d-flex align-items-end">
+              <div class="col-lg-1 d-flex align-items-end">
                 <button type="submit" class="btn btn-primary w-100">
                   <i class="fa fa-search me-2"></i>Filter
                 </button>
               </div>
-            </div>
-            <div class="row mt-2">
-              <div class="col-12">
-                <a href="{{ route('coe.exams.index', $activeModule ? ['module' => $activeModule] : []) }}" class="btn btn-sm btn-outline-secondary">
-                  <i class="fa fa-refresh me-1"></i>Reset Filters
+              <div class="col-lg-1 d-flex align-items-end">
+                <a href="{{ route('coe.exams.index', $activeModule ? ['module' => $activeModule] : []) }}" class="btn  btn-outline-secondary">
+                  <i class="fa fa-sync me-1"></i>Reset
                 </a>
               </div>
             </div>
+
           </form>
         </div>
       </div>
@@ -246,7 +231,7 @@
           </div>
 
           <div class="table-responsive">
-            <table class="table table-hover align-middle" id="exportTable">
+            <table class="table table-hover align-middle">
               <thead class="table-light">
                 <tr>
                   <th width="5%">#</th>
@@ -257,6 +242,9 @@
                   <th width="10%">Start Date</th>
                   <th width="10%">End Date</th>
                   <th width="10%" class="text-center">Status</th>
+                  <th width="8%" class="text-center">Eligible Students</th>
+                  <th width="8%" class="text-center">Restricted Students</th>
+                  <th width="10%" class="text-center">Published</th>
                   <th width="19%" class="text-center no-print">Actions</th>
                 </tr>
               </thead>
@@ -291,6 +279,19 @@
                     <span class="badge bg-danger"><i class="fa fa-times-circle"></i> Cancelled</span>
                     @endif
                   </td>
+                  <td class="text-center">
+                    <span class="badge bg-primary">{{ (int) ($exam->eligible_students_count ?? 0) }}</span>
+                  </td>
+                  <td class="text-center">
+                    <span class="badge bg-danger">{{ (int) ($exam->unallowed_students_count ?? 0) }}</span>
+                  </td>
+                  <td class="text-center">
+                    @if((bool) ($exam->is_published ?? false))
+                    <span class="badge bg-success"><i class="fa fa-eye"></i> Visible</span>
+                    @else
+                    <span class="badge bg-secondary"><i class="fa fa-eye-slash"></i> Hidden</span>
+                    @endif
+                  </td>
                   <td class="text-center no-print">
                     <div class="btn-group" role="group">
                       <a href="{{ route('coe.exams.show', ['id' => $exam->id, 'module' => $activeModule ?: ($exam->assessment_type ?? 'SA')]) }}" class="btn btn-sm btn-outline-info" title="View Details">
@@ -299,6 +300,24 @@
                       <a href="{{ route('coe.exams.edit', ['id' => $exam->id, 'module' => $activeModule ?: ($exam->assessment_type ?? 'SA')]) }}" class="btn btn-sm btn-outline-primary" title="Edit">
                         <i class="fa fa-edit"></i>
                       </a>
+                      <form action="{{ route('coe.exams.toggle-publish', $exam->id) }}" method="POST" class="d-inline">
+                        @csrf
+                        @if((bool) ($exam->is_published ?? false))
+                        <button type="submit"
+                          class="btn btn-sm btn-outline-warning"
+                          title="Unpublish"
+                          onclick="return confirmPublishToggle(event, this, 'Unpublish this exam? It will be hidden from students.')">
+                          <i class="fa fa-eye-slash"></i>
+                        </button>
+                        @else
+                        <button type="submit"
+                          class="btn btn-sm btn-outline-success"
+                          title="Publish"
+                          onclick="return confirmPublishToggle(event, this, 'Publish this exam? It will be visible to students.')">
+                          <i class="fa fa-upload"></i>
+                        </button>
+                        @endif
+                      </form>
                       <button type="button" class="btn btn-sm btn-outline-danger delete-btn"
                         data-id="{{ $exam->id }}"
                         data-name="{{ $exam->name }}"
@@ -332,7 +351,7 @@
 
 <style>
   .gradient-coe {
-    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    background: linear-gradient(135deg, #780dfb 0%, #5128ca 100%);
   }
 
   .stats-card {
@@ -381,6 +400,37 @@
 </style>
 
 <script>
+  function confirmPublishToggle(event, button, message) {
+    event.preventDefault();
+
+    const form = button.closest('form');
+    if (!form) {
+      return false;
+    }
+
+    if (typeof Swal !== 'undefined' && Swal && typeof Swal.fire === 'function') {
+      Swal.fire({
+        title: 'Are you sure?',
+        text: message,
+        icon: 'question',
+        showCancelButton: true,
+        confirmButtonText: 'Yes, continue',
+        cancelButtonText: 'Cancel',
+        reverseButtons: true
+      }).then((result) => {
+        if (result.isConfirmed) {
+          form.submit();
+        }
+      });
+      return false;
+    }
+
+    if (confirm(message)) {
+      form.submit();
+    }
+    return false;
+  }
+
   document.addEventListener('DOMContentLoaded', function() {
     // Search functionality
     const searchInput = document.getElementById('examSearch');
