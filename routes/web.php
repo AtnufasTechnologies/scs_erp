@@ -586,6 +586,7 @@ Route::group(['prefix' => '/erp'], function () {
         // Seating Allocation Management
         Route::group(['prefix' => '/seating-allocation'], function () {
             Route::get('/', [SeatingAllocationController::class, 'index'])->name('admin.seating-allocation.index');
+            Route::get('/exam-sessions', [SeatingAllocationController::class, 'examSessions'])->name('admin.seating-allocation.exam-sessions');
             Route::get('/create', [SeatingAllocationController::class, 'create'])->name('admin.seating-allocation.create');
             Route::post('/', [SeatingAllocationController::class, 'store'])->name('admin.seating-allocation.store');
             Route::get('/{id}', [SeatingAllocationController::class, 'show'])->name('admin.seating-allocation.show');
@@ -593,6 +594,7 @@ Route::group(['prefix' => '/erp'], function () {
             Route::put('/{id}', [SeatingAllocationController::class, 'update'])->name('admin.seating-allocation.update');
             Route::delete('/{id}', [SeatingAllocationController::class, 'destroy'])->name('admin.seating-allocation.destroy');
             Route::post('/auto-allocate', [SeatingAllocationController::class, 'autoAllocate'])->name('admin.seating-allocation.auto-allocate');
+            Route::post('/finalize-drafts', [SeatingAllocationController::class, 'finalizeDrafts'])->name('admin.seating-allocation.finalize-drafts');
             Route::get('/export', [SeatingAllocationController::class, 'export'])->name('admin.seating-allocation.export');
         });
 

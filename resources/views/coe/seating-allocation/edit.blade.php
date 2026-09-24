@@ -40,7 +40,7 @@
                   @foreach($exams as $exam)
                   <option value="{{ $exam->id }}"
                     {{ (old('exam_schedule_id', $allocation->exam_schedule_id) == $exam->id) ? 'selected' : '' }}>
-                    {{ $exam->name }} ({{ $exam->exam_type }})
+                    {{ $exam->exam->name ?? 'Exam' }} | {{ $exam->exam_date }} {{ $exam->start_time }}
                   </option>
                   @endforeach
                 </select>
@@ -55,7 +55,7 @@
                   @foreach($rooms as $room)
                   <option value="{{ $room->id }}"
                     {{ (old('room_id', $allocation->room_id) == $room->id) ? 'selected' : '' }}>
-                    {{ $room->name }} - Block: {{ $room->block ?? 'N/A' }} (Capacity: {{ $room->capacity ?? 'N/A' }})
+                    {{ $room->name }} - {{ $room->building ?? 'N/A' }} (Capacity: {{ $room->capacity ?? 'N/A' }})
                   </option>
                   @endforeach
                 </select>
@@ -80,8 +80,8 @@
                   @foreach($students as $student)
                   <option value="{{ $student->id }}"
                     {{ (old('exam_student_id', $allocation->exam_student_id) == $student->id) ? 'selected' : '' }}>
-                    {{ $student->first_name }} {{ $student->last_name }}
-                    (Roll: {{ $student->roll_no }}, Reg: {{ $student->register_no }})
+                    {{ $student->student->first_name ?? '' }} {{ $student->student->last_name ?? '' }}
+                    (Roll: {{ $student->student->roll_no ?? 'N/A' }}, Reg: {{ $student->student->register_no ?? 'N/A' }})
                   </option>
                   @endforeach
                 </select>

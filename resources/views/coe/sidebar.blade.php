@@ -198,6 +198,11 @@ use App\Http\Controllers\StaticController;
               </a>
             </li>
             <li>
+              <a href="{{ route('admin.seating-allocation.exam-sessions') }}">
+                <i class="bx bx-radio-circle"></i>Exam Sessions
+              </a>
+            </li>
+            <li>
               <a href="{{ route('admin.seating-allocation.create') }}">
                 <i class="bx bx-radio-circle"></i>Manual Allocation
               </a>

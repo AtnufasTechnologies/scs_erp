@@ -50,6 +50,29 @@
 
       <div class="card shadow-sm">
         <div class="card-body">
+          @php
+          $totalCapacityCount = (int) $rooms->sum(function ($room) {
+          $rows = (int) ($room->display_rows ?? ($room->rows ?? 0));
+          $columns = (int) ($room->display_columns ?? ($room->columns ?? 0));
+          $layoutCapacity = $rows * $columns;
+
+          if ($layoutCapacity > 0) {
+          return $layoutCapacity;
+          }
+
+          return (int) ($room->capacity ?? 0);
+          });
+          @endphp
+
+          <div class="d-flex flex-wrap justify-content-between align-items-center mb-3">
+            <div class="text-muted small">
+              Total Rooms: <strong>{{ $rooms->count() }}</strong>
+            </div>
+            <div class="text-muted small">
+              Total Capacity Count: <strong>{{ $totalCapacityCount }}</strong>
+            </div>
+          </div>
+
           <div class="table-responsive">
             <table class="table table-hover align-middle" id="exportTable">
               <thead class="table-light">
@@ -384,7 +407,6 @@
 
       rowsEl.style.display = 'flex';
 
-      var seatNo = 1;
       for (var r = 1; r <= rows; r++) {
         var rowWrap = document.createElement('div');
         rowWrap.className = 'seat-row';
@@ -402,6 +424,9 @@
           seat.className = 'seat-cell';
           seat.title = 'Row ' + r + ', Column ' + c;
 
+          // Keep preview numbering aligned with allocator: column-wise (top to bottom per column).
+          var seatNo = ((c - 1) * rows) + r;
+
           var deskTop = document.createElement('div');
           deskTop.className = 'desk-top';
           deskTop.textContent = seatNo;
@@ -413,7 +438,6 @@
           seat.appendChild(chairSeat);
 
           rowGrid.appendChild(seat);
-          seatNo++;
         }
 
         rowWrap.appendChild(rowLabel);

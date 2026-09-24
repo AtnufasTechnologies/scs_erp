@@ -32,19 +32,19 @@
                       <tr>
                         <th width="40%">Exam:</th>
                         <td>
-                          <strong>{{ $allocation->exam->name ?? 'N/A' }}</strong><br>
-                          <span class="badge bg-secondary">{{ $allocation->exam->exam_type ?? '' }}</span>
+                          <strong>{{ $allocation->examSchedule->exam->name ?? 'N/A' }}</strong><br>
+                          <span class="badge bg-secondary">{{ $allocation->examSchedule->exam->exam_type ?? '' }}</span>
                         </td>
                       </tr>
                       <tr>
                         <th>Exam Date:</th>
-                        <td>{{ $allocation->exam->exam_date ?? 'Not Set' }}</td>
+                        <td>{{ $allocation->examSchedule->exam_date ?? 'Not Set' }} {{ $allocation->examSchedule->start_time ?? '' }}</td>
                       </tr>
                       <tr>
                         <th>Room:</th>
                         <td>
                           <strong>{{ $allocation->room->name ?? 'N/A' }}</strong><br>
-                          <small class="text-muted">Block: {{ $allocation->room->block ?? 'N/A' }}</small>
+                          <small class="text-muted">Building: {{ $allocation->room->building ?? 'N/A' }}</small>
                         </td>
                       </tr>
                       <tr>
@@ -74,40 +74,40 @@
                         <th width="40%">Student Name:</th>
                         <td>
                           <strong class="text-capitalize">
-                            {{ $allocation->student->first_name ?? '' }}
-                            {{ $allocation->student->last_name ?? '' }}
+                            {{ $allocation->examStudent->student->first_name ?? '' }}
+                            {{ $allocation->examStudent->student->last_name ?? '' }}
                           </strong>
                         </td>
                       </tr>
                       <tr>
                         <th>Registration No:</th>
-                        <td>{{ $allocation->student->register_no ?? 'N/A' }}</td>
+                        <td>{{ $allocation->examStudent->student->register_no ?? 'N/A' }}</td>
                       </tr>
                       <tr>
                         <th>Roll Number:</th>
-                        <td><strong>{{ $allocation->student->roll_no ?? 'N/A' }}</strong></td>
+                        <td><strong>{{ $allocation->examStudent->student->roll_no ?? 'N/A' }}</strong></td>
                       </tr>
                       <tr>
                         <th>Campus:</th>
                         <td>
-                          <i class="fa fa-building"></i> {{ $allocation->student->campusmaster->name ?? 'N/A' }}
+                          <i class="fa fa-building"></i> {{ $allocation->examStudent->student->campusmaster->name ?? 'N/A' }}
                         </td>
                       </tr>
                       <tr>
                         <th>Department:</th>
-                        <td>{{ $allocation->student->department->name ?? 'N/A' }}</td>
+                        <td>{{ $allocation->examStudent->student->department->name ?? 'N/A' }}</td>
                       </tr>
                       <tr>
                         <th>Program:</th>
-                        <td>{{ $allocation->student->program->name ?? 'N/A' }}</td>
+                        <td>{{ $allocation->examStudent->program->name ?? 'N/A' }}</td>
                       </tr>
                       <tr>
                         <th>Email:</th>
-                        <td>{{ $allocation->student->email ?? 'N/A' }}</td>
+                        <td>{{ $allocation->examStudent->student->email ?? 'N/A' }}</td>
                       </tr>
                       <tr>
                         <th>Phone:</th>
-                        <td>{{ $allocation->student->phone ?? 'N/A' }}</td>
+                        <td>{{ $allocation->examStudent->student->phone ?? 'N/A' }}</td>
                       </tr>
                     </table>
                   </div>

@@ -28,12 +28,17 @@ class ExamSchedule extends Model
 
   public function room()
   {
-    return $this->belongsTo(\App\Models\RoomMaster::class, 'room_id');
+    return $this->belongsTo(Room::class, 'room_id');
   }
 
   public function subject()
   {
     return $this->belongsTo(\App\Models\Subject::class, 'exam_subject_id');
+  }
+
+  public function examSubjectMaster()
+  {
+    return $this->belongsTo(ExamSubjectMaster::class, 'exam_subject_id');
   }
 
   public function seatingAllocations()

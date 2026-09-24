@@ -91,6 +91,28 @@
                   </div>
 
                   <div class="col-md-6 mb-3">
+                    <label for="selectedBatchIds" class="form-label fw-bold">
+                      Applicable Batches <span class="text-danger">*</span>
+                    </label>
+                    <select class="select-multiple" id="selectedBatchIds" name="selected_batch_ids[]" multiple>
+                      @foreach(($batches ?? collect()) as $batch)
+                      <option value="{{ (int) $batch->id }}" {{ collect(old('selected_batch_ids', []))->map(fn($id) => (int) $id)->contains((int) $batch->id) ? 'selected' : '' }}>
+                        {{ $batch->batch_name }}
+                      </option>
+                      @endforeach
+                    </select>
+                    <small class="text-muted" id="selectedBatchHelpText">First select semester scope (Odd/Even), then choose one or more batches.</small>
+                  </div>
+
+                  <div class="col-12 mb-3">
+                    <div class="border rounded p-3 bg-light-subtle">
+                      <label class="form-label fw-bold mb-2">Semesters As Per Applicable Batches</label>
+                      <div id="applicableBatchSemestersPreview" class="text-muted small mb-2">Select one or more batches to view available semesters.</div>
+                      <div id="involvedSemestersPreview" class="text-muted small">Select semester config (Odd/Even) to preview involved semesters.</div>
+                    </div>
+                  </div>
+
+                  <div class="col-md-6 mb-3">
                     <label for="programType" class="form-label fw-bold">
                       Program Type <span class="text-danger">*</span>
                     </label>
@@ -200,6 +222,10 @@
   }
 </style>
 
+<script id="batchSemesterMapJson" type="application/json">
+  @json($batchSemesterMap ?? [])
+</script>
+
 <script>
   document.addEventListener('DOMContentLoaded', function() {
     const form = document.getElementById('examForm');
@@ -208,6 +234,13 @@
     const endDate = document.getElementById('endDate');
     const moduleInput = document.querySelector('input[name="module"]');
     const moduleValue = moduleInput ? moduleInput.value : 'SA';
+    const semesterSelect = document.getElementById('semester');
+    const batchSelect = document.getElementById('selectedBatchIds');
+    const selectedBatchHelpText = document.getElementById('selectedBatchHelpText');
+    const applicableBatchSemestersPreview = document.getElementById('applicableBatchSemestersPreview');
+    const involvedSemestersPreview = document.getElementById('involvedSemestersPreview');
+    const batchSemesterMapEl = document.getElementById('batchSemesterMapJson');
+    const batchSemesterMap = batchSemesterMapEl ? JSON.parse(batchSemesterMapEl.textContent || '{}') : {};
 
     const stripMonthYearSuffix = function(value) {
       return value.replace(/\s*-\s*[A-Za-z]+\s+\d{4}$/, '').trim();
@@ -229,6 +262,156 @@
       examName.value = currentBase + ' - ' + monthYear;
     };
 
+    const getSelectedBatchIds = function() {
+      if (!batchSelect) {
+        return [];
+      }
+
+      // Prefer plugin state when available (e.g., Tom Select).
+      if (batchSelect.tomselect && typeof batchSelect.tomselect.getValue === 'function') {
+        const pluginValue = batchSelect.tomselect.getValue();
+        const rawValues = Array.isArray(pluginValue) ? pluginValue : String(pluginValue || '').split(',');
+
+        return rawValues
+          .map(function(value) {
+            return parseInt(String(value).trim(), 10);
+          })
+          .filter(function(id) {
+            return Number.isFinite(id) && id > 0;
+          });
+      }
+
+      // Select2-like fallback via jQuery value if plugin wraps the native select.
+      if (window.jQuery && typeof window.jQuery === 'function') {
+        const jqValues = window.jQuery(batchSelect).val();
+        if (Array.isArray(jqValues)) {
+          return jqValues
+            .map(function(value) {
+              return parseInt(String(value).trim(), 10);
+            })
+            .filter(function(id) {
+              return Number.isFinite(id) && id > 0;
+            });
+        }
+      }
+
+      return Array.from(batchSelect.selectedOptions || [])
+        .map(function(option) {
+          return parseInt(option.value, 10);
+        })
+        .filter(function(id) {
+          return Number.isFinite(id) && id > 0;
+        });
+    };
+
+    const renderInvolvedSemesters = function() {
+      if (!involvedSemestersPreview || !applicableBatchSemestersPreview) {
+        return;
+      }
+
+      const selectedSemesterScope = (semesterSelect && semesterSelect.value ? semesterSelect.value : '').toUpperCase();
+      const hasValidScope = selectedSemesterScope === 'ODD' || selectedSemesterScope === 'EVEN';
+
+      if (selectedBatchHelpText) {
+        selectedBatchHelpText.textContent = hasValidScope ?
+          'Select one or more batches. Preview will show only semesters involved for ' + selectedSemesterScope + ' scope.' :
+          'First select semester scope (Odd/Even), then choose one or more batches.';
+      }
+
+      if (!hasValidScope) {
+        applicableBatchSemestersPreview.className = 'text-muted small mb-2';
+        applicableBatchSemestersPreview.textContent = 'Select semester scope first, then choose applicable batches.';
+        involvedSemestersPreview.className = 'text-muted small';
+        involvedSemestersPreview.textContent = 'Involved semester preview will appear after selecting Odd/Even and batches.';
+        return;
+      }
+
+      const selectedBatchIds = getSelectedBatchIds();
+
+      const availableSemesterById = {};
+      selectedBatchIds.forEach(function(batchId) {
+        const semesterList = batchSemesterMap[String(batchId)] || batchSemesterMap[batchId] || [];
+        semesterList.forEach(function(semesterItem) {
+          const semesterId = parseInt(semesterItem.id, 10);
+          if (!Number.isFinite(semesterId) || semesterId <= 0) {
+            return;
+          }
+
+          if (!availableSemesterById[semesterId]) {
+            availableSemesterById[semesterId] = {
+              id: semesterId,
+              title: String(semesterItem.title || ('Semester ' + semesterId)),
+              isOdd: !!semesterItem.is_odd,
+            };
+          }
+        });
+      });
+
+      const availableSemesters = Object.values(availableSemesterById).sort(function(a, b) {
+        return a.id - b.id;
+      });
+
+      if (selectedBatchIds.length === 0) {
+        applicableBatchSemestersPreview.className = 'text-muted small mb-2';
+        applicableBatchSemestersPreview.textContent = 'Select one or more batches to view available semesters for ' + selectedSemesterScope + ' scope.';
+      } else if (availableSemesters.length === 0) {
+        applicableBatchSemestersPreview.className = 'text-warning small mb-2';
+        applicableBatchSemestersPreview.textContent = 'No semester data found for selected batches.';
+      } else {
+        applicableBatchSemestersPreview.className = 'small mb-2';
+        applicableBatchSemestersPreview.textContent = '';
+      }
+
+      if (selectedBatchIds.length === 0) {
+        involvedSemestersPreview.className = 'text-muted small';
+        involvedSemestersPreview.textContent = 'Select batches to preview involved semesters.';
+        return;
+      }
+
+      const semesterById = {};
+      availableSemesters.forEach(function(semesterItem) {
+        const isOdd = !!semesterItem.isOdd;
+        if ((selectedSemesterScope === 'ODD' && !isOdd) || (selectedSemesterScope === 'EVEN' && isOdd)) {
+          return;
+        }
+
+        const semesterId = parseInt(semesterItem.id, 10);
+        if (!Number.isFinite(semesterId) || semesterId <= 0) {
+          return;
+        }
+
+        if (!semesterById[semesterId]) {
+          semesterById[semesterId] = {
+            id: semesterId,
+            title: String(semesterItem.title || ('Semester ' + semesterId)),
+          };
+        }
+      });
+
+      let resolvedSemesters = Object.values(semesterById).sort(function(a, b) {
+        return a.id - b.id;
+      });
+
+      if (selectedSemesterScope === 'ODD') {
+        resolvedSemesters = resolvedSemesters.slice(0, 4);
+      }
+
+      if (resolvedSemesters.length === 0) {
+        involvedSemestersPreview.className = 'text-warning small';
+        involvedSemestersPreview.textContent = 'No semesters found for selected batches under ' + selectedSemesterScope + ' scope.';
+        return;
+      }
+
+      const badges = resolvedSemesters.map(function(item) {
+        return '<span class="badge bg-secondary-subtle text-dark border me-1 mb-1">' + item.title + '</span>';
+      }).join('');
+
+      involvedSemestersPreview.className = 'small';
+      involvedSemestersPreview.innerHTML =
+        '<div class="mb-1"><strong>' + resolvedSemesters.length + '</strong> semester(s) included for ' + selectedSemesterScope + ' scope.</div>' +
+        '<div>' + badges + '</div>';
+    };
+
     // Date validation
     startDate.addEventListener('change', function() {
       endDate.min = this.value;
@@ -247,6 +430,25 @@
       }
     });
 
+    if (semesterSelect) {
+      semesterSelect.addEventListener('change', renderInvolvedSemesters);
+    }
+
+    if (batchSelect) {
+      batchSelect.addEventListener('change', renderInvolvedSemesters);
+      batchSelect.addEventListener('input', renderInvolvedSemesters);
+
+      if (batchSelect.tomselect && typeof batchSelect.tomselect.on === 'function') {
+        batchSelect.tomselect.on('change', renderInvolvedSemesters);
+        batchSelect.tomselect.on('item_add', renderInvolvedSemesters);
+        batchSelect.tomselect.on('item_remove', renderInvolvedSemesters);
+      }
+
+      if (window.jQuery && typeof window.jQuery === 'function') {
+        window.jQuery(batchSelect).on('change', renderInvolvedSemesters);
+      }
+    }
+
     // Form submission
     form.addEventListener('submit', function(e) {
       const submitBtn = document.getElementById('submitBtn');
@@ -262,6 +464,9 @@
     if (startDate.value) {
       updateExamNameFromStartDate();
     }
+
+    renderInvolvedSemesters();
+    setTimeout(renderInvolvedSemesters, 200);
   });
 </script>
 

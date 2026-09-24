@@ -117,6 +117,18 @@
                     @endif
                   </p>
                 </div>
+                <div class="col-md-12 mb-2">
+                  <label class="text-muted small">Applicable Batches</label>
+                  <p class="mb-0">
+                    @if(($selectedBatchNames ?? collect())->isNotEmpty())
+                    @foreach($selectedBatchNames as $batchName)
+                    <span class="badge bg-light text-dark border me-1 mb-1">{{ $batchName }}</span>
+                    @endforeach
+                    @else
+                    <span class="text-muted">All / Not specified</span>
+                    @endif
+                  </p>
+                </div>
               </div>
 
               <hr>
@@ -297,6 +309,9 @@
                 <a href="{{ route('coe.exams.calendar', ['module' => $activeModule, 'exam_id' => $exam->id]) }}" class="btn btn-outline-info">
                   <i class="fa fa-calendar-alt me-2"></i>Schedule Timetable
                 </a>
+                <a href="{{ route('admin.seating-allocation.exam-sessions', ['exam_id' => $exam->id]) }}" class="btn btn-outline-success">
+                  <i class="fa fa-clock-o me-2"></i>Exam Sessions
+                </a>
                 @if(($exam->registration_mode ?? 'registration_required') !== 'auto_registered')
                 <a href="{{ route('admin.exam-registrations.index', ['exam_id' => $exam->id]) }}" class="btn btn-outline-dark">
                   <i class="fa fa-user-plus me-2"></i>Open Registrations
@@ -323,6 +338,64 @@
                 <button type="button" class="btn btn-outline-danger" onclick="confirmDelete()">
                   <i class="fa fa-trash me-2"></i>Delete Exam
                 </button>
+              </div>
+
+              <hr>
+
+              <h6 class="fw-bold mb-2"><i class="fa fa-th-large me-2 text-success"></i>Seating Workflow</h6>
+
+              <div class="border rounded p-2 mb-2 bg-light">
+                <div class="fw-semibold">Seating Allocation</div>
+                <small class="text-muted d-block mb-2">
+                  Automatically assigns students to rooms and seats for each exam session while considering capacity, course separation and seating rules.
+                </small>
+                <a href="{{ route('admin.seating-allocation.index', ['exam_master_id' => $exam->id]) }}" class="btn btn-sm btn-success">
+                  <i class="fa fa-magic me-1"></i>Open Seating Allocation
+                </a>
+              </div>
+
+              <div class="border rounded p-2 mb-2 bg-light">
+                <div class="fw-semibold">Seating Rules</div>
+                <small class="text-muted d-block mb-2">
+                  Controls special seating conditions, for example students from the same course should normally not sit adjacent to each other, while specified course groups may be allowed to sit together.
+                </small>
+                <a href="{{ route('admin.seating-allocation.index', ['exam_master_id' => $exam->id]) }}" class="btn btn-sm btn-outline-primary">
+                  <i class="fa fa-sliders-h me-1"></i>Review Seating Rules Context
+                </a>
+              </div>
+
+              <div class="border rounded p-2 bg-light">
+                <div class="fw-semibold">Final Output</div>
+                <small class="text-muted d-block mb-2">
+                  Allows COE to review and lock the seating plan. Once finalized, downstream documents use this as the authoritative seating data.
+                </small>
+                <div class="d-flex gap-2 flex-wrap">
+                  <a href="{{ route('admin.seating-allocation.index', ['exam_master_id' => $exam->id]) }}" class="btn btn-sm btn-outline-secondary">
+                    <i class="fa fa-eye me-1"></i>Review Plan
+                  </a>
+                  <a href="{{ route('admin.seating-allocation.export', ['exam_master_id' => $exam->id]) }}" class="btn btn-sm btn-outline-info">
+                    <i class="fa fa-download me-1"></i>Export Seating Data
+                  </a>
+                </div>
+              </div>
+
+              <hr>
+
+              <h6 class="fw-bold mb-2"><i class="fa fa-clock-o me-2 text-primary"></i>Exam Sessions Workflow</h6>
+
+              <div class="border rounded p-2 bg-light">
+                <div class="fw-semibold">Operational Sessions (Day + Start Time)</div>
+                <small class="text-muted d-block mb-2">
+                  Dedicated operational slots grouped by day and start time, used for seating generation and invigilation handoff.
+                </small>
+                <div class="d-flex gap-2 flex-wrap">
+                  <a href="{{ route('admin.seating-allocation.exam-sessions', ['exam_id' => $exam->id]) }}" class="btn btn-sm btn-primary">
+                    <i class="fa fa-clock-o me-1"></i>Open Exam Sessions
+                  </a>
+                  <a href="{{ route('admin.invigilation-duties.index') }}" class="btn btn-sm btn-outline-primary">
+                    <i class="fa fa-chalkboard-teacher me-1"></i>Open Invigilation Duties
+                  </a>
+                </div>
               </div>
             </div>
           </div>

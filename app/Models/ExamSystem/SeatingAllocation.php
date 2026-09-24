@@ -11,6 +11,7 @@ class SeatingAllocation extends Model
     'room_id',
     'exam_student_id',
     'seat_no',
+    'status',
   ];
 
   public function examSchedule()
@@ -20,11 +21,23 @@ class SeatingAllocation extends Model
 
   public function room()
   {
-    return $this->belongsTo(\App\Models\RoomMaster::class, 'room_id');
+    return $this->belongsTo(Room::class, 'room_id');
   }
 
   public function examStudent()
   {
     return $this->belongsTo(ExamStudent::class, 'exam_student_id');
+  }
+
+  // Backward-compatible alias for older views expecting $allocation->exam
+  public function exam()
+  {
+    return $this->examSchedule();
+  }
+
+  // Backward-compatible alias for older views expecting $allocation->student
+  public function student()
+  {
+    return $this->belongsTo(\App\Models\StudentMaster::class, 'exam_student_id');
   }
 }

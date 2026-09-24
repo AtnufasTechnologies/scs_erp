@@ -5,6 +5,7 @@ namespace App\Models\ExamSystem;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use App\Models\ExamSystem\ExamBatchSemesterScope;
 
 class Exam extends Model
 {
@@ -19,7 +20,12 @@ class Exam extends Model
     'end_date',
     'regulation_id',
     'status',
-    'registration_mode'
+    'registration_mode',
+    'selected_batch_ids'
+  ];
+
+  protected $casts = [
+    'selected_batch_ids' => 'array',
   ];
 
   public function registrations(): HasMany
@@ -35,5 +41,10 @@ class Exam extends Model
   public function regulation(): BelongsTo
   {
     return $this->belongsTo(ProgramRegulation::class, 'regulation_id');
+  }
+
+  public function batchSemesterScopes(): HasMany
+  {
+    return $this->hasMany(ExamBatchSemesterScope::class, 'exam_id');
   }
 }

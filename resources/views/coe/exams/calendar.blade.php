@@ -116,10 +116,12 @@
           </div>
           <div class="col-md-12">
             <label class="form-label">Courses <span class="text-danger">*</span></label>
-            <select id="addEntryCourseIds" class="select-multiple">
+            <select id="addEntryCourseIds" class="select-multiple" multiple>
               <option value="">Select</option>
               @foreach($courses as $course)
-              <option value="{{ $course->id }}">{{ $course->course_code }} - {{ $course->course_title }}</option>
+              <option value="{{ $course->id }}" data-course-label="{{ $course->course_code }} - {{ $course->course_title }}">
+                {{ $course->course_code }} - {{ $course->course_title }} ({{ (int) ($course->student_count ?? 0) }} students)
+              </option>
               @endforeach
             </select>
 
@@ -224,6 +226,9 @@
   }
 </style>
 
+<script id="examCourseIdsByExamJson" type="application/json">
+  @json($examCourseIdsByExam ?? [])
+</script>
 
 
 <script>
@@ -255,6 +260,15 @@
     const editEntryEndPreview = document.getElementById('editEntryEndPreview');
     const btnSaveEditEntry = document.getElementById('btnSaveEditEntry');
     const btnDeleteEntry = document.getElementById('btnDeleteEntry');
+    const examCourseIdsByExamEl = document.getElementById('examCourseIdsByExamJson');
+    const examCourseIdsByExam = examCourseIdsByExamEl ? JSON.parse(examCourseIdsByExamEl.textContent || '{}') : {};
+    const baseCourseOptions = Array.from(addEntryCourseIds.options || [])
+      .filter(option => !!option.value)
+      .map(option => ({
+        value: String(option.value),
+        text: option.textContent,
+        courseLabel: option.dataset?.courseLabel || option.textContent,
+      }));
 
     const csrfToken = '{{ csrf_token() }}';
     const eventsUrl = "{{ route('coe.exams.calendar.events') }}";
@@ -264,6 +278,115 @@
     let currentAddEntryNotes = null;
     let currentEditEntryNotes = null;
     let currentEditEntryCourseId = null;
+    const durationStorageKey = 'coe_exam_calendar_duration_hours';
+
+    function persistExamDurationHours() {
+      try {
+        const value = Number(addEntryDurationHours?.value || editEntryDurationHours?.value || 2);
+        if (Number.isFinite(value) && value > 0) {
+          window.localStorage.setItem(durationStorageKey, String(value));
+        }
+      } catch (e) {
+        // Ignore storage failures (private mode / quota / blocked storage).
+      }
+    }
+
+    function resolvePreferredDurationHours() {
+      try {
+        const stored = Number(window.localStorage.getItem(durationStorageKey));
+        if (Number.isFinite(stored) && stored > 0) {
+          return stored;
+        }
+      } catch (e) {
+        // Ignore storage read failures.
+      }
+
+      return 2;
+    }
+
+    function getSelectedCourseValues() {
+      if (!addEntryCourseIds) {
+        return [];
+      }
+
+      if (addEntryCourseIds.tomselect && typeof addEntryCourseIds.tomselect.getValue === 'function') {
+        const raw = addEntryCourseIds.tomselect.getValue();
+        const values = Array.isArray(raw) ? raw : String(raw || '').split(',');
+        return values.map(value => String(value).trim()).filter(value => value !== '');
+      }
+
+      if (window.jQuery && typeof window.jQuery === 'function') {
+        const jqValues = window.jQuery(addEntryCourseIds).val();
+        if (Array.isArray(jqValues)) {
+          return jqValues.map(value => String(value).trim()).filter(value => value !== '');
+        }
+      }
+
+      return Array.from(addEntryCourseIds.selectedOptions || [])
+        .map(option => String(option.value).trim())
+        .filter(value => value !== '');
+    }
+
+    function getScopedCourseIdsForExam(examIdValue) {
+      const key = String(examIdValue || '').trim();
+      if (key === '') {
+        return [];
+      }
+
+      const direct = examCourseIdsByExam[key];
+      if (Array.isArray(direct)) {
+        return direct.map(id => String(id));
+      }
+
+      const numericKey = String(Number(key) || '');
+      const numeric = examCourseIdsByExam[numericKey];
+      if (Array.isArray(numeric)) {
+        return numeric.map(id => String(id));
+      }
+
+      return [];
+    }
+
+    function applyCourseFilterByExam() {
+      const scopedCourseIds = getScopedCourseIdsForExam(addEntryExamId.value);
+      const hasScopedFilter = scopedCourseIds.length > 0;
+      const allowedSet = new Set(scopedCourseIds);
+      const selectedBefore = getSelectedCourseValues();
+
+      const filtered = hasScopedFilter ?
+        baseCourseOptions.filter(option => allowedSet.has(String(option.value))) :
+        baseCourseOptions.slice();
+
+      if (addEntryCourseIds.tomselect && typeof addEntryCourseIds.tomselect.clearOptions === 'function') {
+        const ts = addEntryCourseIds.tomselect;
+        ts.clear(true);
+        ts.clearOptions();
+        ts.addOptions(filtered.map(option => ({
+          value: option.value,
+          text: option.text,
+          courseLabel: option.courseLabel,
+        })));
+        ts.refreshOptions(false);
+
+        const stillValid = selectedBefore.filter(value => filtered.some(option => option.value === value));
+        if (stillValid.length > 0) {
+          ts.setValue(stillValid, true);
+        }
+        return;
+      }
+
+      addEntryCourseIds.innerHTML = '';
+      filtered.forEach(option => {
+        const el = document.createElement('option');
+        el.value = option.value;
+        el.textContent = option.text;
+        el.setAttribute('data-course-label', option.courseLabel);
+        if (selectedBefore.includes(option.value)) {
+          el.selected = true;
+        }
+        addEntryCourseIds.appendChild(el);
+      });
+    }
 
     function formatTimeFromMinutes(totalMinutes) {
       const safeMinutes = Math.max(0, Math.min(1439, totalMinutes));
@@ -388,12 +511,18 @@
 
     function openCreateModal(prefill = {}) {
       addEntryExamId.value = isExamLocked ? String(initialExamId) : (prefill.exam_id || examFilter.value || '');
-      Array.from(addEntryCourseIds.options || []).forEach(option => {
-        option.selected = false;
-      });
+      applyCourseFilterByExam();
+
+      if (addEntryCourseIds.tomselect && typeof addEntryCourseIds.tomselect.clear === 'function') {
+        addEntryCourseIds.tomselect.clear(true);
+      } else {
+        Array.from(addEntryCourseIds.options || []).forEach(option => {
+          option.selected = false;
+        });
+      }
       addEntryDate.value = prefill.date || '';
       addEntryStart.value = prefill.start || '';
-      addEntryDurationHours.value = 2;
+      addEntryDurationHours.value = resolvePreferredDurationHours();
       applyEndTimeFromDuration(addEntryStart, addEntryDurationHours, addEntryEnd, addEntryEndPreview);
       syncTitleFromExam(addEntryExamId, addEntryTitle);
       currentAddEntryNotes = null;
@@ -419,7 +548,7 @@
       if (startMinutes !== null && endMinutes !== null && endMinutes > startMinutes) {
         editEntryDurationHours.value = ((endMinutes - startMinutes) / 60).toFixed(2).replace(/\.00$/, '');
       } else {
-        editEntryDurationHours.value = 2;
+        editEntryDurationHours.value = resolvePreferredDurationHours();
       }
 
       applyEndTimeFromDuration(editEntryStart, editEntryDurationHours, editEntryEnd, editEntryEndPreview);
@@ -433,7 +562,7 @@
     function getAddPayload(courseOption = null) {
       applyEndTimeFromDuration(addEntryStart, addEntryDurationHours, addEntryEnd, addEntryEndPreview);
       if (courseOption) {
-        addEntryTitle.value = courseOption.textContent.trim();
+        addEntryTitle.value = (courseOption.dataset?.courseLabel || courseOption.textContent || '').trim();
       } else if (!addEntryTitle.value) {
         syncTitleFromExam(addEntryExamId, addEntryTitle);
       }
@@ -601,7 +730,8 @@
     });
 
     addEntryExamId.addEventListener('change', function() {
-      addEntryDurationHours.value = 2;
+      applyCourseFilterByExam();
+      addEntryDurationHours.value = resolvePreferredDurationHours();
       applyEndTimeFromDuration(addEntryStart, addEntryDurationHours, addEntryEnd, addEntryEndPreview);
       syncTitleFromExam(addEntryExamId, addEntryTitle);
     });
@@ -615,8 +745,13 @@
       applyEndTimeFromDuration(addEntryStart, addEntryDurationHours, addEntryEnd, addEntryEndPreview);
     });
 
+    addEntryDurationHours.addEventListener('change', function() {
+      persistExamDurationHours();
+      applyEndTimeFromDuration(addEntryStart, addEntryDurationHours, addEntryEnd, addEntryEndPreview);
+    });
+
     editEntryExamId.addEventListener('change', function() {
-      editEntryDurationHours.value = 2;
+      editEntryDurationHours.value = resolvePreferredDurationHours();
       applyEndTimeFromDuration(editEntryStart, editEntryDurationHours, editEntryEnd, editEntryEndPreview);
       syncTitleFromExam(editEntryExamId, editEntryTitle);
     });
@@ -630,8 +765,14 @@
       applyEndTimeFromDuration(editEntryStart, editEntryDurationHours, editEntryEnd, editEntryEndPreview);
     });
 
+    editEntryDurationHours.addEventListener('change', function() {
+      persistExamDurationHours();
+      applyEndTimeFromDuration(editEntryStart, editEntryDurationHours, editEntryEnd, editEntryEndPreview);
+    });
+
     applyLockedExamContext();
     setScheduleDateConstraintsFromExam();
+    applyCourseFilterByExam();
 
     const initialCalendarDate = selectedScheduleDate.value || formatDateLocal(new Date());
 

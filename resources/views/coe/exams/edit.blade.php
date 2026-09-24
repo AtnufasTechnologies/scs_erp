@@ -110,6 +110,20 @@
                   </div>
 
                   <div class="col-md-6 mb-3">
+                    <label for="selectedBatchIds" class="form-label fw-bold">
+                      Applicable Batches <span class="text-danger">*</span>
+                    </label>
+                    <select class="form-select" id="selectedBatchIds" name="selected_batch_ids[]" multiple required size="6">
+                      @foreach(($batches ?? collect()) as $batch)
+                      <option value="{{ (int) $batch->id }}" {{ collect($selectedBatchIds ?? [])->contains((int) $batch->id) ? 'selected' : '' }}>
+                        {{ $batch->batch_name }}
+                      </option>
+                      @endforeach
+                    </select>
+                    <small class="text-muted">Select one or more batches. Even/Odd semester scope will be applied only within these batches.</small>
+                  </div>
+
+                  <div class="col-md-6 mb-3">
                     <label for="programId" class="form-label fw-bold">
                       Program <span class="text-danger">*</span>
                     </label>

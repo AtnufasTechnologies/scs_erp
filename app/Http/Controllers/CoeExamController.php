@@ -9,6 +9,7 @@ use App\Models\ExamSystem\ProgramRegulation;
 use App\Models\ExamSystem\ExamAttendance;
 use App\Models\ExamSystem\Registration;
 use App\Models\ProgramCourseMaster;
+use App\Models\BatchMaster;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
@@ -22,6 +23,8 @@ class CoeExamController extends Controller
   private ?bool $hasAssessmentTypeColumn = null;
   private ?bool $hasExamPublishColumns = null;
   private ?bool $hasExamRegistrationModeColumn = null;
+  private ?bool $hasExamSelectedBatchIdsColumn = null;
+  private ?bool $hasExamBatchSemesterScopeTable = null;
 
   private function canUseAssessmentType(): bool
   {
@@ -48,6 +51,143 @@ class CoeExamController extends Controller
     }
 
     return $this->hasExamRegistrationModeColumn;
+  }
+
+  private function canUseExamSelectedBatchIds(): bool
+  {
+    if ($this->hasExamSelectedBatchIdsColumn === null) {
+      $this->hasExamSelectedBatchIdsColumn = Schema::hasColumn('exams', 'selected_batch_ids');
+    }
+
+    return $this->hasExamSelectedBatchIdsColumn;
+  }
+
+  private function canUseExamBatchSemesterScopeTable(): bool
+  {
+    if ($this->hasExamBatchSemesterScopeTable === null) {
+      $this->hasExamBatchSemesterScopeTable = Schema::hasTable('exam_batch_semester_scopes');
+    }
+
+    return $this->hasExamBatchSemesterScopeTable;
+  }
+
+  private function normalizeSelectedBatchIds($batchIds): array
+  {
+    return collect(is_array($batchIds) ? $batchIds : [])
+      ->map(fn($id) => (int) $id)
+      ->filter(fn($id) => $id > 0)
+      ->unique()
+      ->values()
+      ->all();
+  }
+
+  private function resolveSemesterIdsByScope(string $semesterScope): array
+  {
+    $normalizedScope = strtoupper(trim($semesterScope));
+    if (!in_array($normalizedScope, ['ODD', 'EVEN'], true)) {
+      return [];
+    }
+
+    $semesters = DB::table('semesters')->select('id', 'title')->get();
+
+    $scopedSemesterIds = $semesters
+      ->filter(function ($semester) use ($normalizedScope) {
+        $title = strtoupper(trim((string) ($semester->title ?? '')));
+        $parsedSemesterNumber = null;
+
+        if (preg_match('/(\d+)/', $title, $matches) === 1) {
+          $parsedSemesterNumber = (int) $matches[1];
+        }
+
+        $numberForParity = $parsedSemesterNumber ?: (int) $semester->id;
+        if ($numberForParity <= 0) {
+          return false;
+        }
+
+        $isOdd = ($numberForParity % 2) === 1;
+        return $normalizedScope === 'ODD' ? $isOdd : !$isOdd;
+      })
+      ->pluck('id')
+      ->map(fn($id) => (int) $id)
+      ->filter(fn($id) => $id > 0)
+      ->values();
+
+    if ($normalizedScope === 'ODD') {
+      $scopedSemesterIds = $scopedSemesterIds->take(4)->values();
+    }
+
+    return $scopedSemesterIds->all();
+  }
+
+  private function syncExamBatchSemesterScope(int $examId, array $batchIds, string $semesterScope): void
+  {
+    if ($examId <= 0 || !$this->canUseExamBatchSemesterScopeTable()) {
+      return;
+    }
+
+    $normalizedBatchIds = collect($batchIds)
+      ->map(fn($id) => (int) $id)
+      ->filter(fn($id) => $id > 0)
+      ->unique()
+      ->values();
+
+    $scopedSemesterIds = collect($this->resolveSemesterIdsByScope($semesterScope))
+      ->map(fn($id) => (int) $id)
+      ->filter(fn($id) => $id > 0)
+      ->unique()
+      ->values();
+
+    $rosterQuery = DB::table('student_course_rosters as scr')
+      ->select(['scr.batch_id', 'scr.semester_id'])
+      ->whereIn('scr.batch_id', $normalizedBatchIds->all())
+      ->whereIn('scr.semester_id', $scopedSemesterIds->all());
+
+    if (Schema::hasColumn('student_course_rosters', 'deleted_at')) {
+      $rosterQuery->whereNull('scr.deleted_at');
+    }
+
+    $scopeRows = [];
+    if ($normalizedBatchIds->isNotEmpty() && $scopedSemesterIds->isNotEmpty()) {
+      $scopeRows = $rosterQuery
+        ->distinct()
+        ->get()
+        ->map(function ($row) use ($examId) {
+          return [
+            'exam_id' => $examId,
+            'batch_id' => (int) ($row->batch_id ?? 0),
+            'semester_id' => (int) ($row->semester_id ?? 0),
+            'created_at' => now(),
+            'updated_at' => now(),
+          ];
+        })
+        ->filter(function ($row) {
+          return (int) ($row['batch_id'] ?? 0) > 0 && (int) ($row['semester_id'] ?? 0) > 0;
+        })
+        ->values()
+        ->all();
+    }
+
+    DB::table('exam_batch_semester_scopes')
+      ->where('exam_id', $examId)
+      ->delete();
+
+    if (!empty($scopeRows)) {
+      DB::table('exam_batch_semester_scopes')->insert($scopeRows);
+    }
+  }
+
+  private function deleteByColumnValue(string $table, string $column, int $value): void
+  {
+    if ($value <= 0 || !Schema::hasTable($table) || !Schema::hasColumn($table, $column)) {
+      return;
+    }
+
+    DB::table($table)->where($column, $value)->delete();
+  }
+
+  private function deleteByExamId(string $table, int $examId): void
+  {
+    $this->deleteByColumnValue($table, 'exam_id', $examId);
   }
 
   private function resolveAssessmentModule(?string $module): ?string
@@ -208,8 +348,58 @@ class CoeExamController extends Controller
   {
     $module = $this->resolveAssessmentModule(request()->input('module')) ?? 'SA';
     $programs = Program::orderBy('name')->get();
+    $batches = BatchMaster::query()->orderByDesc('id')->get(['id', 'batch_name']);
 
-    return view('coe.exams.create', compact('programs', 'module'));
+    $batchSemesterQuery = DB::table('student_course_rosters as scr')
+      ->leftJoin('semesters as sem', 'sem.id', '=', 'scr.semester_id')
+      ->whereNotNull('scr.batch_id')
+      ->whereNotNull('scr.semester_id')
+      ->select([
+        'scr.batch_id',
+        'scr.semester_id',
+        'sem.title as semester_title',
+      ]);
+
+    if (Schema::hasColumn('student_course_rosters', 'deleted_at')) {
+      $batchSemesterQuery->whereNull('scr.deleted_at');
+    }
+
+    $batchSemesterRows = $batchSemesterQuery
+      ->distinct()
+      ->orderBy('scr.batch_id')
+      ->orderBy('scr.semester_id')
+      ->get();
+
+    $batchSemesterMap = $batchSemesterRows
+      ->groupBy(function ($row) {
+        return (int) $row->batch_id;
+      })
+      ->map(function ($rows) {
+        return $rows
+          ->map(function ($row) {
+            $semesterId = (int) ($row->semester_id ?? 0);
+            $semesterTitle = trim((string) ($row->semester_title ?? 'Semester ' . $semesterId));
+            $parsedSemesterNumber = null;
+            if (preg_match('/(\d+)/', strtoupper($semesterTitle), $matches) === 1) {
+              $parsedSemesterNumber = (int) $matches[1];
+            }
+
+            $numberForParity = $parsedSemesterNumber ?: $semesterId;
+            $isOdd = $numberForParity > 0 ? (($numberForParity % 2) === 1) : false;
+
+            return [
+              'id' => $semesterId,
+              'title' => $semesterTitle,
+              'is_odd' => $isOdd,
+            ];
+          })
+          ->unique(function ($item) {
+            return (int) ($item['id'] ?? 0);
+          })
+          ->values();
+      });
+
+    return view('coe.exams.create', compact('programs', 'module', 'batches', 'batchSemesterMap'));
   }
 
   /**
@@ -342,16 +532,109 @@ class CoeExamController extends Controller
     $exams = $examsQuery->orderByDesc('start_date')->get(['id', 'name', 'assessment_type', 'start_date', 'end_date']);
     $initialExamId = ($requestedExamId > 0 && $exams->contains('id', $requestedExamId)) ? $requestedExamId : null;
 
-    $courses = ProgramCourseMaster::query()
-      ->select(['id', 'course_code', 'course_title'])
-      ->where(function ($query) {
-        $query->whereNull('is_deleted')->orWhere('is_deleted', 0);
-      })
-      ->orderBy('course_code')
-      ->limit(2000)
-      ->get();
+    $courses = collect();
+    $examCourseIdsByExam = [];
 
-    return view('coe.exams.calendar', compact('exams', 'courses', 'module', 'initialExamId'));
+    if (Schema::hasTable('exam_batch_semester_scopes') && $exams->isNotEmpty()) {
+      $scopedCourseQuery = DB::table('exam_batch_semester_scopes as ebss')
+        ->join('student_course_rosters as scr', function ($join) {
+          $join->on('scr.batch_id', '=', 'ebss.batch_id')
+            ->on('scr.semester_id', '=', 'ebss.semester_id');
+        })
+        ->join('program_course_masters as pcm', 'pcm.id', '=', 'scr.course_id')
+        ->whereIn('ebss.exam_id', $exams->pluck('id')->all())
+        ->whereNotNull('scr.course_id')
+        ->where(function ($query) {
+          $query->whereNull('pcm.is_deleted')->orWhere('pcm.is_deleted', 0);
+        })
+        ->select([
+          'ebss.exam_id',
+          'scr.course_id',
+          'pcm.course_code',
+          'pcm.course_title',
+          DB::raw('COUNT(DISTINCT scr.student_id) as student_count'),
+        ])
+        ->groupBy('ebss.exam_id', 'scr.course_id', 'pcm.course_code', 'pcm.course_title')
+        ->orderBy('pcm.course_code')
+        ->orderBy('scr.course_id');
+
+      if (Schema::hasColumn('student_course_rosters', 'deleted_at')) {
+        $scopedCourseQuery->whereNull('scr.deleted_at');
+      }
+
+      $scopedCourseRows = $scopedCourseQuery->get();
+
+      if ($scopedCourseRows->isNotEmpty()) {
+        $examCourseIdsByExam = $scopedCourseRows
+          ->groupBy(function ($row) {
+            return (int) $row->exam_id;
+          })
+          ->map(function ($rows) {
+            return $rows
+              ->pluck('course_id')
+              ->map(fn($id) => (int) $id)
+              ->filter(fn($id) => $id > 0)
+              ->unique()
+              ->values()
+              ->all();
+          })
+          ->toArray();
+
+        $courses = $scopedCourseRows
+          ->groupBy(function ($row) {
+            return (int) $row->course_id;
+          })
+          ->map(function ($rows) {
+            $first = $rows->first();
+            return (object) [
+              'id' => (int) ($first->course_id ?? 0),
+              'course_code' => (string) ($first->course_code ?? ''),
+              'course_title' => (string) ($first->course_title ?? ''),
+              'student_count' => (int) $rows->sum(function ($row) {
+                return (int) ($row->student_count ?? 0);
+              }),
+            ];
+          })
+          ->filter(function ($course) {
+            return (int) ($course->id ?? 0) > 0;
+          })
+          ->sortBy(function ($course) {
+            return strtoupper((string) ($course->course_code ?? ''));
+          })
+          ->values();
+      }
+    }
+
+    // Fallback when scopes are not available yet.
+    if ($courses->isEmpty()) {
+      $rosterCounts = DB::table('student_course_rosters')
+        ->select([
+          'course_id',
+          DB::raw('COUNT(DISTINCT student_id) as student_count'),
+        ])
+        ->whereNull('deleted_at')
+        ->whereNotNull('course_id')
+        ->groupBy('course_id');
+
+      $courses = DB::table('program_course_masters as pcm')
+        ->joinSub($rosterCounts, 'scrc', function ($join) {
+          $join->on('scrc.course_id', '=', 'pcm.id');
+        })
+        ->select([
+          'pcm.id',
+          'pcm.course_code',
+          'pcm.course_title',
+          DB::raw('scrc.student_count as student_count'),
+        ])
+        ->where(function ($query) {
+          $query->whereNull('pcm.is_deleted')->orWhere('pcm.is_deleted', 0);
+        })
+        ->orderBy('pcm.course_code')
+        ->orderBy('pcm.id')
+        ->get();
+    }
+
+    return view('coe.exams.calendar', compact('exams', 'courses', 'module', 'initialExamId', 'examCourseIdsByExam'));
   }
 
   /**
@@ -674,6 +957,8 @@ class CoeExamController extends Controller
       'assessment_type' => 'required|in:SA,FA2',
       'exam_type' => 'required|string|in:Regular,Backlog,Improvement,Special',
       'semester' => 'required|in:Odd,Even',
+      'selected_batch_ids' => 'required|array|min:1',
+      'selected_batch_ids.*' => 'integer|exists:batch_masters,id',
       'program_type' => 'required|in:UG,PG',
       'registration_mode' => 'required|in:registration_required,auto_registered',
       'program_id' => 'nullable|exists:programs,id',
@@ -685,12 +970,20 @@ class CoeExamController extends Controller
     ]);
 
     try {
+      DB::beginTransaction();
+
       if (!$this->canUseAssessmentType()) {
         unset($validated['assessment_type']);
       }
 
       if (!$this->canUseExamRegistrationMode()) {
         unset($validated['registration_mode']);
+      }
+
+      $normalizedSelectedBatchIds = $this->normalizeSelectedBatchIds($request->input('selected_batch_ids', []));
+      $validated['selected_batch_ids'] = $normalizedSelectedBatchIds;
+      if (!$this->canUseExamSelectedBatchIds()) {
+        unset($validated['selected_batch_ids']);
       }
 
       if ($this->canUseExamPublish()) {
@@ -757,10 +1050,20 @@ class CoeExamController extends Controller
 
       $exam = Exam::create($validated);
 
+      $this->syncExamBatchSemesterScope(
+        (int) $exam->id,
+        $normalizedSelectedBatchIds,
+        (string) ($validated['semester'] ?? '')
+      );
+
+      DB::commit();
+
       return redirect()
         ->route('coe.exams.show', ['id' => $exam->id, 'module' => $validated['assessment_type'] ?? 'SA'])
         ->with('success', 'Exam created successfully!');
     } catch (\Exception $e) {
+      DB::rollBack();
+
       return redirect()
         ->back()
         ->withInput()
@@ -782,6 +1085,20 @@ class CoeExamController extends Controller
     }
 
     $exam = Exam::with($relations)->findOrFail($id);
+
+    $selectedBatchIds = [];
+    $selectedBatchNames = collect();
+    if ($this->canUseExamSelectedBatchIds()) {
+      $selectedBatchIds = $this->normalizeSelectedBatchIds($exam->selected_batch_ids ?? []);
+      if (!empty($selectedBatchIds)) {
+        $selectedBatchNames = BatchMaster::query()
+          ->whereIn('id', $selectedBatchIds)
+          ->orderByDesc('id')
+          ->pluck('batch_name');
+      }
+    }
+
+    $selectedSemesterIds = $this->resolveSemesterIdsByScope((string) ($exam->semester ?? ''));
 
     if (!$module) {
       $module = $exam->assessment_type ?? 'SA';
@@ -850,6 +1167,14 @@ class CoeExamController extends Controller
       $eligibleStudents->whereNull('sa.deleted_at');
     }
 
+    if (!empty($selectedBatchIds)) {
+      $eligibleStudents->whereIn('sa.batch', $selectedBatchIds);
+    }
+
+    if (!empty($selectedSemesterIds)) {
+      $eligibleStudents->whereIn('sa.semester_id', $selectedSemesterIds);
+    }
+
     $eligibleStudentCount = $eligibleStudents
       ->select([
         'sa.student_id',
@@ -885,6 +1210,7 @@ class CoeExamController extends Controller
 
     return view('coe.exams.show', compact(
       'exam',
+      'selectedBatchNames',
       'attendanceStats',
       'dutyStats',
       'module',
@@ -906,8 +1232,16 @@ class CoeExamController extends Controller
     }
     $programs = Program::orderBy('name')->get();
     $regulations = ProgramRegulation::orderBy('regulation_name')->get();
+    $batches = BatchMaster::query()->orderByDesc('id')->get(['id', 'batch_name']);
 
-    return view('coe.exams.edit', compact('exam', 'programs', 'regulations', 'module'));
+    $selectedBatchIds = old('selected_batch_ids');
+    if ($selectedBatchIds === null) {
+      $selectedBatchIds = $this->normalizeSelectedBatchIds($exam->selected_batch_ids ?? []);
+    } else {
+      $selectedBatchIds = $this->normalizeSelectedBatchIds($selectedBatchIds);
+    }
+
+    return view('coe.exams.edit', compact('exam', 'programs', 'regulations', 'module', 'batches', 'selectedBatchIds'));
   }
 
   /**
@@ -922,6 +1256,8 @@ class CoeExamController extends Controller
       'assessment_type' => 'required|in:SA,FA2',
       'exam_type' => 'required|string|in:Regular,Backlog,Improvement,Special',
       'semester' => 'required|in:Odd,Even',
+      'selected_batch_ids' => 'required|array|min:1',
+      'selected_batch_ids.*' => 'integer|exists:batch_masters,id',
       'registration_mode' => 'required|in:registration_required,auto_registered',
       'program_id' => 'nullable|exists:programs,id',
       'regulation_id' => 'nullable|exists:program_regulations,id',
@@ -932,6 +1268,8 @@ class CoeExamController extends Controller
     ]);
 
     try {
+      DB::beginTransaction();
+
       if (!$this->canUseAssessmentType()) {
         unset($validated['assessment_type']);
       }
@@ -940,12 +1278,28 @@ class CoeExamController extends Controller
         unset($validated['registration_mode']);
       }
 
+      $normalizedSelectedBatchIds = $this->normalizeSelectedBatchIds($request->input('selected_batch_ids', []));
+      $validated['selected_batch_ids'] = $normalizedSelectedBatchIds;
+      if (!$this->canUseExamSelectedBatchIds()) {
+        unset($validated['selected_batch_ids']);
+      }
+
       $exam->update($validated);
+
+      $this->syncExamBatchSemesterScope(
+        (int) $exam->id,
+        $normalizedSelectedBatchIds,
+        (string) ($validated['semester'] ?? '')
+      );
+
+      DB::commit();
 
       return redirect()
         ->route('coe.exams.show', ['id' => $exam->id, 'module' => $validated['assessment_type']])
         ->with('success', 'Exam updated successfully!');
     } catch (\Exception $e) {
+      DB::rollBack();
+
       return redirect()
         ->back()
         ->withInput()
@@ -984,23 +1338,79 @@ class CoeExamController extends Controller
   {
     try {
       $exam = Exam::findOrFail($id);
+      DB::beginTransaction();
 
-      // Check if there are any attendance records
-      $attendanceCount = ExamAttendance::where('exam_id', $id)->count();
+      $examId = (int) $exam->id;
 
-      if ($attendanceCount > 0) {
-        return redirect()
-          ->back()
-          ->with('error', 'Cannot delete exam with existing attendance records. Please delete attendance records first.');
+      $scheduleIds = collect();
+      if (Schema::hasTable('exam_schedules') && Schema::hasColumn('exam_schedules', 'exam_id')) {
+        $scheduleIds = DB::table('exam_schedules')
+          ->where('exam_id', $examId)
+          ->pluck('id')
+          ->map(fn($rowId) => (int) $rowId)
+          ->filter(fn($rowId) => $rowId > 0)
+          ->values();
       }
+
+      if ($scheduleIds->isNotEmpty() && Schema::hasTable('seating_allocations') && Schema::hasColumn('seating_allocations', 'exam_schedule_id')) {
+        DB::table('seating_allocations')->whereIn('exam_schedule_id', $scheduleIds->all())->delete();
+      }
+
+      // exam_registrations -> exam_registration_subjects
+      if (Schema::hasTable('exam_registrations') && Schema::hasColumn('exam_registrations', 'exam_id')) {
+        $registrationIds = DB::table('exam_registrations')
+          ->where('exam_id', $examId)
+          ->pluck('id')
+          ->map(fn($rowId) => (int) $rowId)
+          ->filter(fn($rowId) => $rowId > 0)
+          ->values();
+
+        if ($registrationIds->isNotEmpty() && Schema::hasTable('exam_registration_subjects') && Schema::hasColumn('exam_registration_subjects', 'exam_registration_id')) {
+          DB::table('exam_registration_subjects')
+            ->whereIn('exam_registration_id', $registrationIds->all())
+            ->delete();
+        }
+
+        DB::table('exam_registrations')->where('exam_id', $examId)->delete();
+      }
+
+      // Legacy/parallel registration table.
+      $this->deleteByExamId('student_exam_registrations', $examId);
+
+      // Direct exam_id dependencies.
+      $this->deleteByExamId('exam_attendances', $examId);
+      $this->deleteByExamId('attendance_sessions', $examId);
+      $this->deleteByExamId('malpractice_cases', $examId);
+      $this->deleteByExamId('invigilation_duties', $examId);
+      $this->deleteByExamId('evaluation_duties', $examId);
+      $this->deleteByExamId('moderation_duties', $examId);
+      $this->deleteByExamId('dummy_numbers', $examId);
+      $this->deleteByExamId('marks', $examId);
+      $this->deleteByExamId('results', $examId);
+      $this->deleteByExamId('backlogs', $examId);
+      $this->deleteByExamId('research_components', $examId);
+      $this->deleteByExamId('teaching_practice', $examId);
+      $this->deleteByExamId('exam_calendar_entries', $examId);
+      $this->deleteByExamId('exam_batch_semester_scopes', $examId);
+
+      // Promotion links using from/to exam columns.
+      $this->deleteByColumnValue('promotions', 'from_exam_id', $examId);
+      $this->deleteByColumnValue('promotions', 'to_exam_id', $examId);
+
+      // Remove schedules after seating allocations are cleared.
+      $this->deleteByExamId('exam_schedules', $examId);
 
       $examName = $exam->name;
       $exam->delete();
+
+      DB::commit();
 
       return redirect()
         ->route('coe.exams.index', ['module' => $exam->assessment_type ?? 'SA'])
         ->with('success', "Exam '{$examName}' deleted successfully!");
     } catch (\Exception $e) {
+      DB::rollBack();
+
       return redirect()
         ->back()
         ->with('error', 'Failed to delete exam: ' . $e->getMessage());
