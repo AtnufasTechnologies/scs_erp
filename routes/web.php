@@ -139,7 +139,7 @@ Route::group(['prefix' => '/erp'], function () {
     Route::post('dashboard-switch', [LoginController::class, 'switchDashboard'])->name('dashboard.switch');
 
     //ITCELL - superuser routes
-    Route::group(['prefix' => '/admin',], function () {
+    Route::group(['prefix' => '/admin', 'middleware' => 'auth'], function () {
         Route::get('dashboard', [AdminController::class, 'index'])->name('admin.dashboard');
         Route::get('std-master-sonada', [AdminController::class, 'stdMasterSonada'])->name('sonada.studentmaster');
         Route::get('std-master-siliguri', [AdminController::class, 'stdMasterSiliguri'])->name('siliguri.studentmaster');
@@ -845,7 +845,7 @@ Route::group(['prefix' => '/erp'], function () {
     });
 
     //existing student
-    Route::group(['prefix' => 'student',], function () {
+    Route::group(['prefix' => 'student', 'middleware' => 'auth'], function () {
 
         //==Exclusive Console Access ONLY via Login ================= New Working Routes 04/05/2026
         Route::group(['prefix' => 'console'], function () {
@@ -889,7 +889,7 @@ Route::group(['prefix' => '/erp'], function () {
         Route::get('transaction-success/{id}/download-pdf', [FeePaymentController::class, 'downloadInvoice']);
     });
 
-    Route::group(['prefix' => 'online-exam'], function () {
+    Route::group(['prefix' => 'online-exam', 'middleware' => 'auth'], function () {
         // FA1 Online Exam Portal Routes
         Route::get('fa1/access', [StudentQuizController::class, 'accessPage'])->name('student.fa1.access');
         Route::post('fa1/access/verify', [StudentQuizController::class, 'verifyAccess'])->name('student.fa1.access.verify');
@@ -922,7 +922,7 @@ Route::group(['prefix' => '/erp'], function () {
 
     // Departmental routes ========================================================
 
-    Route::group(['prefix' => '/deptartment',], function () {
+    Route::group(['prefix' => '/deptartment', 'middleware' => 'auth'], function () {
         Route::get('dashboard', [SubjectController::class, 'departmentDashboard'])->name('department.dashboard');
         Route::get('dashboard/attendance-alerts/export', [SubjectController::class, 'exportDepartmentAttendanceAlerts'])->name('department.dashboard.attendance-alerts.export');
         Route::get('fa1-quizzes', [QuizOversightController::class, 'index'])->name('department.quizzes.index');
@@ -1082,7 +1082,7 @@ Route::group(['prefix' => '/erp'], function () {
     // ========================================================
     // Faculty routes
 
-    Route::group(['prefix' => 'faculty',], function () {
+    Route::group(['prefix' => 'faculty', 'middleware' => 'auth'], function () {
         Route::get('dashboard', [FacultyDashboardController::class, 'index'])->name('faculty.dashboard');
         Route::get('timetable', [FacultyDashboardController::class, 'facultyTimetable'])->name('faculty.timetable');
 
@@ -1219,7 +1219,7 @@ Route::group(['prefix' => '/erp'], function () {
     // ========================================================
     //COE route
 
-    Route::group(['prefix' => '/coe',], function () {
+    Route::group(['prefix' => '/coe', 'middleware' => 'auth'], function () {
         Route::get('dashboard', [CoeDashboardController::class, 'index'])->name('coe.dashboard');
         // AJAX filter route for COE Dashboard
         Route::get('dashboard/filter', [CoeDashboardController::class, 'filter'])->name('coe.dashboard.filter');
@@ -1320,7 +1320,7 @@ Route::group(['prefix' => '/erp'], function () {
     // ========================================================
     // Principal Module Routes
 
-    Route::group(['prefix' => '/principal',], function () {
+    Route::group(['prefix' => '/principal', 'middleware' => 'auth'], function () {
         Route::get('dashboard', [PrincipalController::class, 'dashboard'])->name('principal.dashboard');
         Route::get('students', [PrincipalController::class, 'students'])->name('principal.students.index');
         Route::get('subjects', [PrincipalController::class, 'subjects'])->name('principal.subjects.index');
@@ -1377,7 +1377,7 @@ Route::group(['prefix' => '/erp'], function () {
 
     // ========================================================
     // Receptionist Module Routes
-    Route::group(['prefix' => '/receptionist'], function () {
+    Route::group(['prefix' => '/receptionist', 'middleware' => 'auth'], function () {
         Route::get('dashboard', [ReceptionistController::class, 'dashboard'])->name('receptionist.dashboard');
 
         Route::get('faculty', [ReceptionistController::class, 'facultyIndex'])->name('receptionist.faculty.index');
@@ -1396,7 +1396,7 @@ Route::group(['prefix' => '/erp'], function () {
 
     // ========================================================
     // Event Coordinator
-    Route::group(['prefix' => '/event-coordinator',], function () {
+    Route::group(['prefix' => '/event-coordinator', 'middleware' => 'auth'], function () {
         Route::get('dashboard', [EventCoordinatorController::class, 'dashboard'])->name('event-coordinator.dashboard');
 
         // Events
@@ -1512,7 +1512,7 @@ Route::group(['prefix' => '/erp'], function () {
 
     // ========================================================
     // Central Office Module
-    Route::group(['prefix' => '/central-office'], function () {
+    Route::group(['prefix' => '/central-office', 'middleware' => 'auth'], function () {
         Route::get('dashboard', [CentralOfficeController::class, 'dashboard'])->name('central-office.dashboard');
         Route::get('students', [CentralOfficeController::class, 'students'])->name('central-office.students.index');
         Route::get('students/export', [CentralOfficeController::class, 'exportStudents'])->name('central-office.students.export');
