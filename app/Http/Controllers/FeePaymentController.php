@@ -9,7 +9,6 @@ use App\Models\FailedTransactionLog;
 use App\Models\FeesStructure;
 use App\Models\FeeStructureHasHead;
 use App\Models\FeeStructureHasManyProgram;
-use App\Models\DegreeTrackMaster;
 use App\Models\LateFee;
 use App\Models\PaymentGatewayType;
 use App\Models\StudentMaster;
@@ -137,26 +136,15 @@ class FeePaymentController extends Controller
             if (!empty($student->academic_pathway_id)) {
                 $query->where('academic_pathway_id', (int) $student->academic_pathway_id);
             } else {
-                $query->whereNull('academic_pathway_id');
+                $query->whereRaw('1 = 0');
             }
         }
 
         if (Schema::hasColumn('fees_structures', 'degree_track_id')) {
             if (!empty($student->degree_track_id)) {
-                $regularDegreeTrackId = DegreeTrackMaster::query()
-                    ->whereRaw('LOWER(name) = ?', ['regular'])
-                    ->value('id');
-
-                $query->where(function ($subQuery) use ($student, $regularDegreeTrackId) {
-                    $subQuery->where('degree_track_id', (int) $student->degree_track_id)
-                        ->orWhereNull('degree_track_id');
-
-                    if (!empty($regularDegreeTrackId) && (int) $regularDegreeTrackId !== (int) $student->degree_track_id) {
-                        $subQuery->orWhere('degree_track_id', (int) $regularDegreeTrackId);
-                    }
-                });
+                $query->where('degree_track_id', (int) $student->degree_track_id);
             } else {
-                $query->whereNull('degree_track_id');
+                $query->whereRaw('1 = 0');
             }
         }
 

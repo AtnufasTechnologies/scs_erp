@@ -346,6 +346,7 @@ $isAccountOfficeRole = strpos($roleType, 'account-office') === 0;
       Promote Students
     </button> -->
 
+    @if(!$isAccountOfficeRole)
     <button type="button" class="btn btn-light" data-bs-toggle="modal" data-bs-target="#semesterPromotion" style="margin-left:8px;">
       <i class="fas fa-arrow-right"></i> Promote Semester
     </button>
@@ -504,6 +505,7 @@ $isAccountOfficeRole = strpos($roleType, 'account-office') === 0;
         </div>
       </div>
     </div>
+    @endif
 
 
     <button type="button" class="btn btn-light" data-bs-toggle="modal" data-bs-target="#expotData">
