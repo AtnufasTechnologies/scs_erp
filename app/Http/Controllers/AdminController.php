@@ -88,6 +88,9 @@ class AdminController extends Controller
         $batchId = request()->input('batch_id');
         $academicPathwayId = request()->input('academic_pathway_id');
         $degreeTrackId = request()->input('degree_track_id');
+        $libraryCodeFilter = request()->input('library_code_filter');
+        $currentYear = request()->input('current_year');
+        $semesterId = request()->input('semester_id');
 
         $data = StudentMaster::with([
             'religionmaster:id,name',
@@ -118,6 +121,23 @@ class AdminController extends Controller
             $data->where('degree_track_id', $degreeTrackId);
         }
 
+        if ($libraryCodeFilter === 'missing') {
+            $data->where(function ($query) {
+                $query->whereNull('library_code')
+                    ->orWhere('library_code', '');
+            });
+        }
+
+        if ($currentYear !== null && $currentYear !== '') {
+            $data->where('current_year', (int) $currentYear);
+        }
+
+        if ($semesterId !== null && $semesterId !== '') {
+            $data->whereHas('activeSemesterConfig', function ($query) use ($semesterId) {
+                $query->where('semester_id', (int) $semesterId);
+            });
+        }
+
         $data = $data->paginate(12)->appends(request()->query());
 
         return view('admin.students.student-master', ['data' => $data]);
@@ -128,6 +148,9 @@ class AdminController extends Controller
         $batchId = request()->input('batch_id');
         $academicPathwayId = request()->input('academic_pathway_id');
         $degreeTrackId = request()->input('degree_track_id');
+        $libraryCodeFilter = request()->input('library_code_filter');
+        $currentYear = request()->input('current_year');
+        $semesterId = request()->input('semester_id');
 
         $data = StudentMaster::with([
             'religionmaster:id,name',
@@ -156,6 +179,23 @@ class AdminController extends Controller
             $data->where('degree_track_id', $degreeTrackId);
         }
 
+        if ($libraryCodeFilter === 'missing') {
+            $data->where(function ($query) {
+                $query->whereNull('library_code')
+                    ->orWhere('library_code', '');
+            });
+        }
+
+        if ($currentYear !== null && $currentYear !== '') {
+            $data->where('current_year', (int) $currentYear);
+        }
+
+        if ($semesterId !== null && $semesterId !== '') {
+            $data->whereHas('activeSemesterConfig', function ($query) use ($semesterId) {
+                $query->where('semester_id', (int) $semesterId);
+            });
+        }
+
         $data = $data->paginate(12)->appends(request()->query());
 
         return view('admin.students.student-master', ['data' => $data]);
@@ -168,6 +208,9 @@ class AdminController extends Controller
         $batchId = $request->input('batch_id');
         $academicPathwayId = $request->input('academic_pathway_id');
         $degreeTrackId = $request->input('degree_track_id');
+        $libraryCodeFilter = $request->input('library_code_filter');
+        $currentYear = $request->input('current_year');
+        $semesterId = $request->input('semester_id');
 
         $query = StudentMaster::with([
             'religionmaster:id,name',
@@ -195,6 +238,23 @@ class AdminController extends Controller
 
         if (!empty($degreeTrackId)) {
             $query->where('degree_track_id', $degreeTrackId);
+        }
+
+        if ($libraryCodeFilter === 'missing') {
+            $query->where(function ($q) {
+                $q->whereNull('library_code')
+                    ->orWhere('library_code', '');
+            });
+        }
+
+        if ($currentYear !== null && $currentYear !== '') {
+            $query->where('current_year', (int) $currentYear);
+        }
+
+        if ($semesterId !== null && $semesterId !== '') {
+            $query->whereHas('activeSemesterConfig', function ($q) use ($semesterId) {
+                $q->where('semester_id', (int) $semesterId);
+            });
         }
 
         if (!empty($searchTerm)) {

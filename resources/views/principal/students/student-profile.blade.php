@@ -644,7 +644,7 @@ $userRole = StaticController::fetchUserRole($userId);
         @if($data->bloodgroup)
         <span class="sp-badge"><i class="fas fa-tint"></i> {{ $data->bloodgroup->title ?? '' }}</span>
         @endif
-        @if($data->stdprogramenrolled->program_type == 2)
+        @if(optional($data->stdprogramenrolled)->program_type == 2)
         @if(!empty($studentMajorDeliveryType))
         <span class="sp-badge"><i class="fas fa-route"></i> Delivery {{ $studentMajorDeliveryType }}</span>
 

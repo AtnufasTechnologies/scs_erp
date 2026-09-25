@@ -4507,7 +4507,8 @@ class ITCellController extends Controller
                 ->pluck('library_code');
 
             foreach ($existingCodes as $libraryCode) {
-                if (preg_match('/(\d{4})$/', (string) $libraryCode, $matches)) {
+                $normalizedCode = trim((string) $libraryCode);
+                if (preg_match('/^(\d{4})$/', $normalizedCode, $matches)) {
                     $currentSequence = (int) $matches[1];
                     $usedCodes[$currentSequence] = true;
                     if ($currentSequence > $lastSequence) {
@@ -4525,14 +4526,15 @@ class ITCellController extends Controller
 
                 do {
                     $lastSequence++;
-                } while (isset($usedCodes[$lastSequence]) && $lastSequence <= 9999);
+                    $candidateCode = str_pad((string) $lastSequence, 4, '0', STR_PAD_LEFT);
+                } while ((isset($usedCodes[$lastSequence]) || StudentMaster::query()->where('library_code', $candidateCode)->exists()) && $lastSequence <= 9999);
 
                 if ($lastSequence > 9999) {
                     return back()->with('error', 'Unable to generate unique 4-digit library codes. Sequence limit reached.');
                 }
 
                 $usedCodes[$lastSequence] = true;
-                $student->library_code = str_pad((string) $lastSequence, 4, '0', STR_PAD_LEFT);
+                $student->library_code = $candidateCode;
                 $student->save();
                 $updatedCount++;
             }
@@ -4547,6 +4549,149 @@ class ITCellController extends Controller
         }
 
         return back()->with('error', 'Invalid action type selected.');
+    }
+
+    public function generateIndividualLibraryCode(int $studentId)
+    {
+        $this->assertItcellAccess();
+
+        $student = StudentMaster::query()->findOrFail($studentId);
+
+        if (!empty($student->library_code)) {
+            return back()->with('success', 'Library code already exists for this student: ' . $student->library_code);
+        }
+
+        $lastSequence = 0;
+        $usedCodes = [];
+
+        $existingCodes = StudentMaster::query()
+            ->whereNotNull('library_code')
+            ->where('library_code', '!=', '')
+            ->pluck('library_code');
+
+        foreach ($existingCodes as $libraryCode) {
+            $normalizedCode = trim((string) $libraryCode);
+            if (preg_match('/^(\d{4})$/', $normalizedCode, $matches)) {
+                $currentSequence = (int) $matches[1];
+                $usedCodes[$currentSequence] = true;
+                if ($currentSequence > $lastSequence) {
+                    $lastSequence = $currentSequence;
+                }
+            }
+        }
+
+        do {
+            $lastSequence++;
+            $candidateCode = str_pad((string) $lastSequence, 4, '0', STR_PAD_LEFT);
+        } while ((isset($usedCodes[$lastSequence]) || StudentMaster::query()->where('library_code', $candidateCode)->exists()) && $lastSequence <= 9999);
+
+        if ($lastSequence > 9999) {
+            return back()->with('error', 'Unable to generate unique 4-digit library code. Sequence limit reached.');
+        }
+
+        $student->library_code = $candidateCode;
+        $student->save();
+
+        return back()->with('success', 'Library code generated successfully for ' . trim(($student->first_name ?? '') . ' ' . ($student->last_name ?? '')) . ' (' . $student->roll_no . ').');
+    }
+
+    public function allotNextLibraryCode(int $studentId)
+    {
+        $this->assertItcellAccess();
+
+        $student = StudentMaster::query()->findOrFail($studentId);
+
+        $response = $this->nextAvailableLibraryCode();
+        $payload = $response->getData(true);
+
+        if (!is_array($payload) || !($payload['status'] ?? false) || empty($payload['library_code'])) {
+            return back()->with('error', 'Unable to generate unique 4-digit library code. Sequence limit reached.');
+        }
+
+        $nextCode = (string) $payload['library_code'];
+
+        if (StudentMaster::query()->where('id', '!=', $student->id)->where('library_code', $nextCode)->exists()) {
+            return back()->with('error', 'Next library code is already assigned. Please retry.');
+        }
+
+        $student->library_code = $nextCode;
+        $student->save();
+
+        return back()->with('success', 'Next library code ' . $nextCode . ' allotted to ' . trim(($student->first_name ?? '') . ' ' . ($student->last_name ?? '')) . ' (' . $student->roll_no . ').');
+    }
+
+    public function updateIndividualLibraryCode(Request $request, int $studentId)
+    {
+        $this->assertItcellAccess();
+
+        $student = StudentMaster::query()->findOrFail($studentId);
+
+        $validated = $request->validate([
+            'library_code' => [
+                'required',
+                'regex:/^\d{4}$/',
+                Rule::unique('student_masters', 'library_code')->ignore($student->id),
+            ],
+        ], [
+            'library_code.regex' => 'Library code must be exactly 4 digits.',
+            'library_code.unique' => 'Library code already exists for another student.',
+        ]);
+
+        $newCode = trim((string) $validated['library_code']);
+
+        if (StudentMaster::query()
+            ->where('id', '!=', $student->id)
+            ->where('library_code', $newCode)
+            ->exists()
+        ) {
+            return back()->with('error', 'Library code already exists for another student.');
+        }
+
+        $student->library_code = $newCode;
+        $student->save();
+
+        return back()->with('success', 'Library code updated successfully for ' . trim(($student->first_name ?? '') . ' ' . ($student->last_name ?? '')) . ' (' . $student->roll_no . ').');
+    }
+
+    public function nextAvailableLibraryCode()
+    {
+        $this->assertItcellAccess();
+
+        $lastSequence = 0;
+        $usedCodes = [];
+
+        $existingCodes = StudentMaster::query()
+            ->whereNotNull('library_code')
+            ->where('library_code', '!=', '')
+            ->pluck('library_code');
+
+        foreach ($existingCodes as $libraryCode) {
+            $normalizedCode = trim((string) $libraryCode);
+            if (preg_match('/^(\d{4})$/', $normalizedCode, $matches)) {
+                $currentSequence = (int) $matches[1];
+                $usedCodes[$currentSequence] = true;
+                if ($currentSequence > $lastSequence) {
+                    $lastSequence = $currentSequence;
+                }
+            }
+        }
+
+        do {
+            $lastSequence++;
+            $candidateCode = str_pad((string) $lastSequence, 4, '0', STR_PAD_LEFT);
+        } while ((isset($usedCodes[$lastSequence]) || StudentMaster::query()->where('library_code', $candidateCode)->exists()) && $lastSequence <= 9999);
+
+        if ($lastSequence > 9999) {
+            return response()->json([
+                'status' => false,
+                'message' => 'Unable to generate unique 4-digit library code. Sequence limit reached.',
+            ], 422);
+        }
+
+        return response()->json([
+            'status' => true,
+            'library_code' => $candidateCode,
+        ]);
     }
 
     function generateExcelStudentData(Request $request)

@@ -208,6 +208,10 @@ Route::group(['prefix' => '/erp'], function () {
         Route::get('itcell/integrated-student-shift', [ITCellController::class, 'integratedStudentShiftIndex'])->name('itcell.integrated-student-shift.index');
         Route::post('itcell/integrated-student-shift', [ITCellController::class, 'integratedStudentShiftStore'])->name('itcell.integrated-student-shift.store');
         Route::post('itcell-generate-librarycode', [ITCellController::class, 'generateLibraryCode'])->name('itcell.generate.librarycode');
+        Route::post('itcell-generate-librarycode/{studentId}', [ITCellController::class, 'generateIndividualLibraryCode'])->name('itcell.generate.librarycode.individual');
+        Route::post('itcell-allot-next-librarycode/{studentId}', [ITCellController::class, 'allotNextLibraryCode'])->name('itcell.allot.next.librarycode.individual');
+        Route::post('itcell-update-librarycode/{studentId}', [ITCellController::class, 'updateIndividualLibraryCode'])->name('itcell.update.librarycode.individual');
+        Route::get('itcell-next-librarycode', [ITCellController::class, 'nextAvailableLibraryCode'])->name('itcell.librarycode.next');
         Route::post('itcell-generate-excel-studentdata', [ITCellController::class, 'generateExcelStudentData'])->name('itcell.generate.excel.studentdata');
         Route::get('itcell/fa1-quizzes', [QuizOversightController::class, 'index'])->name('itcell.quizzes.index');
         Route::get('itcell/fa1-quizzes/emergency-access', [QuizOversightController::class, 'emergencyAccess'])->name('itcell.quizzes.emergency-access');

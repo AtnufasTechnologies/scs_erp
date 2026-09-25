@@ -5,14 +5,20 @@ use App\Models\StudentMaster;
 use App\Models\BatchMaster;
 use App\Models\AcademicPathwayMaster;
 use App\Models\DegreeTrackMaster;
+use App\Models\Semester;
 use App\Models\UserHasRole;
 use Illuminate\Support\Facades\Auth;
 
 $batches = BatchMaster::all();
 $pathways = AcademicPathwayMaster::orderBy('id')->get();
 $degreeTracks = DegreeTrackMaster::orderBy('name')->get();
+$semesters = Semester::orderBy('id')->get(['id', 'title']);
 $roleType = (string) UserHasRole::where('user_id', Auth::id())->value('role_name');
-$isAccountOfficeRole = strpos($roleType, 'account-office') === 0;
+$normalizedRoleType = strtolower(trim($roleType));
+$isAccountOfficeRole = strpos($normalizedRoleType, 'account-office') === 0;
+$isItcellRole = $normalizedRoleType === 'super-admin'
+  || $normalizedRoleType === 'itcell'
+  || strpos($normalizedRoleType, 'itcell-') === 0;
 ?>
 @include('includes.header')
 @if($isAccountOfficeRole)
@@ -91,7 +97,7 @@ $isAccountOfficeRole = strpos($roleType, 'account-office') === 0;
 
   .search-filters {
     display: grid;
-    grid-template-columns: 2fr 1fr 1fr 1fr;
+    grid-template-columns: 2fr repeat(6, 1fr);
     gap: 12px;
     margin-bottom: 16px;
   }
@@ -567,6 +573,9 @@ $isAccountOfficeRole = strpos($roleType, 'account-office') === 0;
     <?php $selectedBatchId = request()->input('batch_id'); ?>
     <?php $selectedPathwayId = request()->input('academic_pathway_id'); ?>
     <?php $selectedDegreeTrackId = request()->input('degree_track_id'); ?>
+    <?php $selectedLibraryCodeFilter = request()->input('library_code_filter'); ?>
+    <?php $selectedCurrentYear = request()->input('current_year'); ?>
+    <?php $selectedSemesterId = request()->input('semester_id'); ?>
     <div class="search-filters">
       <div class="search-box">
         <input type="text" id="searchInput" placeholder="Search by name, roll no, register no, email..." autocomplete="off">
@@ -593,6 +602,28 @@ $isAccountOfficeRole = strpos($roleType, 'account-office') === 0;
           <option value="">All Degree Tracks</option>
           @foreach ($degreeTracks as $track)
           <option value="{{ $track->id }}" {{ (string)$selectedDegreeTrackId === (string)$track->id ? 'selected' : '' }}>{{ $track->name }}</option>
+          @endforeach
+        </select>
+      </div>
+      <div>
+        <select id="libraryCodeFilter" class="form-control" aria-label="Filter by library code availability">
+          <option value="">All Library Code</option>
+          <option value="missing" {{ (string)$selectedLibraryCodeFilter === 'missing' ? 'selected' : '' }}>Library Code Missing</option>
+        </select>
+      </div>
+      <div>
+        <select id="currentYearFilter" class="form-control" aria-label="Filter by current year">
+          <option value="">All Current Years</option>
+          @for ($year = 1; $year <= 6; $year++)
+            <option value="{{ $year }}" {{ (string)$selectedCurrentYear === (string)$year ? 'selected' : '' }}>Year {{ $year }}</option>
+            @endfor
+        </select>
+      </div>
+      <div>
+        <select id="semesterFilter" class="form-control" aria-label="Filter by semester">
+          <option value="">All Semesters</option>
+          @foreach ($semesters as $semesterOption)
+          <option value="{{ $semesterOption->id }}" {{ (string)$selectedSemesterId === (string)$semesterOption->id ? 'selected' : '' }}>{{ $semesterOption->title }}</option>
           @endforeach
         </select>
       </div>
@@ -640,6 +671,38 @@ $isAccountOfficeRole = strpos($roleType, 'account-office') === 0;
           <span class="academic-tag">📅 Batch: {{ $item->batchmaster != null ? $item->batchmaster->batch_name : 'N/A' }}</span>
           <span class="academic-tag">📖 Active Sem: {{ $semester ?? 'Not Set' }} </span>
           <span class="academic-tag">📊 Year: {{ $item->current_year }}</span>
+          @if($isItcellRole)
+          <form method="POST" action="{{ route('itcell.generate.librarycode.individual', $item->id) }}" class="d-inline"
+            onsubmit="return confirm('Generate library code for this student?')">
+            @csrf
+            <!-- <button
+              type="submit"
+              class="btn btn-sm btn-outline-secondary"
+              {{ !empty($item->library_code) ? 'disabled' : '' }}>
+              {{ !empty($item->library_code) ? 'Library Code Exists' : 'Generate Library Code' }}
+            </button> -->
+          </form>
+          <form method="POST" action="{{ route('itcell.allot.next.librarycode.individual', $item->id) }}" class="d-inline"
+            onsubmit="return confirm('Allot next sequence library code to this student?')">
+            @csrf
+            <button
+              type="submit"
+              class="btn btn-sm btn-outline-primary">
+              Fix Library Code
+            </button>
+          </form>
+          <!-- <button
+            type="button"
+            class="btn btn-sm btn-outline-secondary correct-library-code-btn"
+            data-bs-toggle="modal"
+            data-bs-target="#correctLibraryCodeModal"
+            data-student-id="{{ $item->id }}"
+            data-student-name="{{ trim(($item->first_name ?? '') . ' ' . ($item->last_name ?? '')) }}"
+            data-roll-no="{{ $item->roll_no }}"
+            data-library-code="{{ $item->library_code ?? '' }}">
+            Manual Correct Code
+          </button> -->
+          @endif
           @if(!$isAccountOfficeRole)
           <button
             type="button"
@@ -672,6 +735,40 @@ $isAccountOfficeRole = strpos($roleType, 'account-office') === 0;
     <h3>No Results Found</h3>
     <p>Try adjusting your search terms</p>
   </div>
+
+  @if($isItcellRole)
+  <div class="modal fade" id="correctLibraryCodeModal" tabindex="-1" aria-labelledby="correctLibraryCodeModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h5 class="modal-title" id="correctLibraryCodeModalLabel">Correct Library Code</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+        </div>
+        <form method="POST" id="correctLibraryCodeForm" action="">
+          @csrf
+          <div class="modal-body">
+            <p class="mb-2" id="correctLibraryCodeStudentInfo"></p>
+            <label for="correctLibraryCodeInput" class="form-label">Library Code (4 digits)</label>
+            <input
+              type="text"
+              class="form-control"
+              id="correctLibraryCodeInput"
+              name="library_code"
+              maxlength="4"
+              pattern="\d{4}"
+              inputmode="numeric"
+              required>
+            <small class="text-muted">Use a unique 4-digit numeric code.</small>
+          </div>
+          <div class="modal-footer">
+            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+            <button type="submit" class="btn btn-primary">Save Code</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+  @endif
 </div>
 
 
@@ -687,7 +784,11 @@ $isAccountOfficeRole = strpos($roleType, 'account-office') === 0;
   const batchFilter = document.getElementById('batchFilter');
   const pathwayFilter = document.getElementById('pathwayFilter');
   const degreeTrackFilter = document.getElementById('degreeTrackFilter');
+  const libraryCodeFilter = document.getElementById('libraryCodeFilter');
+  const currentYearFilter = document.getElementById('currentYearFilter');
+  const semesterFilter = document.getElementById('semesterFilter');
   const isAccountOfficeRole = @json($isAccountOfficeRole);
+  const isItcellRole = @json($isItcellRole);
   const studentMasterContainer = document.querySelector('.student-master-container');
 
   let searchTimeout;
@@ -697,6 +798,9 @@ $isAccountOfficeRole = strpos($roleType, 'account-office') === 0;
   const initialBatchId = new URLSearchParams(window.location.search).get('batch_id') || '';
   const initialPathwayId = new URLSearchParams(window.location.search).get('academic_pathway_id') || '';
   const initialDegreeTrackId = new URLSearchParams(window.location.search).get('degree_track_id') || '';
+  const initialLibraryCodeFilter = new URLSearchParams(window.location.search).get('library_code_filter') || '';
+  const initialCurrentYear = new URLSearchParams(window.location.search).get('current_year') || '';
+  const initialSemesterId = new URLSearchParams(window.location.search).get('semester_id') || '';
   if (batchFilter && initialBatchId) {
     batchFilter.value = initialBatchId;
   }
@@ -705,6 +809,15 @@ $isAccountOfficeRole = strpos($roleType, 'account-office') === 0;
   }
   if (degreeTrackFilter && initialDegreeTrackId) {
     degreeTrackFilter.value = initialDegreeTrackId;
+  }
+  if (libraryCodeFilter && initialLibraryCodeFilter) {
+    libraryCodeFilter.value = initialLibraryCodeFilter;
+  }
+  if (currentYearFilter && initialCurrentYear) {
+    currentYearFilter.value = initialCurrentYear;
+  }
+  if (semesterFilter && initialSemesterId) {
+    semesterFilter.value = initialSemesterId;
   }
   const totalStudents = parseInt(document.getElementById('totalStudents').value) || 0;
 
@@ -743,9 +856,20 @@ $isAccountOfficeRole = strpos($roleType, 'account-office') === 0;
             <span class="academic-tag">📅 Batch: ${student.batchmaster?.batch_name || 'N/A'}</span>
             <span class="academic-tag">📖 Active Sem: ${student.current_semester || 'Not Set'}</span>
             <span class="academic-tag">📊 Year: ${student.current_year || 'N/A'}</span>
+            ${isItcellRole ? `<form method="POST" action="/erp/admin/itcell-generate-librarycode/${student.id}" class="d-inline" onsubmit="return confirm('Generate library code for this student?')">
+              <input type="hidden" name="_token" value="${csrfToken}">
+             
+            </form>
+            <form method="POST" action="/erp/admin/itcell-allot-next-librarycode/${student.id}" class="d-inline" onsubmit="return confirm('Allot next sequence library code to this student?')">
+              <input type="hidden" name="_token" value="${csrfToken}">
+              <button type="submit" class="btn btn-sm btn-outline-primary">
+               Fix Lib Code
+              </button>
+            </form>
+            ` : ''}
             ${isAccountOfficeRole ? '' : `<button
               type="button"
-              class="btn btn-sm btn-outline-danger demote-semester-btn"
+              class="btn btn-sm btn-danger "
               data-student-id="${student.id}"
               data-student-name="${(student.first_name || '')} ${(student.last_name || '')}" 
               data-semester="${student.current_semester || 0}"
@@ -778,6 +902,9 @@ $isAccountOfficeRole = strpos($roleType, 'account-office') === 0;
     const selectedBatch = batchFilter ? batchFilter.value : '';
     const selectedPathway = pathwayFilter ? pathwayFilter.value : '';
     const selectedDegreeTrack = degreeTrackFilter ? degreeTrackFilter.value : '';
+    const selectedLibraryCode = libraryCodeFilter ? libraryCodeFilter.value : '';
+    const selectedCurrentYear = currentYearFilter ? currentYearFilter.value : '';
+    const selectedSemester = semesterFilter ? semesterFilter.value : '';
     const queryParams = new URLSearchParams({
       search: searchTerm,
       campus_id: campusId
@@ -793,6 +920,18 @@ $isAccountOfficeRole = strpos($roleType, 'account-office') === 0;
 
     if (selectedDegreeTrack) {
       queryParams.append('degree_track_id', selectedDegreeTrack);
+    }
+
+    if (selectedLibraryCode) {
+      queryParams.append('library_code_filter', selectedLibraryCode);
+    }
+
+    if (selectedCurrentYear) {
+      queryParams.append('current_year', selectedCurrentYear);
+    }
+
+    if (selectedSemester) {
+      queryParams.append('semester_id', selectedSemester);
     }
 
     fetch(`/erp/admin/student-search?${queryParams.toString()}`, {
@@ -855,6 +994,9 @@ $isAccountOfficeRole = strpos($roleType, 'account-office') === 0;
     const selectedBatch = batchFilter ? batchFilter.value : '';
     const selectedPathway = pathwayFilter ? pathwayFilter.value : '';
     const selectedDegreeTrack = degreeTrackFilter ? degreeTrackFilter.value : '';
+    const selectedLibraryCode = libraryCodeFilter ? libraryCodeFilter.value : '';
+    const selectedCurrentYear = currentYearFilter ? currentYearFilter.value : '';
+    const selectedSemester = semesterFilter ? semesterFilter.value : '';
 
     if (selectedBatch) {
       queryParams.set('batch_id', selectedBatch);
@@ -874,6 +1016,24 @@ $isAccountOfficeRole = strpos($roleType, 'account-office') === 0;
       queryParams.delete('degree_track_id');
     }
 
+    if (selectedLibraryCode) {
+      queryParams.set('library_code_filter', selectedLibraryCode);
+    } else {
+      queryParams.delete('library_code_filter');
+    }
+
+    if (selectedCurrentYear) {
+      queryParams.set('current_year', selectedCurrentYear);
+    } else {
+      queryParams.delete('current_year');
+    }
+
+    if (selectedSemester) {
+      queryParams.set('semester_id', selectedSemester);
+    } else {
+      queryParams.delete('semester_id');
+    }
+
     const nextUrl = queryParams.toString() ? `${currentUrl}?${queryParams.toString()}` : currentUrl;
     window.history.replaceState({}, '', nextUrl);
 
@@ -891,6 +1051,70 @@ $isAccountOfficeRole = strpos($roleType, 'account-office') === 0;
 
   if (degreeTrackFilter) {
     degreeTrackFilter.addEventListener('change', handleFilterChange);
+  }
+
+  if (libraryCodeFilter) {
+    libraryCodeFilter.addEventListener('change', handleFilterChange);
+  }
+
+  if (currentYearFilter) {
+    currentYearFilter.addEventListener('change', handleFilterChange);
+  }
+
+  if (semesterFilter) {
+    semesterFilter.addEventListener('change', handleFilterChange);
+  }
+
+  const correctLibraryCodeModal = document.getElementById('correctLibraryCodeModal');
+  const correctLibraryCodeForm = document.getElementById('correctLibraryCodeForm');
+  const correctLibraryCodeInput = document.getElementById('correctLibraryCodeInput');
+  const correctLibraryCodeStudentInfo = document.getElementById('correctLibraryCodeStudentInfo');
+
+  if (correctLibraryCodeModal && correctLibraryCodeForm && correctLibraryCodeInput && correctLibraryCodeStudentInfo) {
+    correctLibraryCodeModal.addEventListener('show.bs.modal', function(event) {
+      const button = event.relatedTarget;
+      if (!button) return;
+
+      const studentId = button.getAttribute('data-student-id') || '';
+      const studentName = button.getAttribute('data-student-name') || '';
+      const rollNo = button.getAttribute('data-roll-no') || '';
+      const libraryCode = button.getAttribute('data-library-code') || '';
+
+      correctLibraryCodeForm.action = `/erp/admin/itcell-update-librarycode/${studentId}`;
+      correctLibraryCodeInput.value = '';
+      correctLibraryCodeStudentInfo.textContent = `${studentName} (${rollNo}) | Current: ${libraryCode || 'N/A'} | Loading next code...`;
+
+      fetch('/erp/admin/itcell-next-librarycode', {
+          method: 'GET',
+          headers: {
+            'X-Requested-With': 'XMLHttpRequest',
+            'Accept': 'application/json'
+          }
+        })
+        .then(async response => {
+          const payload = await response.json();
+          if (!response.ok || !payload.status || !payload.library_code) {
+            throw new Error(payload.message || 'Failed to fetch next library code.');
+          }
+          return payload;
+        })
+        .then(payload => {
+          correctLibraryCodeInput.value = payload.library_code;
+          correctLibraryCodeStudentInfo.textContent = `${studentName} (${rollNo}) | Current: ${libraryCode || 'N/A'} | Suggested New: ${payload.library_code}`;
+        })
+        .catch(() => {
+          correctLibraryCodeInput.value = libraryCode || '';
+          correctLibraryCodeStudentInfo.textContent = `${studentName} (${rollNo}) | Current: ${libraryCode || 'N/A'} | Could not fetch next code.`;
+        });
+    });
+
+    correctLibraryCodeForm.addEventListener('submit', function(event) {
+      const val = (correctLibraryCodeInput.value || '').trim();
+      if (!/^\d{4}$/.test(val)) {
+        event.preventDefault();
+        alert('Library code must be exactly 4 digits.');
+      }
+    });
   }
 
   studentsGrid.addEventListener('click', function(event) {
